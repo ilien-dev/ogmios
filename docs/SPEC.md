@@ -1,0 +1,673 @@
+# Ogmios — Especificación del MVP
+
+> Aplicación de escritorio open source para mejorar el inglés conversando con Claude.
+> El usuario habla (voz o texto) sin interrupciones; al final recibe poco feedback, bien elegido,
+> y una memoria de errores guía las siguientes conversaciones.
+
+Estado: borrador v1 · Fecha: 2026-09-24 · Licencia: AGPL-3.0
+
+---
+
+## 0. Resumen en una página
+
+| Decisión   | Valor                                                                                   |
+| ---------- | --------------------------------------------------------------------------------------- |
+| Usuario    | Adulto de cualquier idioma nativo que quiere hablar inglés con más soltura              |
+| Plataforma | Escritorio: Linux, macOS, Windows (desarrollo y pruebas en Linux)                       |
+| Stack      | Tauri 2 + React + TypeScript + Tailwind CSS; sidecar Node/Bun para Claude; SQLite local |
+| Modelo     | Claude (un solo modelo elegido por el usuario para todo; recomendado Sonnet 5)          |
+| Conexión   | API key (vía segura) + Claude Code local (binario del usuario, con aviso de riesgo)     |
+| Entrada    | Voz → texto local (editable antes de enviar) o texto escrito                            |
+| Salida     | Solo texto (sin voz sintética)                                                          |
+| Datos      | 100 % locales                                                                           |
+| Idioma UI  | Inglés y español, con i18n listo para más                                               |
+| Feedback   | Al final de la sesión: 1 foco + 2 menores, autocorrección primero                       |
+| Objetivo   | Open source, reputación. Todo lo discutido entra al MVP, construido en hitos            |
+
+**Principio rector:** disfrute primero, nunca saturar. Cada pantalla y cada reporte se miden contra
+esa regla. Si algo abruma, se colapsa, se acorta o se hace opcional.
+
+---
+
+## 1. Viabilidad
+
+**Veredicto: viable.** El hueco de mercado es real y la técnica existe. Un riesgo serio (política de
+Anthropic) está mitigado con la vía de API key.
+
+### 1.1 Mercado
+
+Ningún producto combina las cinco piezas centrales: feedback solo al final, limitado a 1–3 puntos,
+memoria de errores entre sesiones, drills de la estructura fallada y "trae tu propio modelo".
+Cada pieza existe por separado (ver §2).
+
+### 1.2 Política de Anthropic (riesgo principal)
+
+Verificado en la documentación oficial (2026-09-24):
+
+- Agent SDK: _"Unless previously approved, Anthropic does not allow third party developers to offer
+  claude.ai login or rate limits for their products, including agents built on the Claude Agent SDK."_
+- Legal and compliance: los desarrolladores deben usar API key; no pueden ofrecer login de claude.ai
+  ni enrutar peticiones por planes Free/Pro/Max, ni recolectar esas credenciales. **Pero** no impide
+  que el usuario inicie sesión en el binario **sin modificar** de Claude Code con su propia cuenta.
+- Enero 2026: Anthropic bloqueó clientes OAuth de terceros (OpenCode). Abril 2026: según prensa,
+  las suscripciones dejaron de cubrir uso vía arneses de terceros.
+
+Consecuencias para Ogmios:
+
+1. **API key es la vía por defecto** y la recomendada en el onboarding.
+2. **Claude Code local** se ofrece como opción: Ogmios ejecuta el `claude` que el usuario ya instaló
+   y autenticó. Ogmios nunca ve, guarda ni pide credenciales de claude.ai. Se muestra un aviso claro:
+   "Usa tu instalación de Claude Code. Anthropic puede limitar este uso en apps de terceros."
+3. Antes de promocionar la vía de suscripción, pedir aprobación escrita a Anthropic.
+4. Nunca implementar un flujo OAuth propio contra claude.ai.
+
+Fuentes: https://code.claude.com/docs/en/agent-sdk/overview ·
+https://code.claude.com/docs/en/legal-and-compliance · https://www.anthropic.com/legal/consumer-terms
+
+### 1.3 Costo por sesión (estimación, no medido)
+
+Supuestos: sesión de 20 min, ~40 turnos, ~2.000 palabras del usuario, prompt de sistema de 2–3k
+tokens, historial reenviado con caché, más un análisis final.
+
+| Modelo    | Precio in/out por MTok | Sesión con caché (estimado) |
+| --------- | ---------------------- | --------------------------- |
+| Haiku 4.5 | $1 / $5                | ~$0.10                      |
+| Sonnet 5  | $2 / $10               | ~$0.20–0.25                 |
+| Opus 5.5  | $4 / $20               | ~$0.40                      |
+| Fable 5.1 | $10 / $50              | ~$0.85                      |
+
+Se mide de verdad en el Hito 0 con el campo `usage` del resultado. Opus 5.5 no permite apagar el
+razonamiento (thinking), lo que añade latencia en la charla: por eso se recomienda Sonnet 5.
+
+---
+
+## 2. Competencia
+
+| Producto              | Precio     | Feedback                     | Memoria de errores                 | Trae tu modelo   |
+| --------------------- | ---------- | ---------------------------- | ---------------------------------- | ---------------- |
+| Speak Premium Plus    | $40/mes    | En vivo + breve al final     | Sí, con drills de frases similares | No               |
+| Langua                | ~$200/año  | En vivo + reporte final      | Parcial                            | No               |
+| Praktika              | $10/mes    | En vivo, sin resumen         | No                                 | No               |
+| Univerbal             | ?          | En vivo, "mejor versión"     | Lista plana de errores             | No               |
+| Pingo AI              | $15–18/mes | Al final, nota inflada       | No                                 | No               |
+| Loora                 | ?          | En vivo + resumen            | Débil                              | No               |
+| Duolingo Max          | ~$30/mes   | Al final (Roleplay)          | Solo repaso Duolingo               | No               |
+| polyglot (OSS, 2.6k★) | Gratis     | En vivo                      | No                                 | API keys         |
+| freelingo (OSS)       | Gratis     | Plan CEFR + flashcards       | Sí                                 | Anthropic/Ollama |
+| EchoWise (OSS, Tauri) | Gratis     | Nunca interrumpe, nota 1–100 | No                                 | OpenAI           |
+
+**Huecos que Ogmios llena:**
+
+1. Feedback diferido de verdad, sin notas infladas.
+2. Priorización explícita: pocos errores, los que importan, el resto guardado.
+3. Estados por error (detectado → foco → mejorando → dominado → recaída), medidos en conversación
+   espontánea, no en ejercicios.
+4. "Pudiste decir…" sobre lo que el usuario realmente dijo, después de la charla.
+5. Escritorio, local, gratis, con la cuenta de Claude del usuario.
+6. Buen nivel para avanzados (C1+), donde los competidores quedan cortos.
+
+Competidor a vencer: **Speak Premium Plus** (el único maduro con memoria + drills).
+Referencia de calidad conversacional: **Langua**.
+
+---
+
+## 3. Principios de diseño (con base en investigación)
+
+Etiquetas: **[F]** evidencia fuerte · **[M]** mixta · **[I]** inferencia de diseño.
+
+1. **Corregir funciona y dura** [F] (Lyster & Saito 2010; Li 2010). El feedback es el núcleo, no un extra.
+2. **Diferir tiene un costo** [M]. Se compensa mostrando la frase exacta del usuario con su contexto.
+   Durante la charla, Claude sí pide aclaración cuando de verdad no entiende ("Sorry, do you mean…?").
+   Eso es conversación real, no corrección.
+3. **Autocorrección primero en errores de regla** [F] (prompts > recasts, sobre todo en niveles bajos).
+   En vocabulario y colocaciones se da la versión correcta directo [M].
+4. **Pocos errores a la vez** [M]. 1 foco + 2 menores.
+5. **Priorizar:** errores globales (impiden entender) → recurrentes → "listos" (a veces bien, a veces
+   mal) → tratables por regla. Ignorar deslices que el usuario ya corrigió y estructuras muy por
+   encima de su nivel [I].
+6. **Dominar = uso espontáneo** [I]. Los drills ayudan, pero solo la conversación prueba dominio.
+7. **Drills mezclados** [M]. Una ronda corta de la misma estructura para calentar, luego mezclada con
+   otros errores activos.
+8. **Tarea, no interrogatorio** [F]. Claude opina, cuenta anécdotas, crea huecos de información.
+   El usuario produce al menos el 60 % de las palabras.
+9. **La novedad se agota** [M] (Wu & Yu 2023). Rotar modos y personalidades; progreso visible.
+10. **Menos ansiedad, mejor aprendizaje** [F] (r = −.36, Teimouri 2019). Sin corrección en vivo,
+    texto como opción suave, racha que no castiga.
+
+---
+
+## 4. Niveles
+
+| Nivel en UI | CEFR  | Turno de Claude          | Meta por turno del usuario (inicial, ajustable) | Prioridad del feedback                        |
+| ----------- | ----- | ------------------------ | ----------------------------------------------- | --------------------------------------------- |
+| Básico      | A1–A2 | 1–2 frases cortas        | 5–15 palabras                                   | Fluidez y hacerse entender                    |
+| Intermedio  | B1–B2 | 2–3 frases (B2: hasta 4) | 20–60 palabras                                  | + precisión en patrones frecuentes            |
+| Avanzado    | C1–C2 | hasta 4 frases           | 60–120 palabras                                 | Complejidad, precisión, registro, naturalidad |
+
+El nivel controla:
+
+- **Vocabulario y gramática de Claude.**
+- **Largo de respuesta esperada** (pista + medidor, §6.3).
+- **Tipo de preguntas:** básico = hechos concretos y opciones; avanzado = hipótesis, debate, matices.
+- **Exigencia del feedback:** básico ignora detalles finos; avanzado corrige registro y naturalidad.
+- **Andamiaje:** básico muestra palabras clave e inicios de frase ("I think that…"); avanzado, nada.
+- **Idioma nativo permitido:** básico puede mezclar palabras de su idioma (Claude da la palabra en
+  inglés en su respuesta); avanzado, todo en inglés.
+- **Ritmo y modismos de Claude:** básico, frases simples; avanzado, phrasal verbs, idioms, humor.
+- **Estructura objetivo:** Claude provoca el uso de los patrones en foco (§8.5).
+
+**Nivel estimado.** El usuario elige nivel por sesión. Tras cada análisis, Ogmios estima el CEFR con
+una rúbrica de 5 dimensiones (rango, precisión, fluidez, interacción, coherencia; CEFR Companion
+Volume, apéndice 3) más las métricas de §10. Si 3 sesiones seguidas quedan fuera del nivel elegido,
+sugiere cambiar. Nunca cambia solo.
+
+---
+
+## 5. Onboarding (primera vez)
+
+Pantallas, una por paso, saltables salvo 1 y 5:
+
+1. **Idioma nativo** (define idioma del feedback y la UI si hay traducción).
+2. **Nombre** (opcional).
+3. **Para qué quieres inglés:** trabajo · viajes · exámenes · social · otro. Afecta prioridades:
+   trabajo sube el peso de registro formal; social, el de naturalidad.
+4. **Intereses:** chips + texto libre. Alimenta temas sugeridos.
+5. **Conexión a Claude:** API key (recomendado) o Claude Code local (detecta `claude` en PATH, prueba
+   con una llamada mínima, muestra el aviso de §1.2). Selector de modelo (default Sonnet 5).
+6. **Voz:** descarga del modelo de voz a texto (muestra tamaño) o "solo texto por ahora".
+7. **Variante de inglés:** americano / británico.
+8. **Recordatorio diario:** hora o ninguno.
+9. **Nivel inicial:** básico / intermedio / avanzado, con una descripción de una línea de cada uno.
+
+El perfil sigue creciendo: durante el análisis, Claude extrae datos que el usuario mencionó
+("trabajo en logística", "tengo un perro") y los guarda en `profile_facts`. El usuario puede verlos y
+borrarlos.
+
+---
+
+## 6. Flujo de una sesión
+
+### 6.1 Pantalla de inicio
+
+Un botón grande **"Empezar charla"** con un tema sugerido ya cargado. Debajo, en pequeño:
+
+- Foco actual: "Estás trabajando: present perfect".
+- Repaso pendiente si lo hay: "2 min de práctica pendiente" (opcional).
+- Racha suave.
+
+Un clic empieza. "Personalizar" abre el setup completo.
+
+### 6.2 Setup de sesión
+
+- **Tema:** prompt corto (máx. 200 caracteres) o chips sugeridos del perfil.
+- **Nivel:** básico / intermedio / avanzado.
+- **Modo:** charla casual · entrevista de trabajo · debate · contar una historia · roleplay
+  (restaurante, aeropuerto, reunión…) · material propio (pegar un artículo o correo).
+- **Personalidad de Claude:** amigo curioso · entrevistador exigente · colega de trabajo ·
+  alguien que no está de acuerdo contigo.
+- **Enfoque:** libre · practicar lo pendiente (Claude guía la charla hacia los patrones en foco).
+- **Duración objetivo:** 5 · 10 · 20 min de habla · sin límite.
+
+Se recuerda la última configuración.
+
+### 6.3 Conversación
+
+- Claude abre con **una pregunta inicial que abre pero guía**: concreta, ligada al tema, y cuya forma
+  sugiere el largo esperado. Ejemplo intermedio, tema "mi trabajo":
+  _"What's one thing you did at work this week that you're proud of? Tell me what happened."_
+- Bajo cada pregunta, **pista de largo**: "Try 2–3 sentences".
+- **Medidor en vivo:** barra que se llena mientras el usuario habla o escribe, hasta la meta del
+  nivel. Sin castigo si no llega.
+- **Mensaje animador** fijo y discreto, que rota:
+  "Keep going — say it however you can. We'll fix things at the end."
+- **Micrófono:** pulsar para hablar (push-to-talk) o alternar. Al soltar, aparece la transcripción
+  editable. Enviar con Enter.
+- **Botón "¿Cómo digo…?":** el usuario escribe en su idioma y recibe 1–3 opciones en inglés al
+  instante. Única excepción a "no corregir en vivo". Se guarda para el reporte (vocabulario).
+- **Claude no corrige.** Si el usuario mezcla idiomas en nivel básico, Claude usa la palabra en inglés
+  dentro de su respuesta de forma natural. Si no entiende, pide aclaración.
+- **Botón "Terminar"** siempre visible.
+
+### 6.4 Meta de duración (por producción, no por reloj)
+
+El tiempo se mide en **minutos de habla**, no en tiempo de pantalla:
+
+- Voz: segundos con voz detectada (VAD, detección de actividad de voz) en los audios del usuario.
+- Texto: palabras escritas ÷ 100 palabras/min (constante estimada, ajustable).
+
+Al llegar a la meta: aviso discreto "Llegaste a tu meta. ¿Seguir o ver feedback?". Diez minutos en
+silencio no cuentan.
+
+### 6.5 Edición de la transcripción
+
+Se guardan dos textos por turno: `said_text` (lo transcrito) y `sent_text` (lo enviado).
+El análisis compara ambos y clasifica cada cambio:
+
+- **Error del modelo de voz** (palabra que suena parecido, puntuación, nombres propios): se ignora.
+- **Autocorrección del usuario** (verbo, estructura, palabra cambiada por otra de sentido distinto):
+  se registra como evento `self_corrected` del patrón. Cuenta como señal positiva
+  ("Lo notaste tú solo") y como uso "a medias" para el estado del patrón.
+
+Automático, sin preguntar al usuario.
+
+---
+
+## 7. Reporte de fin de sesión
+
+Se presenta **por pasos**: una tarjeta a la vez, estilo historias, cada una saltable. Duración
+objetivo de lectura: ≤ 2 min. Orden:
+
+1. **Logro.** 1–2 cosas concretas que hizo bien, con evidencia ("Usaste bien el past simple 8 veces").
+   Incluye **tu mejor frase** de la sesión (va a la colección del perfil).
+2. **Foco (1).** El error prioritario:
+   - Errores de regla: la frase original marcada → "¿Puedes arreglarla?" → el usuario escribe o dice
+     su intento → pista si falla → corrección + explicación de una o dos líneas en su idioma.
+   - Errores de vocabulario o colocación: frase original → versión correcta → por qué.
+   - Si el patrón es recurrente: "Esto apareció en 4 de tus últimas 6 charlas" o
+     "Antes 5 veces, hoy 1".
+3. **Menores (2).** Formato corto, mismo flujo.
+4. **Pudiste decir…** 2–3 frases correctas pero mejorables, con versión más natural o rica.
+   **Reescritura nativa** de un fragmento, lado a lado, colapsada por defecto.
+5. **Vocabulario.** Palabras pedidas con "¿Cómo digo…?" y 2–3 palabras útiles que usó Claude.
+6. **Métricas.** Minutos de habla, palabras, errores por 100 palabras, palabras por turno, variedad
+   léxica. Siempre como tendencia frente a sesiones anteriores, nunca como nota.
+7. **Reto para la próxima.** Una misión: "En tu próxima charla usa 2 veces el present perfect".
+   Se valida sola en la siguiente sesión.
+8. **Cierre.** "¿Practicar este punto 2 min?" (drill opcional) · "Otra charla" · "Listo".
+
+Cada corrección tiene un botón **"No estoy de acuerdo"**: marca el evento como disputado, no cuenta
+para la memoria y queda registrado para mejorar los prompts. Protege la confianza ante falsos
+positivos del modelo.
+
+**Sin calificación numérica.** Nivel CEFR estimado solo en el mapa de progreso.
+
+---
+
+## 8. Memoria de errores
+
+### 8.1 Concepto
+
+Un **patrón** es un error recurrente normalizado ("present perfect vs past simple con time
+expressions", "falta de artículo antes de sustantivos contables", "make vs do").
+Cada aparición, uso correcto o autocorrección es un **evento** ligado a un turno.
+
+### 8.2 Estados
+
+```
+Detectado ──(elegido como foco)──▶ En foco ──(≥40 % correcto)──▶ Mejorando ──(criterio)──▶ Dominado
+                                      ▲                                                     │
+                                      └──────────────── Recaída ◀──(falla tras dominar)─────┘
+```
+
+| Estado    | Criterio                                                                                                              |
+| --------- | --------------------------------------------------------------------------------------------------------------------- |
+| Detectado | Apareció al menos una vez; no se ha mostrado como foco                                                                |
+| En foco   | Elegido como foco o menor en un reporte                                                                               |
+| Mejorando | 40–79 % de usos correctos espontáneos, o correcto solo en drills                                                      |
+| Dominado  | ≥80 % correcto en ≥3 conversaciones distintas, ≥5 contextos obligatorios, último uso ≥7 días después del último drill |
+| Recaída   | Falla en conversación estando Dominado; vuelve a En foco con prioridad alta                                           |
+
+"Contexto obligatorio" = un punto donde la estructura era necesaria (p. ej., hablar de experiencias
+de vida sin fecha pide present perfect).
+
+Todos los umbrales son constantes configurables en código.
+
+### 8.3 Límites
+
+- Máximo **1 foco activo** hasta que pase a Mejorando; máximo **3 patrones activos** (En foco o
+  Mejorando) a la vez. El resto espera en Detectado.
+- El foco no cambia en cada sesión: se mantiene hasta que avance, para no dispersar.
+
+### 8.4 Priorización (código determinista, no el modelo)
+
+El modelo etiqueta; el código decide. Puntaje por patrón candidato:
+
+```
+score = 3·global            // impide entender
+      + 2·min(sesiones_con_error, 4)/4
+      + 2·listo             // 20–79 % correcto: a veces bien, a veces mal
+      + 1·por_regla         // tratable con una regla
+      + 1·peso_meta         // p. ej. registro si la meta es trabajo
+      + 3·recaida
+      − 3·sobre_nivel       // estructura muy por encima del nivel
+```
+
+Ignorar: deslices autocorregidos en el mismo turno, errores con baja confianza, eventos con sospecha
+de error de transcripción.
+
+### 8.5 Cómo la memoria guía las charlas
+
+Al iniciar sesión, el prompt de Claude recibe los patrones activos y sus contextos obligatorios.
+Con enfoque "practicar lo pendiente" o si hay reto activo, Claude diseña la charla para que la
+estructura sea **esencial a la tarea** (pasado → pedir una historia; condicional → dilema
+hipotético), sin mencionarlo ni corregir.
+
+---
+
+## 9. Drills y repaso espaciado
+
+### 9.1 Formatos
+
+1. **5 frases** con la estructura: 5 situaciones distintas, el usuario produce la frase.
+2. **Transformación:** "Convierte esta frase a present perfect".
+3. **Mini-charla dirigida:** 2 min de conversación diseñada para forzar la estructura.
+4. **Detecta el error:** frases con y sin el error; el usuario elige cuál está mal y la arregla.
+
+### 9.2 Estructura de una sesión de práctica (~2 min)
+
+- 3 ítems de la misma estructura (calentamiento).
+- 2 ítems mezclados con otros patrones activos (interleaving).
+- Corrección una por una. Si falla: explicación breve y un ítem nuevo equivalente (máx. 1 reintento).
+
+Los drills registran eventos `drill_ok` / `drill_fail`. **No** bastan para Dominado.
+
+### 9.3 Calendario
+
+Repaso de cada patrón activo a los 1 → 3 → 7 → 21 días. Un patrón vencido:
+
+- aparece como "2 min de práctica pendiente" en inicio (opcional), y
+- se inyecta como estructura objetivo en la siguiente charla.
+
+---
+
+## 10. Métricas por sesión
+
+Calculadas en código a partir de los turnos (las de complejidad y errores las aporta el análisis):
+
+| Métrica                                       | Fuente         |
+| --------------------------------------------- | -------------- |
+| Minutos de habla                              | VAD / palabras |
+| Palabras del usuario y % del total            | Turnos         |
+| Palabras por turno                            | Turnos         |
+| Variedad léxica (MTLD)                        | Código         |
+| Errores por 100 palabras (globales y locales) | Análisis       |
+| Cláusulas por oración, % subordinadas         | Análisis       |
+| Velocidad de habla y pausas                   | Solo voz       |
+
+Voz y texto no se comparan entre sí (la escritura da más precisión, el habla más complejidad):
+las tendencias se muestran separadas por modo. Tendencias sobre ≥5 sesiones.
+
+---
+
+## 11. Hábito y progreso
+
+- **Racha suave:** días con al menos 1 sesión; 2 "días libres" por semana que no rompen la racha.
+- **Recordatorio diario:** notificación de escritorio a la hora elegida; desactivable.
+- **Mapa de progreso:** patrones por estado (dominados vs activos), minutos de habla por semana,
+  nivel CEFR estimado en el tiempo, colección de mejores frases, vocabulario aprendido.
+- **Rotación anti-novedad:** si el usuario repite el mismo modo 4 sesiones, el inicio sugiere otro.
+
+---
+
+## 12. Voz a texto
+
+- **Local por defecto**, en Rust, con parakeet.cpp (MIT) cargado en tiempo de ejecución. Modelo por
+  defecto: **Parakeet TDT 0.6B v3** (multilingüe, 742 MB, CC-BY-4.0), con pista de idioma `auto`
+  para que una palabra en el idioma nativo salga legible. Alternativa ligera: **Parakeet TDT-CTC
+  110M** (solo inglés, 143 MB).
+- Descarga única del modelo, con tamaño visible y verificación sha256. Opción de API en la nube
+  para equipos lentos (v2).
+- **Riesgo:** los modelos de voz tienden a "limpiar" lo dicho. Medido en H0 con voz sintética
+  (Piper TTS, no un acento real): "Yesterday I go to the store and buy two apple" salió literal en
+  ambos modelos (110M: 71 ms; v3: 948 ms). Mitigación restante: guardar el audio y marcar
+  `asrSuspect` en el análisis.
+- **Mezcla de idiomas:** resuelta con el modelo v3 multilingüe.
+- **Captura de audio en Rust** (crate `cpal`), no en el webview: `getUserMedia` en WebKitGTK (Linux)
+  es poco fiable.
+- Audio guardado localmente (WAV 16 kHz mono 16 bits), borrable por sesión o en bloque desde ajustes.
+
+---
+
+## 13. Conexión a Claude
+
+Una interfaz `Provider` en el sidecar con dos implementaciones:
+
+| Modo              | Implementación                                                                                      | Credenciales                              |
+| ----------------- | --------------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| API key           | `@anthropic-ai/sdk` (Messages API) directo                                                          | Key en el llavero del sistema (keyring)   |
+| Claude Code local | `@anthropic-ai/claude-agent-sdk` con `pathToClaudeCodeExecutable` apuntando al `claude` del usuario | Las de su instalación; Ogmios no las toca |
+
+Por qué dos caminos: en modo API no hace falta empaquetar el binario de Claude Code (mantiene la app
+ligera, que es la razón de usar Tauri) y la Messages API da control directo de caché y salida
+estructurada. La interfaz deja la puerta abierta a Ollama en el futuro.
+
+Configuración del modo Claude Code (verificar en Hito 0):
+
+- `systemPrompt`: string propio (reemplaza el de Claude Code).
+- `settingSources: []`: no carga CLAUDE.md ni ajustes del usuario.
+- `tools: []`: sin herramientas de archivos ni shell. **No verificado** que quite todas.
+- `includePartialMessages: true` para streaming.
+- Sesión: guardar `session_id` y reanudar con `resume`.
+
+**Un solo modelo** para charla, análisis y drills, elegido por el usuario. Default: Sonnet 5.
+
+---
+
+## 14. Arquitectura
+
+```
+┌────────────────────────── Tauri app ──────────────────────────┐
+│  Webview: React + TypeScript + Tailwind CSS + i18next         │
+│     │ invoke / events                                         │
+│  Rust core                                                    │
+│   ├─ db: SQLite (rusqlite), migraciones                       │
+│   ├─ audio: cpal → VAD → STT (sherpa-onnx)                    │
+│   ├─ memory: estados, priorización, calendario (determinista) │
+│   ├─ metrics: palabras, MTLD, minutos de habla                │
+│   ├─ notifications, keyring, descarga de modelos              │
+│   └─ sidecar manager ──stdio JSON-lines──┐                    │
+│                                          ▼                    │
+│  Sidecar "ogmios-agent" (TS compilado con bun --compile)      │
+│   └─ Provider: Messages API | Agent SDK (claude del usuario)  │
+└───────────────────────────────────────────────────────────────┘
+```
+
+Reglas:
+
+- **Rust es el dueño de los datos.** El sidecar no toca SQLite: recibe el contexto en cada llamada y
+  devuelve texto o JSON.
+- **El modelo etiqueta, el código decide.** Estados, prioridades y calendario son código probado.
+- Sidecar declarado con `externalBin` de Tauri, un binario por plataforma.
+
+### 14.1 Protocolo sidecar (JSON-lines por stdio)
+
+| Método           | Entrada                                                           | Salida                                 |
+| ---------------- | ----------------------------------------------------------------- | -------------------------------------- |
+| `chat.start`     | perfil, setup, patrones activos, reto                             | `session_ref`, primer mensaje (stream) |
+| `chat.turn`      | `session_ref`, texto del usuario                                  | deltas de texto (stream)               |
+| `help.translate` | texto en L1, contexto                                             | 1–3 opciones en inglés                 |
+| `analyze`        | transcript completo (said/sent), patrones existentes, nivel, meta | JSON `Analysis`                        |
+| `report.compose` | patrones elegidos por Rust, análisis                              | JSON de tarjetas en idioma nativo      |
+| `drill.generate` | patrones, formato                                                 | ítems                                  |
+| `drill.grade`    | ítem, respuesta                                                   | correcto/incorrecto + explicación      |
+| `provider.check` | modo, modelo                                                      | ok / error legible                     |
+
+### 14.2 JSON `Analysis` (resumen)
+
+```ts
+type Analysis = {
+  errors: {
+    turn_id: string;
+    original: string; // fragmento exacto
+    corrected: string;
+    kind:
+      | "grammar_rule"
+      | "lexical"
+      | "collocation"
+      | "word_order"
+      | "register"
+      | "pronoun"
+      | "other";
+    global: boolean; // impide entender
+    pattern: { existing_id?: string; new_key?: string; description: string };
+    confidence: number; // 0–1; < 0.6 se descarta
+    asr_suspect: boolean; // posible error de transcripción
+  }[];
+  correct_uses: { turn_id: string; pattern_id: string }[]; // contextos obligatorios bien usados
+  missed_contexts: { turn_id: string; pattern_id: string }[];
+  edits: {
+    turn_id: string;
+    type: "asr_fix" | "self_correction";
+    pattern_hint?: string;
+  }[];
+  could_have_said: {
+    turn_id: string;
+    original: string;
+    better: string;
+    why: string;
+  }[];
+  native_rewrite: { original: string; rewrite: string };
+  strengths: { text: string; evidence_turn_ids: string[] }[];
+  best_sentence_turn_id: string;
+  complexity: { clauses_per_unit: number; subordination_ratio: number };
+  cefr_rubric: {
+    range: string;
+    accuracy: string;
+    fluency: string;
+    interaction: string;
+    coherence: string;
+  };
+  profile_facts: string[];
+  challenge_check?: { achieved: boolean; evidence_turn_ids: string[] };
+};
+```
+
+El modelo recibe la lista de patrones existentes y debe reusar `existing_id` antes de crear uno
+nuevo (evita duplicados).
+
+---
+
+## 15. Modelo de datos (SQLite)
+
+```
+profile(id, name, native_lang, ui_lang, goal, variant, reminder_time, model, provider_mode, created_at)
+profile_facts(id, text, source_session_id, created_at, deleted)
+interests(id, label)
+
+sessions(id, started_at, ended_at, topic, level, mode, personality, focus_mode, target_minutes,
+         speech_minutes, user_words, claude_words, estimated_cefr, report_json)
+turns(id, session_id, idx, role, said_text, sent_text, audio_path, speech_seconds, words, created_at)
+
+patterns(id, key, description_l1, kind, rule_based, state, first_seen_session, last_seen_session,
+         state_changed_at, next_review_at, review_step, priority_cache)
+pattern_events(id, pattern_id, session_id, turn_id,
+               kind /* error|correct_use|missed_context|self_corrected|drill_ok|drill_fail */,
+               disputed, created_at)
+
+drills(id, pattern_ids, format, items_json, results_json, created_at)
+vocab(id, l1_text, en_options, chosen, session_id, created_at)
+best_sentences(id, session_id, turn_id, text)
+challenges(id, session_id_created, pattern_id, text, target_count, achieved_session_id)
+streak_days(date, sessions, freeze_used)
+settings(key, value)
+```
+
+---
+
+## 16. Prompt de conversación (reglas clave)
+
+El prompt de sistema se arma por sesión con: nivel, modo, personalidad, variante, perfil, patrones
+activos, reto. Reglas fijas:
+
+- Eres un compañero de conversación, no un profesor. **Nunca corrijas** ni comentes errores.
+- Largo de turno según tabla §4. Una pregunta por turno, como máximo.
+- Comparte opiniones y anécdotas breves; reacciona a lo que dijo el usuario (backchannel:
+  "Oh really?", "That sounds stressful").
+- Plantea tareas con hueco de información (planear algo juntos, resolver un desacuerdo), no
+  cuestionarios.
+- Haz que las estructuras objetivo sean necesarias para la tarea, sin nombrarlas.
+- El usuario debe producir ≥60 % de las palabras: si tus turnos crecen, acórtalos.
+- Si no entiendes, pide aclaración natural.
+- Si el usuario usa su idioma (nivel básico), responde en inglés incluyendo la palabra en inglés.
+- El texto del usuario puede venir de reconocimiento de voz: no reacciones a errores obvios de
+  transcripción.
+- Al abrir: una pregunta concreta que guíe el tema y sugiera el largo esperado.
+
+---
+
+## 17. Interfaz
+
+- **Tailwind CSS** para todo el diseño; tokens de color, espaciado y tipografía definidos en el tema
+  de Tailwind (tema claro y oscuro).
+- Referencia visual: la sobriedad de pen.dev (fondo oscuro, tarjetas, caja de chat inferior).
+- Accesibilidad: todo usable con teclado (atajo global para el micrófono), contraste AA,
+  lectores de pantalla en el reporte.
+- i18next con `en` y `es` desde el día uno; ningún texto de UI fijo en componentes.
+
+---
+
+## 18. Hitos
+
+Todo lo anterior es el MVP. Se construye en este orden; cada hito termina usable y verificado.
+
+**H0 — Spike técnico (validar riesgos).** Hecho cuando:
+
+- Tauri abre, lanza el sidecar y recibe un "pong".
+- Modo Claude Code: conversación con `claude` del usuario, `tools: []`, streaming. Confirmado que no
+  hay herramientas disponibles.
+- Modo API key: misma conversación vía Messages API.
+- Captura de micrófono en Rust + Parakeet transcribe una frase en Linux. Medida la latencia.
+- Probado: frase con palabra en español en medio; frase con error gramatical (¿lo "arregla" el STT?).
+- Medidos tokens y costo reales de una charla de 10 min.
+
+**H1 — Conversación.** Onboarding mínimo (idioma, conexión, voz), setup (tema, nivel, modo),
+charla con voz/texto, transcripción editable, medidor, pista de largo, "¿Cómo digo…?", minutos de
+habla, meta, terminar. Todo persistido.
+
+**H2 — Análisis, reporte y memoria.** `analyze`, patrones y eventos, estados, priorización,
+reporte por pasos completo (§7), "No estoy de acuerdo", métricas.
+
+**H3 — Drills y repaso.** 4 formatos, estructura 3+2, calendario, práctica pendiente en inicio,
+inyección de patrones vencidos en la charla.
+
+**H4 — Personalización.** Onboarding completo, perfil que aprende, temas sugeridos, personalidad,
+enfoque, material propio, variante, nivel estimado y sugerencia de cambio, reto, mejor frase,
+reescritura nativa.
+
+**H5 — Hábito y publicación.** Racha, recordatorio, mapa de progreso, rotación de modos, i18n
+completo, empaquetado para Linux/macOS/Windows en CI, README, capturas, licencia AGPL-3.0.
+
+---
+
+## 19. Riesgos
+
+| Riesgo                                  | Impacto                 | Mitigación                                                        |
+| --------------------------------------- | ----------------------- | ----------------------------------------------------------------- |
+| Anthropic bloquea la vía de suscripción | Alto para ese modo      | API key como default; pedir aprobación; nunca OAuth propio        |
+| Falsos positivos en errores             | Pérdida de confianza    | Umbral de confianza, "No estoy de acuerdo", código decide estados |
+| STT oculta o inventa errores            | Feedback erróneo        | Modelo con menos sesgo, audio guardado, marca `asr_suspect`       |
+| Latencia en la charla                   | Se siente lento         | Streaming, Sonnet 5 por defecto, caché de prompt                  |
+| Tauri + sidecar + Rust para una persona | Lentitud de desarrollo  | H0 valida todo antes de construir; protocolo pequeño              |
+| Alcance grande para un MVP              | Meses sin feedback real | Hitos usables; usar la app uno mismo desde H2                     |
+| Efecto novedad                          | Abandono                | Rotación de modos, progreso visible, sesiones cortas              |
+
+---
+
+## 20. Preguntas abiertas
+
+1. ~~¿Modelo de voz multilingüe?~~ Resuelto: Parakeet v3 multilingüe por defecto.
+2. ¿Constante de 100 palabras/min para texto? (ajustar con datos propios)
+3. ¿Umbrales de Dominado (80 %, 3 sesiones, 5 contextos, 7 días)? (ajustar tras uso real)
+4. ¿Pedir aprobación a Anthropic antes o después de publicar? Recomendado: antes de promocionar el
+   modo suscripción.
+
+---
+
+## 21. Fuentes principales
+
+- Agent SDK: https://code.claude.com/docs/en/agent-sdk/overview
+- Legal y cumplimiento: https://code.claude.com/docs/en/legal-and-compliance
+- Precios: https://platform.claude.com/docs/en/about-claude/pricing
+- Tauri sidecar: https://v2.tauri.app/develop/sidecar/
+- Parakeet: https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3 · parakeet.cpp: https://github.com/mudler/parakeet.cpp
+- Lyster & Saito 2010: http://kazuyasaito.net/SSLA2010.pdf
+- Li 2010: https://onlinelibrary.wiley.com/doi/abs/10.1111/j.1467-9922.2010.00561.x
+- Karpicke & Roediger 2008: https://doi.org/10.1126/science.1152408
+- Lynch 2007 (reformulación): https://doi.org/10.1093/elt/ccm050
+- Interleaving en habla (2020): https://doi.org/10.1177/1362168820913985
+- Cepeda et al. 2008 (espaciado): https://doi.org/10.1111/j.1467-9280.2008.02209.x
+- CEFR Companion Volume: https://rm.coe.int/common-european-framework-of-reference-for-languages-learning-teaching/16809ea0d4
+- Teimouri et al. 2019 (ansiedad): https://doi.org/10.1017/s0272263118000311
+- Wu & Yu 2023 (chatbots, novedad): https://doi.org/10.1111/bjet.13334
+- Competencia: speak.com · languatalk.com/langua · univerbal.app · github.com/liou666/polyglot ·
+  github.com/artcc/freelingo · github.com/hujiulin/EchoWise · github.com/F5ve-leaFCloveR/english-tutor

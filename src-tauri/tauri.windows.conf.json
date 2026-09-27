@@ -1,0 +1,7 @@
+{
+  "bundle": {
+    "resources": {
+      "vendor/parakeet/x86_64-pc-windows-msvc/parakeet.dll": "parakeet.dll"
+    }
+  }
+}

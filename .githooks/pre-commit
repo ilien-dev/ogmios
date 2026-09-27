@@ -1,0 +1,10 @@
+#!/bin/sh
+# Formatting of what is staged; the whole tree is checked by `bun run check`.
+# Installed by `bun run hooks:install`.
+if [ -n "$(git diff --cached --name-only --diff-filter=ACMR)" ]; then
+	git diff --cached --name-only --diff-filter=ACMR -z |
+		xargs -0 bunx prettier --check --ignore-unknown || {
+		echo "Formatting: run 'bun run format'." >&2
+		exit 1
+	}
+fi

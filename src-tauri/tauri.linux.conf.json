@@ -1,0 +1,7 @@
+{
+  "bundle": {
+    "resources": {
+      "vendor/parakeet/x86_64-unknown-linux-gnu/libparakeet.so": "libparakeet.so"
+    }
+  }
+}

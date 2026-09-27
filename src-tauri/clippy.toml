@@ -1,0 +1,6 @@
+# Tests may unwrap: a panic there is the failure report.
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+# `AnalysisError` mirrors the protocol: four independent labels the model
+# assigns (global, rule-based, above level, ASR suspect). An enum would lie.
+max-struct-bools = 4

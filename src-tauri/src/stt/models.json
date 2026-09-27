@@ -1,0 +1,60 @@
+{
+  "models": [
+    {
+      "id": "parakeet-tdt-0.6b-v3",
+      "name": "Parakeet TDT 0.6B v3",
+      "languages": [
+        "bg",
+        "cs",
+        "da",
+        "de",
+        "el",
+        "en",
+        "es",
+        "et",
+        "fi",
+        "fr",
+        "hr",
+        "hu",
+        "it",
+        "lt",
+        "lv",
+        "mt",
+        "nl",
+        "pl",
+        "pt",
+        "ro",
+        "ru",
+        "sk",
+        "sl",
+        "sv",
+        "uk"
+      ],
+      "hint": "auto",
+      "licence": "CC-BY-4.0",
+      "files": [
+        {
+          "name": "model.gguf",
+          "url": "https://huggingface.co/mudler/parakeet-cpp-gguf/resolve/bf0af9f425fa01809cadec671b3cb672709d13e9/tdt-0.6b-v3-q5_k.gguf",
+          "sha256": "5ebd1d55609b5ad9dac1c457eeb87a9904f199d6fbbb738453182d010646c2e4",
+          "bytes": 741867360
+        }
+      ]
+    },
+    {
+      "id": "parakeet-tdt-ctc-110m",
+      "name": "Parakeet TDT-CTC 110M",
+      "languages": ["en"],
+      "hint": "en",
+      "licence": "CC-BY-4.0",
+      "files": [
+        {
+          "name": "model.gguf",
+          "url": "https://huggingface.co/mudler/parakeet-cpp-gguf/resolve/bf0af9f425fa01809cadec671b3cb672709d13e9/tdt_ctc-110m-q5_k.gguf",
+          "sha256": "1316a7a708a083179ea133421dc437ceee6719a159489204a1bb6ff559793e5b",
+          "bytes": 143290496
+        }
+      ]
+    }
+  ]
+}

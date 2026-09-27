@@ -1,0 +1,4 @@
+[test]
+# Two preloads, in this order: the DOM globals must exist before
+# @testing-library loads, and bun hoists its require chain above a plain import.
+preload = ["./src/test/happyDom.ts", "./src/test/setup.ts"]

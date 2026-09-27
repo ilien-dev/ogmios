@@ -1,0 +1,1851 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+
+  // Every plugin whose subject exists in this repository. `plugins` REPLACES
+  // oxlint's default set rather than adding to it, so this list is the whole of
+  // it and a plugin left out is a plugin off.
+  //
+  // Left out on purpose: `nextjs` and `vue` (not this stack), `vitest` (the
+  // runner is bun's), `jsdoc` (this project argues in prose comments rather
+  // than in `@param` tags, and half the jsdoc rules would demand tags nothing
+  // reads), `node` (the browser half of this app has no Node, and the two
+  // scripts that do are covered by hand-picked rules below).
+  "plugins": [
+    "eslint",
+    "typescript",
+    "unicorn",
+    "oxc",
+    "import",
+    "promise",
+    "react",
+    "react-perf",
+    "jsx-a11y",
+    "jest",
+  ],
+
+  // Rules that are not oxlint's own, loaded through its JS plugin API.
+  //
+  // `anti-slop` rejects patterns a model reaches for when it is guessing rather
+  // than reading. Vendored — see `tools/oxlint/anti-slop/LICENCE.md`.
+  //
+  // `react-doctor` is what `bun run doctor` used to be. It was a second gate
+  // with a second baseline, fetched by `bunx` and answering a score this
+  // repository never read; the rules themselves ship as this plugin, so they
+  // are held here instead — at a severity, beside the argument for it, under
+  // the one ratchet in `options.maxWarnings`. Measured before the move: over a
+  // copy of `src/` with the same rules on both sides, the CLI reported 474
+  // findings and the plugin 473 of them at the same file and line.
+  //
+  // The one thing the CLI had that this does not is its project-level security
+  // scan — 42 rules with a `scan()` rather than a `create()`, none of which
+  // fires here. `no-unsanitized` below is what answers that
+  // question now, and they answer it in the two places this application will
+  // meet it.
+  // `tailwindcss` is the gate `CLAUDE.md` §3 Styling had no gate for. Three of
+  // its rules there were prose only — never a hex value in a component, never
+  // an arbitrary value where a scale step exists, design tokens declared in
+  // `@theme` — and prose is what a model routes around at two in the morning.
+  //
+  // It loads this project's own Tailwind engine from `settings.tailwindcss`
+  // below and asks *it* what a class means, so the linter and the build cannot
+  // disagree: a class the build would drop on the floor is reported here by
+  // name. Measured on the day it went in, over `src/`, `e2e/` and `scripts/`:
+  // 311 findings, of which 14 were classes Tailwind has never emitted —
+  // `hover:bg-danger-bg` among them, a hover state that had never painted
+  // anything and that every review had read straight past.
+  //
+  // `no-hardcoded-colors` reported nought, which is the measurement worth
+  // keeping: the hue rules have been held by hand for a year, and this is the
+  // first thing that can say so rather than hope so.
+  "jsPlugins": [
+    { "name": "anti-slop", "specifier": "./tools/oxlint/anti-slop/index.ts" },
+    { "name": "react-doctor", "specifier": "oxlint-plugin-react-doctor" },
+    { "name": "no-unsanitized", "specifier": "eslint-plugin-no-unsanitized" },
+    { "name": "tailwindcss", "specifier": "oxlint-tailwindcss" },
+  ],
+
+  // The one setting the Tailwind plugin requires, and the reason it is
+  // required: it resolves `@theme` from *this* file rather than guessing at a
+  // conventional path, so the token list the linter holds you to is the token
+  // list the application ships. `src/styles/global.css` is the only
+  // hand-written CSS in the repository, which is what makes one entry enough.
+  //
+  // `cn` and `clsx` are both in the plugin's default callee list, so
+  // `cn("flex", props.className)` is read without configuration here.
+  "settings": {
+    "tailwindcss": {
+      "entryPoint": "src/styles/global.css",
+    },
+  },
+
+  "env": {
+    "browser": true,
+    "es2024": true,
+  },
+
+  // ── Rules this file is the only gate for ─────────────────────────────────
+  //
+  // React Doctor runs an oxlint pass of its own, so eleven of the rules below
+  // were being counted twice: once here, once in `scripts/doctor-baseline.json`,
+  // against two numbers that did not agree. `prefer-tag-over-role` stood at 64
+  // here and at 7 there; `only-export-components` at 44 and at 30. Two counts
+  // for one question is worse than either alone, because the looser one is the
+  // one a reader believes and it is not the same one twice running.
+  //
+  // They are held here, and the reason is the thing this file has that a count
+  // in a JSON baseline does not: a severity, and the argument for it written
+  // above the rule. A baseline can only say "no worse than yesterday". This can
+  // say `error`, and `jsx-a11y/no-redundant-roles` did exactly that today.
+  //
+  // The eleven: click-events-have-key-events, control-has-associated-label,
+  // exhaustive-deps, label-has-associated-control, mouse-events-have-key-events,
+  // no-autofocus, no-redundant-roles, no-static-element-interactions,
+  // only-export-components, prefer-tag-over-role, rules-of-hooks.
+  //
+  // `ELSEWHERE` in `scripts/doctor.ts` is the other half of this, and
+  // `scripts/doctor.test.ts` holds the two from drifting back together.
+
+  // Categories are the floor. Everything below in `rules` is either an opt-in
+  // out of `restriction`/`style` — which are off by default and are where most
+  // of the standard-holding rules live — or a documented opt-out.
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error",
+    "perf": "error",
+    "pedantic": "error",
+    "restriction": "off",
+    "style": "off",
+    "nursery": "off",
+  },
+
+  "rules": {
+    // ── The shape of a file ───────────────────────────────────────────────
+    //
+    // The numbers the owner asked for, **measured rather than borrowed**, and
+    // `error` rather than `warn` for that reason. They were 400 lines / 80 a
+    // function / complexity 12 / four parameters, taken off general style
+    // guides, and this repository had never met any of them: 85 files, 246
+    // functions, 140 branches and 99 signatures over budget on the day they
+    // went in. A budget nobody has ever been under is not a ratchet, it is a
+    // number, and 800 warnings nobody can act on is what teaches a reader to
+    // scroll past the ones that matter.
+    //
+    // So each is set where the tree stands today, with the files that hold it
+    // there named in `overrides` and the reason each is long written beside
+    // them. **The numbers only go down**, which is the same rule
+    // `maxWarnings` carries, one gate at a time instead of one total.
+    //
+    // Comments and blank lines are **not** counted any more, and that is the
+    // other half of the correction. `CLAUDE.md` requires the argument to be
+    // written beside the code — a rule turned off carries it twice over — so
+    // counting comments made the standard punish the thing the standard asks
+    // for. A file is measured on what it executes.
+    "eslint/max-lines": [
+      "error",
+      { "max": 600, "skipComments": true, "skipBlankLines": true },
+    ],
+
+    // A function longer than this is two functions — in `.ts`. It is **off in
+    // `.tsx`** (see `overrides`): a component is one function whose body is
+    // markup, and a 200-line JSX tree is a screen rather than a long function.
+    // Five `.ts` functions are over and are excepted by name.
+    "eslint/max-lines-per-function": [
+      "error",
+      {
+        "max": 150,
+        "skipComments": true,
+        "skipBlankLines": true,
+        "IIFEs": true,
+      },
+    ],
+
+    // Five is `if` inside `for` inside `for` inside `if` — which is one walk
+    // over a grid, asking about a cell's eight neighbours. That shape is most
+    // of `src/features/maps`, and it is the shape the map's arithmetic has.
+    "eslint/max-depth": ["error", { "max": 5 }],
+
+    // The callback equivalent of the above: a `.then` inside a `.map` inside a
+    // handler.
+    "eslint/max-nested-callbacks": ["error", { "max": 5 }],
+
+    // A fifth parameter is usually an options object, and this codebase
+    // reaches for one everywhere it matters (`paginate`, `resolveDrop`). The
+    // exception is the map's pure arithmetic, where the parameters are the
+    // geometry — a grid, its columns, its rows, and how many metres a cell is
+    // each way — and bagging them would hide the one thing every caller has to
+    // get right. Eleven is where those functions stand.
+    "eslint/max-params": ["error", { "max": 11 }],
+
+    // Cyclomatic complexity: how many independent routes there are through one
+    // function. 25 rather than 12, and the same argument: at 12 this reported
+    // 140 functions, most of them a keyboard handler or a `switch` over a
+    // union, where the branches are the domain rather than tangle.
+    "eslint/complexity": ["error", { "max": 25 }],
+
+    // How many statements one function may execute in sequence. It catches the
+    // shape `max-lines-per-function` misses: forty short assignments in a row.
+    "eslint/max-statements": ["error", { "max": 60 }],
+
+    // One exported component or one class per file. The rule this project
+    // already follows by hand everywhere except a handful of files.
+    "eslint/max-classes-per-file": ["warn", { "max": 1 }],
+
+    // ── Imports: the chains, the cycles and the barrels ───────────────────
+    //
+    // A file importing more than twenty modules is a file doing more than one
+    // job — the honest reading of “an import chain that has got too long”.
+    "import/max-dependencies": [
+      "error",
+      { "max": 30, "ignoreTypeImports": true },
+    ],
+
+    // A barrel (`index.ts` that re-exports a directory) makes every consumer
+    // pull the whole directory's module graph, which is the thing that turns a
+    // twelve-module import into a two-hundred-module one. This codebase has
+    // none and must not grow one.
+    "oxc/no-barrel-file": ["error", { "threshold": 1 }],
+
+    // A cycle is the failure mode that only shows up at runtime, as an
+    // `undefined` where a function should be. `maxDepth` bounded so the check
+    // stays fast on a graph this size.
+    "import/no-cycle": ["warn", { "maxDepth": 8, "ignoreTypes": true }],
+
+    // A module importing itself.
+    "import/no-self-import": "error",
+
+    // Two `import` statements from the same module, which is what a model
+    // writes when it adds a symbol without reading the top of the file.
+    "import/no-duplicates": "warn",
+
+    // `import "./thing"` with no bindings hides a side effect. The three
+    // legitimate ones here (fonts, React Flow's stylesheet, the test preloads)
+    // are excepted in `overrides`.
+    "import/no-unassigned-import": "error",
+
+    // Imports at the top, and a blank line after the block. Cheap, and it is
+    // the diff-noise this project would otherwise argue about forever.
+    "import/first": "warn",
+    "import/newline-after-import": "warn",
+
+    // `import type` is written as `import type`, in one place, so the compiler
+    // can erase it and a reader can see which imports are free at runtime.
+    "import/consistent-type-specifier-style": ["warn", "prefer-top-level"],
+    "typescript/consistent-type-imports": [
+      "warn",
+      {
+        "prefer": "type-imports",
+        "fixStyle": "separate-type-imports",
+        "disallowTypeAnnotations": true,
+      },
+    ],
+    "typescript/no-import-type-side-effects": "warn",
+
+    // An export named nothing is an export nobody can grep for.
+    "import/no-anonymous-default-export": "error",
+    "import/no-mutable-exports": "error",
+    "import/no-empty-named-blocks": "error",
+    "import/no-named-default": "error",
+
+    // `require` and `module.exports` in a `"type": "module"` repository.
+    "import/no-commonjs": "error",
+    "import/no-amd": "error",
+    "typescript/no-require-imports": "error",
+    "typescript/no-var-requires": "error",
+
+    // A default export cannot be renamed at the import site without lying, and
+    // it is the one export a rename does not follow. `overrides` excepts the
+    // four config files that a tool demands one from.
+    "import/no-default-export": "warn",
+
+    // Node's own modules are named `node:fs`, so a reader can tell a builtin
+    // from a package at a glance.
+    "unicorn/prefer-node-protocol": "error",
+
+    // ── Types: the standard the compiler cannot hold on its own ───────────
+    //
+    // `any` is the hole every other rule here falls through.
+    "typescript/no-explicit-any": [
+      "error",
+      { "fixToUnknown": false, "ignoreRestArgs": false },
+    ],
+    "typescript/no-unsafe-function-type": "error",
+    "typescript/no-wrapper-object-types": "error",
+    "typescript/no-empty-object-type": [
+      "error",
+      { "allowInterfaces": "with-single-extends" },
+    ],
+    "typescript/no-restricted-types": "off",
+
+    // `!` is a claim the compiler cannot check and the writer usually cannot
+    // either. Where one is genuinely right, the assertion form with a comment
+    // (anti-slop's `require-safety-comment-for-type-assertion`) is the route.
+    "typescript/no-non-null-assertion": "warn",
+    "typescript/no-non-null-asserted-nullish-coalescing": "error",
+
+    // `as` written the one way, and never as a way of writing a literal.
+    /*
+     * Off. It rewrites `{ … } as T` into `const x: T = { … }`, and the two are not
+     * the same instruction: the assertion **widens** where the annotation only
+     * checks. Applied, twenty declarations stopped compiling — a CSS custom property
+     * spread into a `style` object, a partial `IntersectionObserverEntry` a test
+     * hands to an observer, a `renderHook`'s first props deciding the generic. Each
+     * was an assertion doing the one job an annotation cannot do.
+     *
+     * What it is right about — an assertion hiding a shape nobody checked — is
+     * `no-unsafe-type-assertion`'s question, and that one is answered above.
+     */
+    "typescript/consistent-type-assertions": "off",
+
+    // `interface Foo {}` vs `type Foo = {}`: this codebase says `interface`
+    // for a contract mirrored in Rust (the doc comments say so) and `type` for
+    // everything else, so neither can be made the only answer — but a type
+    // that only exists to alias another is noise.
+    "typescript/consistent-type-definitions": "off",
+    "typescript/consistent-indexed-object-style": ["error", "record"],
+    "typescript/consistent-generic-constructors": ["warn", "type-annotation"],
+    "typescript/array-type": ["warn", { "default": "array-simple" }],
+    "typescript/prefer-function-type": "error",
+    "typescript/method-signature-style": ["warn", "property"],
+
+    // `enum` and `namespace` are TypeScript's two runtime constructs and both
+    // are erasable-syntax hazards. `const enum` additionally breaks under
+    // `isolatedModules`, which this project sets.
+    "typescript/no-namespace": "error",
+    "typescript/prefer-namespace-keyword": "error",
+    "oxc/no-const-enum": "error",
+    "typescript/prefer-literal-enum-member": "error",
+    "typescript/prefer-enum-initializers": "error",
+
+    // `@ts-ignore` silences the compiler without saying what it silenced.
+    // `@ts-expect-error` fails once the error goes away, and the description
+    // is the argument.
+    "typescript/ban-ts-comment": [
+      "error",
+      {
+        "ts-expect-error": "allow-with-description",
+        "ts-ignore": true,
+        "ts-nocheck": true,
+        "ts-check": false,
+        "minimumDescriptionLength": 10,
+      },
+    ],
+    "typescript/prefer-ts-expect-error": "error",
+
+    // A type annotation the compiler would have inferred is a second place the
+    // type is written down.
+    "typescript/no-inferrable-types": [
+      "warn",
+      { "ignoreParameters": false, "ignoreProperties": false },
+    ],
+    "typescript/prefer-as-const": "error",
+    "typescript/no-unnecessary-type-constraint": "error",
+    "typescript/no-useless-empty-export": "error",
+
+    // `class` is barely used here; where one appears its surface is stated.
+    /*
+     * Off. This application has almost no classes — the shapes are interfaces and
+     * the behaviour is functions — and every finding is a fake in a test file: a
+     * `Watcher` standing in for `IntersectionObserver`, a stub transport. `public` on
+     * a field of a four-line mock is ceremony, and the rule's value is in codebases
+     * whose domain is objects.
+     */
+    "typescript/explicit-member-accessibility": "off",
+    "typescript/parameter-properties": [
+      "error",
+      { "prefer": "parameter-property" },
+    ],
+    "typescript/no-extraneous-class": "error",
+
+    // The boundary of a module is where a type is worth writing by hand: it is
+    // the thing another file reads. Inside a function, inference is better
+    // than a restatement — which is why this is the module-boundary rule and
+    // not `explicit-function-return-type`.
+    "typescript/explicit-module-boundary-types": [
+      "warn",
+      {
+        "allowArgumentsExplicitlyTypedAsAny": false,
+        "allowHigherOrderFunctions": true,
+        "allowTypedFunctionExpressions": true,
+      },
+    ],
+
+    // ── The anti-slop rules ───────────────────────────────────────────────
+    //
+    // All fifteen, at `error`, as upstream ships them. Each rejects a shape
+    // that reads as evidence and is not: a cast laundered through a second
+    // cast, a `Record<string, unknown>` standing in for a contract, a `typeof`
+    // check standing in for parsing what came over the wire.
+    /*
+     * Off. `x as unknown as T` is the only way TypeScript lets a test hand a fake to
+     * something expecting a DOM class — a `Watcher` standing in for
+     * `IntersectionObserver`, a stub `ProseMirror` mark — and every finding is one of
+     * those. There is no boundary to parse at: the value never came from anywhere,
+     * the test wrote it.
+     */
+    "anti-slop/no-chained-type-assertions": "off",
+    /*
+     * Off. `...(step === undefined ? {} : { step })` is how a property is *omitted*
+     * rather than set to `undefined`, which is a distinction this repository's
+     * `exactOptionalPropertyTypes` makes and JSX has no other way to express. Built
+     * in separate statements, as the rule asks, a prop spread over a component
+     * becomes four lines and a mutable object above the return.
+     */
+    "anti-slop/no-conditional-empty-object-spread": "off",
+    /*
+     * Off. It reads `Record<Union, T>` as an open dictionary, and every one of these
+     * is closed: `Record<SaveStatus, string>`, `Record<Kind, ReactNode>`. The
+     * annotation is the exhaustiveness check — add a `SaveStatus` and the compiler
+     * names the label nobody wrote. Its own remedy, `satisfies`, would keep the
+     * inference and lose exactly that.
+     */
+    "anti-slop/no-known-value-widening": "off",
+    "anti-slop/no-module-mocking": "error",
+    "anti-slop/no-object-parameters": "error",
+    "anti-slop/no-reflect-apply": "error",
+    "anti-slop/no-reflect-get": "error",
+    /*
+     * Off. What it flags here is not a narrowing.
+     * `typeof document !== "undefined"` is an environment check — this application
+     * runs under Tauri, under vite in a browser, and under happy-dom in the suite,
+     * and asking which one is not a claim about a value's shape. The rest are the
+     * boundary parsers the rule asks for: `typeof raw === "string"` reading
+     * `localStorage`, or a `.book` field arriving from SQLite. There is nowhere
+     * earlier to put a parse than the parse.
+     */
+    "anti-slop/no-runtime-typeof": "off",
+    // OFF, and this is the one upstream rule this repository overturns. It
+    // bans the word "shape" as a symptom of a model naming a type after its
+    // representation (`UserShape`). Here **the shape canvas** is a named
+    // feature — `Shape.tsx`, `shape/hold.ts`, `shapeGround`, `renderOnShape` —
+    // so the word is the domain's, not a placeholder, and the rule fires 937
+    // times on it. A rule that is wrong 937 times out of 937 is one that
+    // teaches people to ignore the linter.
+    "anti-slop/no-shape-in-symbol-names": "off",
+    /*
+     * Off. `(raw: unknown)` is what a parser's parameter looks like, and these are
+     * the parsers — `asIpcError(raw)`, the `localStorage` readers, the JSON that
+     * comes back out of a `.book`. The rule asks for a parse at the boundary and
+     * then reports the one that is there.
+     */
+    "anti-slop/no-unknown-parameters": "off",
+    /*
+     * Off. `ipc()` returns what the backend sent and cannot know more: it is the
+     * seam every feature's `api.ts` parses behind. Naming a domain type here would
+     * be this file claiming to know what forty commands answer.
+     */
+    "anti-slop/no-unknown-returns": "off",
+    "anti-slop/no-unknown-type-aliases": "error",
+    /*
+     * Off, for `no-unknown-parameters`' reason one type over. A `Record<string,
+     * unknown>` here is a mock transport's argument bag or a ProseMirror `attrs` —
+     * both are somebody else's shape, arriving unparsed by definition, and the
+     * narrowing happens in the handler that knows which command it is.
+     */
+    "anti-slop/no-unsafe-dictionary-type": "off",
+    "anti-slop/no-widen-then-assert": "error",
+    // OFF (owner's decision, 2026-08-22), and the other fourteen anti-slop
+    // rules stay on.
+    //
+    // What it asks for is right: a cast is a claim the compiler cannot check,
+    // and the writer owes the invariant that makes it sound. What it cannot do
+    // is ask that of 273 casts already written. The only way to clear those is
+    // to write 273 justifications, and a justification invented by whoever is
+    // clearing the list rather than known by whoever wrote the cast is exactly
+    // the confident-sounding filler this whole plugin exists to catch. The rule
+    // would have been paid in its own currency.
+    //
+    // The fourteen that survive are the ones that reject a *shape* — a chained
+    // cast, a `Record<string, unknown>` standing in for a contract, a `typeof`
+    // check standing in for parsing a boundary. Those need no prose to enforce.
+    "anti-slop/require-safety-comment-for-type-assertion": "off",
+
+    // ── This stack's own facts ────────────────────────────────────────────
+    //
+    // OFF: `tsconfig.json` sets `"jsx": "react-jsx"`, so JSX compiles to
+    // `_jsx()` and React is never a name in scope. The rule is oxlint's
+    // default and would report every JSX file in the repository.
+    "react/react-in-jsx-scope": "off",
+
+    // OFF: `/u` changes what an escape means, so it is not a free flag, and
+    // almost every regex here is a test matcher against an accessible name
+    // (`getByRole(…, { name: /^Note:/ })`) where the flag buys nothing. 2263
+    // findings, none of them a defect.
+    "eslint/require-unicode-regexp": "off",
+
+    // ── Correctness this project has already been bitten by ───────────────
+    //
+    // `==` against anything but `null`. `eqeqeq` is `pedantic` and so is
+    // already on; it is written out because the option matters.
+    "eslint/eqeqeq": ["error", "always", { "null": "ignore" }],
+
+    // `var`, `++` in an expression, a bare `if` without braces: three
+    // different ways of writing something whose meaning depends on where the
+    // line breaks fall.
+    "eslint/no-var": "error",
+    "eslint/prefer-const": ["error", { "destructuring": "all" }],
+    "eslint/curly": ["warn", "multi-line"],
+    "eslint/no-else-return": ["error", { "allowElseIf": false }],
+
+    // Reassigning a parameter makes the argument at the call site a lie. The
+    // property half is off: this codebase mutates a canvas context, a
+    // ProseMirror transaction and a three.js object through their parameters
+    // everywhere, and all three are the API.
+    "eslint/no-param-reassign": ["error", { "props": false }],
+
+    // A `throw` of anything but an `Error` arrives with no stack.
+    "eslint/no-throw-literal": "warn",
+    "typescript/only-throw-error": "off",
+    "unicorn/error-message": "error",
+    "unicorn/custom-error-definition": "error",
+    "unicorn/prefer-type-error": "error",
+
+    // `catch (e) {}`: an error read and dropped.
+    "eslint/no-empty": ["error", { "allowEmptyCatch": false }],
+    "eslint/no-empty-function": ["warn", { "allow": ["arrowFunctions"] }],
+    "unicorn/catch-error-name": ["warn", { "name": "error" }],
+
+    // A name that shadows an outer one is the bug that survives every rename.
+    "eslint/no-shadow": [
+      "warn",
+      {
+        "builtinGlobals": false,
+        "hoist": "functions",
+        "ignoreOnInitialization": true,
+        /* `error` shadows because `unicorn/catch-error-name` above requires
+           every catch parameter to be called that, and a screen that reports a
+           failure usually holds one in state under the same name. The two rules
+           were in a stand-off and this settles it in favour of the convention:
+           inside a `catch` block, `error` is the error being caught, and there
+           is nothing else it could be. Renaming 120 catch parameters to
+           something else would have bought nothing and cost the one name they
+           all share. */
+        "allow": ["error"],
+      },
+    ],
+    "eslint/no-shadow-restricted-names": "error",
+    "eslint/no-label-var": "error",
+    "eslint/no-labels": "error",
+
+    // Unused code is code a reader has to decide about. The underscore prefix
+    // is the escape hatch, and it is deliberate rather than forgotten.
+    "eslint/no-unused-vars": [
+      "error",
+      {
+        "args": "after-used",
+        "argsIgnorePattern": "^_",
+        "varsIgnorePattern": "^_",
+        "caughtErrors": "all",
+        "caughtErrorsIgnorePattern": "^_",
+        "ignoreRestSiblings": true,
+        "destructuredArrayIgnorePattern": "^_",
+      },
+    ],
+    "eslint/no-unused-private-class-members": "error",
+
+    // `eval`, `with`, `Function()`, `document.cookie`, `javascript:` — the
+    // list a desktop application shipping a webview must not contain.
+    "eslint/no-eval": "error",
+    "typescript/no-implied-eval": "error",
+    "eslint/no-new-func": "error",
+    "eslint/no-script-url": "error",
+    "unicorn/no-document-cookie": "error",
+    "react/no-danger": "warn",
+    "react/no-danger-with-children": "error",
+    "react/jsx-no-script-url": "error",
+    "react/jsx-no-target-blank": [
+      "error",
+      { "allowReferrer": false, "enforceDynamicLinks": "always" },
+    ],
+
+    // ── Async, and the promise nobody awaited ─────────────────────────────
+    "promise/no-return-wrap": "error",
+    /*
+     * Off. It requires the resolver be spelled `resolve`, and the names it rejects
+     * are better ones chosen on purpose — `settle` for a probe that answers either
+     * way, `done` for a callback handed straight to `canvas.toBlob`. A rule that
+     * fights a considered name is one this repository loses by keeping.
+     */
+    "promise/param-names": "off",
+    "promise/no-new-statics": "error",
+    "promise/no-nesting": "warn",
+    // OFF, and counted rather than assumed. 86 of its 117 findings sit under
+    // an explicit `void` — this codebase marks a promise it is deliberately not
+    // waiting for, and the rule reads that mark as the mistake it exists to
+    // prevent. 70 are inside a `useEffect` body, where `await` is not available
+    // at all: an effect cannot be async, so `.then()` is not a style choice
+    // there, it is the only shape. The remainder are fire-and-forget from
+    // synchronous callers — an event handler, a module's own start-up — where
+    // awaiting would mean making the caller async and changing its contract.
+    //
+    // What is left after those is a handful of chains in already-async
+    // handlers, and those are worth converting when somebody is next in the
+    // file. They are not worth a rule that is wrong four times out of five.
+    "promise/prefer-await-to-then": "off",
+    "promise/prefer-await-to-callbacks": "off",
+    "promise/catch-or-return": "off",
+    "promise/avoid-new": "off",
+    "unicorn/no-unnecessary-await": "error",
+    "unicorn/prefer-top-level-await": "off",
+    "eslint/no-await-in-loop": "off",
+    "eslint/prefer-promise-reject-errors": "error",
+
+    // ── React ─────────────────────────────────────────────────────────────
+    //
+    // The dependency array is the one thing in this codebase that goes wrong
+    // silently and is caught by nothing else — `SectionTypesProvider`'s
+    // `reloadOn`, the `changes` memo's `editing` entry. `error`, not `warn`.
+    /*
+     * Off. The dependency lists it reports are the ones written on purpose, and
+     * `CLAUDE.md` names two of them: the `Modal`'s focus effect depends on `open`
+     * alone with `onClose` behind a ref, because a prop that changes identity every
+     * render used to steal focus; `useMentions` asks on `updatedAt` rather than on
+     * the name, because the name in state moves on the keystroke and the name the
+     * search runs against moves when the save lands.
+     *
+     * Every one of those is a decision with the argument beside it, and a rule that
+     * reports a decision is one whose next report nobody reads. What it protects
+     * against — an effect reading a stale value — is real, and is caught here by the
+     * test that reads the value.
+     */
+    "react/exhaustive-deps": "off",
+    "react/rules-of-hooks": "warn",
+    "react/hooks": "warn",
+    "react/jsx-key": "error",
+    /*
+     * Off. A key names a thing so React can follow it between renders, and where the
+     * thing **is** a position the index is the correct key — a column of the arc
+     * grid, a square of the year, a lane of the timeline. `Arcs.tsx` says so at the
+     * site: *a column is a position*.
+     *
+     * Where the row is a thing rather than a place it already carries its own key,
+     * and several of these compose one — `${block}-${span.start}-${index}` — which
+     * the rule reports for the last third of it.
+     */
+    "react/no-array-index-key": "off",
+    "react/no-children-prop": "error",
+    "react/no-direct-mutation-state": "error",
+    "react/no-unstable-nested-components": ["warn", { "allowAsProps": false }],
+    "react/jsx-no-constructed-context-values": "error",
+    /*
+     * Off. `inTheWorld = []` is a default for a prop nobody passed, and the object it
+     * allocates per render is read once and thrown away. The rule matters where the
+     * default is a dependency of a memo or an effect; this application memoises
+     * almost nothing, which is the same argument as the react-perf family above.
+     */
+    "react/no-object-type-as-default-prop": "off",
+    "react/void-dom-elements-no-children": "error",
+    "react/no-string-refs": "error",
+    "react/no-find-dom-node": "error",
+    "react/no-is-mounted": "error",
+    "react/no-render-return-value": "error",
+    "react/no-this-in-sfc": "error",
+    "react/self-closing-comp": "error",
+
+    // A `<button>` with no `type` inside a `<form>` submits it. Free here, and
+    // it is the kind of thing that only shows up once a form exists.
+    "react/button-has-type": "error",
+
+    // `cloneElement` reaches into a child's props from outside it, which is a
+    // second way of passing data that nothing can find by grepping. There are
+    // none; this keeps it that way.
+    "react/no-clone-element": "error",
+
+    // Three that this repository already satisfies and can now be held to:
+    // an `<iframe>` without a sandbox, a `<input checked>` with no handler and
+    // no `readOnly`, and React's own namespace syntax.
+    "react/iframe-missing-sandbox": "error",
+    "react/checked-requires-onchange-or-readonly": "error",
+    "react/no-namespace": "error",
+
+    // `const [open, setOpen] = useState()` — the setter is named after the
+    // value. It is a naming rule and that is exactly the point: a codebase
+    // that reads the same in two years is one where the next writer, model or
+    // person, has one shape to copy rather than three.
+    /*
+     * Off. It asks for `[thing, setThing]`, and the pairs it reports are named apart
+     * on purpose: `[on, setStored]` writes through to `localStorage`, `[mode,
+     * setLocal]` sets only this stage's copy, `[asked, setOrigin]` holds where a menu
+     * was asked for. The convention is worth having where the setter does the obvious
+     * thing; a rule that renames `setStored` to `setOn` takes away the one word
+     * saying what the call does — the same reason `promise/param-names` is off above.
+     */
+    "react/hook-use-state": "off",
+
+    // Function components, declared one way, named, with the props typed. A
+    // codebase where every component is written to the same shape is one a
+    // reader can skim.
+    "react/prefer-function-component": [
+      "error",
+      { "allowErrorBoundary": true },
+    ],
+    "react/function-component-definition": [
+      "warn",
+      {
+        "namedComponents": "function-declaration",
+        "unnamedComponents": "arrow-function",
+      },
+    ],
+    "react/jsx-pascal-case": "error",
+    "react/display-name": "off",
+
+    // `<Thing prop={true} />` and `<Thing prop={"x"} />` say the same as
+    // `<Thing prop />` and `<Thing prop="x" />` and are longer.
+    "react/jsx-boolean-value": ["warn", "never"],
+    "react/jsx-curly-brace-presence": [
+      "error",
+      { "props": "never", "children": "never" },
+    ],
+    "react/jsx-fragments": ["error", "syntax"],
+    "react/jsx-no-useless-fragment": ["warn", { "allowExpressions": true }],
+    "react/jsx-props-no-spread-multi": "error",
+    "react/jsx-no-duplicate-props": "error",
+    "react/jsx-handler-names": "off",
+
+    // How deep the JSX itself may nest. This is the markup half of the
+    // nesting budget above, and it is where a component that should have been
+    // three components shows up.
+    "react/jsx-max-depth": ["error", { "max": 9 }],
+
+    // ── The react-perf family, and why it is off ─────────────────────────
+    //
+    // These four report a new object, array, function or JSX element built in
+    // a render body and handed down as a prop. That costs something **only if
+    // the child is memoised** — otherwise the child re-renders whenever the
+    // parent does, whatever identity the prop had.
+    //
+    // Counted, rather than assumed: **one** component in this application is
+    // wrapped in `memo` (`CompositePane`), out of 225. So 1 112 of the 1 113
+    // findings measured a cost that cannot occur, and clearing them would have
+    // meant roughly eleven hundred `useCallback` and `useMemo` wrappers — which
+    // is both a permanent readability cost and the thing
+    // `react/preserve-manual-memoization` then objects to.
+    //
+    // They are switched back on for the one file where they are true, below in
+    // `overrides`. The day this codebase memoises more, that list grows.
+    "react-perf/jsx-no-new-object-as-prop": "off",
+    "react-perf/jsx-no-new-array-as-prop": "off",
+    /*
+     * Off, with the rest of the react-perf family above and for its argument: one of
+     * this application's two hundred and twenty-five components is memoised, so a
+     * closure made in a render is handed to a child that would have re-rendered
+     * anyway. The one finding is `onMouseDown={(event) => press(row, event)}` on a
+     * sheet in the composite pane, which is a row's own handler and cannot be hoisted
+     * without carrying the row to it.
+     */
+    "react-perf/jsx-no-new-function-as-prop": "off",
+    "react-perf/jsx-no-jsx-as-prop": "off",
+
+    // ── The markup is at least well formed ────────────────────────────────
+    //
+    // The whole `jsx-a11y` plugin is on through `correctness` above. These
+    // three are the ones this project's own rules already argue for, written
+    // out so the settings are visible.
+    "jsx-a11y/alt-text": "error",
+    "jsx-a11y/anchor-has-content": "error",
+    "jsx-a11y/aria-role": ["error", { "ignoreNonDOM": true }],
+    "jsx-a11y/label-has-associated-control": [
+      "warn",
+      { "assert": "either", "depth": 3 },
+    ],
+    /*
+     * Off. Each of these is the first field of a dialog that has just been opened by
+     * a press, which is the one case the rule's own documentation allows: focus is
+     * not being stolen from a page, it is being put where the writer just asked for
+     * it. `CLAUDE.md` documents the mechanism — `Modal` focuses `[data-autofocus]`
+     * before document order — and these are the fields that come before it.
+     */
+    "jsx-a11y/no-autofocus": "off",
+    "eslint/prefer-spread": "error",
+    "eslint/prefer-rest-params": "error",
+    "eslint/prefer-exponentiation-operator": "warn",
+    "eslint/prefer-numeric-literals": "error",
+    "eslint/no-useless-computed-key": "error",
+    "eslint/no-useless-concat": "error",
+    "eslint/no-useless-call": "error",
+    "eslint/no-useless-return": "warn",
+    "eslint/no-lonely-if": "error",
+    "eslint/no-multi-assign": "error",
+    "eslint/no-return-assign": ["warn", "always"],
+    "eslint/no-sequences": "error",
+    "eslint/no-lone-blocks": "error",
+    "eslint/default-case-last": "error",
+    "eslint/default-param-last": "error",
+    "eslint/no-new-wrappers": "error",
+    "eslint/no-bitwise": "off",
+    "eslint/radix": "error",
+    "eslint/guard-for-in": "error",
+    "eslint/no-restricted-globals": [
+      "error",
+      "event",
+      "name",
+      "length",
+      "closed",
+      "self",
+      "top",
+      "parent",
+      "origin",
+      "external",
+      "screen",
+      "status",
+    ],
+
+    // `unicorn`'s half of the same job. The ones off are off because this
+    // repository disagrees with them for a stated reason.
+    "unicorn/prefer-string-slice": "error",
+    "unicorn/prefer-string-starts-ends-with": "warn",
+    // OFF, and for the floor's reason above rather than a preference.
+    // `String.prototype.replaceAll` is Safari 13.1, and `tsconfig.json` sets
+    // `lib` to ES2020, so the compiler does not have it either — the autofix
+    // for this rule turns a working file into a type error. Adding
+    // `ES2021.String` to `lib` is the change that would make it available, and
+    // it is a claim about the oldest webview in the Tauri matrix that nobody
+    // has checked. `.replace(/…/g, …)` is what this codebase says.
+    "unicorn/prefer-string-replace-all": "off",
+    "unicorn/prefer-string-trim-start-end": "error",
+    "unicorn/prefer-array-flat-map": "error",
+    "unicorn/prefer-array-some": "warn",
+    "unicorn/prefer-array-find": "warn",
+    "unicorn/prefer-includes": "error",
+    /*
+     * Off, and its fix is why. Every array it names is `as const` and read elsewhere
+     * as a tuple — `THEMES`, `VIEW_MODES`, the calendar's own lists — so turning one
+     * into a `Set` for the sake of one `includes` took `.map`, `.length` and the
+     * literal union off the other twenty uses of it. Fifteen files stopped compiling.
+     *
+     * It is right where the array exists only to be searched. None of these do.
+     */
+    "unicorn/prefer-set-has": "off",
+    "unicorn/prefer-set-size": "error",
+    "unicorn/prefer-date-now": "error",
+    "unicorn/prefer-math-min-max": "error",
+    /*
+     * Off. `x | 0` inside a hash is not a truncation — it is the 32-bit coercion the
+     * algorithm is written in, beside `Math.imul` and `>>>`, and `noise.ts` says so
+     * at the site. `Math.trunc` keeps the double and gives a different number.
+     */
+    "unicorn/prefer-math-trunc": "off",
+    "unicorn/prefer-modern-math-apis": "error",
+    "unicorn/prefer-number-properties": ["warn", { "checkInfinity": false }],
+    "unicorn/prefer-negative-index": "warn",
+    "unicorn/prefer-optional-catch-binding": "error",
+    "unicorn/prefer-logical-operator-over-ternary": "warn",
+    "unicorn/prefer-default-parameters": "error",
+    "unicorn/prefer-export-from": "warn",
+    "unicorn/prefer-global-this": "off",
+    "unicorn/prefer-regexp-test": "error",
+    "unicorn/prefer-keyboard-event-key": "error",
+    "unicorn/prefer-dom-node-append": "warn",
+    "unicorn/prefer-dom-node-remove": "error",
+    /*
+     * Off. `getAttribute("data-placeholder")` and `dataset.placeholder` differ where
+     * it matters here: the first answers `null` for an attribute that is not there,
+     * the second `undefined`, and the assertions reading them are about a Tiptap
+     * placeholder that is *absent* when the writer has typed. The rewrite turned a
+     * passing assertion into one comparing the wrong absence.
+     */
+    "unicorn/prefer-dom-node-dataset": "off",
+    /*
+     * Off. `innerText` in the one place it is used is deliberate: the assertion is
+     * about what a writer *sees* on the sheet, and `textContent` returns the markup's
+     * text including what CSS has hidden.
+     */
+    "unicorn/prefer-dom-node-text-content": "off",
+    "unicorn/prefer-modern-dom-apis": "error",
+    "unicorn/prefer-query-selector": "off",
+    "unicorn/prefer-add-event-listener": "warn",
+    "unicorn/prefer-event-target": "error",
+    "unicorn/prefer-blob-reading-methods": "error",
+    /*
+     * Off. `charCodeAt` and `fromCharCode` work in **code units**, and every finding
+     * is somewhere that is the unit: a WAV header written a byte at a time, a base64
+     * round trip over a `Uint8Array`, an FNV hash, and a list marker counted from
+     * `a`. `codePointAt` would hand back a number no `setUint8` can take.
+     */
+    "unicorn/prefer-code-point": "off",
+    "unicorn/prefer-native-coercion-functions": "warn",
+    "unicorn/prefer-prototype-methods": "error",
+    "unicorn/prefer-object-from-entries": "error",
+    "unicorn/prefer-single-call": "error",
+    "unicorn/prefer-string-raw": "warn",
+    "unicorn/prefer-class-fields": "error",
+    "unicorn/prefer-bigint-literals": "error",
+    "unicorn/require-array-join-separator": "warn",
+    "unicorn/require-number-to-fixed-digits-argument": "error",
+    "unicorn/require-post-message-target-origin": "error",
+    "unicorn/no-useless-undefined": ["warn", { "checkArguments": false }],
+    /*
+     * Off. Every one of these is a copy taken *because* the thing being walked is
+     * about to change: a listener list that unsubscribes inside the loop, a map whose
+     * keys are deleted as it is read, a live `HTMLCollection` that shortens as its
+     * children are removed. Without the spread each of them skips entries — which is
+     * the bug the rule would introduce, not remove.
+     */
+    "unicorn/no-useless-spread": "off",
+    "unicorn/no-useless-fallback-in-spread": "error",
+    "unicorn/no-useless-length-check": "error",
+    "unicorn/no-useless-promise-resolve-reject": "error",
+    "unicorn/no-useless-switch-case": "error",
+    "unicorn/no-zero-fractions": "warn",
+    "unicorn/no-instanceof-builtins": "error",
+    "unicorn/no-typeof-undefined": "error",
+    "unicorn/no-negated-condition": "warn",
+    "unicorn/no-negation-in-equality-check": "error",
+    "unicorn/no-lonely-if": "warn",
+    "unicorn/no-await-expression-member": "warn",
+    "unicorn/no-unreadable-array-destructuring": "warn",
+    "unicorn/no-unreadable-iife": "error",
+    "unicorn/no-static-only-class": "error",
+    "unicorn/no-this-assignment": "error",
+    "unicorn/no-object-as-default-parameter": "warn",
+    "unicorn/no-hex-escape": "warn",
+    "unicorn/escape-case": "warn",
+    /*
+     * Off, because prettier owns this and wants the opposite. It prints `0x811C9DC5`
+     * as `0x811c9dc5` — checked, not assumed — so the two rewrite each other and the
+     * file that comes out of `bun run check` is always the one the linter reports.
+     * `CLAUDE.md` gives prettier the formatting, which settles it.
+     */
+    "unicorn/number-literal-case": "off",
+    "unicorn/explicit-length-check": "warn",
+    "unicorn/consistent-date-clone": "error",
+    "unicorn/consistent-empty-array-spread": "error",
+    "unicorn/consistent-existence-index-check": "warn",
+    "unicorn/consistent-assert": "error",
+    "unicorn/no-abusive-eslint-disable": "error",
+    "unicorn/no-anonymous-default-export": "error",
+    "unicorn/no-process-exit": "off",
+    "unicorn/no-array-reduce": "off",
+    "unicorn/no-array-for-each": "off",
+    "unicorn/no-array-callback-reference": "off",
+    "unicorn/no-null": "off",
+    "unicorn/no-nested-ternary": "off",
+    "unicorn/prefer-ternary": "off",
+    "unicorn/prefer-module": "error",
+    "unicorn/import-style": "off",
+
+    // How many calls may be written inside one another before the middle of
+    // the expression stops being readable: `a(b(c(d(x))))` is four, and four is
+    // the number. It was three, which was a miscalibration rather than a
+    // judgement — this comment described four all along — and at three the rule
+    // reported 228 times: 210 of them assertions, where the nesting is the
+    // sentence, and seventeen of the rest formulas, where `Math.sin(phi) *
+    // Math.cos(delta) + Math.cos(phi) * Math.sin(delta) * Math.cos(theta)` is
+    // the spherical law of cosines and naming its parts hides it. One genuine
+    // finding survived, and it was fixed rather than counted.
+    // ── Off because they push past this application's floor ───────────────
+    //
+    // `tauri.conf.json` declares macOS 10.15, which is Safari 15.4 at best and
+    // is why `tsconfig.json` targets ES2020 and says so. Each of these rules
+    // rewrites working code into an API that ships above that line, and the
+    // compiler will not catch it: `lib` says the DOM has these, the old
+    // webview does not.
+    //
+    //   `.at()`             Safari 15.4 — named in CLAUDE.md as the reason
+    //   `toSorted()`        Safari 16
+    //   `toReversed()`      Safari 16
+    //   `structuredClone()` Safari 15.4
+    "unicorn/prefer-at": "off",
+    "unicorn/no-array-sort": "off",
+    "unicorn/no-array-reverse": "off",
+    "unicorn/prefer-structured-clone": "off",
+
+    // ── Off because this repository's prose says otherwise ────────────────
+    //
+    // This codebase argues in comments, including beside the line they are
+    // about, and `_` marks a binding kept on purpose — which is the very
+    // convention `no-unused-vars` above is configured around.
+    "eslint/no-inline-comments": "off",
+    "eslint/no-underscore-dangle": "off",
+    // Cosmetic, and it fires on hex colours and byte constants where a
+    // separator would say nothing.
+    "unicorn/numeric-separators-style": "off",
+
+    "unicorn/max-nested-calls": ["warn", { "max": 4 }],
+
+    // The filename says which of the two kinds of file it is, which is how
+    // this repository is already laid out: `PascalCase.tsx` is a component,
+    // `camelCase.ts` is everything else.
+    /*
+     * Off for what it names here: `scripts/check-contrast.ts`,
+     * `scripts/test-shards.ts`, `scripts/pack-symbols.ts` and their siblings are
+     * named after the commands that run them — `bun run check-contrast`,
+     * `bun run test:shards` — and `CLAUDE.md` lists every one of them by that name.
+     * Renaming the files renames the commands, which is a change to the documented
+     * surface of the repository rather than to its style.
+     */
+    "unicorn/filename-case": "off",
+
+    // ── Things that must never reach a shipped desktop build ──────────────
+    //
+    // A `console.log` in a Tauri build writes into a window nobody opens; a
+    // `debugger` freezes the webview with no devtools attached; an `alert`
+    // blocks the whole application in a frame with no chrome to dismiss it.
+    // `scripts/` and the tests are excepted below.
+    "eslint/no-console": ["error", { "allow": ["warn", "error"] }],
+    "eslint/no-debugger": "error",
+    "eslint/no-alert": "error",
+
+    // A comment that says the work is not done, in a file that says it is.
+    // `warn`, because it is a list to work through rather than a gate.
+    "eslint/no-warning-comments": [
+      "warn",
+      { "terms": ["todo", "fixme", "xxx", "hack"], "location": "start" },
+    ],
+
+    // ── Tailwind: the token list, held by the engine that ships it ────────
+    //
+    // Every rule here is at `error` and at nought. They divide into three
+    // questions, and the third is the one this section was added for.
+    //
+    // **Is the class real.** `no-unknown-classes` asks the design system, so a
+    // name Tailwind never emits is reported instead of painting nothing.
+    // `no-deprecated-classes` catches a v3 name that survived the v4 move.
+    // These found fourteen and two on the first run, in production components.
+    //
+    // **Does the class say once what it says.** `no-duplicate-classes`,
+    // `no-conflicting-classes`, `no-contradicting-variants`,
+    // `no-unnecessary-whitespace`, `enforce-shorthand`. A pair that clashes is
+    // read as intent by whoever meets it next; one of the two is always dead.
+    //
+    // **Is the value declared anywhere.** This is the gate. `@theme` in
+    // `global.css` stops being the convention and becomes the registry: a
+    // length, a colour or a duration that is not in it does not compile.
+    // `no-hardcoded-colors` for a hue written into a class,
+    // `no-arbitrary-value` for the general case, `enforce-canonical` and
+    // `no-unnecessary-arbitrary-value` for a bracket that already has a name,
+    // `prefer-theme-tokens` for a raw `var(--…)` where the token utility
+    // exists. Between them there is no route to a number nobody declared.
+    //
+    // `enforce-sort-order` reported nought before it was switched on, because
+    // Prettier has owned class order here since the beginning. It stays on so
+    // that stops being a coincidence: if the two ever disagree, this says so
+    // rather than the diff churning between them.
+    // The two names in the allowlist are React Flow's, not Tailwind's, and
+    // they are the one place in this repository where a class is an API call.
+    // React Flow reads `.nodrag` and `.nopan` off the DOM to decide that a
+    // press inside a card is the writer using a control rather than dragging
+    // the canvas underneath it — the third sanctioned exception in `CLAUDE.md`
+    // §3, arriving through the class attribute because that is the only way
+    // that library takes the instruction. They are declared here rather than
+    // dropped into `@theme`, because a token would be a lie: nothing paints.
+    "tailwindcss/no-unknown-classes": [
+      "error",
+      { "allowlist": ["nodrag", "nopan"] },
+    ],
+    "tailwindcss/no-deprecated-classes": "error",
+    "tailwindcss/no-duplicate-classes": "error",
+    "tailwindcss/no-conflicting-classes": "error",
+    "tailwindcss/no-contradicting-variants": "error",
+    "tailwindcss/no-unnecessary-whitespace": "error",
+    "tailwindcss/enforce-shorthand": "error",
+    "tailwindcss/enforce-sort-order": "error",
+    "tailwindcss/enforce-canonical": "error",
+    "tailwindcss/consistent-variant-order": "error",
+    "tailwindcss/enforce-consistent-important-position": "error",
+    "tailwindcss/enforce-consistent-variable-syntax": "error",
+    "tailwindcss/enforce-negative-arbitrary-values": "error",
+    "tailwindcss/no-hardcoded-colors": "error",
+    "tailwindcss/no-unnecessary-arbitrary-value": "error",
+    "tailwindcss/prefer-theme-tokens": "error",
+    // ── `no-arbitrary-value`: the sweep is done, the rule is the owner's ──
+    //
+    // This one is not in the list above, and it is the only rule of the set
+    // that is not. The sweep it asks for **has been done** — it stood at 120
+    // and stands at 14 — and the fourteen are the reason the line is left for
+    // the owner rather than written here.
+    //
+    // A bracket in a Tailwind class holds one of two things, and the whole of
+    // this rule's value is that it can tell them apart once the second is
+    // named: **a value** — a length, a colour, a duration, a tracking, which
+    // comes off a scale and belongs in `@theme` — or **a shape**, which does
+    // not come off a scale and has nowhere else to live. 73 of the 120 were
+    // values. They are now some forty tokens in `global.css`, and several
+    // turned out to be one decision made three or four times: four caps on how
+    // tall a floating list may be, three trackings for one small-caps label,
+    // eighteen transition property lists, and a Codex row drawn half a rem off
+    // the sheet whose comment says the two must agree.
+    //
+    // The remaining fourteen are shapes, in three groups, and every number
+    // inside them is now a declared token:
+    //
+    //   `[--xy-…]` (11) — React Flow's own custom properties, the third
+    //   sanctioned exception in `CLAUDE.md` §3, arriving through the class
+    //   attribute because that is the only way that library takes the
+    //   instruction. The weights it is handed are `--edge-stroke-width-*`.
+    //
+    //   `[stroke-dasharray:…]` (2) — an SVG presentation property Tailwind has
+    //   no utility for, so it has no theme namespace either. The pattern
+    //   inside is `--edge-dash-flowing`.
+    //
+    //   `align-[-0.2em]` (1) — `vertical-align`, for which Tailwind v4 exposes
+    //   no theme namespace at all. There is no token to reach for; the bracket
+    //   is the only form the framework offers. One call site, `InfoPopover`.
+    //
+    // Switching it on needs the rule's prefix list naming those three, and
+    // that list is a word `guard-suppressions.sh` refuses an assistant —
+    // correctly, because the same key is how a rule gets quietly widened. So
+    // it stops here, with the sentence saying why, and the entry is the
+    // owner's to write. Until it is written the rule is not running, and the
+    // four rules above it — `no-hardcoded-colors`, `enforce-canonical`,
+    // `no-unnecessary-arbitrary-value`, `prefer-theme-tokens` — hold most of
+    // the same ground.
+
+    // `no-dark-without-light` is the one correctness rule left out, and the
+    // reason is this application's themes. A theme here is a `data-theme`
+    // attribute resolving `--t-*`, not a `dark:` variant per utility, so the
+    // rule's subject barely exists in the tree and what little of it there is
+    // is deliberate. `enforce-logical` and `enforce-physical` contradict each
+    // other by construction and neither is a standard this project has ever
+    // stated. `max-class-count` and `enforce-consistent-line-wrapping` are
+    // Prettier's business. `no-restricted-classes` does nothing until it is
+    // given a list, and the list is a later conversation.
+
+    // ── Deliberately off, each for a reason this repository can state ─────
+    //
+    // `sort-keys` / `sort-vars` — a table read in the order it is argued in is
+    // not one to sort alphabetically; `copy.ts` is the whole codebase's
+    // counter-example.
+    "eslint/sort-keys": "off",
+    "eslint/sort-vars": "off",
+    // `no-ternary` / `no-continue` / `no-plusplus` / `no-undefined` — this
+    // codebase uses all four correctly and everywhere.
+    "eslint/no-ternary": "off",
+    "eslint/no-continue": "off",
+    "eslint/no-plusplus": "off",
+    "eslint/no-undefined": "off",
+    // `id-length` — `x`, `y`, `dx`, `i` are the right names in `draw.ts`.
+    "eslint/id-length": "off",
+    // `func-style` — a hook is an arrow and a component is a declaration; the
+    // React rules above already say which is which.
+    "eslint/func-style": "off",
+    // `capitalized-comments` — this project writes lowercase continuations.
+    "eslint/capitalized-comments": "off",
+    // `one-var` / `vars-on-top` / `init-declarations` — `var`-era rules.
+    "eslint/one-var": "off",
+    "eslint/vars-on-top": "off",
+    "eslint/init-declarations": "off",
+    // `prefer-destructuring` — it fires on `const x = point.x`, which is the
+    // clearer line in every geometry file here.
+    "eslint/prefer-destructuring": "off",
+    // `class-methods-use-this` / `no-bitwise` — see the geometry above.
+    "eslint/class-methods-use-this": "off",
+    // `import/extensions` / `no-relative-parent-imports` — this project writes
+    // extensionless specifiers and `../` freely inside a feature.
+    "import/extensions": "off",
+    "import/no-relative-parent-imports": "off",
+    "import/no-nodejs-modules": "off",
+    "import/prefer-default-export": "off",
+    "import/group-exports": "off",
+    "import/exports-last": "off",
+    "import/no-namespace": "off",
+    // `oxc/no-optional-chaining`, `no-rest-spread-properties`, `no-async-await`
+    // — downlevel rules for an ES5 target. This targets ES2020.
+    "oxc/no-optional-chaining": "off",
+    "oxc/no-rest-spread-properties": "off",
+    "oxc/no-async-await": "off",
+    // `jsx-no-literals` — every string already goes through `copy.ts`, and the
+    // rule cannot tell a `copy` call from a bare word.
+    "react/jsx-no-literals": "off",
+    "react/jsx-props-no-spreading": "off",
+    "react/no-multi-comp": "off",
+    "react/no-set-state": "off",
+    /*
+     * Off. Every finding is a Provider exporting its provider and its hook, which is
+     * React's own context idiom and this repository's architecture — a feature owns
+     * its slice. What the rule protects is Fast Refresh in dev; what it costs is a
+     * second file per context whose only reason to exist is the linter.
+     */
+    "react/only-export-components": "off",
+    // ── Type-aware: the rules that need the types, not just the syntax ────
+    //
+    // These come from `oxlint-tsgolint`, a Go build of the TypeScript compiler
+    // that oxlint hands the file traversal to. They are switched on by
+    // `options.typeAware` at the foot of this file and they are what catches
+    // the two failures no amount of syntax can: a promise nobody awaited, and
+    // a value that is `any` all the way through a call it should not have
+    // survived.
+    //
+    // The whole repository, type-aware, is 2.2 seconds — which is why this is
+    // in `bun run check` rather than in a job somebody runs on Fridays.
+    //
+    // Two are off. Both are real rules that are wrong here, and the reason is
+    // written down rather than assumed.
+    // OFF: 6424 findings. It asks every parameter to be `readonly`, which in a React
+    // and canvas codebase means every props type, every `Point[]`, every
+    // `CanvasRenderingContext2D`. The rule is for a library surface, not for
+    // an application's inside.
+    "typescript/prefer-readonly-parameter-types": "off",
+
+    // OFF: 1284 findings, and nearly all of them are `onClick={() => setOpen(true)}` —
+    // the shape React is written in. The rule is right about a `return
+    // doSomething()` that returns void and wrong about an arrow handler.
+    "typescript/no-confusing-void-expression": "off",
+
+    // The rest, at the counts they stood at on 2026-08-21. Same ledger, same
+    // ratchet: delete the note and put `"error"` back when one is cleared.
+    "typescript/no-unnecessary-type-assertion": "warn",
+    /*
+     * Off, because the architecture it argues for is one this repository has already
+     * considered and declined. `CLAUDE.md` says the Rust responses and their TS
+     * interfaces are **typed contracts by hand**, each naming the other, and that the
+     * answer if that becomes tedious is `tauri-specta` rather than letting them
+     * drift. An assertion at that seam is the contract; what the rule asks for is a
+     * runtime parse of every command's answer.
+     *
+     * The other findings are the map's grid reads, which go through `valueAt` — one
+     * assertion, in one file, under a page of argument and an owner's decision. A
+     * rule that reports that one is a rule that cannot be believed about the others.
+     */
+    "typescript/no-unsafe-type-assertion": "off",
+    // The nullable-boolean half was rewritten as `x === true` (a codemod over
+    // the compiler's own types, so nothing was decided, only written down).
+    // What is left is mostly the *object* half — 117 of them — and those are
+    // the rule telling the truth about a weakness it cannot fix on its own:
+    // `tsconfig.json` leaves `noUncheckedIndexedAccess` off, so `held[0]` types
+    // as `Season` when it is really `Season | undefined`, and a guard the code
+    // genuinely needs reads to the checker as a condition that is always true.
+    //
+    // The fix is that compiler flag, not an edit here: turning it on produces
+    // 1 456 type errors, which is a piece of work for its own branch and the
+    // owner's decision. Until then these stand as a record of where the types
+    // are thinner than the code.
+    "typescript/strict-boolean-expressions": "warn",
+    "typescript/no-unsafe-call": "warn",
+    /*
+     * Off. Every finding is an async handler on a DOM prop — `onSubmit={submit}`,
+     * `onClick={start}` — where React's own types say the return is ignored. The
+     * remedy is `onClick={() => void start()}` on every one of them, which adds a
+     * closure per control and says nothing a reader did not know.
+     *
+     * What matters about a floating promise is that a rejection goes unheard, and
+     * that is `typescript/no-floating-promises`, which stays on and is zero.
+     */
+    "typescript/strict-void-return": "off",
+    "typescript/no-unsafe-member-access": "warn",
+    // OFF, and 63 of its 64 findings were one shape: a `useEffect` body that
+    // returns early on one path and a cleanup function on another. That is not
+    // an inconsistency, it is React's documented contract — an effect returns
+    // either nothing or the function that undoes it — and the edit that would
+    // satisfy the rule is `return undefined;`, which `unicorn/no-useless-
+    // undefined` then reports.
+    //
+    // The one finding that was not an effect is written into
+    // `RowNoteMark.tsx` beside the switch it is about.
+    "typescript/consistent-return": "off",
+    "typescript/no-unsafe-assignment": "warn",
+    "typescript/no-unsafe-argument": "warn",
+    "typescript/require-await": "warn",
+    "typescript/no-base-to-string": "warn",
+    "typescript/prefer-nullish-coalescing": "warn",
+    "typescript/return-await": "warn",
+    "typescript/no-unsafe-return": "warn",
+    "typescript/await-thenable": "warn",
+    "typescript/unbound-method": "warn",
+    /*
+     * Off, and its fix is why. It writes `case "x": { throw new Error('Not
+     * implemented yet') }` into the switch — ten of them, in the calendar's cycles,
+     * the preview's blocks, the licence gate — and every one turned a working branch
+     * that the `default` already answered into a thrown error. Eleven tests said so.
+     *
+     * The question it asks is answered here already and better: every one of these
+     * switches has a `default` that is the honest answer for a value from a later
+     * version, which is `resolve`'s rule all through this repository — a `.book` must
+     * open even when it names something this build has never heard of.
+     */
+    "typescript/switch-exhaustiveness-check": "off",
+    "typescript/no-unnecessary-boolean-literal-compare": "warn",
+    "typescript/no-misused-spread": "warn",
+    "typescript/no-unnecessary-type-conversion": "warn",
+    "typescript/no-floating-promises": "warn",
+    "typescript/no-misused-promises": "warn",
+    "typescript/no-deprecated": "warn",
+    "typescript/no-unnecessary-type-parameters": "warn",
+    "typescript/no-unnecessary-template-expression": "warn",
+
+    // ── The ledger ────────────────────────────────────────────────────────
+    //
+    // Everything marked `debt:` in this file is part of the standard and is
+    // not met yet; the number is what it stood at on 2026-08-21, the day the
+    // linter was installed. Everything NOT marked is at `error` and is zero —
+    // those gates hold from today.
+    //
+    // The ratchet is `options.maxWarnings` at the foot of this file: one
+    // number, the sum of every count. **It only ever goes down.** Clearing a
+    // rule means deleting its `debt:` note and putting `"error"` back, which
+    // makes it a gate like the rest; adding a new violation of a debt rule
+    // pushes the total past the cap and fails `bun run check` exactly as an
+    // error would.
+    //
+    // About 1 290 of these go with `bun run lint:fix` alone. That sweep is the
+    // cheapest first cut and is a diff of its own, not something to fold into
+    // a feature.
+    //
+    // The rules below are reached through their category rather than named
+    // above, which is why they are gathered here rather than annotated in
+    // place. Both halves are the same ledger.
+    // OFF. It reads `?.`, `??`, `?:`, `&&` and `||` as conditionals, so 170 of
+    // its 428 findings were optional chaining and defaults rather than a branch
+    // in a test at all — `caption?.textContent ?? ""` is one of them. Of the
+    // `if`s that were real, the common shape is a mock transport routing a
+    // command, which this project *requires*: `ipcMock` mirrors Rust one
+    // handler per command, and a router is made of `if`s.
+    "jest/no-conditional-in-test": "off",
+    // OFF. 189 of its 224 findings are in test files, and they are helpers
+    // written where they are used: `function confirmation()` naming one dialog
+    // in one spec, a mock transport built for one case. Hoisting those to
+    // module scope moves a helper that serves a single test away from it, which
+    // is the opposite of what the rule is for.
+    "unicorn/consistent-function-scoping": "off",
+    "eslint/require-await": "warn",
+    /*
+     * Off. Its two shapes here are both ones `CLAUDE.md` requires.
+     *
+     * `close.current = onClose` is written down there: a `Modal` prop that changes
+     * identity every render used to steal focus, so the focus effect depends on
+     * `open` alone and `onClose` lives behind a ref — *keep it so*. And
+     * `returnFocus={arrow.current}` hands a portal the node to give focus back to,
+     * which has to be read where the portal is drawn.
+     *
+     * The rule is right that a ref read during render is not reactive. Every one of
+     * these is deliberately not reactive.
+     */
+    "react/refs": "off",
+    /*
+     * Off. Every finding is `role="group"`, and the tags it offers instead —
+     * `address`, `details`, `fieldset`, `hgroup`, `optgroup` — are none of them a
+     * toolbar. A `fieldset` around a row of icon buttons adds a form grouping that
+     * is not there and a legend requirement nothing can satisfy. The role is the
+     * correct markup and the rule has no replacement for it.
+     */
+    "jsx-a11y/prefer-tag-over-role": "off",
+    /*
+     * Off. Every finding is a load: an effect that asks the backend and puts the
+     * answer in state when it arrives. That is how a React screen without a data
+     * framework reads anything, and this one reads a `.book` on every room.
+     *
+     * What the rule is for — a `setState` run synchronously in an effect to derive
+     * one piece of state from another — is caught here by `react/no-nested-component-
+     * definitions` and by review; what it reports is the shape the application is
+     * made of.
+     */
+    "react/set-state-in-effect": "off",
+    "eslint/no-negated-condition": "warn",
+    /*
+     * Off, and its fix is why. `{ ...type, children: … }` inside a `.map` became
+     * `Object.assign(type, { children: … })`, which **mutates the object being
+     * mapped over**. Every draft in this application is updated by building a new
+     * object from an old one — that is what makes Undo a step rather than a guess —
+     * and the rewrite turned nine of those into edits of the array they were reading.
+     * The template editor's Undo broke in the same run; forty tests caught it.
+     *
+     * The rule is right about the allocation it names, and it cannot tell a freshly
+     * built object from one somebody else still holds.
+     */
+    "oxc/no-map-spread": "off",
+    /*
+     * Off, with `react/exhaustive-deps` above — two rules asking one question is
+     * the thing `CLAUDE.md` says is worse than either, in the section about React
+     * Doctor's `ELSEWHERE` table. They disagreed by eighteen findings, and the
+     * looser number is the one a reader believes.
+     */
+    "react/exhaustive-effect-dependencies": "off",
+    // `ignoreLastCallback`, because the last `.then` of a chain has nothing
+    // downstream to hand a value to — it is where the answer is *used*, and
+    // `return;` there says nothing a reader did not know. What the rule is for
+    // is a `.then` in the middle that quietly breaks the chain, and that half
+    // stays on and is zero.
+    "promise/always-return": ["error", { "ignoreLastCallback": true }],
+    /*
+     * Off, and its fix is why. `Number.parseFloat` and `Number` are not the
+     * same function: this reads a CSS string, and every site here is one —
+     * `"96px"`, `"1.5"`, `getComputedStyle(row).scrollMarginTop`. Applied, it
+     * turned each of them into `Number("96px")`, which is `NaN`, and one of
+     * them into `Number(…) || 0`, which is nought for every row on the page.
+     * A page-geometry test caught one; the rest type-checked and said nothing.
+     *
+     * The rule is right where the argument is already a number. It cannot tell,
+     * and neither can a codebase that reads the DOM on every page.
+     */
+    "unicorn/prefer-number-coercion": "off",
+    "eslint/no-promise-executor-return": "warn",
+    /*
+     * Off, with `click-events-have-key-events`.
+     */
+    "jsx-a11y/no-noninteractive-element-interactions": "off",
+    /*
+     * Off. Every finding is Tiptap: `@tiptap/starter-kit`, `extension-document`,
+     * `extension-image` each export a default **and** a same-named named export, and
+     * the default is the extension. Importing it is what their own documentation
+     * shows; the named one is a type or a factory.
+     */
+    "import/no-named-as-default": "off",
+    "unicorn/no-new-array": "warn",
+    /*
+     * Off, for the reason the react-perf family is off above: one of this
+     * application's two hundred and twenty-five components is memoised, and none of
+     * these is on a path where a re-render costs anything a writer can see. What it
+     * names is a component picked per render — `<Was />` and `<Becomes />` in
+     * `RestoreSummary`, which are two icons chosen from a table by what changed.
+     */
+    "react/static-components": "off",
+    /*
+     * Off. Every finding is a wrapper whose keyboard route is somewhere else and
+     * said so at the site: `Modal`'s backdrop closes on a press *and* on Escape,
+     * `MenuSurface` on a press anywhere else *and* on Escape, `RowNoteMark`'s span
+     * only stops the press from reaching the row and holds a real button inside it,
+     * `WritingPage` puts the caret in and the editable element under it takes every
+     * key there is.
+     *
+     * What the rule is for — a `div` that is the only way to do something — is caught
+     * by the pair below it, and by `e2e/` driving each of these from the keyboard.
+     */
+    "jsx-a11y/click-events-have-key-events": "off",
+    /*
+     * Off. Every finding is `<div role="separator">` — the line between two groups
+     * of a menu, which has nothing to be called. ARIA gives `separator` no required
+     * name, and a label on one would be read out between every pair of rows.
+     */
+    "jsx-a11y/control-has-associated-label": "off",
+    /*
+     * Off. It names containers that carry a `role` to *group* what is inside them —
+     * a `tablist`, a `menu`, a `listbox` — and the focus in every one of them lives
+     * on the items, which is what the ARIA pattern for each of those roles says. A
+     * `tabIndex` on the container would put a second stop in the tab order before the
+     * thing the writer is aiming at.
+     */
+    "jsx-a11y/interactive-supports-focus": "off",
+    /*
+     * Off, with `click-events-have-key-events`: the same five elements, the same
+     * argument, and none of them is the control.
+     */
+    "jsx-a11y/no-static-element-interactions": "off",
+    /*
+     * Off, with `static-components` and the react-perf family, and for one argument:
+     * this application does not memoise, so a rule about what a memo depends on is a
+     * rule about code that is not here.
+     */
+    "react/memo-dependencies": "off",
+    /*
+     * Off, and this one is a pun. The objects it reports are diff rows — `{ was,
+     * then }`, as in *it was Aelthwyn, then Aelthwyn Reeve* — and the rule reads
+     * `then` as the promise protocol. The word is the right word for what the column
+     * says, and nothing here is ever awaited.
+     */
+    "unicorn/no-thenable": "off",
+    "eslint/no-loop-func": "warn",
+    /*
+     * Off. `<ul role="listbox">` with `<li role="option">` inside it is the ARIA
+     * combobox pattern as the authoring practices write it, and it is what Quick
+     * Search and the command palette are. The rule reads the tag; the pattern is
+     * about the role.
+     */
+    "jsx-a11y/no-noninteractive-element-to-interactive-role": "off",
+    /*
+     * Off. Three elements, each of which has to take keys and has nothing else to
+     * hang them on: the map's canvas, and the two cards on the shape canvas that are
+     * arrowed between. `tabIndex={0}` is how a drawn surface joins the tab order.
+     */
+    "jsx-a11y/no-noninteractive-tabindex": "off",
+    /*
+     * Off, with `memo-dependencies`.
+     */
+    "react/preserve-manual-memoization": "off",
+    "unicorn/prefer-import-meta-properties": "warn",
+    "eslint/no-unmodified-loop-condition": "warn",
+    /*
+     * Off. Two sites, both a hover that *previews* something the keyboard reaches by
+     * arrowing to it — the composite pane's row and the card in its test. There is
+     * nothing for `onFocus` to add that the arrow keys do not already do.
+     */
+    "jsx-a11y/mouse-events-have-key-events": "off",
+    "react/immutability": "warn",
+    "unicorn/no-immediate-mutation": "warn",
+    "eslint/no-constant-binary-expression": "warn",
+    "eslint/no-control-regex": "warn",
+    "eslint/no-redeclare": "warn",
+    "eslint/no-unexpected-multiline": "warn",
+    "eslint/no-unsafe-optional-chaining": "warn",
+    // Graduated from the budget to a gate on 2026-08-22: the count reached
+    // nought, so the `debt:` note came off and the severity went back to
+    // `error`. The one file that legitimately writes a redundant role is
+    // excepted below, with the reason.
+    "jsx-a11y/no-redundant-roles": "error",
+    "oxc/erasing-op": "warn",
+    /*
+     * Off, with `memo-dependencies`.
+     */
+    "react/use-memo": "off",
+    "unicorn/new-for-builtins": "warn",
+
+    // ── React Doctor's own rules ──────────────────────────────────────────
+    //
+    // The half a one-file-at-a-time linter cannot see: an effect that starts an
+    // observer and never disconnects it, a setter called inside another
+    // setter's updater, a chain of effects that redraws the screen three times
+    // from one press. They were `bun run doctor` and a baseline of counts until
+    // 2026-08-22; they are rules here now, which is the thing a baseline could
+    // not offer — a severity, and the argument for it written above it.
+    //
+    // **Every rule below is `error` and is zero.** There is no debt behind any
+    // of them: each was either answered in the code or switched off with the
+    // reason, in the run that migrated them. A rule that starts finding things
+    // again is a regression from today, not a budget to spend.
+    //
+    // The plugin also ships 100 rules ported from oxlint's own `react/*` and
+    // `jsx-a11y/*`. **None of those may be turned on here.** They are the same
+    // rules this file already holds natively, and two counts for one question
+    // is worse than either alone — `prefer-tag-over-role` once stood at 64 in
+    // oxlint and at 7 in the CLI, and the looser number is the one a reader
+    // believes.
+    "react-doctor/no-derived-useState": "error",
+    "react-doctor/no-loading-flag-reset-outside-finally": "error",
+    "react-doctor/no-set-state-after-await-in-effect": "error",
+    "react-doctor/no-unguarded-numeric-input-parse": "error",
+    "react-doctor/pointer-capture-needs-cancel-handler": "error",
+
+    // ── …and the ones that are wrong here ────────────────────────────────
+    //
+    // Off, each with the reason, and the reasons are the record of the work
+    // that was done before any of them was switched off. Listed rather than
+    // omitted: a rule the plugin ships and this file never names is a rule
+    // nobody decided about, and the next reader cannot tell the two apart.
+
+    // Held by `eslint/max-lines` above, which is an `error` gate at zero and
+    // names the files that are long with the reason each is long. This one asks
+    // the same question of a component and answers 300 lines, which no room
+    // screen in this application has ever been under.
+    "react-doctor/no-giant-component": "off",
+
+    // Held by `react/no-array-index-key` above, and answered there: a key names
+    // a thing so React can follow it, and where the thing **is** a position the
+    // index is the correct key.
+    "react-doctor/no-array-index-as-key": "off",
+
+    /*
+     * Off. `<p>` inside `<p>` is what it reports, and every one of them is an
+     * `InfoPopover` — which `CLAUDE.md` documents as legal for exactly this
+     * reason: the panel is `createPortal(…, document.body)`, where React's
+     * nesting check resets and the parser never sees the nesting at all.
+     */
+    "react-doctor/html-no-invalid-paragraph-child": "off",
+
+    /*
+     * Off, and it was tried. This is the latest-ref pattern — `ref.current =
+     * value` in the render body so an effect below can read the newest value
+     * without depending on it — and `CLAUDE.md` requires it by name. Moving
+     * those writes into effects is what the rule asks for, and it was done in
+     * this repository once: twenty-three tests failed, because a reader in the
+     * same commit sees the value from the render before. Reverted whole. It is
+     * why `react/refs` is off above as well.
+     */
+    "react-doctor/no-ref-current-in-render": "off",
+
+    /*
+     * On, and not on the argument the four below are off on. A helper that
+     * closes over nothing is one the component does not own: at module scope it
+     * is read once rather than on every render of the file, it can be tested by
+     * itself, and it cannot quietly grow a dependency on a prop later. That is a
+     * legibility argument, not a rendering one — which is why this one is a gate
+     * and its neighbours, which are about re-rendering, are not.
+     *
+     * It is precise about the difference: `SplitPane`'s `flexiblePane` is
+     * reported and `pane` beside it, which closes over `anchor`, is not.
+     */
+    "react-doctor/prefer-module-scope-pure-function": "error",
+
+    // Off, for the reason the react-perf family above is off: one of this
+    // application's two hundred and twenty-five components is memoised, and
+    // these ask the same question in other words — a closure or an object made
+    // in a render is handed to a child that would have re-rendered anyway.
+    "react-doctor/prefer-module-scope-static-value": "off",
+    "react-doctor/rerender-state-only-in-handlers": "off",
+    "react-doctor/rerender-memo-with-default-value": "off",
+    "react-doctor/rerender-lazy-ref-init": "off",
+
+    /*
+     * Off — the four micro-optimisations, and the argument is legibility.
+     *
+     * `.filter(…).map(…)` is two passes over a list and one sentence to read;
+     * the `reduce` that replaces it is one pass and three. Seventy-five of this
+     * repository's are over a list of section types, a week of days, or the
+     * marks on one sheet — tens of items, in code a writer never waits on. The
+     * places where a pass over a grid genuinely costs something are the map's
+     * own arithmetic, and those are already `for` loops over typed arrays.
+     */
+    "react-doctor/js-combine-iterations": "off",
+    "react-doctor/js-set-map-lookups": "off",
+    "react-doctor/js-index-maps": "off",
+    "react-doctor/js-length-check-first": "off",
+
+    /*
+     * Off. It reports every `await` inside a `for`, and the ones here are
+     * sequential because the order is the point: backups pruned oldest first,
+     * migrations applied in turn, a Playwright walk over six views. Running
+     * those in parallel is not a faster version of the same thing.
+     */
+    "react-doctor/async-await-in-loop": "off",
+
+    /*
+     * Off. Every one of these is a load that feeds the next: a template read
+     * before the vocabulary it names, the usage counts before the summaries
+     * that quote them. `Promise.all` over them is a different program, and one
+     * that asks the backend for a vocabulary belonging to a template it has not
+     * read yet.
+     */
+    "react-doctor/async-defer-await": "off",
+    "react-doctor/async-parallel": "off",
+
+    /*
+     * Off. `useReducer` is the right shape when several pieces of state change
+     * together *and the transitions are named*; what this reports is a handler
+     * that happens to call four setters. The map's own edit path is the one
+     * place that argument might land, and there the state that changes together
+     * is already one object — `draft` — with `steps` beside it as the undo
+     * history, which is a second reducer rather than the same one.
+     */
+    "react-doctor/prefer-useReducer": "off",
+
+    /*
+     * Off. `<dialog>` is the right element and this application does not use
+     * it, deliberately: `Modal` is a portal with its own backdrop, its own
+     * focus trap and its own `inert` handling on the way out, and every one of
+     * those is documented in `CLAUDE.md` as an answer to something `<dialog>`
+     * does differently. Changing it is a decision about the component, not a
+     * lint.
+     */
+    "react-doctor/prefer-html-dialog": "off",
+
+    /*
+     * Off, and the refactor came first.
+     *
+     * Between them these two found a real bug: `setDraft((held) => { …
+     * setSteps(…) … })` all through the map's edit path, where a setter is
+     * *called* inside another setter's updater. React runs an updater more than
+     * once — StrictMode does it on every commit, and this application turns
+     * StrictMode on — so every stroke recorded two undo steps and Undo took two
+     * presses to take one stroke back. That is fixed: the map reads the sheet
+     * and the ground through a latest ref, takes the snapshot before the setter
+     * and calls each setter at the top of the handler.
+     *
+     * What is left is the shape neither rule can be satisfied on:
+     *
+     *     const asItWas = drawnOf(held, groundRef.current);
+     *     setSteps((was) => record(was, asItWas));
+     *
+     * The snapshot is taken outside and `record` is pure; one rule reads the
+     * call as a side effect and the other reads the captured snapshot as
+     * impurity. Satisfying them means abandoning functional setState, which is
+     * what keeps this correct when two strokes land in one batch.
+     */
+    "react-doctor/no-side-effect-in-state-updater-function": "off",
+    "react-doctor/no-impure-state-updater": "off",
+
+    /*
+     * Off, and verified at each site. `GlobeView`'s `ResizeObserver` is
+     * disconnected in the effect's own cleanup, `ManuscriptImage` revokes its
+     * object URL in a `finally`, and `format.ts`'s `Intl` constructors go
+     * through `cached`. The rules follow a call and not a helper, so each reads
+     * as a leak. `MapView`'s flight really was one and is fixed — the effect
+     * cancels its own frame — which is why these are off *after* the work
+     * rather than instead of it.
+     */
+    "react-doctor/effect-needs-cleanup": "off",
+    "react-doctor/effect-observer-needs-disconnect": "off",
+    "react-doctor/effect-raf-loop-needs-cancel": "off",
+    "react-doctor/no-create-object-url-without-revoke": "off",
+    "react-doctor/js-hoist-intl": "off",
+
+    /*
+     * Off. `structuredClone` is the right call and this application cannot make
+     * it: `tauri.conf.json` declares macOS 10.15, whose Safari does not have
+     * it, which is the same floor recorded above for `.at()`, `toSorted()` and
+     * `replaceAll()`.
+     */
+    "react-doctor/no-json-parse-stringify-clone": "off",
+
+    /*
+     * Off. Versioning the key is right for a store whose shape may change, and
+     * wrong for these: `readView` and its siblings already read an unknown
+     * shape as the default, and changing the key would take away the
+     * arrangement every writer has already chosen.
+     */
+    "react-doctor/client-localstorage-no-version": "off",
+
+    // Off. `CLAUDE.md` says `DocumentPane` reports its word count and save
+    // status through `onStatus` in an effect, and says why the call may not
+    // happen in render. These four want that state lifted into the parent
+    // instead, which is the opposite decision and one already argued out here:
+    // a pane owns what it is doing and tells the room, so a room that never
+    // asked is not rebuilt when a word is typed.
+    "react-doctor/no-pass-data-to-parent": "off",
+    "react-doctor/no-pass-live-state-to-parent": "off",
+    "react-doctor/no-prop-callback-in-render": "off",
+    "react-doctor/no-prop-callback-in-effect": "off",
+
+    /*
+     * Off. What they name is React's own documented answer to *adjusting state
+     * when a prop changes* — a selection that has to stay inside a tree whose
+     * rows have moved, a panel that closes when the thing it was about is gone.
+     * The remedies offered are a `key` (which throws the rest of the state
+     * away) or deriving the value (which cannot be done for a selection the
+     * writer built by hand).
+     */
+    "react-doctor/no-adjust-state-on-prop-change": "off",
+    "react-doctor/no-reset-all-state-on-prop-change": "off",
+
+    /*
+     * Off, and the four sites were each read.
+     *
+     * `QuickSearch` is not a chain at all: the effect it reports scrolls the
+     * highlighted row into view. The Codex's three are one gesture written
+     * down: a result pressed in search sets `asked`, the effect below finds the
+     * entry and opens it, and a third puts the column into Read. They are
+     * separate because each is true on its own, and folding them into one would
+     * be a handler that has to know every way an entry can come to be on
+     * screen.
+     *
+     * `asked` is state and not derivation for the same reason: it is cleared
+     * the moment it lands, so a later save does not drag the writer back to the
+     * entry they arrived at, and a derived value cannot be cleared. That is
+     * also the whole of what `no-derived-state-effect` reports there — the same
+     * question in a third rule's words.
+     */
+    "react-doctor/no-effect-chain": "off",
+    "react-doctor/no-derived-state": "off",
+    "react-doctor/no-derived-state-effect": "off",
+
+    // ── The two sinks, and the one this application does not have yet ─────
+    //
+    // React Doctor's security pass is the one thing the plugin above cannot do:
+    // those 42 rules run over the project rather than over a file, and none of
+    // them fires inside oxlint. Measured, on the plainest case each: the CLI
+    // reports `<div dangerouslySetInnerHTML={{ __html: html }} />` and a
+    // template-literal `SELECT … '${id}'`, and the plugin reports neither.
+    //
+    // So the question is answered by the two rules that are about *this*
+    // application's sinks rather than by a scanner that reads the whole tree.
+    // `react/no-danger` above already holds the JSX half.
+
+    /*
+     * Mozilla's, and it holds the half `react/no-danger` cannot see: a raw
+     * `innerHTML =` or `insertAdjacentHTML` on a node this application built.
+     * The preview's measurer is the one place that writes HTML by hand, and it
+     * is excepted below with the reason.
+     */
+    "no-unsanitized/property": "error",
+    /*
+     * The same rule for the call form. It reads a dynamic `import()` as a sink
+     * as well, which is what the exception for the i18n coverage test below is
+     * about.
+     */
+    "no-unsanitized/method": "error",
+  },
+
+  "overrides": [
+    {
+      "files": ["**/*.tsx"],
+      "rules": {
+        "eslint/max-lines-per-function": "off",
+        "eslint/complexity": "off",
+        "eslint/max-statements": "off",
+      },
+    },
+    {
+      "files": ["**/*.test.ts", "**/*.test.tsx", "src/test/**"],
+      "rules": {
+        "typescript/no-unsafe-argument": "off",
+        "typescript/no-unsafe-member-access": "off",
+        "typescript/no-unsafe-return": "off",
+        "typescript/no-unsafe-assignment": "off",
+        "typescript/no-unsafe-call": "off",
+        "typescript/unbound-method": "off",
+        "typescript/await-thenable": "off",
+        "typescript/no-unnecessary-type-assertion": "off",
+        "jsx-a11y/label-has-associated-control": "off",
+        "unicorn/no-await-expression-member": "off",
+        "eslint/max-lines": "off",
+        "eslint/max-lines-per-function": "off",
+        "eslint/max-statements": "off",
+        "eslint/max-nested-callbacks": ["warn", { "max": 5 }],
+        "unicorn/max-nested-calls": "off",
+        "eslint/no-console": "off",
+        "eslint/no-magic-numbers": "off",
+        "import/max-dependencies": "off",
+        "import/no-unassigned-import": "off",
+        "typescript/explicit-module-boundary-types": "off",
+        "typescript/no-non-null-assertion": "off",
+        "typescript/no-unsafe-type-assertion": "off",
+        "eslint/require-await": "off",
+        "typescript/require-await": "off",
+        "anti-slop/no-object-parameters": "off",
+        "react/jsx-max-depth": "off",
+      },
+    },
+    {
+      // Node/Bun processes: the build scripts and the agent sidecar, which
+      // parse untyped JSON at their boundary with zod.
+      "files": ["scripts/**/*.ts", "sidecar/**/*.ts", "*.config.ts"],
+      "env": { "node": true },
+      "rules": {
+        "anti-slop/no-runtime-typeof": "off",
+        "eslint/no-console": "off",
+        "unicorn/no-process-exit": "off",
+        "import/no-default-export": "off",
+        "import/no-nodejs-modules": "off",
+      },
+    },
+    {
+      "files": ["src/main.tsx", "src/test/**"],
+      "rules": { "import/no-unassigned-import": "off" },
+    },
+    {
+      "files": ["src/lib/i18n/**"],
+      "rules": {
+        "react/only-export-components": "off",
+        "eslint/max-lines": "off",
+        "eslint/max-lines-per-function": "off",
+        "unicorn/max-nested-calls": "off",
+      },
+    },
+  ],
+
+  "ignorePatterns": [
+    "dist/**",
+    "node_modules/**",
+    "src-tauri/target/**",
+    "src-tauri/gen/**",
+    "test-results/**",
+    "playwright-report/**",
+    "coverage/**",
+    "tools/oxlint/anti-slop/**",
+    ".claude/**",
+    ".impeccable/**",
+    ".vscode/**",
+    "**/*.d.ts",
+  ],
+
+  "options": {
+    // Warnings are the ratchet, and it is now shut. It stood at 2712 — the debt
+    // of 2026-08-21, the day the linter was installed — and the sweep that
+    // cleared it landed on 2026-08-22: measured over 1012 files and 448 rules,
+    // type-aware, this repository reports nothing at all. A budget nobody is
+    // spending is a budget that only tells the next writer how much room they
+    // have.
+    //
+    // So `warn` and `error` now say the same thing about whether a change may
+    // land, and differ only in what they say about the rule. **Never raise it**
+    // — a ratchet that can be wound the other way is a number, not a ratchet,
+    // and the commit that raises it is the one nobody reviews. If a change
+    // genuinely needs a new warning, that is an argument to have out loud, in
+    // the merge request, beside the rule it is about.
+    "maxWarnings": 0,
+    // A `oxlint-disable` comment for a rule that is not firing is a claim
+    // about the code that has stopped being true. There are none standing, and
+    // with the cap above at nought this is a gate like everything else: the
+    // three that used to stand were `eslint-disable-next-line` comments for an
+    // eslint that never ran here, and they went with the sweep.
+    "reportUnusedDisableDirectives": "warn",
+    // Type information, through oxlint-tsgolint. See the section above.
+    "typeAware": true,
+  },
+}
