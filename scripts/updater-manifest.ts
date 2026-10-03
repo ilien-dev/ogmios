@@ -11,7 +11,6 @@ import { join } from "node:path";
 /** The bundle each updater platform downloads, as the release workflow names it. */
 export const ASSETS = {
   "darwin-aarch64": "Ogmios_aarch64.app.tar.gz",
-  "darwin-x86_64": "Ogmios_x64.app.tar.gz",
   "windows-x86_64": "Ogmios_x64-setup.exe",
 } as const;
 
