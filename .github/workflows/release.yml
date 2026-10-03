@@ -81,6 +81,17 @@ jobs:
         run: |
           codesign -dv "$AGENT"
           echo '{"id":1,"method":"check","params":{}}' | "$AGENT" | grep '"id":1'
+      # Voice input as it ships: without the library the app offers no
+      # dictation, and without the sentence macOS ends it at the microphone.
+      - name: Voice input is bundled (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        env:
+          CONTENTS: src-tauri/target/${{ matrix.target }}/release/bundle/macos/Ogmios.app/Contents
+        run: |
+          lipo -archs "$CONTENTS/Frameworks/libparakeet.dylib" | grep -qx arm64
+          nm -gU "$CONTENTS/Frameworks/libparakeet.dylib" | grep -q parakeet_capi_transcribe_pcm_lang
+          plutil -extract NSMicrophoneUsageDescription raw "$CONTENTS/Info.plist"
       - name: Upload
         shell: bash
         env:
