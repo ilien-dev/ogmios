@@ -1,0 +1,7 @@
+{
+  "bundle": {
+    "macOS": {
+      "frameworks": ["vendor/parakeet/aarch64-apple-darwin/libparakeet.dylib"]
+    }
+  }
+}
