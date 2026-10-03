@@ -54,7 +54,9 @@ jobs:
           - os: macos-14
             target: aarch64-apple-darwin
             arch: aarch64
-          - os: macos-14
+          # On Intel: Rosetta on an Apple Silicon macOS 14 runner has no AVX,
+          # and the x64 sidecar dies there on an illegal instruction.
+          - os: macos-15-intel
             target: x86_64-apple-darwin
             arch: x64
           - os: windows-2022
