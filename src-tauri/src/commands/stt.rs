@@ -40,6 +40,8 @@ pub async fn stt_select(state: tauri::State<'_, AppState>, model_id: String) -> 
 #[tauri::command]
 pub async fn stt_start(app: AppHandle, state: tauri::State<'_, AppState>) -> Result<()> {
     let partial = app.clone();
+    // The microphone would hear the voice reading aloud.
+    state.tts.stop();
     state.stt.start(
         move |level| {
             let _ = app.emit("stt-level", level);

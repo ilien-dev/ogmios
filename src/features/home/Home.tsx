@@ -6,6 +6,7 @@ import {
   Crosshair,
   Flag,
   Flame,
+  History,
   RefreshCw,
   Shuffle,
   SlidersHorizontal,
@@ -36,6 +37,7 @@ function quickSetup(home: HomeState, topic: string): SessionSetup {
       focusMode: "free",
       targetMinutes: 10,
       material: null,
+      continuePrevious: false,
     };
   }
   return { ...last, topic };
@@ -86,7 +88,7 @@ export function Home({ navigate }: HomeProps): ReactNode {
       ? (topics[topicIndex % topics.length] ?? "")
       : (home.lastSetup?.topic ?? "");
   const name = home.profile.name;
-  const { streak } = home;
+  const { streak, continueTopic } = home;
 
   return (
     <main className="h-full overflow-y-auto">
@@ -125,6 +127,23 @@ export function Home({ navigate }: HomeProps): ReactNode {
               {t("home.start")}
               <ArrowRight aria-hidden className="size-5" />
             </Button>
+            {continueTopic !== null && (
+              <Button
+                variant="ghost"
+                icon={<History aria-hidden className="size-4" />}
+                onClick={() => {
+                  navigate({
+                    name: "conversation",
+                    setup: {
+                      ...quickSetup(home, continueTopic),
+                      continuePrevious: true,
+                    },
+                  });
+                }}
+              >
+                {t("home.continueLast")}
+              </Button>
+            )}
             {topics.length > 1 && (
               <Button
                 variant="ghost"

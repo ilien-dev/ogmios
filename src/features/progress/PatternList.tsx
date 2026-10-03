@@ -14,11 +14,11 @@ const ORDER: PatternState[] = [
 ];
 
 const DOT: Record<PatternState, string> = {
-  relapse: "bg-danger",
-  focus: "bg-accent",
-  improving: "bg-accent/55",
+  relapse: "bg-wrong",
+  focus: "bg-partial",
+  improving: "bg-correct/50",
   detected: "bg-line-strong",
-  mastered: "bg-ink-soft",
+  mastered: "bg-correct",
 };
 
 export function PatternList({

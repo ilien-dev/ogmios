@@ -89,10 +89,21 @@ export function sanitizeAnalysis(
       ? null
       : findSpan(bestText, analysis.bestSentence);
 
+  const rewrite = analysis.nativeRewrite;
+  const notes =
+    rewrite === null
+      ? []
+      : rewrite.notes.flatMap((note) => {
+          const from = findSpan(rewrite.original, note.from);
+          const to = findSpan(rewrite.rewrite, note.to);
+          return from === null || to === null ? [] : [{ ...note, from, to }];
+        });
+
   const dropped =
     analysis.errors.length -
     errors.length +
-    (analysis.couldHaveSaid.length - couldHaveSaid.length);
+    (analysis.couldHaveSaid.length - couldHaveSaid.length) +
+    ((rewrite?.notes.length ?? 0) - notes.length);
   if (dropped > 0) {
     log("dropped analysis items quoting text that is not there", { dropped });
   }
@@ -101,6 +112,7 @@ export function sanitizeAnalysis(
     ...analysis,
     errors,
     couldHaveSaid,
+    nativeRewrite: rewrite === null ? null : { ...rewrite, notes },
     correctUses: analysis.correctUses.filter(
       (use) => sent.has(use.turnId) && patternIds.has(use.patternId),
     ),

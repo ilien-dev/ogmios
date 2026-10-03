@@ -14,6 +14,11 @@ describe("DrillRunner", () => {
     render(<DrillRunner drill={drill} onAgain={mock()} onClose={mock()} />);
 
     expect(screen.getByText("1 of 2")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "You're practising: Present perfect vs past simple with finished time",
+      ),
+    ).toBeInTheDocument();
     await user.type(
       screen.getByLabelText("Your answer"),
       "I visited Rome three times",
@@ -33,7 +38,10 @@ describe("DrillRunner", () => {
       "I sent it two hours ago.",
     );
     await user.keyboard("{Enter}");
-    expect(await screen.findByText("Right.")).toBeInTheDocument();
+    // Right only on the second chance: it says so.
+    expect(
+      await screen.findByText("Right, on the second try."),
+    ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Try a similar one" }),
     ).toBeNull();
@@ -55,6 +63,12 @@ describe("DrillRunner", () => {
     expect(await screen.findByText("Right.")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: /Next/u }));
 
+    // An interleaved item says that the pattern changed.
+    expect(
+      screen.getByText(
+        "You're practising: make vs do with nouns (make an effort, do a favour)",
+      ),
+    ).toBeInTheDocument();
     await user.click(
       screen.getByRole("button", { name: "I need to do a decision today." }),
     );

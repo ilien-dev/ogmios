@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
+import { SpeakButton } from "@/features/speech/SpeakButton";
 import { cn } from "@/lib/cn";
 import type { Message } from "./useConversation";
 
@@ -11,9 +12,9 @@ interface MessageListProps {
 }
 
 /**
- * The conversation so far. The partner's lines sit on the page like text;
- * the learner's own sit in quiet bubbles on the right. The length hint hangs
- * under the latest question.
+ * The conversation so far. The partner's lines sit on the page like text,
+ * each with a way to hear it again; the learner's own sit in quiet bubbles on
+ * the right. The length hint hangs under the latest question.
  */
 export function MessageList({
   messages,
@@ -49,7 +50,10 @@ export function MessageList({
                 {message.text}
               </p>
             ) : (
-              <p className="max-w-2xl text-lead text-ink">{message.text}</p>
+              <p className="max-w-2xl text-lead text-ink">
+                {message.text}
+                <SpeakButton text={message.text} className="ml-1" />
+              </p>
             )}
             {message === last &&
               message.role === "assistant" &&

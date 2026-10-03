@@ -11,6 +11,7 @@ const SETUP: SessionSetup = {
   mode: "casual",
   personality: "curiousFriend",
   focusMode: "free",
+  continuePrevious: false,
   targetMinutes: 10,
   material: null,
 };

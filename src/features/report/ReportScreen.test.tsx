@@ -31,7 +31,7 @@ describe("ReportScreen", () => {
     expect(
       screen.getByRole("heading", { name: "What went well" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("1 of 8")).toBeInTheDocument();
+    expect(screen.getByText("1 of 9")).toBeInTheDocument();
 
     await user.keyboard("{ArrowRight}");
     expect(
@@ -42,7 +42,7 @@ describe("ReportScreen", () => {
       screen.getByRole("heading", { name: "What went well" }),
     ).toBeInTheDocument();
 
-    for (let step = 0; step < 7; step += 1) {
+    for (let step = 0; step < 8; step += 1) {
       await user.click(screen.getByRole("button", { name: /Next/u }));
     }
     expect(
@@ -78,8 +78,9 @@ describe("ReportScreen", () => {
       "I finished the report yesterday, so my boss was happy.",
     );
     await user.click(screen.getByRole("button", { name: "Check" }));
+    // Fixed, but only after the hint: it is not the clean fix.
     expect(
-      await screen.findByText("Exactly. You fixed it yourself."),
+      await screen.findByText("Fixed, with the hint."),
     ).toBeInTheDocument();
     expect(
       screen.getByText(
@@ -116,6 +117,35 @@ describe("ReportScreen", () => {
     ).toHaveLength(1);
   });
 
+  test("the native rewrite has its own card, with what changed and why", async () => {
+    const user = userEvent.setup();
+    render(
+      <ReportScreen
+        sessionId="s-106"
+        initial={await report()}
+        origin="session"
+        navigate={mock()}
+      />,
+    );
+    await user.keyboard("{ArrowRight}{ArrowRight}{ArrowRight}");
+    expect(
+      screen.getByRole("heading", { name: "You could have said" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Yours")).toBeNull();
+
+    await user.keyboard("{ArrowRight}");
+    expect(
+      screen.getByRole("heading", {
+        name: "How a native speaker might put it",
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("5 of 9")).toBeInTheDocument();
+    expect(screen.getAllByText("juggling")).toHaveLength(2);
+    expect(
+      screen.getByText(/atender varias cosas a la vez/u),
+    ).toBeInTheDocument();
+  });
+
   test("a report without a focus card still steps through and offers practice", async () => {
     const user = userEvent.setup();
     const navigate = mock();
@@ -131,12 +161,12 @@ describe("ReportScreen", () => {
         navigate={navigate}
       />,
     );
-    expect(screen.getByText("1 of 7")).toBeInTheDocument();
+    expect(screen.getByText("1 of 8")).toBeInTheDocument();
     await user.keyboard("{ArrowRight}");
     expect(
       screen.getByRole("heading", { name: "2 small things" }),
     ).toBeInTheDocument();
-    for (let step = 0; step < 5; step += 1) {
+    for (let step = 0; step < 6; step += 1) {
       await user.keyboard("{ArrowRight}");
     }
     await user.click(screen.getByRole("button", { name: /Practise this/u }));
@@ -159,7 +189,7 @@ describe("ReportScreen", () => {
         navigate={navigate}
       />,
     );
-    for (let step = 0; step < 7; step += 1) {
+    for (let step = 0; step < 8; step += 1) {
       await user.keyboard("{ArrowRight}");
     }
     await user.click(screen.getByRole("button", { name: /Practise this/u }));

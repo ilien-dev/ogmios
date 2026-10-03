@@ -46,6 +46,21 @@ pub struct ChatContext {
     pub learner: Learner,
     pub targets: Vec<Target>,
     pub challenge: Option<String>,
+    /// How the partner opened the sessions before this one, newest first.
+    pub recent_openings: Vec<String>,
+    /// Phrases from recorded speech for the partner to use; empty when there
+    /// is no evidence for this learner's goal, level or variant.
+    pub phrases: Vec<String>,
+    /// The conversation this one continues, when the learner asked for that.
+    pub previous: Option<PreviousSession>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PreviousSession {
+    pub topic: String,
+    /// Its last turns, oldest first.
+    pub turns: Vec<HistoryTurn>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -67,6 +82,10 @@ pub struct ChatParams {
 #[serde(rename_all = "camelCase")]
 pub struct ChatResult {
     pub text: String,
+    /// The partner's openers for the learner's answer; `session::scaffolds`
+    /// decides what is shown.
+    #[serde(default)]
+    pub starters: Vec<String>,
     pub provider_ref: Option<String>,
 }
 
@@ -340,4 +359,61 @@ pub struct DrillGrade {
     pub correct: bool,
     pub explanation: String,
     pub expected: String,
+}
+
+// ── book vocabulary ───────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VocabExtractParams {
+    pub native_lang: String,
+    pub level: Level,
+    pub depth: crate::domain::Depth,
+    /// One piece of a chapter, as plain English text.
+    pub text: String,
+}
+
+/// One word as the model labels it; what is kept is decided in
+/// `books::vocab`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VocabItem {
+    pub lemma: String,
+    pub form: String,
+    pub sentence: String,
+    pub translations: Vec<String>,
+    pub proper_noun: bool,
+    pub needs_context: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Vocab {
+    pub items: Vec<VocabItem>,
+}
+
+/// "I was right": a missed answer the learner stands by.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VocabJudgeParams {
+    pub native_lang: String,
+    pub direction: crate::domain::Direction,
+    /// The English base form of the word.
+    pub lemma: String,
+    /// The sentence of the book the word was taken from.
+    pub sentence: String,
+    /// The translations accepted so far, in the learner's language.
+    pub translations: Vec<String>,
+    /// What the learner typed, as they typed it.
+    pub answer: String,
+}
+
+/// The model's label; what an upheld answer changes is decided in
+/// `commands::dispute`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VocabVerdict {
+    pub correct: bool,
+    /// One line in the learner's language saying why.
+    pub reason: String,
 }

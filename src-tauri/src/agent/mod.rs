@@ -38,6 +38,10 @@ const HELP_TIMEOUT: Duration = Duration::from_secs(60);
 const ANALYZE_TIMEOUT: Duration = Duration::from_secs(300);
 const COMPOSE_TIMEOUT: Duration = Duration::from_secs(180);
 const DRILL_TIMEOUT: Duration = Duration::from_secs(120);
+/// One piece of a chapter at "most words" is a long answer.
+const VOCAB_TIMEOUT: Duration = Duration::from_secs(300);
+/// A verdict on one answer is two short lines.
+const JUDGE_TIMEOUT: Duration = Duration::from_secs(60);
 
 /// A line from the sidecar, as routed to the waiting caller.
 enum Incoming {
@@ -162,6 +166,17 @@ impl Agent {
 
     pub fn drill_grade(&self, params: &DrillGradeParams) -> Result<DrillGrade> {
         self.call("drillGrade", params, DRILL_TIMEOUT, &mut |_| {})
+    }
+
+    pub fn vocab_extract(&self, params: &protocol::VocabExtractParams) -> Result<protocol::Vocab> {
+        self.call("vocabExtract", params, VOCAB_TIMEOUT, &mut |_| {})
+    }
+
+    pub fn vocab_judge(
+        &self,
+        params: &protocol::VocabJudgeParams,
+    ) -> Result<protocol::VocabVerdict> {
+        self.call("vocabJudge", params, JUDGE_TIMEOUT, &mut |_| {})
     }
 
     fn call<P: Serialize, R: DeserializeOwned>(
@@ -432,10 +447,12 @@ mod tests {
             "context": {
                 "setup": {"topic": "t", "level": "basic", "mode": "casual",
                           "personality": "curiousFriend", "focusMode": "free",
-                          "targetMinutes": null, "material": null},
+                          "targetMinutes": null, "material": null,
+                          "continuePrevious": false},
                 "learner": {"name": null, "nativeLang": "es", "goal": "work", "variant": "us",
                             "interests": [], "facts": [], "cefr": null},
-                "targets": [], "challenge": null
+                "targets": [], "challenge": null, "recentOpenings": [], "phrases": [],
+                "previous": null
             },
             "history": [], "providerRef": null
         }))

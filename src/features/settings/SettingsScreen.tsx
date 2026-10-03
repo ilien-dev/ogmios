@@ -31,6 +31,7 @@ import { NATIVE_LANGUAGES } from "@/lib/languages";
 import { languageName } from "@/lib/text";
 import type { ThemeChoice } from "@/lib/theme";
 import { ConnectionPanel } from "./ConnectionPanel";
+import { ReadAloud } from "./ReadAloud";
 import { VoiceModels } from "./VoiceModels";
 
 interface SettingsScreenProps {
@@ -289,6 +290,10 @@ export function SettingsScreen({
               onSettingsChange({ ...settings, sttModel });
             }}
           />
+        </Section>
+
+        <Section id="settings-read-aloud" title={t("settings.readAloud")}>
+          <ReadAloud />
         </Section>
 
         <Section id="settings-memory" title={t("settings.memory")}>

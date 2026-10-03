@@ -10,15 +10,12 @@ import type {
   SDKResultSuccess,
 } from "@anthropic-ai/claude-agent-sdk";
 import type { Effort } from "../../shared/domain.ts";
-import type {
-  ChatResult,
-  CheckResult,
-  ModelsResult,
-} from "../../shared/protocol.ts";
+import type { CheckResult, ModelsResult } from "../../shared/protocol.ts";
 import { AgentError, providerError } from "../errors.ts";
 import { log } from "../log.ts";
 import { claudeCodeModels, modelKnobs } from "./models.ts";
 import type {
+  ChatReply,
   ChatTask,
   DeltaSink,
   Provider,
@@ -239,7 +236,7 @@ export class ClaudeCodeProvider implements Provider {
     }
   }
 
-  async chat(task: ChatTask, onDelta: DeltaSink): Promise<ChatResult> {
+  async chat(task: ChatTask, onDelta: DeltaSink): Promise<ChatReply> {
     const last = task.history.at(-1);
     const options = this.options(task.system, "chat");
     let prompt = task.kickoff;
