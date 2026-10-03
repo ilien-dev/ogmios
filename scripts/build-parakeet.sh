@@ -15,8 +15,9 @@ cd "$work/parakeet.cpp"
 git checkout --quiet "$REV"
 git submodule update --init --recursive --quiet
 # GGML_NATIVE=OFF: never bake the build machine's instruction set into a
-# library that runs on someone else's laptop.
-cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+# library that runs on someone else's laptop. The macOS floor is the app's own
+# (tauri.conf.json minimumSystemVersion), not the build machine's.
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release   -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0 \
   -DPARAKEET_SHARED=ON -DBUILD_SHARED_LIBS=OFF \
   -DPARAKEET_BUILD_CLI=OFF -DPARAKEET_BUILD_TESTS=OFF -DPARAKEET_BUILD_SERVER=OFF \
   -DGGML_NATIVE=OFF -DGGML_OPENMP=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON
