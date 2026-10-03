@@ -473,7 +473,7 @@ pub mod tests {
         assert_eq!(turns[1].said_text.as_deref(), Some("Hallo you"));
         assert_eq!(audio_ids(&conn, Some(&id)).expect("audio"), ["a1"]);
         clear_audio(&conn, None).expect("clear");
-        assert!(audio_ids(&conn, None).expect("audio").is_empty());
+        assert_eq!(audio_ids(&conn, None).expect("audio"), [] as [String; 0]);
 
         set_speech(&conn, &id, 2.5, true).expect("speech");
         let report = Report {
