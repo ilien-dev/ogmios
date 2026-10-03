@@ -51,6 +51,18 @@ describe("chatSystemPrompt", () => {
     expect(prompt).toContain(KICKOFF);
   });
 
+  // Measured on Opus: "hollow knight silk road" came back as Silksong, and an
+  // unknown sequel as the original, until both rules below were in place.
+  test("admits what it does not recognise instead of swapping in a lookalike", () => {
+    const prompt = chatSystemPrompt(context({}));
+    expect(prompt).not.toContain("a word that sounds like the right one");
+    expect(prompt).toContain(
+      "never turn a name you do not recognise into a similar-sounding one",
+    );
+    expect(prompt).toContain("something you do not recognise");
+    expect(prompt).toContain("Never pretend to know it.");
+  });
+
   test("changes with the level", () => {
     const basic = chatSystemPrompt(context({ setup: { level: "basic" } }));
     const advanced = chatSystemPrompt(
@@ -129,6 +141,12 @@ describe("analysis prompts", () => {
     expect(user).toContain('"said": "I has a dog"');
     expect(user).toContain('"id": "p9"');
     expect(user).toContain("A1–A2, currently estimated at A2");
+  });
+
+  test("judge only the sent text, never the edits", () => {
+    const prompt = analyzeSystemPrompt("es");
+    expect(prompt).toContain('Assess only "sent"');
+    expect(prompt).toContain("even when the learner fixed it before sending");
   });
 });
 

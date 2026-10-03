@@ -6,7 +6,9 @@
  * learner's own language.
  */
 import type {
+  Effort,
   Level,
+  ModelOption,
   PatternView,
   Progress,
   ReportCard,
@@ -69,6 +71,58 @@ export const HEARD_PHRASES = [
   "Well, this week I have finished a big report for the logistics team and my boss was really happy with it.",
   "I think the most difficult part was to coordinate with three different suppliers at the same time.",
   "Honestly, I did a big effort, but in the end it worked and we delivered on time.",
+];
+
+const EFFORTS: Effort[] = ["low", "medium", "high", "xhigh", "max"];
+
+/** What `claude` lists, as `supportedModels()` describes it. */
+export const CLAUDE_CODE_MODELS: ModelOption[] = [
+  {
+    id: "opus",
+    name: "Opus",
+    description: "Opus 5.5 · Best for everyday, complex tasks",
+    efforts: EFFORTS,
+  },
+  {
+    id: "claude-fable-5-1[1m]",
+    name: "Fable",
+    description: "Fable 5.1 · Most capable for your hardest tasks",
+    efforts: EFFORTS,
+  },
+  {
+    id: "sonnet",
+    name: "Sonnet",
+    description: "Sonnet 5.5 · Efficient for routine tasks",
+    efforts: EFFORTS,
+  },
+  {
+    id: "haiku",
+    name: "Haiku",
+    description: "Haiku 4.5 · Fastest for quick answers",
+    efforts: [],
+  },
+];
+
+/** What `/v1/models` lists for a key: names only. */
+export const API_MODELS: ModelOption[] = [
+  {
+    id: "claude-sonnet-5-5",
+    name: "Claude Sonnet 5.5",
+    description: null,
+    efforts: EFFORTS,
+  },
+  {
+    id: "claude-opus-5-5",
+    name: "Claude Opus 5.5",
+    description: null,
+    efforts: EFFORTS,
+  },
+  {
+    id: "claude-haiku-4-5-20251001",
+    name: "Claude Haiku 4.5",
+    description: null,
+    efforts: [],
+  },
 ];
 
 export const STT_MODELS: SttModel[] = [
@@ -369,14 +423,14 @@ export function progress(lang: Lang): Progress {
   return {
     patterns: PATTERNS,
     weeklyMinutes: [
-      { week: "2026-08-03", minutes: 12 },
-      { week: "2026-08-10", minutes: 25 },
-      { week: "2026-08-17", minutes: 18 },
-      { week: "2026-08-24", minutes: 31 },
-      { week: "2026-08-31", minutes: 0 },
-      { week: "2026-09-07", minutes: 22 },
-      { week: "2026-09-14", minutes: 38 },
-      { week: "2026-09-21", minutes: 27 },
+      { week: "2026-W32", minutes: 12 },
+      { week: "2026-W33", minutes: 25 },
+      { week: "2026-W34", minutes: 18 },
+      { week: "2026-W35", minutes: 31 },
+      { week: "2026-W36", minutes: 0 },
+      { week: "2026-W37", minutes: 22 },
+      { week: "2026-W38", minutes: 38 },
+      { week: "2026-W39", minutes: 27 },
     ],
     cefrHistory: [
       { date: "2026-08-04", cefr: "B1" },

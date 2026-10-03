@@ -27,10 +27,20 @@ fn fake_agent() -> Agent {
     agent.configure(ConfigureParams {
         mode: ProviderMode::ApiKey,
         model: "claude-sonnet-5".into(),
+        effort: None,
         api_key: Some("fake".into()),
         claude_path: None,
     });
     agent
+}
+
+#[test]
+#[ignore = "needs bun; run with `cargo test -- --ignored`"]
+fn lists_the_providers_models() {
+    let models = fake_agent().models().expect("models");
+    assert!(models
+        .iter()
+        .any(|m| m.id == "haiku" && m.efforts.is_empty()));
 }
 
 #[test]
@@ -262,6 +272,7 @@ fn a_failed_opening_leaves_no_session_behind() {
     agent.configure(ConfigureParams {
         mode: ProviderMode::ApiKey,
         model: "m".into(),
+        effort: None,
         api_key: Some("k".into()),
         claude_path: None,
     });

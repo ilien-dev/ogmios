@@ -4,14 +4,15 @@ use chrono::{DateTime, Utc};
 use rusqlite::{params, Connection, OptionalExtension};
 
 use super::{new_id, ts};
-use crate::domain::{Profile, ProfileFact, ProviderMode, Settings};
+use crate::domain::{Effort, Profile, ProfileFact, ProviderMode, Settings};
 use crate::error::Result;
 
-/// Default model for everything (SPEC §13).
-pub const DEFAULT_MODEL: &str = "claude-sonnet-5";
+/// Model until the learner picks one from the provider's own list (SPEC §13).
+pub const DEFAULT_MODEL: &str = "claude-sonnet-5-5";
 
 const PROVIDER_MODE: &str = "providerMode";
 const MODEL: &str = "model";
+const EFFORT: &str = "effort";
 const CLAUDE_PATH: &str = "claudePath";
 
 pub fn get_profile(conn: &Connection) -> Result<Option<Profile>> {
@@ -98,6 +99,7 @@ pub fn get_settings(conn: &Connection) -> Result<Settings> {
             .and_then(|m| ProviderMode::parse(&m))
             .unwrap_or(ProviderMode::ApiKey),
         model: get_setting(conn, MODEL)?.unwrap_or_else(|| DEFAULT_MODEL.to_owned()),
+        effort: get_setting(conn, EFFORT)?.and_then(|e| Effort::parse(&e)),
         claude_path: get_setting(conn, CLAUDE_PATH)?,
         // The speech module owns the selection; commands fill it in.
         stt_model: None,
@@ -107,6 +109,7 @@ pub fn get_settings(conn: &Connection) -> Result<Settings> {
 pub fn save_settings(conn: &Connection, settings: &Settings) -> Result<()> {
     set_setting(conn, PROVIDER_MODE, Some(settings.provider_mode.as_str()))?;
     set_setting(conn, MODEL, Some(&settings.model))?;
+    set_setting(conn, EFFORT, settings.effort.map(Effort::as_str))?;
     set_setting(conn, CLAUDE_PATH, settings.claude_path.as_deref())
 }
 
@@ -183,13 +186,18 @@ pub mod tests {
         let defaults = get_settings(&conn).expect("defaults");
         assert_eq!(defaults.provider_mode, ProviderMode::ApiKey);
         assert_eq!(defaults.model, DEFAULT_MODEL);
-        let settings = Settings {
+        assert_eq!(defaults.effort, None);
+        let mut settings = Settings {
             provider_mode: ProviderMode::ClaudeCode,
-            model: "claude-opus-5-5".into(),
+            model: "opus".into(),
+            effort: Some(Effort::High),
             claude_path: Some("/usr/bin/claude".into()),
             stt_model: None,
         };
         save_settings(&conn, &settings).expect("save");
+        assert_eq!(get_settings(&conn).expect("read"), settings);
+        settings.effort = None;
+        save_settings(&conn, &settings).expect("back to automatic");
         assert_eq!(get_settings(&conn).expect("read"), settings);
     }
 

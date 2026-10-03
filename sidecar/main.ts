@@ -26,9 +26,17 @@ function write(message: Outgoing): void {
 
 function makeProvider(config: ConfigureParams): Provider {
   if (config.mode === "apiKey") {
-    return new ApiKeyProvider(messagesApi(config.apiKey ?? ""), config.model);
+    return new ApiKeyProvider(
+      messagesApi(config.apiKey ?? ""),
+      config.model,
+      config.effort,
+    );
   }
-  return new ClaudeCodeProvider(config.claudePath ?? "", config.model);
+  return new ClaudeCodeProvider(
+    config.claudePath ?? "",
+    config.model,
+    config.effort,
+  );
 }
 
 // The fake answers every call without configuration, whatever `configure` says.

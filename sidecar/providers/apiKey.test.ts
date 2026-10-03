@@ -48,7 +48,16 @@ function scripted(answers: Message[]): {
       onText("there!");
       return reply("Hi there!");
     },
-    retrieveModel: async () => {},
+    retrieveModel: async (id) => ({
+      type: "model",
+      id,
+      display_name: id,
+      created_at: "2026-01-01T00:00:00Z",
+      max_input_tokens: null,
+      max_tokens: null,
+      capabilities: null,
+    }),
+    listModels: async () => [],
   };
   return { api, sent };
 }
@@ -72,7 +81,7 @@ const task: StructuredTask<{ correct: boolean; hint: string | null }> = {
 describe("ApiKeyProvider.structured", () => {
   test("asks for JSON matching the schema and caches the system prompt", async () => {
     const { api, sent } = scripted([reply('{"correct":true,"hint":null}')]);
-    const provider = new ApiKeyProvider(api, "claude-sonnet-5");
+    const provider = new ApiKeyProvider(api, "claude-sonnet-5", null);
 
     expect(await provider.structured(task)).toEqual({
       correct: true,
@@ -97,7 +106,7 @@ describe("ApiKeyProvider.structured", () => {
       reply('{"correct":"yes"}'),
       reply('{"correct":false,"hint":"Look at the verb."}'),
     ]);
-    const provider = new ApiKeyProvider(api, "claude-sonnet-5");
+    const provider = new ApiKeyProvider(api, "claude-sonnet-5", null);
 
     expect(await provider.structured(task)).toEqual({
       correct: false,
@@ -115,7 +124,7 @@ describe("ApiKeyProvider.structured", () => {
 
   test("gives up after the retry with a provider error", async () => {
     const { api } = scripted([reply("not json"), reply("{}")]);
-    const provider = new ApiKeyProvider(api, "claude-sonnet-5");
+    const provider = new ApiKeyProvider(api, "claude-sonnet-5", null);
 
     const failure = provider.structured(task);
     await expect(failure).rejects.toBeInstanceOf(AgentError);
@@ -124,14 +133,14 @@ describe("ApiKeyProvider.structured", () => {
 
   test("reports a truncated answer instead of parsing it", async () => {
     const { api } = scripted([reply('{"corr', "max_tokens")]);
-    const provider = new ApiKeyProvider(api, "claude-sonnet-5");
+    const provider = new ApiKeyProvider(api, "claude-sonnet-5", null);
 
     await expect(provider.structured(task)).rejects.toThrow(/cut off/u);
   });
 
   test("sends no effort to Haiku, which rejects it", async () => {
     const { api, sent } = scripted([reply('{"correct":true,"hint":null}')]);
-    const provider = new ApiKeyProvider(api, "claude-haiku-4-5-20251001");
+    const provider = new ApiKeyProvider(api, "claude-haiku-4-5-20251001", null);
 
     await provider.structured(task);
     expect(sent[0]?.output_config?.effort).toBeUndefined();
@@ -142,7 +151,7 @@ describe("ApiKeyProvider.structured", () => {
 describe("ApiKeyProvider.chat", () => {
   test("streams deltas and opens with the kickoff turn", async () => {
     const { api, sent } = scripted([]);
-    const provider = new ApiKeyProvider(api, "claude-sonnet-5");
+    const provider = new ApiKeyProvider(api, "claude-sonnet-5", null);
     const deltas: string[] = [];
 
     const result = await provider.chat(
@@ -159,8 +168,90 @@ describe("ApiKeyProvider.chat", () => {
     expect(deltas).toEqual(["Hi ", "there!"]);
     expect(result).toEqual({ text: "Hi there!", providerRef: null });
     expect(sent[0]?.messages).toEqual([{ role: "user", content: "KICKOFF" }]);
-    expect(sent[0]?.thinking).toEqual({ type: "disabled" });
+    // Sonnet 5.5 rejects thinking off; low effort keeps the partner quick.
+    expect(sent[0]?.thinking).toBeUndefined();
+    expect(sent[0]?.output_config?.effort).toBe("low");
     expect(sent[0]?.cache_control).toEqual({ type: "ephemeral" });
+  });
+});
+
+describe("ApiKeyProvider effort", () => {
+  test("sends the learner's effort on every call and lets the model think", async () => {
+    const { api, sent } = scripted([reply('{"correct":true,"hint":null}')]);
+    const provider = new ApiKeyProvider(api, "claude-sonnet-5-5", "high");
+
+    await provider.structured(task);
+    await provider.chat(
+      {
+        context: {} as never,
+        system: "PARTNER",
+        history: [],
+        providerRef: null,
+        kickoff: "KICKOFF",
+      },
+      () => {},
+    );
+    for (const params of sent) {
+      expect(params.output_config?.effort).toBe("high");
+      expect(params.thinking).toBeUndefined();
+      expect(params.max_tokens).toBeGreaterThan(1024);
+    }
+  });
+
+  test("sends no effort a model in the key's list cannot take", async () => {
+    const { api, sent } = scripted([reply('{"correct":true,"hint":null}')]);
+    const retrieve = api.retrieveModel;
+    api.retrieveModel = async (id) => {
+      const info = await retrieve(id);
+      return {
+        ...info,
+        capabilities: {
+          effort: { supported: false },
+        } as NonNullable<typeof info.capabilities>,
+      };
+    };
+    const provider = new ApiKeyProvider(api, "claude-sonnet-4-5", null);
+
+    await provider.structured(task);
+    expect(sent[0]?.output_config?.effort).toBeUndefined();
+  });
+});
+
+describe("ApiKeyProvider.models", () => {
+  test("lists what the key can use", async () => {
+    const { api } = scripted([]);
+    api.listModels = async () => [
+      {
+        type: "model",
+        id: "claude-sonnet-5-5",
+        display_name: "Claude Sonnet 5.5",
+        created_at: "2026-01-01T00:00:00Z",
+        max_input_tokens: null,
+        max_tokens: null,
+        capabilities: null,
+      },
+    ];
+    const provider = new ApiKeyProvider(api, "claude-sonnet-5-5", null);
+
+    expect(await provider.models()).toEqual([
+      {
+        id: "claude-sonnet-5-5",
+        name: "Claude Sonnet 5.5",
+        description: null,
+        efforts: [],
+      },
+    ]);
+  });
+
+  test("reports a rejected key as a provider error", async () => {
+    const { api } = scripted([]);
+    api.listModels = () =>
+      Promise.reject(new AuthenticationError(401, {}, "bad", new Headers()));
+    const provider = new ApiKeyProvider(api, "claude-sonnet-5-5", null);
+
+    await expect(provider.models()).rejects.toMatchObject({
+      kind: "provider",
+    });
   });
 });
 

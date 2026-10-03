@@ -13,8 +13,10 @@ about as often as a dependency bump. A few megabytes in the repository is the
 cheaper side of that trade.
 
 `build.rs` copies the library for the target triple being built beside the
-binary cargo produces (and into `deps/`, for tests); `tauri.conf.json` bundles
-it. Voice input is offered where the library exists and nowhere else:
+binary cargo produces (and into `deps/`, for tests); `tauri.<os>.conf.json`
+bundles it. Add that file together with the library, never before: Tauri
+refuses to build, even in dev, when a bundled resource is missing
+(`scripts/tauri-resources.test.ts` checks it). Voice input is offered where the library exists and nowhere else:
 `engine::library_beside` answers `None`, and `stt_status` reports
 `available: false`.
 
@@ -23,10 +25,10 @@ it. Voice input is offered where the library exists and nowhere else:
 | Platform                   | File             | Built from                                 |
 | -------------------------- | ---------------- | ------------------------------------------ |
 | `x86_64-unknown-linux-gnu` | `libparakeet.so` | `e270af73b94c9a5c37ec516230219ed4580e1db6` |
+| `x86_64-pc-windows-msvc`   | `parakeet.dll`   | `e270af73b94c9a5c37ec516230219ed4580e1db6` |
 
-Windows (`x86_64-pc-windows-msvc/parakeet.dll`) and macOS
-(`aarch64-apple-darwin/libparakeet.dylib`, `x86_64-apple-darwin/…`) are not
-built yet. The same revision and flags apply; each has to be built on (or
+macOS (`aarch64-apple-darwin/libparakeet.dylib`, `x86_64-apple-darwin/…`) is
+not built yet. The same revision and flags apply; each has to be built on (or
 cross-compiled for) its own platform.
 
 ggml is linked statically inside the library, so there is one file per
@@ -64,6 +66,9 @@ Then copy the library into `vendor/parakeet/<target-triple>/`.
   a fast desktop crashes on an older laptop with an illegal instruction.
 - `CMAKE_POSITION_INDEPENDENT_CODE=ON` is needed on Linux: ggml is built as
   static archives and then linked into a shared object, which requires `-fPIC`.
+- On Windows, also pass `-DCMAKE_WINDOWS_EXPORT_ALL_SYMBOLS=ON`. Upstream
+  marks nothing `__declspec(dllexport)`, so without it the DLL loads but
+  exports no `parakeet_capi_*` symbol and the first press fails.
 - On Windows, build from a Developer Command Prompt (or after `vcvars64.bat`),
   make sure the first `ninja` on the path is a real one (Strawberry Perl ships a
   broken one), and build near the root of a drive: Ninja fails on long paths.

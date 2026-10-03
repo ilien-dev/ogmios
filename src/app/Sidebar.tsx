@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { ChartNoAxesColumn, Dumbbell, House, Settings } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { UpdateHint } from "@/features/update/UpdateHint";
 import { cn } from "@/lib/cn";
 import type { Navigate, Route } from "./routes";
 
@@ -81,6 +82,13 @@ export function Sidebar({ route, navigate }: SidebarProps): ReactNode {
           </li>
         ))}
       </ul>
+      <div className="mt-auto">
+        <UpdateHint
+          onOpen={() => {
+            navigate({ name: "settings" });
+          }}
+        />
+      </div>
     </nav>
   );
 }

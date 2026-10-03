@@ -7,6 +7,7 @@ import type {
   Composed,
   DrillGenerateParams,
   DrillSet,
+  ModelsResult,
 } from "../../shared/protocol.ts";
 import { AgentError } from "../errors.ts";
 import type {
@@ -158,6 +159,18 @@ function openingFor(task: ChatTask): string {
 export class FakeProvider implements Provider {
   check(): Promise<CheckResult> {
     return Promise.resolve({ ok: true, message: null });
+  }
+
+  models(): Promise<ModelsResult> {
+    return Promise.resolve([
+      {
+        id: "sonnet",
+        name: "Sonnet",
+        description: "Fake model",
+        efforts: ["low", "medium", "high"],
+      },
+      { id: "haiku", name: "Haiku", description: null, efforts: [] },
+    ]);
   }
 
   chat(task: ChatTask, onDelta: DeltaSink): Promise<ChatResult> {

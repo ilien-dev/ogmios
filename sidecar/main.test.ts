@@ -204,6 +204,18 @@ describe("sidecar over stdio (fake provider)", () => {
     }
   });
 
+  test("lists the configured provider's models", async () => {
+    const lines = await exchange([{ id: 1, method: "models", params: null }]);
+    expect(lines).toEqual([
+      {
+        id: 1,
+        result: expect.arrayContaining([
+          expect.objectContaining({ id: "haiku", efforts: [] }),
+        ]),
+      },
+    ]);
+  });
+
   test("writes nothing but protocol lines on stdout", async () => {
     const lines = await exchange([{ id: 1, method: "check", params: null }]);
     expect(lines).toHaveLength(1);
@@ -296,6 +308,7 @@ describe("sidecar errors", () => {
           params: {
             mode: "apiKey",
             model: "claude-sonnet-5",
+            effort: null,
             apiKey: null,
             claudePath: null,
           },
@@ -306,6 +319,7 @@ describe("sidecar errors", () => {
           params: {
             mode: "claudeCode",
             model: "claude-sonnet-5",
+            effort: null,
             apiKey: null,
             claudePath: "/nonexistent/claude",
           },

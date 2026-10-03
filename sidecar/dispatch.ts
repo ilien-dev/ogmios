@@ -143,6 +143,8 @@ export class Dispatcher {
       }
       case "check":
         return this.#requireProvider().check();
+      case "models":
+        return this.#requireProvider().models();
       case "chat": {
         const params = parseParams(chatParams, method, raw);
         return this.#requireProvider().chat(

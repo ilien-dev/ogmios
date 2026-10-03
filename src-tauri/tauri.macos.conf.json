@@ -1,7 +1,0 @@
-{
-  "bundle": {
-    "resources": {
-      "vendor/parakeet/aarch64-apple-darwin/libparakeet.dylib": "libparakeet.dylib"
-    }
-  }
-}

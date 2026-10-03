@@ -10,7 +10,7 @@ use super::{
     advance_review, is_active, keep_error, next_state, priority, select, state_after_dispute,
     stats, Candidate, Event, EventKind, ScoreInput,
 };
-use crate::agent::protocol::{Analysis, AnalysisError, EditType};
+use crate::agent::protocol::{Analysis, AnalysisError};
 use crate::db::patterns::{self, ErrorEvent, NewEvent, NewPattern, PatternRow};
 use crate::db::sessions;
 use crate::domain::{Goal, PatternState};
@@ -218,38 +218,17 @@ fn record_events(
         touched.insert(id);
     }
 
-    let positives = analysis
-        .correct_uses
-        .iter()
-        .map(|u| {
-            (
-                u.pattern_id.as_str(),
-                u.turn_id.as_str(),
-                EventKind::CorrectUse,
-            )
-        })
-        .chain(
-            analysis
-                .edits
-                .iter()
-                .filter(|e| e.kind == EditType::SelfCorrection)
-                .filter_map(|e| {
-                    Some((
-                        e.pattern_id.as_deref()?,
-                        e.turn_id.as_str(),
-                        EventKind::SelfCorrected,
-                    ))
-                }),
-        );
-    for (pattern_id, turn_id, kind) in positives {
+    // Edits made before sending are never events: only the sent text counts.
+    for usage in &analysis.correct_uses {
+        let pattern_id = usage.pattern_id.as_str();
         if !rows.contains_key(pattern_id) {
             continue;
         }
         let event = NewEvent {
             pattern_id,
             session_id: Some(session_id),
-            turn_id: Some(turn_id),
-            kind,
+            turn_id: Some(&usage.turn_id),
+            kind: EventKind::CorrectUse,
             global: false,
             above_level: false,
             original: None,
@@ -441,6 +420,36 @@ mod tests {
         assert_eq!(active.len(), 3);
         assert_eq!(all.iter().filter(|p| p.is_primary).count(), 1);
         assert_eq!(out.challenge_pattern.expect("challenge").0.key, "b");
+    }
+
+    #[test]
+    fn edits_before_sending_leave_no_event() {
+        let conn = open_in_memory().expect("db");
+        let t0 = Utc::now();
+        let s0 = session(&conn, t0);
+        apply(
+            &conn,
+            &s0,
+            &analysis(&json!([error("a", false, 0.9)]), &json!([])),
+            Goal::Work,
+            t0,
+        )
+        .expect("s0");
+        let a = patterns::find_by_key(&conn, "a").expect("q").expect("a");
+
+        let t1 = t0 + Duration::days(1);
+        let s1 = session(&conn, t1);
+        let mut edited = analysis(&json!([]), &json!([]));
+        edited.edits = serde_json::from_value(json!([
+            {"turnId": "t", "type": "selfCorrection", "before": "go", "after": "went",
+             "patternId": a.id},
+            {"turnId": "t", "type": "asrFix", "before": "their", "after": "there",
+             "patternId": null}
+        ]))
+        .expect("edits");
+        apply(&conn, &s1, &edited, Goal::Work, t1).expect("s1");
+        let events = patterns::events_for(&conn, &a.id).expect("events");
+        assert_eq!(events.len(), 1, "only the first session's error");
     }
 
     #[test]

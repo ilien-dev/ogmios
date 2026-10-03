@@ -20,7 +20,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use serde_json::{json, Value};
 
-use crate::domain::{ProviderCheck, SelfCheck};
+use crate::domain::{ModelOption, ProviderCheck, SelfCheck};
 use crate::error::{Error, Result};
 use protocol::{
     Analysis, AnalyzeParams, ChatParams, ChatResult, ComposeParams, Composed, ConfigureParams,
@@ -32,6 +32,7 @@ use protocol::{
 /// resets the clock with every delta.
 const CONFIGURE_TIMEOUT: Duration = Duration::from_secs(10);
 const CHECK_TIMEOUT: Duration = Duration::from_secs(60);
+const MODELS_TIMEOUT: Duration = Duration::from_secs(30);
 const CHAT_TIMEOUT: Duration = Duration::from_secs(90);
 const HELP_TIMEOUT: Duration = Duration::from_secs(60);
 const ANALYZE_TIMEOUT: Duration = Duration::from_secs(300);
@@ -129,6 +130,10 @@ impl Agent {
 
     pub fn check(&self) -> Result<ProviderCheck> {
         self.call("check", &json!({}), CHECK_TIMEOUT, &mut |_| {})
+    }
+
+    pub fn models(&self) -> Result<Vec<ModelOption>> {
+        self.call("models", &json!({}), MODELS_TIMEOUT, &mut |_| {})
     }
 
     pub fn chat(&self, params: &ChatParams, on_delta: &mut dyn FnMut(&str)) -> Result<ChatResult> {
@@ -400,6 +405,7 @@ mod tests {
         agent.configure(ConfigureParams {
             mode: ProviderMode::ApiKey,
             model: "claude-sonnet-5".into(),
+            effort: None,
             api_key: Some("k".into()),
             claude_path: None,
         });

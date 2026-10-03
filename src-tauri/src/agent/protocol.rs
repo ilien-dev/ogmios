@@ -4,8 +4,8 @@
 use serde::{Deserialize, Serialize};
 
 use crate::domain::{
-    Cefr, DrillFormat, ErrorKind, Goal, HelpOption, Level, NativeRewrite, ProviderMode, Role,
-    SessionSetup, Variant,
+    Cefr, DrillFormat, Effort, ErrorKind, Goal, HelpOption, Level, NativeRewrite, ProviderMode,
+    Role, SessionSetup, Variant,
 };
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -13,6 +13,7 @@ use crate::domain::{
 pub struct ConfigureParams {
     pub mode: ProviderMode,
     pub model: String,
+    pub effort: Option<Effort>,
     pub api_key: Option<String>,
     pub claude_path: Option<String>,
 }

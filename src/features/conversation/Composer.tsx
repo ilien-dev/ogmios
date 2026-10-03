@@ -162,12 +162,18 @@ export function Composer({
     if (sent === "" || disabled || sending || recorder.status !== "idle") {
       return;
     }
+    // Clear now: `onSend` resolves only once the partner's reply is complete.
+    const held = recording;
     setSending(true);
+    setText("");
+    setRecording(null);
+    field.current?.focus();
     try {
-      if (await onSend(sent, recording)) {
-        setText("");
-        setRecording(null);
-        field.current?.focus();
+      const ok = await onSend(sent, held);
+      // A failed turn comes back, unless the learner has started a new one.
+      if (!ok && (field.current?.value ?? "").trim() === "") {
+        setText(sent);
+        setRecording(held);
       }
     } finally {
       setSending(false);

@@ -23,8 +23,6 @@ pub const MASTERED_SESSIONS: usize = 3;
 pub const MASTERED_CONTEXTS: u32 = 5;
 /// …the last of them at least this long after the last drill.
 pub const MASTERED_DAYS_AFTER_DRILL: i64 = 7;
-/// A self-correction is half a correct use (SPEC §6.5).
-pub const SELF_CORRECTED_CREDIT: f64 = 0.5;
 /// "Ready" patterns, sometimes right and sometimes wrong, score higher.
 pub const READY_MIN: f64 = 0.20;
 pub const READY_MAX: f64 = 0.79;
@@ -68,12 +66,11 @@ impl EventKind {
         })
     }
 
-    /// Drills train; only conversation proves (SPEC §3.6).
+    /// Drills train; only conversation proves (SPEC §3.6). Edits before
+    /// sending prove nothing either way (SPEC §6.5): only the sent text is
+    /// judged, so stored `SelfCorrected` events are kept but never counted.
     fn is_spontaneous(self) -> bool {
-        matches!(
-            self,
-            EventKind::Error | EventKind::CorrectUse | EventKind::SelfCorrected
-        )
+        matches!(self, EventKind::Error | EventKind::CorrectUse)
     }
 }
 
@@ -138,7 +135,6 @@ pub fn stats<'a>(events: impl IntoIterator<Item = &'a Event>) -> Stats {
                 stats.correct += 1.0;
                 stats.obligatory += 1;
             }
-            EventKind::SelfCorrected => stats.correct += SELF_CORRECTED_CREDIT,
             _ => stats.obligatory += 1,
         }
         if let Some(session) = event.session_id.as_deref() {
@@ -373,10 +369,14 @@ mod tests {
     use EventKind::{CorrectUse, DrillOk, Error, SelfCorrected};
 
     #[test]
-    fn self_corrections_are_half_a_correct_use() {
-        let s = stats(&[ev(Error, 1, 0), ev(SelfCorrected, 1, 0), ev(DrillOk, 1, 0)]);
+    fn stored_self_corrections_carry_no_weight() {
+        let s = stats(&[
+            ev(CorrectUse, 1, 0),
+            ev(SelfCorrected, 1, 0),
+            ev(DrillOk, 1, 0),
+        ]);
         assert_eq!(s.obligatory, 1);
-        assert_eq!(s.rate(), Some(0.25));
+        assert_eq!(s.rate(), Some(1.0));
     }
 
     #[test]

@@ -1,0 +1,110 @@
+# Every version that reaches main is released: the macOS and Windows
+# installers, the signed bundles the in-app updater downloads, and the
+# latest.json it reads. A version already released is skipped, so pushes that
+# do not bump package.json build nothing. CLAUDE.md asks every PR to bump it.
+name: release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  GH_TOKEN: ${{ github.token }}
+
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      release: ${{ steps.release.outputs.release }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: version
+        run: echo "version=$(jq -r .version package.json)" >> "$GITHUB_OUTPUT"
+      - id: release
+        env:
+          TAG: v${{ steps.version.outputs.version }}
+        run: |
+          if gh release view "$TAG" --json isDraft -q .isDraft 2>/dev/null | grep -qx false; then
+            echo "$TAG is already released."
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # A draft left by a failed run starts over.
+          gh release delete "$TAG" --yes 2>/dev/null || true
+          gh release create "$TAG" --draft --target "$GITHUB_SHA" \
+            --title "Ogmios ${TAG#v}" --notes-file .github/release-notes.md
+          echo "release=true" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: prepare
+    if: needs.prepare.outputs.release == 'true'
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - os: macos-14
+            target: aarch64-apple-darwin
+            arch: aarch64
+          - os: macos-14
+            target: x86_64-apple-darwin
+            arch: x64
+          - os: windows-2022
+            target: x86_64-pc-windows-msvc
+            arch: x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - run: bun install --frozen-lockfile
+      - run: bun run sidecar:build --target ${{ matrix.target }}
+      - name: Build
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: bun tauri build --target ${{ matrix.target }} --config src-tauri/tauri.release.conf.json
+      - name: Upload
+        shell: bash
+        env:
+          BUNDLE: src-tauri/target/${{ matrix.target }}/release/bundle
+          ARCH: ${{ matrix.arch }}
+          TAG: v${{ needs.prepare.outputs.version }}
+        run: |
+          mkdir out
+          # Fixed names, so releases/latest/download/<name> always resolves.
+          if [ "$RUNNER_OS" = macOS ]; then
+            cp "$BUNDLE"/dmg/*.dmg "out/Ogmios_$ARCH.dmg"
+            cp "$BUNDLE/macos/Ogmios.app.tar.gz" "out/Ogmios_$ARCH.app.tar.gz"
+            cp "$BUNDLE/macos/Ogmios.app.tar.gz.sig" "out/Ogmios_$ARCH.app.tar.gz.sig"
+          else
+            cp "$BUNDLE"/nsis/*-setup.exe "out/Ogmios_$ARCH-setup.exe"
+            cp "$BUNDLE"/nsis/*-setup.exe.sig "out/Ogmios_$ARCH-setup.exe.sig"
+          fi
+          gh release upload "$TAG" out/* --clobber
+
+  publish:
+    needs: [prepare, build]
+    runs-on: ubuntu-24.04
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - name: Updater manifest
+        run: |
+          mkdir sigs
+          gh release download "v$VERSION" --pattern '*.sig' --dir sigs
+          bun scripts/updater-manifest.ts "$VERSION" "$GITHUB_REPOSITORY" sigs latest.json
+          gh release upload "v$VERSION" latest.json --clobber
+      - run: gh release edit "v$VERSION" --draft=false --latest

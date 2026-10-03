@@ -13,6 +13,8 @@ pub enum Error {
     Provider(String),
     #[error("{0}")]
     Stt(String),
+    #[error("{0}")]
+    Update(String),
     #[error("database: {0}")]
     Database(#[from] rusqlite::Error),
     #[error("io: {0}")]
@@ -30,6 +32,7 @@ impl Error {
             Error::NotFound(_) => "notFound",
             Error::Provider(_) => "provider",
             Error::Stt(_) => "stt",
+            Error::Update(_) => "update",
             Error::Database(_) => "database",
             Error::Io(_) => "io",
             Error::Json(_) | Error::Internal(_) => "internal",

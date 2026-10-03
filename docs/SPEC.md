@@ -173,8 +173,9 @@ Pantallas, una por paso, saltables salvo 1 y 5:
    trabajo sube el peso de registro formal; social, el de naturalidad.
 4. **Intereses:** chips + texto libre. Alimenta temas sugeridos.
 5. **Conexión a Claude:** API key (recomendado) o Claude Code local (detecta `claude` en PATH, prueba
-   con una llamada mínima, muestra el aviso de §1.2). Selector de modelo (default Sonnet 5).
-6. **Voz:** descarga del modelo de voz a texto (muestra tamaño) o "solo texto por ahora".
+   con una llamada mínima, muestra el aviso de §1.2). Selector de modelo y de esfuerzo (§13).
+6. **Voz:** descarga de uno o varios modelos de voz a texto (muestra tamaño) y elección del que se
+   usa, o "solo texto por ahora". Ninguno viene elegido.
 7. **Variante de inglés:** americano / británico.
 8. **Recordatorio diario:** hora o ninguno.
 9. **Nivel inicial:** básico / intermedio / avanzado, con una descripción de una línea de cada uno.
@@ -241,12 +242,12 @@ silencio no cuentan.
 ### 6.5 Edición de la transcripción
 
 Se guardan dos textos por turno: `said_text` (lo transcrito) y `sent_text` (lo enviado).
-El análisis compara ambos y clasifica cada cambio:
+**Solo se evalúa `sent_text`.** Editar antes de enviar nunca cuenta como fallo: el modelo de voz
+confunde palabras y estructuras, y el usuario tiene que poder arreglarlas sin castigo. Un patrón bien
+usado en el texto enviado es un uso correcto completo, aunque se haya corregido antes de enviar.
 
-- **Error del modelo de voz** (palabra que suena parecido, puntuación, nombres propios): se ignora.
-- **Autocorrección del usuario** (verbo, estructura, palabra cambiada por otra de sentido distinto):
-  se registra como evento `self_corrected` del patrón. Cuenta como señal positiva
-  ("Lo notaste tú solo") y como uso "a medias" para el estado del patrón.
+El análisis igual clasifica cada cambio (error del modelo de voz o autocorrección del usuario) solo
+para el reporte ("Lo notaste tú solo"); no genera eventos ni afecta el estado del patrón.
 
 Automático, sin preguntar al usuario.
 
@@ -289,7 +290,7 @@ positivos del modelo.
 
 Un **patrón** es un error recurrente normalizado ("present perfect vs past simple con time
 expressions", "falta de artículo antes de sustantivos contables", "make vs do").
-Cada aparición, uso correcto o autocorrección es un **evento** ligado a un turno.
+Cada aparición o uso correcto en el texto enviado es un **evento** ligado a un turno.
 
 ### 8.2 Estados
 
@@ -401,10 +402,11 @@ las tendencias se muestran separadas por modo. Tendencias sobre ≥5 sesiones.
 
 ## 12. Voz a texto
 
-- **Local por defecto**, en Rust, con parakeet.cpp (MIT) cargado en tiempo de ejecución. Modelo por
-  defecto: **Parakeet TDT 0.6B v3** (multilingüe, 742 MB, CC-BY-4.0), con pista de idioma `auto`
-  para que una palabra en el idioma nativo salga legible. Alternativa ligera: **Parakeet TDT-CTC
-  110M** (solo inglés, 143 MB).
+- **Local por defecto**, en Rust, con parakeet.cpp (MIT) cargado en tiempo de ejecución. Modelos:
+  **Parakeet TDT 0.6B v3** (multilingüe, 742 MB, CC-BY-4.0), con pista de idioma `auto` para que
+  una palabra en el idioma nativo salga legible, y **Parakeet TDT-CTC 110M** (solo inglés, 143 MB).
+- Ningún modelo viene instalado ni elegido: el usuario descarga uno o varios (también en el
+  onboarding) y elige cuál usar. Sin modelo elegido, la app es solo texto.
 - Descarga única del modelo, con tamaño visible y verificación sha256. Opción de API en la nube
   para equipos lentos (v2).
 - **Riesgo:** los modelos de voz tienden a "limpiar" lo dicho. Medido en H0 con voz sintética
@@ -439,7 +441,15 @@ Configuración del modo Claude Code (verificar en Hito 0):
 - `includePartialMessages: true` para streaming.
 - Sesión: guardar `session_id` y reanudar con `resume`.
 
-**Un solo modelo** para charla, análisis y drills, elegido por el usuario. Default: Sonnet 5.
+**Un solo modelo** para charla, análisis y drills, elegido por el usuario. La lista no está fija en
+la app: se pide al proveedor (`supportedModels()` de Claude Code, con nombre y descripción; o
+`/v1/models` con la API key, solo nombre y sin los que no admiten salida estructurada). Default:
+la familia Sonnet. Si el modelo guardado ya no está en la lista, pasa al más nuevo de su familia.
+
+**Esfuerzo de razonamiento** opcional, entre los niveles que el modelo admite, para todas las
+llamadas. Sin elegir (automático): charla con esfuerzo bajo, análisis y drills con esfuerzo
+medio. Sonnet 5.5, Opus 5.5 y Fable no permiten apagar el razonamiento; Haiku no admite esfuerzo
+y va sin razonamiento. Con la API key no se envía un esfuerzo que el modelo no admite.
 
 ---
 
@@ -551,7 +561,7 @@ turns(id, session_id, idx, role, said_text, sent_text, audio_path, speech_second
 patterns(id, key, description_l1, kind, rule_based, state, first_seen_session, last_seen_session,
          state_changed_at, next_review_at, review_step, priority_cache)
 pattern_events(id, pattern_id, session_id, turn_id,
-               kind /* error|correct_use|missed_context|self_corrected|drill_ok|drill_fail */,
+               kind /* error|correct_use|missed_context|self_corrected (histórico, sin peso)|drill_ok|drill_fail */,
                disputed, created_at)
 
 drills(id, pattern_ids, format, items_json, results_json, created_at)
@@ -645,7 +655,7 @@ completo, empaquetado para Linux/macOS/Windows en CI, README, capturas, licencia
 
 ## 20. Preguntas abiertas
 
-1. ~~¿Modelo de voz multilingüe?~~ Resuelto: Parakeet v3 multilingüe por defecto.
+1. ~~¿Modelo de voz multilingüe?~~ Resuelto: Parakeet v3 multilingüe, a elección del usuario.
 2. ¿Constante de 100 palabras/min para texto? (ajustar con datos propios)
 3. ¿Umbrales de Dominado (80 %, 3 sesiones, 5 contextos, 7 días)? (ajustar tras uso real)
 4. ¿Pedir aprobación a Anthropic antes o después de publicar? Recomendado: antes de promocionar el

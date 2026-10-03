@@ -6,12 +6,21 @@
 bun run check        # everything: types, oxlint, prettier, bun test, fmt, clippy, cargo test
 bun test <file>      # one TS test file
 bun run tauri:dev    # desktop app (builds the sidecar first)
-bun run dev          # UI only, on src/lib/ipcMock.ts (?mock=fresh | ?mock=ready)
+bun run dev          # UI only, on src/lib/ipcMock.ts (?mock=fresh | ready | update)
 ```
 
 Cargo runs from `src-tauri/`. `cargo test -- --ignored commands::` runs the
 whole learner loop against the sidecar's fake provider (`OGMIOS_FAKE=1`).
 `OGMIOS_AGENT_CMD="bun sidecar/main.ts"` makes Rust spawn the sidecar from source.
+
+## Releases
+
+- Every PR bumps the version in `package.json` and `src-tauri/Cargo.toml`
+  (patch for fixes, minor for features); CI rejects a PR that doesn't. Merging
+  to main publishes `v<version>` for macOS and Windows
+  (`.github/workflows/release.yml`); installed apps update from its `latest.json`.
+- Never regenerate or commit the updater key (`~/.tauri/ogmios.key`, secrets
+  `TAURI_SIGNING_PRIVATE_KEY*`): installed apps would stop updating.
 
 ## Architecture rules
 
