@@ -19,7 +19,6 @@ describe("updater manifest", () => {
     expect(json.notes).toBe("Fixes");
     expect(Object.keys(json.platforms).sort()).toEqual([
       "darwin-aarch64",
-      "darwin-x86_64",
       "windows-x86_64",
     ]);
     expect(json.platforms["windows-x86_64"]).toEqual({
@@ -29,7 +28,7 @@ describe("updater manifest", () => {
   });
 
   test("refuses to publish with a platform unsigned", () => {
-    const { [ASSETS["darwin-x86_64"]]: _dropped, ...partial } = signatures;
+    const { [ASSETS["darwin-aarch64"]]: _dropped, ...partial } = signatures;
     expect(() =>
       manifest({
         version: "0.2.0",
@@ -38,6 +37,6 @@ describe("updater manifest", () => {
         date: "2026-10-02T00:00:00.000Z",
         signatures: partial,
       }),
-    ).toThrow(/Ogmios_x64.app.tar.gz/u);
+    ).toThrow(/Ogmios_aarch64.app.tar.gz/u);
   });
 });
