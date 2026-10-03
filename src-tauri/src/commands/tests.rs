@@ -235,9 +235,10 @@ fn check_next_session_and_disputes(ctx: Ctx<'_>, focus_id: &str, dir: &Path) {
 
     session::delete_audio(ctx, None).expect("delete audio");
     assert!(!dir.join("audio/a1.wav").exists());
-    assert!(sessions::audio_ids(&ctx.conn().expect("conn"), None)
-        .expect("ids")
-        .is_empty());
+    assert_eq!(
+        sessions::audio_ids(&ctx.conn().expect("conn"), None).expect("ids"),
+        [] as [String; 0]
+    );
 }
 
 #[test]
@@ -284,7 +285,8 @@ fn a_failed_opening_leaves_no_session_behind() {
     profile::save_profile(&ctx.conn().expect("conn"), &profile::tests::profile()).expect("profile");
     let err = session::start(ctx, &sessions::tests::setup(), &mut |_, _| {}).expect_err("no agent");
     assert_eq!(err.kind(), "provider");
-    assert!(sessions::list_sessions(&ctx.conn().expect("conn"))
-        .expect("list")
-        .is_empty());
+    assert_eq!(
+        sessions::list_sessions(&ctx.conn().expect("conn")).expect("list"),
+        [] as [sessions::SessionRow; 0]
+    );
 }

@@ -3,7 +3,8 @@
     "targets": ["app", "dmg", "nsis"],
     "createUpdaterArtifacts": true,
     "macOS": {
-      "signingIdentity": "-"
+      "signingIdentity": "-",
+      "hardenedRuntime": false
     }
   }
 }
