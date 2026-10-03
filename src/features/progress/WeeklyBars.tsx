@@ -1,9 +1,15 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { formatWeek } from "@/lib/text";
+import { formatWeek, speechDuration } from "@/lib/text";
 
 interface WeeklyBarsProps {
   weeks: Array<{ week: string; minutes: number }>;
+}
+
+function Spoken({ minutes }: { minutes: number }): ReactNode {
+  const { t } = useTranslation();
+  const { unit, count } = speechDuration(minutes);
+  return t(`common.${unit}`, { count });
 }
 
 /**
@@ -34,7 +40,7 @@ export function WeeklyBars({ weeks }: WeeklyBarsProps): ReactNode {
                   : "invisible mb-1.5 rounded-sm bg-raised px-1.5 py-0.5 text-xs text-ink tabular-nums shadow-card group-hover:visible"
               }
             >
-              {week.minutes}
+              <Spoken minutes={week.minutes} />
             </span>
             <span
               className={
@@ -51,11 +57,13 @@ export function WeeklyBars({ weeks }: WeeklyBarsProps): ReactNode {
         {weeks.map((week, i) => (
           <span
             key={week.week}
-            className="flex-1 text-center text-xs text-ink-faint tabular-nums"
+            className="flex min-w-0 flex-1 justify-center text-xs text-ink-faint tabular-nums"
           >
-            {i % 2 === lastIndex % 2
-              ? formatWeek(week.week, i18n.language)
-              : ""}
+            {i % 2 === lastIndex % 2 && (
+              <span className="whitespace-nowrap">
+                {formatWeek(week.week, i18n.language)}
+              </span>
+            )}
           </span>
         ))}
       </div>
@@ -65,7 +73,9 @@ export function WeeklyBars({ weeks }: WeeklyBarsProps): ReactNode {
           {weeks.map((week) => (
             <tr key={week.week}>
               <th scope="row">{formatWeek(week.week, i18n.language)}</th>
-              <td>{t("common.minutes", { count: week.minutes })}</td>
+              <td>
+                <Spoken minutes={week.minutes} />
+              </td>
             </tr>
           ))}
         </tbody>

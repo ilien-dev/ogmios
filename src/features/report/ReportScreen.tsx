@@ -22,6 +22,7 @@ import { ChallengeCard } from "./cards/ChallengeCard";
 import { CorrectionView } from "./cards/CorrectionView";
 import { CouldHaveSaidCard } from "./cards/CouldHaveSaidCard";
 import { MetricsCard } from "./cards/MetricsCard";
+import { NativeRewriteCard } from "./cards/NativeRewriteCard";
 import { VocabularyCard } from "./cards/VocabularyCard";
 import type { Step } from "./steps";
 import { toSteps } from "./steps";
@@ -196,6 +197,8 @@ export function ReportScreen({
         );
       case "couldHaveSaid":
         return <CouldHaveSaidCard card={current.card} />;
+      case "nativeRewrite":
+        return <NativeRewriteCard rewrite={current.rewrite} />;
       case "vocabulary":
         return <VocabularyCard card={current.card} />;
       case "metrics":

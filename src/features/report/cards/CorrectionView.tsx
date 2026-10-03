@@ -1,18 +1,28 @@
 import { useState } from "react";
 import type { SyntheticEvent, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { CircleCheck, Lightbulb, Repeat } from "lucide-react";
+import { Lightbulb, Repeat } from "lucide-react";
 import type { CorrectionCard } from "@shared/domain";
 import { Button } from "@/components/ui/Button";
 import { Spinner } from "@/components/ui/Spinner";
 import { TextInput } from "@/components/ui/TextInput";
+import { VerdictLine } from "@/components/ui/Verdict";
 import { cn } from "@/lib/cn";
 import { errorMessage } from "@/lib/errors";
+import { grade } from "@/lib/grade";
+import type { Grade } from "@/lib/grade";
 import { selfCheck } from "@/lib/ipc";
 import { DisputeButton } from "./DisputeButton";
 import { Highlighted } from "./Highlighted";
 
 type Phase = "ask" | "hint" | "revealed";
+
+/** What each grade of the learner's own fix is called. */
+const VERDICT = {
+  right: "report.correction.fixedIt",
+  partial: "report.correction.fixedWithHint",
+  wrong: "report.correction.notFixed",
+} as const;
 
 interface CorrectionViewProps {
   card: CorrectionCard;
@@ -37,7 +47,8 @@ export function CorrectionView({
   const attempt = draft ?? card.original;
   const [checking, setChecking] = useState(false);
   const [hint, setHint] = useState<string | null>(null);
-  const [fixedIt, setFixedIt] = useState(false);
+  // How the learner's own fix went; null when the answer was only shown.
+  const [outcome, setOutcome] = useState<Grade | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const inputId = `attempt-${card.itemId}`;
 
@@ -50,13 +61,11 @@ export function CorrectionView({
     setFailure(null);
     try {
       const result = await selfCheck(card.itemId, attempt.trim());
-      if (result.correct) {
-        setFixedIt(true);
-        setStage("revealed");
-      } else if (phase === "ask") {
+      if (!result.correct && phase === "ask") {
         setHint(result.hint ?? card.hint);
         setStage("hint");
       } else {
+        setOutcome(grade(result.correct, phase === "hint"));
         setStage("revealed");
       }
     } catch (error) {
@@ -69,7 +78,7 @@ export function CorrectionView({
   return (
     <div className={cn("flex flex-col", compact ? "gap-4" : "gap-6")}>
       {card.recurrence !== null && (
-        <p className="flex items-center gap-2 text-sm text-accent-text">
+        <p className="flex items-center gap-2 text-sm text-partial">
           <Repeat aria-hidden className="size-4" />
           {card.recurrence}
         </p>
@@ -79,7 +88,7 @@ export function CorrectionView({
           {t("report.correction.yourSentence")}
         </p>
         <p className={cn("text-ink", compact ? "text-base" : "text-lead")}>
-          <Highlighted text={card.original} span={card.highlight} />
+          <Highlighted text={card.original} spans={[card.highlight]} />
         </p>
       </div>
 
@@ -88,13 +97,10 @@ export function CorrectionView({
           className="flex flex-col gap-3 motion-safe:animate-rise"
           aria-live="polite"
         >
-          {fixedIt && (
-            <p className="flex items-center gap-2 font-medium text-accent-text">
-              <CircleCheck aria-hidden className="size-5" />
-              {t("report.correction.fixedIt")}
-            </p>
+          {outcome !== null && (
+            <VerdictLine tone={outcome}>{t(VERDICT[outcome])}</VerdictLine>
           )}
-          <div className="flex flex-col gap-1 rounded-lg bg-raised px-5 py-4">
+          <div className="flex flex-col gap-1 rounded-lg bg-correct-soft px-5 py-4">
             <p className="text-sm text-ink-faint">
               {t("report.correction.better")}
             </p>
@@ -142,7 +148,7 @@ export function CorrectionView({
           <div aria-live="polite">
             {phase === "hint" && hint !== null && (
               <p className="flex items-center gap-2 text-sm text-ink motion-safe:animate-fade">
-                <Lightbulb aria-hidden className="size-4 text-accent-text" />
+                <Lightbulb aria-hidden className="size-4 text-partial" />
                 {t("report.correction.hint", { hint })}
               </p>
             )}

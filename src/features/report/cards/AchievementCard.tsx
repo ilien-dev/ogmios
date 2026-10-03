@@ -20,15 +20,15 @@ export function AchievementCard({
           <li key={strength} className="flex gap-3 text-lead text-ink">
             <Check
               aria-hidden
-              className="mt-1.5 size-5 shrink-0 text-accent-text"
+              className="mt-1.5 size-5 shrink-0 text-correct"
             />
             {strength}
           </li>
         ))}
       </ul>
       {card.bestSentence !== null && (
-        <figure className="flex flex-col gap-3 rounded-lg bg-accent-soft px-6 py-5">
-          <figcaption className="flex items-center gap-2 text-sm font-medium text-accent-text">
+        <figure className="flex flex-col gap-3 rounded-lg bg-correct-soft px-6 py-5">
+          <figcaption className="flex items-center gap-2 text-sm font-medium text-correct">
             <Quote aria-hidden className="size-4" />
             {t("report.achievement.best")}
           </figcaption>
@@ -40,7 +40,7 @@ export function AchievementCard({
       {card.selfCorrections.length > 0 && (
         <section className="flex flex-col gap-2">
           <h3 className="flex items-center gap-2 text-sm font-medium text-ink">
-            <Sparkle aria-hidden className="size-4 text-accent-text" />
+            <Sparkle aria-hidden className="size-4 text-correct" />
             {t("report.achievement.selfCorrections")}
           </h3>
           <ul className="flex flex-col gap-1">

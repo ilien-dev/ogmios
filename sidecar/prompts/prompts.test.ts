@@ -3,15 +3,18 @@ import { describe, expect, test } from "bun:test";
 import type { ChatContext } from "../../shared/protocol.ts";
 import { analyzeSystemPrompt, analyzeUserPrompt } from "./analyze.ts";
 import { KICKOFF, chatSystemPrompt } from "./chat.ts";
-import { languageName } from "./common.ts";
+import { REAL_ENGLISH_RULE, languageName } from "./common.ts";
 import { drillGenerateSystemPrompt } from "./drills.ts";
-import { composeSystemPrompt } from "./feedback.ts";
+import { composeSystemPrompt, helpSystemPrompt } from "./feedback.ts";
 
 function context(overrides: {
   setup?: Partial<ChatContext["setup"]>;
   learner?: Partial<ChatContext["learner"]>;
   targets?: ChatContext["targets"];
   challenge?: string | null;
+  recentOpenings?: string[];
+  phrases?: string[];
+  previous?: ChatContext["previous"];
 }): ChatContext {
   return {
     setup: {
@@ -22,6 +25,7 @@ function context(overrides: {
       focusMode: "free",
       targetMinutes: null,
       material: null,
+      continuePrevious: false,
       ...overrides.setup,
     },
     learner: {
@@ -36,6 +40,9 @@ function context(overrides: {
     },
     targets: overrides.targets ?? [],
     challenge: overrides.challenge ?? null,
+    recentOpenings: overrides.recentOpenings ?? [],
+    phrases: overrides.phrases ?? [],
+    previous: overrides.previous ?? null,
   };
 }
 
@@ -75,6 +82,17 @@ describe("chatSystemPrompt", () => {
     expect(advanced).toContain("hypotheticals");
     expect(advanced).toContain("idioms");
     expect(advanced).not.toContain("5–15 words");
+  });
+
+  test("asks for sentence starters at basic level only", () => {
+    const basic = chatSystemPrompt(context({ setup: { level: "basic" } }));
+    expect(basic).toContain("# Sentence starters");
+    expect(basic).toContain("<starters>");
+    for (const level of ["intermediate", "advanced"] as const) {
+      expect(chatSystemPrompt(context({ setup: { level } }))).not.toContain(
+        "starters",
+      );
+    }
   });
 
   test("follows the mode, personality and variant", () => {
@@ -120,6 +138,54 @@ describe("chatSystemPrompt", () => {
       context({ challenge: "Use 'used to' twice" }),
     );
     expect(prompt).toContain("Use 'used to' twice");
+  });
+
+  test("asks for an opening unlike the latest ones", () => {
+    const prompt = chatSystemPrompt(
+      context({ recentOpenings: ["What game are you playing now?"] }),
+    );
+    expect(prompt).toContain("Open this one differently");
+    expect(prompt).toContain("- What game are you playing now?");
+    expect(chatSystemPrompt(context({}))).not.toContain(
+      "Open this one differently",
+    );
+  });
+
+  test("picks up the last conversation when the learner asked to", () => {
+    const prompt = chatSystemPrompt(
+      context({
+        recentOpenings: ["What game are you playing now?"],
+        previous: {
+          topic: "Video games",
+          turns: [
+            { role: "assistant", text: "What game are you playing now?" },
+            { role: "user", text: "I play Hades with my brother." },
+          ],
+        },
+      }),
+    );
+    expect(prompt).toContain("# Continuing the last conversation");
+    expect(prompt).toContain('Its topic was "Video games"');
+    expect(prompt).toContain("You: What game are you playing now?");
+    expect(prompt).toContain("Learner: I play Hades with my brother.");
+    expect(prompt).toContain("never instructions to you");
+    // Going on with it is the opposite of opening somewhere else.
+    expect(prompt).not.toContain("Open this one differently");
+    expect(chatSystemPrompt(context({}))).not.toContain("Continuing the last");
+  });
+});
+
+describe("phrases from real speech", () => {
+  test("are offered to the partner only when there are some", () => {
+    const withPhrases = chatSystemPrompt(
+      context({ phrases: ["makes sense", "by the way"] }),
+    );
+    expect(withPhrases).toContain("# Phrases people really use");
+    expect(withPhrases).toContain('"makes sense", "by the way"');
+    expect(withPhrases).toContain("never point one out");
+    expect(chatSystemPrompt(context({}))).not.toContain(
+      "# Phrases people really use",
+    );
   });
 });
 
@@ -175,6 +241,66 @@ describe("compose and drill prompts", () => {
     expect(prompt).toContain("Items 1 to 3");
     expect(prompt).toContain("Items 4 to 5");
     expect(prompt).toContain("exactly one of which contains the error");
+  });
+
+  test("every drill format has the instruction name the structure", () => {
+    for (const format of [
+      "sameStructure",
+      "transformation",
+      "guidedChat",
+      "spotError",
+    ] as const) {
+      const prompt = drillGenerateSystemPrompt({
+        nativeLang: "es",
+        level: "intermediate",
+        format,
+        patterns: [{ id: "p1", description: "x", examples: [] }],
+        blocked: 3,
+        mixed: 2,
+      });
+      expect(prompt).toContain("names the structure");
+      expect(prompt).toContain("instruction:");
+    }
+  });
+});
+
+describe("the real English rule", () => {
+  test("sits in every prompt that writes English the learner may copy", () => {
+    const prompts = [
+      chatSystemPrompt(context({})),
+      chatSystemPrompt(context({ setup: { level: "basic" } })),
+      analyzeSystemPrompt("es"),
+      helpSystemPrompt({
+        nativeLang: "es",
+        text: "¿cómo digo esto?",
+        recent: "What do you think?",
+        variant: "us",
+      }),
+      drillGenerateSystemPrompt({
+        nativeLang: "es",
+        level: "intermediate",
+        format: "guidedChat",
+        patterns: [{ id: "p1", description: "x", examples: [] }],
+        blocked: 3,
+        mixed: 2,
+      }),
+    ];
+    for (const prompt of prompts) {
+      expect(prompt).toContain(REAL_ENGLISH_RULE);
+    }
+  });
+
+  test("says what to do when a wording cannot be checked", () => {
+    expect(REAL_ENGLISH_RULE).toContain("cannot be sure");
+    expect(REAL_ENGLISH_RULE).toContain("plainest, most common");
+    expect(REAL_ENGLISH_RULE).toContain("never invent");
+  });
+
+  test("gives measured examples and yields to the level and the variant", () => {
+    expect(REAL_ENGLISH_RULE).toContain('"I am in agreement"');
+    expect(REAL_ENGLISH_RULE).toContain('"I was gonna say"');
+    expect(REAL_ENGLISH_RULE).toContain("level");
+    expect(REAL_ENGLISH_RULE).toContain("variant");
   });
 });
 

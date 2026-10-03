@@ -19,15 +19,12 @@ import type {
   ModelInfo,
 } from "@anthropic-ai/sdk/resources/models";
 import type { Effort } from "../../shared/domain.ts";
-import type {
-  ChatResult,
-  CheckResult,
-  ModelsResult,
-} from "../../shared/protocol.ts";
+import type { CheckResult, ModelsResult } from "../../shared/protocol.ts";
 import { AgentError, providerError } from "../errors.ts";
 import { log } from "../log.ts";
 import { apiModels, modelKnobs } from "./models.ts";
 import type {
+  ChatReply,
   ChatTask,
   DeltaSink,
   Provider,
@@ -197,7 +194,7 @@ export class ApiKeyProvider implements Provider {
     }
   }
 
-  async chat(task: ChatTask, onDelta: DeltaSink): Promise<ChatResult> {
+  async chat(task: ChatTask, onDelta: DeltaSink): Promise<ChatReply> {
     const messages: MessageParam[] =
       task.history.length === 0
         ? [{ role: "user", content: task.kickoff }]

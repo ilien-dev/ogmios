@@ -194,6 +194,33 @@ pub fn update_pattern(conn: &Connection, p: &PatternRow) -> Result<()> {
     Ok(())
 }
 
+pub fn delete_pattern(conn: &Connection, id: &str) -> Result<()> {
+    conn.execute("DELETE FROM patterns WHERE id = ?1", [id])?;
+    Ok(())
+}
+
+/// The patterns with an event in this session.
+pub fn in_session(conn: &Connection, session_id: &str) -> Result<Vec<String>> {
+    let mut stmt =
+        conn.prepare("SELECT DISTINCT pattern_id FROM pattern_events WHERE session_id = ?1")?;
+    let ids = stmt
+        .query_map([session_id], |row| row.get(0))?
+        .collect::<rusqlite::Result<_>>()?;
+    Ok(ids)
+}
+
+/// When the session was analysed: the time all its events carry.
+pub fn analysed_at(conn: &Connection, session_id: &str) -> Result<Option<DateTime<Utc>>> {
+    let at: Option<String> = conn
+        .query_row(
+            "SELECT created_at FROM pattern_events WHERE session_id = ?1 LIMIT 1",
+            [session_id],
+            |row| row.get(0),
+        )
+        .optional()?;
+    parse_ts_opt(at.as_deref())
+}
+
 // ── Events ────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, PartialEq)]

@@ -1,12 +1,18 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { ChartNoAxesColumn, Dumbbell, House, Settings } from "lucide-react";
+import {
+  BookOpen,
+  ChartNoAxesColumn,
+  Dumbbell,
+  House,
+  Settings,
+} from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { UpdateHint } from "@/features/update/UpdateHint";
 import { cn } from "@/lib/cn";
 import type { Navigate, Route } from "./routes";
 
-type Section = "home" | "progress" | "practice" | "settings";
+type Section = "home" | "practice" | "books" | "progress" | "settings";
 
 const ITEMS: Array<{ section: Section; icon: LucideIcon; route: Route }> = [
   { section: "home", icon: House, route: { name: "home" } },
@@ -20,6 +26,7 @@ const ITEMS: Array<{ section: Section; icon: LucideIcon; route: Route }> = [
       autostart: false,
     },
   },
+  { section: "books", icon: BookOpen, route: { name: "books", bookId: null } },
   { section: "progress", icon: ChartNoAxesColumn, route: { name: "progress" } },
   { section: "settings", icon: Settings, route: { name: "settings" } },
 ];
@@ -27,6 +34,7 @@ const ITEMS: Array<{ section: Section; icon: LucideIcon; route: Route }> = [
 function sectionOf(route: Route): Section {
   switch (route.name) {
     case "practice":
+    case "books":
     case "progress":
     case "settings":
       return route.name;

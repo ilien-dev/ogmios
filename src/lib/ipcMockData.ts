@@ -13,6 +13,7 @@ import type {
   Progress,
   ReportCard,
   SessionMetrics,
+  SessionSetup,
   SttModel,
 } from "@shared/domain";
 
@@ -43,13 +44,19 @@ export const WORD_GOALS: Record<Level, number> = {
   advanced: 90,
 };
 
-export const SCAFFOLDS = [
-  "I think that…",
-  "Last week I…",
-  "The best part was…",
-  "because",
-  "proud",
+/** One set per partner turn: the opening's, then one for each of `REPLIES`. */
+const SCAFFOLDS = [
+  ["Last week I…", "The best part was…", "I'm proud because…"],
+  ["They were…", "My team said…", "Nobody…"],
+  ["I would…", "Next time I…", "I wouldn't…"],
+  ["Yes, once I…", "No, never…", "One time…"],
+  ["The client…", "My manager…", "I mean…"],
+  ["Nobody sees…", "The hard part is…", "I spend a lot of time…"],
 ];
+
+export function scaffoldsFor(level: Level, partnerTurn: number): string[] {
+  return level === "basic" ? (SCAFFOLDS[partnerTurn] ?? []) : [];
+}
 
 export const REPLIES = [
   "Oh really? That sounds like a lot of pressure. I once had a week like that, and I ended up sleeping at the office. How did your team react when it all came together?",
@@ -66,6 +73,26 @@ export const SUGGESTED_TOPICS = [
   "Something you'd change about your city",
   "A skill you're slowly learning",
 ];
+
+/** What `?mock=ready` remembers of the learner's last session. */
+export const READY_SETUP: SessionSetup = {
+  topic: SUGGESTED_TOPICS[0] ?? "",
+  level: "intermediate",
+  mode: "casual",
+  personality: "curiousFriend",
+  focusMode: "free",
+  targetMinutes: 10,
+  material: null,
+  continuePrevious: false,
+};
+
+/** As in Rust: the topic just talked about is offered last. */
+export function suggestedTopics(lastTopic: string | undefined): string[] {
+  return [
+    ...SUGGESTED_TOPICS.filter((topic) => topic !== lastTopic),
+    ...SUGGESTED_TOPICS.filter((topic) => topic === lastTopic),
+  ];
+}
 
 export const HEARD_PHRASES = [
   "Well, this week I have finished a big report for the logistics team and my boss was really happy with it.",
@@ -307,6 +334,35 @@ export function reportCards(lang: Lang): ReportCard[] {
           "The most difficult part was to coordinate with three different suppliers at the same time, because everybody wanted different things.",
         rewrite:
           "The hardest part was juggling three suppliers at once — each of them wanted something different.",
+        notes: [
+          {
+            from: "to coordinate with",
+            to: "juggling",
+            why: pick(
+              lang,
+              "«Juggle» da la imagen de atender varias cosas a la vez sin que se caiga ninguna.",
+              "“Juggle” paints the picture of keeping several things going at once.",
+            ),
+          },
+          {
+            from: "at the same time",
+            to: "at once",
+            why: pick(
+              lang,
+              "Significa lo mismo, pero es más corto y es lo habitual al hablar.",
+              "Same meaning, but shorter and the usual choice in speech.",
+            ),
+          },
+          {
+            from: "everybody wanted different things",
+            to: "each of them wanted something different",
+            why: pick(
+              lang,
+              "«Each of them» deja claro que hablas de los tres proveedores, uno por uno.",
+              "“Each of them” makes it clear you mean the three suppliers, one by one.",
+            ),
+          },
+        ],
       },
     },
     {

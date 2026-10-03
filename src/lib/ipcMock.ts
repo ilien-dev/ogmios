@@ -11,8 +11,8 @@
  *
  * Profile and settings survive a reload through `localStorage`. Add
  * `?mock=fresh` to the URL to start over at onboarding, `?mock=ready` to
- * skip it, or `?mock=update` to have a newer release on offer
- * (`ipcMockUpdate.ts`).
+ * skip it with a book on the shelf (`ipcMockBooks.ts`), or `?mock=update` to
+ * have a newer release on offer (`ipcMockUpdate.ts`).
  */
 import type {
   AnalysisProgress,
@@ -49,9 +49,10 @@ import {
   OPENINGS,
   PATTERNS,
   REPLIES,
-  SCAFFOLDS,
+  scaffoldsFor,
   STT_MODELS,
-  SUGGESTED_TOPICS,
+  READY_SETUP,
+  suggestedTopics,
   WORD_GOALS,
   pick,
   progress,
@@ -59,7 +60,11 @@ import {
 } from "./ipcMockData";
 import type { SeededItem } from "./ipcMockDrills";
 import { drillItems, retryItem } from "./ipcMockDrills";
-import { updateCommands } from "./ipcMockUpdate";
+import {
+  extraCommands,
+  resetMockDeleted,
+  shownProgress,
+} from "./ipcMockExtras";
 
 type Handler = (payload: never) => void;
 
@@ -156,6 +161,7 @@ export function resetMock(onboarded = false): void {
     clearInterval(state.recordingTimer);
   }
   state = freshState();
+  resetMockDeleted();
   if (onboarded) {
     const [voice] = state.models;
     if (voice !== undefined) {
@@ -165,15 +171,7 @@ export function resetMock(onboarded = false): void {
     }
     state.profile = readyProfile();
     state.apiKey = "sk-ant-demo";
-    state.lastSetup = {
-      topic: SUGGESTED_TOPICS[0] ?? "",
-      level: "intermediate",
-      mode: "casual",
-      personality: "curiousFriend",
-      focusMode: "free",
-      targetMinutes: 10,
-      material: null,
-    };
+    state.lastSetup = READY_SETUP;
   }
 }
 
@@ -321,7 +319,7 @@ async function startSession(args: unknown): Promise<SessionStarted> {
       "The topic must be 1–200 characters.",
     );
   }
-  state.lastSetup = setup;
+  state.lastSetup = { ...setup, continuePrevious: false };
   persist();
   const sessionId = nextId("s");
   const opening = assistantTurn(
@@ -340,7 +338,7 @@ async function startSession(args: unknown): Promise<SessionStarted> {
     opening,
     lengthHint: LENGTH_HINTS[setup.level],
     turnWordGoal: WORD_GOALS[setup.level],
-    scaffolds: setup.level === "basic" ? SCAFFOLDS : [],
+    scaffolds: scaffoldsFor(setup.level, 0),
   };
 }
 
@@ -362,8 +360,8 @@ async function sendTurn(args: unknown): Promise<TurnReply> {
   };
   current.turns.push(userTurn);
   current.speechSeconds += speechSeconds;
-  const replyText =
-    REPLIES[((current.turns.length - 2) / 2) % REPLIES.length] ?? "";
+  const replied = ((current.turns.length - 2) / 2) % REPLIES.length;
+  const replyText = REPLIES[replied] ?? "";
   await wait(500);
   await streamText(sessionId, replyText);
   const reply = assistantTurn(replyText);
@@ -377,7 +375,7 @@ async function sendTurn(args: unknown): Promise<TurnReply> {
     userTurn,
     reply,
     lengthHint: LENGTH_HINTS[current.setup.level],
-    scaffolds: current.setup.level === "basic" ? SCAFFOLDS : [],
+    scaffolds: scaffoldsFor(current.setup.level, replied + 1),
     speechMinutes,
     targetReached,
   };
@@ -549,7 +547,8 @@ function homeState(): HomeState {
   return {
     profile,
     lastSetup: state.lastSetup,
-    suggestedTopics: SUGGESTED_TOPICS,
+    continueTopic: state.lastSetup?.topic ?? null,
+    suggestedTopics: suggestedTopics(state.lastSetup?.topic),
     focus: PATTERNS[0] ?? null,
     dueReviews: 2,
     streak: { days: 4, freezesLeft: 2, practicedToday: false },
@@ -649,7 +648,7 @@ const commands: Record<string, (args: unknown) => Promise<unknown>> = {
   delete_session_audio: () => after(300, () => null),
   start_drill: startDrill,
   answer_drill: answerDrill,
-  get_progress: () => after(200, () => progress(lang())),
+  get_progress: () => after(200, () => shownProgress(progress(lang()))),
   stt_status: () => after(80, sttStatus),
   stt_download: sttDownload,
   stt_select: sttSelect,
@@ -659,7 +658,7 @@ const commands: Record<string, (args: unknown) => Promise<unknown>> = {
 };
 
 export function mock<T>(command: string, args: unknown): Promise<T> {
-  const handler = commands[command] ?? updateCommands(after)[command];
+  const handler = commands[command] ?? extraCommands(after, emit)[command];
   if (handler === undefined) {
     return Promise.reject(
       new MockCommandError("notFound", `The mock has no command ${command}.`),

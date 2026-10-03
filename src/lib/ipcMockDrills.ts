@@ -4,7 +4,7 @@
  */
 import type { DrillFormat, DrillItem } from "@shared/domain";
 import type { Lang } from "./ipcMockData";
-import { pick } from "./ipcMockData";
+import { PATTERNS, pick } from "./ipcMockData";
 
 interface DrillSeed {
   format: DrillFormat;
@@ -179,6 +179,9 @@ function seeded(seeds: DrillSeed[], lang: Lang, offset: number): SeededItem[] {
       index: offset + i,
       format: seed.format,
       patternId: seed.patternId,
+      focus:
+        PATTERNS.find((pattern) => pattern.id === seed.patternId)
+          ?.description ?? "",
       prompt: seed.prompt,
       instruction: pick(lang, ...seed.instruction),
       options: seed.options ?? [],

@@ -103,6 +103,29 @@ describe("sanitizeAnalysis", () => {
     });
   });
 
+  test("keeps a rewrite note only when both spans are where it says", () => {
+    const note = (from: string, to: string) => ({ from, to, why: "w" });
+    const result = sanitizeAnalysis(
+      {
+        ...base,
+        nativeRewrite: {
+          original: "It was very funny, I goed there",
+          rewrite: "It was hilarious. I went there.",
+          notes: [
+            note("Very Funny", "hilarious"),
+            note("I goed", "I walked"),
+            note("nowhere", "I went"),
+          ],
+        },
+      },
+      params,
+    );
+    expect(result.nativeRewrite?.notes).toEqual([
+      note("very funny", "hilarious"),
+    ]);
+    expect(sanitizeAnalysis(base, params).nativeRewrite).toBeNull();
+  });
+
   test("answers the challenge only when there was one", () => {
     expect(sanitizeAnalysis(base, params).challengeAchieved).toBeNull();
   });

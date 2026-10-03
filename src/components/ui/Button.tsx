@@ -1,7 +1,7 @@
 import type { ComponentProps, ReactNode } from "react";
 import { cn } from "@/lib/cn";
 
-type Variant = "primary" | "secondary" | "ghost" | "danger";
+type Variant = "primary" | "secondary" | "ghost" | "danger" | "learn" | "known";
 type Size = "sm" | "md" | "lg";
 
 const VARIANTS: Record<Variant, string> = {
@@ -12,6 +12,10 @@ const VARIANTS: Record<Variant, string> = {
   ghost: "text-ink-soft hover:bg-raised hover:text-ink disabled:text-ink-faint",
   danger:
     "border border-danger/40 text-danger hover:bg-danger-soft disabled:text-ink-faint",
+  learn:
+    "border border-accent-strong bg-accent-soft text-ink hover:bg-accent/40 disabled:text-ink-faint",
+  known:
+    "border border-known bg-known-soft text-ink hover:bg-known/30 disabled:text-ink-faint",
 };
 
 const SIZES: Record<Size, string> = {

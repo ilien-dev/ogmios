@@ -7,8 +7,13 @@
  *
  * Colour strategy: restrained. Cool graphite neutrals and one accent hue, a
  * soft gold, which marks the next step and the learner's own progress (the
- * primary button, the live word meter, a fixed sentence). `danger` exists only
- * for destructive actions and failed requests.
+ * primary button, the live word meter, a bar that fills). Gold never says
+ * how an answer went: that is the verdict scale, read before any word is.
+ * `correct` is green, an answer or a trend that is right; `partial` is an
+ * orange amber, right only with help or something to watch; `wrong` is red,
+ * a miss. `danger` is for destructive actions and failed requests. `known`
+ * is the green of one choice: a word the learner already knows, against the
+ * gold of one to learn.
  *
  * The values below are the light theme. Dark is the same token names
  * redefined further down, chosen by the system preference or by
@@ -33,6 +38,14 @@
   --color-accent-soft: oklch(0.82 0.135 82 / 0.18);
   --color-danger: oklch(0.52 0.17 25);
   --color-danger-soft: oklch(0.6 0.17 25 / 0.12);
+  --color-correct: oklch(0.54 0.14 150);
+  --color-correct-soft: oklch(0.62 0.15 150 / 0.14);
+  --color-partial: oklch(0.53 0.15 48);
+  --color-partial-soft: oklch(0.7 0.17 50 / 0.16);
+  --color-wrong: oklch(0.54 0.19 27);
+  --color-wrong-soft: oklch(0.6 0.19 27 / 0.12);
+  --color-known: oklch(0.56 0.13 155);
+  --color-known-soft: oklch(0.62 0.14 155 / 0.14);
   --color-scrim: oklch(0.2 0.01 265 / 0.4);
 
   --font-sans:
@@ -122,6 +135,14 @@
     --color-accent-soft: oklch(0.82 0.13 82 / 0.13);
     --color-danger: oklch(0.74 0.14 25);
     --color-danger-soft: oklch(0.7 0.15 25 / 0.14);
+    --color-correct: oklch(0.78 0.15 150);
+    --color-correct-soft: oklch(0.78 0.15 150 / 0.14);
+    --color-partial: oklch(0.76 0.15 48);
+    --color-partial-soft: oklch(0.76 0.15 48 / 0.15);
+    --color-wrong: oklch(0.72 0.16 25);
+    --color-wrong-soft: oklch(0.7 0.17 25 / 0.15);
+    --color-known: oklch(0.78 0.14 155);
+    --color-known-soft: oklch(0.78 0.14 155 / 0.14);
     --color-scrim: oklch(0.1 0.01 265 / 0.6);
     --shadow-card:
       0 1px 2px oklch(0 0 0 / 0.3), 0 10px 28px oklch(0 0 0 / 0.22);

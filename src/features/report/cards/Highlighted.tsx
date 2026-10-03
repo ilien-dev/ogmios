@@ -1,23 +1,42 @@
 import type { ReactNode } from "react";
-/** The learner's sentence with the span that holds the error underlined. */
+import { cn } from "@/lib/cn";
+import { segments } from "./segments";
+
+const TONES = {
+  /** The span that holds the error. */
+  error:
+    "bg-wrong-soft text-ink underline decoration-wrong decoration-wavy decoration-1 underline-offset-4",
+  /** The learner's wording that a fluent speaker would change. */
+  before:
+    "bg-transparent text-inherit underline decoration-line-strong underline-offset-4",
+  /** What the fluent speaker said instead. */
+  after: "bg-correct-soft text-inherit",
+} as const;
+
+/** The learner's sentence, or its rewrite, with some spans marked. */
 export function Highlighted({
   text,
-  span,
+  spans,
+  tone = "error",
 }: {
   text: string;
-  span: string;
+  spans: string[];
+  tone?: keyof typeof TONES;
 }): ReactNode {
-  const at = span === "" ? -1 : text.indexOf(span);
-  if (at === -1) {
-    return <>{text}</>;
-  }
   return (
     <>
-      {text.slice(0, at)}
-      <mark className="rounded-sm bg-danger-soft px-0.5 text-ink underline decoration-danger decoration-wavy decoration-1 underline-offset-4">
-        {span}
-      </mark>
-      {text.slice(at + span.length)}
+      {segments(text, spans).map((part, index) =>
+        part.marked ? (
+          <mark
+            key={`${index}-${part.text}`}
+            className={cn("rounded-sm px-0.5", TONES[tone])}
+          >
+            {part.text}
+          </mark>
+        ) : (
+          part.text
+        ),
+      )}
     </>
   );
 }

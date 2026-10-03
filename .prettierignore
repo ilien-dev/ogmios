@@ -6,3 +6,4 @@ src-tauri/gen/
 src-tauri/binaries/
 bun.lock
 tools/oxlint/anti-slop/
+.impeccable/

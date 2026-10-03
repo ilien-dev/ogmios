@@ -1,12 +1,14 @@
 //! The progress map and the soft streak (SPEC §11).
 
+use std::cmp::Reverse;
 use std::collections::BTreeSet;
 
 use chrono::{DateTime, Datelike, Duration, Local, NaiveDate, Utc};
+use rusqlite::Connection;
 use tauri::AppHandle;
 
 use super::run;
-use crate::db::{patterns, sessions};
+use crate::db::{patterns, sessions, words};
 use crate::domain::{
     CefrPoint, DatedText, Progress, SessionSummary, Streak, TrendPoint, VocabEntry, WeekMinutes,
 };
@@ -89,6 +91,28 @@ fn weekly_minutes(rows: &[sessions::SessionRow], today: NaiveDate) -> Vec<WeekMi
         .collect()
 }
 
+/// The words the learner has learned, the latest first: the ones asked for
+/// in conversations, and the book words finished in practice, each with its
+/// translation.
+fn vocabulary(conn: &Connection) -> Result<Vec<VocabEntry>> {
+    let asked = sessions::list_vocab(conn, None)?
+        .into_iter()
+        .map(|(item, at)| (at, item.asked, item.english));
+    let read = words::learned(conn)?
+        .into_iter()
+        .map(|word| (word.done_at, word.translation, word.lemma));
+    let mut all: Vec<_> = asked.chain(read).collect();
+    all.sort_by_key(|(at, ..)| Reverse(*at));
+    Ok(all
+        .into_iter()
+        .map(|(at, asked, english)| VocabEntry {
+            asked,
+            english,
+            date: local_date(at).to_string(),
+        })
+        .collect())
+}
+
 pub fn progress(ctx: Ctx<'_>, today: NaiveDate) -> Result<Progress> {
     let conn = ctx.conn()?;
     let events = patterns::events_by_pattern(&conn)?;
@@ -117,14 +141,7 @@ pub fn progress(ctx: Ctx<'_>, today: NaiveDate) -> Result<Progress> {
                 text,
             })
             .collect(),
-        vocabulary: sessions::list_vocab(&conn, None)?
-            .into_iter()
-            .map(|(item, at)| VocabEntry {
-                asked: item.asked,
-                english: item.english,
-                date: date(at),
-            })
-            .collect(),
+        vocabulary: vocabulary(&conn)?,
         trend: oldest_first()
             .filter_map(|s| {
                 Some(TrendPoint {
@@ -212,6 +229,45 @@ mod tests {
         let s = streak(&set(&[d(9, 1)]), d(9, 24));
         assert_eq!(s.days, 0);
         assert_eq!(s.freezes_left, 2);
+    }
+
+    #[test]
+    fn finished_book_words_are_listed_once_with_their_translation() {
+        use crate::db::words::tests::{book, mark_done, mark_known, word};
+        use crate::db::{open_in_memory, words};
+        use crate::domain::Depth;
+
+        let conn = open_in_memory().expect("db");
+        let chapters = book(&conn, "b", &["one", "two"]);
+        let list = [
+            word("peep", &["asomarse", "echar un vistazo"], 2),
+            word("bank", &["orilla"], 1),
+            word("hedge", &["seto"], 1),
+        ];
+        for chapter in &chapters {
+            words::finish(&conn, chapter, Depth::Most, &list, Utc::now()).expect("words");
+            mark_done(&conn, chapter, "peep");
+        }
+        // Known is not learned here, and an open word is not learned yet.
+        mark_known(&conn, "hedge");
+
+        let listed = vocabulary(&conn).expect("vocabulary");
+        assert_eq!(
+            listed,
+            [VocabEntry {
+                asked: Some("asomarse".into()),
+                english: "peep".into(),
+                date: local_date(Utc::now()).to_string(),
+            }]
+        );
+        for table in ["patterns", "pattern_events", "vocab"] {
+            let rows: i64 = conn
+                .query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |row| {
+                    row.get(0)
+                })
+                .expect("count");
+            assert_eq!(rows, 0, "book words never touch {table}");
+        }
     }
 
     #[test]

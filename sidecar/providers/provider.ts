@@ -12,6 +12,8 @@ import type {
   HelpParams,
   ModelsResult,
   SelfCheckParams,
+  VocabExtractParams,
+  VocabJudgeParams,
 } from "../../shared/protocol.ts";
 
 /** The calls whose answer is a JSON document rather than prose. */
@@ -21,7 +23,9 @@ export type StructuredRequest =
   | { method: "compose"; params: ComposeParams }
   | { method: "selfCheck"; params: SelfCheckParams }
   | { method: "drillGenerate"; params: DrillGenerateParams }
-  | { method: "drillGrade"; params: DrillGradeParams };
+  | { method: "drillGrade"; params: DrillGradeParams }
+  | { method: "vocabExtract"; params: VocabExtractParams }
+  | { method: "vocabJudge"; params: VocabJudgeParams };
 
 /**
  * One structured call, fully rendered: a real provider only transports
@@ -47,11 +51,14 @@ export interface ChatTask {
 
 export type DeltaSink = (text: string) => void;
 
+/** A reply as the model wrote it: any starters are still inside `text`. */
+export type ChatReply = Omit<ChatResult, "starters">;
+
 /** One way of reaching Claude (SPEC §13). */
 export interface Provider {
   check: () => Promise<CheckResult>;
   /** What this provider can be asked to use, as it describes it. */
   models: () => Promise<ModelsResult>;
-  chat: (task: ChatTask, onDelta: DeltaSink) => Promise<ChatResult>;
+  chat: (task: ChatTask, onDelta: DeltaSink) => Promise<ChatReply>;
   structured: <T>(task: StructuredTask<T>) => Promise<T>;
 }

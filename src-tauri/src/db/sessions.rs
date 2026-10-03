@@ -260,6 +260,42 @@ pub fn list_turns(conn: &Connection, session_id: &str) -> Result<Vec<Turn>> {
     Ok(turns)
 }
 
+/// The partner's opening line in each session started before `before`,
+/// newest first.
+pub fn recent_openings(
+    conn: &Connection,
+    before: DateTime<Utc>,
+    limit: u32,
+) -> Result<Vec<String>> {
+    let mut stmt = conn.prepare(
+        "SELECT t.sent_text FROM turns t JOIN sessions s ON s.id = t.session_id
+         WHERE t.idx = 0 AND s.started_at < ?1
+         ORDER BY s.started_at DESC, s.rowid DESC LIMIT ?2",
+    )?;
+    let openings = stmt
+        .query_map(params![ts(before), limit], |row| row.get(0))?
+        .collect::<rusqlite::Result<_>>()?;
+    Ok(openings)
+}
+
+/// Id and topic of the latest session started before `before` in which the
+/// learner said something: an abandoned one is nothing to continue.
+pub fn previous_conversation(
+    conn: &Connection,
+    before: DateTime<Utc>,
+) -> Result<Option<(String, String)>> {
+    Ok(conn
+        .query_row(
+            "SELECT s.id, s.topic FROM sessions s
+             WHERE s.started_at < ?1
+               AND EXISTS (SELECT 1 FROM turns t WHERE t.session_id = s.id AND t.role = ?2)
+             ORDER BY s.started_at DESC, s.rowid DESC LIMIT 1",
+            params![ts(before), Role::User],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .optional()?)
+}
+
 /// Audio ids of one session, or of every session.
 pub fn audio_ids(conn: &Connection, session_id: Option<&str>) -> Result<Vec<String>> {
     let mut stmt = conn.prepare(
@@ -419,6 +455,21 @@ pub fn mark_practice(conn: &Connection, day: NaiveDate) -> Result<()> {
     Ok(())
 }
 
+/// Takes back one session's `mark_practice`; a day left with none is no
+/// longer a practised one.
+pub fn unmark_practice(conn: &Connection, day: NaiveDate) -> Result<()> {
+    let day = day.to_string();
+    conn.execute(
+        "UPDATE practice_days SET sessions = sessions - 1 WHERE date = ?1",
+        [&day],
+    )?;
+    conn.execute(
+        "DELETE FROM practice_days WHERE date = ?1 AND sessions <= 0",
+        [&day],
+    )?;
+    Ok(())
+}
+
 pub fn practice_days(conn: &Connection) -> Result<BTreeSet<NaiveDate>> {
     let mut stmt = conn.prepare("SELECT date FROM practice_days")?;
     let days = stmt
@@ -442,6 +493,7 @@ pub mod tests {
             focus_mode: FocusMode::Free,
             target_minutes: Some(10.0),
             material: None,
+            continue_previous: false,
         }
     }
 
@@ -495,6 +547,48 @@ pub mod tests {
     }
 
     #[test]
+    fn recent_openings_are_newest_first_and_stop_before_the_session() {
+        let conn = open_in_memory().expect("db");
+        let t0 = Utc::now();
+        let at = |minutes: i64| t0 + chrono::Duration::minutes(minutes);
+        for (minutes, opening) in [(0, "First?"), (1, "Second?"), (2, "Third?")] {
+            let id = insert_session(&conn, &setup(), at(minutes)).expect("session");
+            insert_turn(&conn, &turn(&id, Role::Assistant, opening), at(minutes)).expect("t0");
+            insert_turn(&conn, &turn(&id, Role::User, "An answer"), at(minutes)).expect("t1");
+        }
+        assert_eq!(
+            recent_openings(&conn, at(3), 2).expect("openings"),
+            ["Third?", "Second?"]
+        );
+        // The session started at `before` is the one being talked in.
+        assert_eq!(
+            recent_openings(&conn, at(2), 5).expect("openings"),
+            ["Second?", "First?"]
+        );
+    }
+
+    #[test]
+    fn the_previous_conversation_is_the_latest_one_the_learner_spoke_in() {
+        let conn = open_in_memory().expect("db");
+        let t0 = Utc::now();
+        let at = |minutes: i64| t0 + chrono::Duration::minutes(minutes);
+        assert_eq!(previous_conversation(&conn, at(9)).expect("none"), None);
+        let mut spoken = setup();
+        spoken.topic = "Films".into();
+        let first = insert_session(&conn, &spoken, at(0)).expect("session");
+        insert_turn(&conn, &turn(&first, Role::Assistant, "Hi?"), at(0)).expect("t0");
+        insert_turn(&conn, &turn(&first, Role::User, "Hello"), at(0)).expect("t1");
+        // Left after the opening question.
+        let left = insert_session(&conn, &setup(), at(1)).expect("session");
+        insert_turn(&conn, &turn(&left, Role::Assistant, "Hi?"), at(1)).expect("t0");
+        assert_eq!(
+            previous_conversation(&conn, at(2)).expect("previous"),
+            Some((first, "Films".to_owned()))
+        );
+        assert_eq!(previous_conversation(&conn, at(0)).expect("none"), None);
+    }
+
+    #[test]
     fn challenges_open_and_close() {
         let conn = open_in_memory().expect("db");
         let id = insert_session(&conn, &setup(), Utc::now()).expect("session");
@@ -511,12 +605,18 @@ pub mod tests {
         let day = NaiveDate::from_ymd_opt(2026, 9, 24).expect("date");
         mark_practice(&conn, day).expect("first");
         mark_practice(&conn, day).expect("second");
-        assert_eq!(
+        let days = || {
             practice_days(&conn)
                 .expect("days")
                 .into_iter()
-                .collect::<Vec<_>>(),
-            [day]
-        );
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(days(), [day]);
+        unmark_practice(&conn, day).expect("one left");
+        assert_eq!(days(), [day]);
+        unmark_practice(&conn, day).expect("none left");
+        assert_eq!(days(), []);
+        unmark_practice(&conn, day).expect("never marked");
+        assert_eq!(days(), []);
     }
 }
