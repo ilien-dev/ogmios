@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Flag } from "lucide-react";
+import { VerdictLine } from "@/components/ui/Verdict";
 import type { Step } from "../steps";
 import { CardTitle } from "./CardTitle";
 
@@ -20,11 +21,14 @@ export function ChallengeCard({
         {card.text}
       </p>
       {card.previousAchieved !== null && (
-        <p className="text-ink-soft">
+        <VerdictLine
+          tone={card.previousAchieved ? "right" : "partial"}
+          className="font-normal"
+        >
           {card.previousAchieved
             ? t("report.challenge.achieved")
             : t("report.challenge.missed")}
-        </p>
+        </VerdictLine>
       )}
     </div>
   );

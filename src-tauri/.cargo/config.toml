@@ -1,0 +1,7 @@
+# sherpa-onnx's prebuilt Windows libraries are built against the static C
+# runtime (/MT). Everything else follows, so one runtime is linked, not two.
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]
+
+[target.aarch64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]

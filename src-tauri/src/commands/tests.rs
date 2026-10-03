@@ -183,10 +183,15 @@ fn check_home_and_drill(ctx: Ctx<'_>) -> String {
     // A drill: five items on the only pattern, one retry after a miss.
     let set = drill::start(ctx, None, None).expect("drill");
     assert_eq!(set.items.len(), 5);
+    assert!(
+        set.items.iter().all(|item| item.focus == focus.description),
+        "every item names what it drills"
+    );
     let miss = drill::answer(ctx, &set.id, 0, "Yesterday I goed").expect("miss");
     assert!(!miss.correct);
     let retry = miss.retry.expect("one retry");
     assert_eq!(retry.index, 5);
+    assert_eq!(retry.focus, focus.description);
     assert_eq!(
         drill::answer(ctx, &set.id, 0, "x")
             .expect_err("twice")
@@ -289,4 +294,340 @@ fn a_failed_opening_leaves_no_session_behind() {
         sessions::list_sessions(&ctx.conn().expect("conn")).expect("list"),
         [] as [sessions::SessionRow; 0]
     );
+}
+
+/// A chapter of the fixture book, prepared through the real sidecar.
+#[test]
+#[ignore = "needs bun; run with `cargo test -- --ignored`"]
+fn a_chapter_is_prepared_once_and_a_deeper_depth_adds_to_it() {
+    use super::{book, chapter};
+    use crate::domain::{ChapterProgress, ChapterWords, Depth};
+
+    let dir = tempfile::tempdir().expect("tempdir");
+    let db = Mutex::new(open_in_memory().expect("db"));
+    let agent = fake_agent();
+    let ctx = Ctx {
+        db: &db,
+        agent: &agent,
+        data_dir: dir.path(),
+    };
+    profile::save_profile(&ctx.conn().expect("conn"), &profile::tests::profile()).expect("profile");
+    let path = dir.path().join("alice.epub");
+    std::fs::write(&path, crate::books::epub::fixtures::alice()).expect("book file");
+    let imported = book::import(ctx, &path).expect("import");
+    let first = &imported.chapters[2];
+    assert_eq!(first.prepared, None);
+
+    let steps = Mutex::new(Vec::new());
+    let hear = |p: ChapterProgress| steps.lock().expect("steps").push((p.done, p.total));
+    let listed = |found: &ChapterWords| -> Vec<(String, u32)> {
+        found
+            .words
+            .iter()
+            .map(|w| (w.lemma.clone(), w.count))
+            .collect()
+    };
+    let found = chapter::prepare(
+        ctx,
+        &first.id,
+        Depth::Relevant,
+        &mut |params| agent.vocab_extract(params),
+        &hear,
+    )
+    .expect("prepare");
+    // The fake calls "Rabbit-Hole" a name; Rust drops it and counts the rest.
+    assert_eq!(
+        listed(&found),
+        [
+            ("conversations".to_owned(), 2),
+            ("pictures".to_owned(), 2),
+            ("beginning".to_owned(), 1),
+        ]
+    );
+    assert_eq!(found.words[0].translations, ["conversations (es)"]);
+    assert_eq!(found.chapter.prepared, Some(Depth::Relevant));
+    assert_eq!(*steps.lock().expect("steps"), [(0, 1), (1, 1)]);
+    assert_eq!(
+        chapter::chapter_words(ctx, &first.id).expect("stored"),
+        found
+    );
+
+    // A second call has no sidecar to ask: any request would fail it.
+    let silent = Agent::new(None);
+    let again = chapter::prepare(
+        ctx,
+        &first.id,
+        Depth::Relevant,
+        &mut |params| silent.vocab_extract(params),
+        &hear,
+    )
+    .expect("no request");
+    assert_eq!(again, found);
+    assert_eq!(steps.lock().expect("steps").len(), 2, "no progress either");
+
+    let deeper = chapter::prepare(
+        ctx,
+        &first.id,
+        Depth::Most,
+        &mut |params| agent.vocab_extract(params),
+        &hear,
+    )
+    .expect("deeper");
+    assert_eq!(deeper.chapter.prepared, Some(Depth::Most));
+    assert_eq!(deeper.words.len(), 11);
+    assert!(found.words.iter().all(|word| deeper.words.contains(word)));
+    assert!(listed(&deeper).contains(&("sister".to_owned(), 2)));
+
+    let conn = ctx.conn().expect("conn");
+    for table in ["patterns", "pattern_events"] {
+        let rows: i64 = conn
+            .query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |row| {
+                row.get(0)
+            })
+            .expect("count");
+        assert_eq!(rows, 0, "book words never touch {table}");
+    }
+}
+
+/// A chapter of the fixture book from the file to "ready to read": prepared
+/// through the real sidecar, then every word answered right both ways.
+#[test]
+#[ignore = "needs bun; run with `cargo test -- --ignored`"]
+fn a_chapter_practised_to_the_end_is_ready_and_its_words_are_in_progress() {
+    use super::{book, chapter, refresh};
+    use crate::books::practice::READY;
+    use crate::domain::{Depth, RefreshStep, RefreshSummary};
+
+    let dir = tempfile::tempdir().expect("tempdir");
+    let db = Mutex::new(open_in_memory().expect("db"));
+    let agent = fake_agent();
+    let ctx = Ctx {
+        db: &db,
+        agent: &agent,
+        data_dir: dir.path(),
+    };
+    profile::save_profile(&ctx.conn().expect("conn"), &profile::tests::profile()).expect("profile");
+    let rows = |table: &str| -> i64 {
+        ctx.conn()
+            .expect("conn")
+            .query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |row| {
+                row.get(0)
+            })
+            .expect("count")
+    };
+    let memory = || (rows("patterns"), rows("pattern_events"));
+    let before = memory();
+
+    let path = dir.path().join("alice.epub");
+    std::fs::write(&path, crate::books::epub::fixtures::alice()).expect("book file");
+    let imported = book::import(ctx, &path).expect("import");
+    let first = imported.chapters[2].id.clone();
+    assert_eq!(imported.chapters[2].readiness, None, "not prepared yet");
+    let found = chapter::prepare(
+        ctx,
+        &first,
+        Depth::Most,
+        &mut |params| agent.vocab_extract(params),
+        &|_| {},
+    )
+    .expect("prepare");
+    assert_eq!(found.chapter.readiness, Some(0));
+    assert_eq!(found.words.len(), 11);
+
+    let answers = practise_to_the_end(ctx, &found);
+    assert_eq!(
+        answers,
+        found.words.len() * 4,
+        "two right answers in a row each way"
+    );
+
+    let ready = chapter::chapter_words(ctx, &first).expect("words");
+    assert_eq!(ready.chapter.readiness, Some(READY));
+    assert!(ready.words.iter().all(|word| word.done && !word.known));
+    let shelf = book::list(ctx).expect("books");
+    let shown: Vec<_> = shelf[0].chapters.iter().map(|c| c.readiness).collect();
+    assert_eq!(shown[2], Some(READY));
+    assert_eq!(shown.iter().filter(|r| r.is_some()).count(), 1);
+
+    // Every word is in the progress vocabulary with its translation.
+    let vocabulary = progress::progress(ctx, Local::now().date_naive())
+        .expect("progress")
+        .vocabulary;
+    assert_eq!(vocabulary.len(), found.words.len());
+    for word in &found.words {
+        let entry = vocabulary.iter().find(|entry| entry.english == word.lemma);
+        let entry = entry.unwrap_or_else(|| panic!("{} is listed", word.lemma));
+        assert_eq!(entry.asked.as_ref(), word.translations.first());
+    }
+
+    // The refresh before reading: every done word once, one of them missed.
+    let pass = refresh::start(ctx, &first, Utc::now()).expect("refresh");
+    let mut step = pass.step.clone();
+    let mut asked = 0;
+    while let RefreshStep::Item { item, .. } = step {
+        let word = found.words.iter().find(|word| word.id == item.word_id);
+        let right = word.expect("a word of the chapter").translations[0].clone();
+        let text = if asked == 0 { "" } else { right.as_str() };
+        step = refresh::answer(ctx, &pass.id, &item.word_id, text, Utc::now())
+            .expect("answer")
+            .step;
+        asked += 1;
+    }
+    assert_eq!(asked, found.words.len());
+    let summary = RefreshSummary {
+        solid: 10,
+        reopened: 1,
+    };
+    let RefreshStep::Summary {
+        summary: told,
+        progress,
+    } = step
+    else {
+        panic!("a pass ends with its summary");
+    };
+    assert_eq!(told, summary);
+    assert_eq!(progress.value, progress.total, "every word was asked");
+    let slipped = chapter::chapter_words(ctx, &first).expect("words");
+    assert_eq!(slipped.chapter.readiness, Some(90));
+    assert_eq!(slipped.words.iter().filter(|word| !word.done).count(), 1);
+
+    assert_eq!(memory(), before, "book words never touch the patterns");
+    assert_eq!(before, (0, 0));
+}
+
+/// Answers every word of the chapter right, both ways, sitting after sitting
+/// and each a day later, until one has nothing left to ask; how many answers
+/// that took.
+fn practise_to_the_end(ctx: Ctx<'_>, chapter: &crate::domain::ChapterWords) -> usize {
+    use std::collections::HashMap;
+
+    use chrono::TimeDelta;
+
+    use super::practice;
+    use crate::domain::{Direction, PracticeStep};
+
+    // The right answer to each word, each way, as the word list gives it.
+    let right: HashMap<(&str, Direction), &str> = chapter
+        .words
+        .iter()
+        .flat_map(|word| {
+            [
+                (
+                    (word.id.as_str(), Direction::Recognition),
+                    word.translations[0].as_str(),
+                ),
+                (
+                    (word.id.as_str(), Direction::Production),
+                    word.lemma.as_str(),
+                ),
+            ]
+        })
+        .collect();
+
+    let mut now = Utc::now();
+    let mut answers = 0;
+    for _ in 0..20 {
+        let sitting = practice::start(ctx, &chapter.chapter.id, None, now).expect("sitting");
+        let mut step = sitting.step;
+        while let PracticeStep::Item { item, .. } = step {
+            let asked = (item.word_id.as_str(), item.direction);
+            let result =
+                practice::answer(ctx, &sitting.id, asked, right[&asked], now).expect("answer");
+            assert!(result.correct, "{}", item.prompt);
+            answers += 1;
+            step = result.step;
+        }
+        let PracticeStep::Summary { summary, .. } = step else {
+            panic!("a sitting ends with its summary");
+        };
+        if summary.open == 0 {
+            return answers;
+        }
+        now += TimeDelta::days(1);
+    }
+    panic!("the chapter is never finished");
+}
+
+/// "I was right" through the real sidecar: the fake upholds an answer that
+/// begins with "also " and no other. Code decides what each verdict changes.
+#[test]
+#[ignore = "needs bun; run with `cargo test -- --ignored`"]
+fn a_disputed_miss_is_judged_by_the_sidecar_and_an_upheld_one_is_accepted() {
+    use super::{book, chapter, dispute, practice};
+    use crate::domain::{Depth, Direction, PracticeStep};
+
+    let dir = tempfile::tempdir().expect("tempdir");
+    let db = Mutex::new(open_in_memory().expect("db"));
+    let agent = fake_agent();
+    let ctx = Ctx {
+        db: &db,
+        agent: &agent,
+        data_dir: dir.path(),
+    };
+    profile::save_profile(&ctx.conn().expect("conn"), &profile::tests::profile()).expect("profile");
+    let path = dir.path().join("alice.epub");
+    std::fs::write(&path, crate::books::epub::fixtures::alice()).expect("book file");
+    let imported = book::import(ctx, &path).expect("import");
+    let found = chapter::prepare(
+        ctx,
+        &imported.chapters[2].id,
+        Depth::Relevant,
+        &mut |params| agent.vocab_extract(params),
+        &|_| {},
+    )
+    .expect("prepare");
+    let now = Utc::now();
+    let sitting = practice::start(ctx, &found.chapter.id, None, now).expect("sitting");
+    let PracticeStep::Item { item, .. } = sitting.step else {
+        panic!("a prepared chapter has a word to ask");
+    };
+    let asked = (item.word_id.as_str(), Direction::Recognition);
+    let say = |text: &str| practice::answer(ctx, &sitting.id, asked, text, now).expect("answer");
+    let judge = |answer_id: i64| {
+        dispute::dispute(ctx, answer_id, &mut |params| agent.vocab_judge(params), now)
+    };
+
+    // Rejected: the reason comes back and the miss stands.
+    let miss = say("charlas");
+    assert!(!miss.correct);
+    let rejected = judge(miss.answer_id).expect("rejected");
+    assert!(!rejected.upheld);
+    assert_eq!(
+        rejected.reason,
+        r#""charlas" does not fit "conversations" (es)."#
+    );
+    assert!(!say("charlas").correct);
+
+    // Upheld: from then on code accepts the answer, with no one to ask.
+    let miss = say("also charlas");
+    assert!(!miss.correct);
+    let upheld = judge(miss.answer_id).expect("upheld");
+    assert!(upheld.upheld);
+    assert_eq!(
+        upheld.reason,
+        r#""also charlas" fits "conversations" (es)."#
+    );
+    assert!(say("Also charlas").correct);
+    assert_eq!(judge(miss.answer_id).expect_err("once").kind(), "invalid");
+
+    // Two misses stand and the third was undone: with the right answer after
+    // it that is two in a row, so the word is finished English → native and
+    // owes only the other way.
+    let queue =
+        crate::db::practice::queue(&ctx.conn().expect("conn"), &found.chapter.id).expect("queue");
+    let owed: Vec<_> = queue
+        .iter()
+        .filter(|queued| queued.word_id == asked.0)
+        .map(|queued| (queued.direction, queued.owed))
+        .collect();
+    assert_eq!(owed, [(Direction::Production, 2)]);
+    let conn = ctx.conn().expect("conn");
+    for table in ["patterns", "pattern_events"] {
+        let rows: i64 = conn
+            .query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |row| {
+                row.get(0)
+            })
+            .expect("count");
+        assert_eq!(rows, 0, "book words never touch {table}");
+    }
 }

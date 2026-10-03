@@ -76,6 +76,11 @@ export type ModelsResult = ModelOption[];
 
 // ── chat ──────────────────────────────────────────────────────────────────
 
+const historyTurnSchema = z.object({
+  role: z.enum(["user", "assistant"]),
+  text: z.string(),
+});
+
 export const chatContextSchema = z.object({
   setup: z.object({
     topic: z.string(),
@@ -97,6 +102,7 @@ export const chatContextSchema = z.object({
     focusMode: z.enum(["free", "pending"]),
     targetMinutes: z.number().nullable(),
     material: z.string().nullable(),
+    continuePrevious: z.boolean(),
   }),
   learner: z.object({
     name: z.string().nullable(),
@@ -110,6 +116,14 @@ export const chatContextSchema = z.object({
   /** Structures to make essential to the task, without naming them. */
   targets: z.array(z.object({ description: z.string(), contexts: z.string() })),
   challenge: z.string().nullable(),
+  /** How the partner opened the sessions before this one, newest first. */
+  recentOpenings: z.array(z.string()),
+  /** Phrases from recorded speech for the partner to use; often empty. */
+  phrases: z.array(z.string()),
+  /** The conversation this one continues: its topic and last turns. */
+  previous: z
+    .object({ topic: z.string(), turns: z.array(historyTurnSchema) })
+    .nullable(),
 });
 export type ChatContext = z.infer<typeof chatContextSchema>;
 
@@ -120,7 +134,7 @@ export const chatParams = z.object({
    * Empty for the opening question.
    */
   history: z
-    .array(z.object({ role: z.enum(["user", "assistant"]), text: z.string() }))
+    .array(historyTurnSchema)
     .refine((turns) => turns.length === 0 || turns.at(-1)?.role === "user", {
       message: "history must end with the learner's turn",
     }),
@@ -131,6 +145,11 @@ export type ChatParams = z.infer<typeof chatParams>;
 
 export interface ChatResult {
   text: string;
+  /**
+   * Openers for the learner's answer to this turn, written by the partner at
+   * basic level; empty when it wrote none. Rust decides what is shown.
+   */
+  starters: string[];
   providerRef: string | null;
 }
 
@@ -200,6 +219,14 @@ const analysisErrorSchema = z.object({
   asrSuspect: z.boolean(),
 });
 
+/** One change in the native rewrite: exact spans of each side. */
+const rewriteNoteSchema = z.object({
+  from: z.string(),
+  to: z.string(),
+  /** In the learner's native language. */
+  why: z.string(),
+});
+
 export const analysisSchema = z.object({
   errors: z.array(analysisErrorSchema),
   correctUses: z.array(z.object({ turnId: z.string(), patternId: z.string() })),
@@ -222,7 +249,11 @@ export const analysisSchema = z.object({
     }),
   ),
   nativeRewrite: z
-    .object({ original: z.string(), rewrite: z.string() })
+    .object({
+      original: z.string(),
+      rewrite: z.string(),
+      notes: z.array(rewriteNoteSchema),
+    })
     .nullable(),
   /** In the learner's native language, each with concrete evidence. */
   strengths: z.array(z.string()),
@@ -354,3 +385,62 @@ export const drillGradeSchema = z.object({
   expected: z.string(),
 });
 export type DrillGrade = z.infer<typeof drillGradeSchema>;
+
+// ── book vocabulary ───────────────────────────────────────────────────────
+
+/** How much of a chapter's vocabulary the learner asked for. */
+export const depthSchema = z.enum(["most", "relevant", "hardest"]);
+
+export const vocabExtractParams = z.object({
+  nativeLang: z.string(),
+  level: levelSchema,
+  depth: depthSchema,
+  /** One piece of a chapter, as plain English text. */
+  text: z.string().min(1),
+});
+export type VocabExtractParams = z.infer<typeof vocabExtractParams>;
+
+export const vocabItemSchema = z.object({
+  /** Base form: "run" for "ran". A phrasal verb or an idiom is one item. */
+  lemma: z.string().min(1),
+  /** The form as it appears in the text. */
+  form: z.string().min(1),
+  /** The sentence it appears in, copied from the text. */
+  sentence: z.string(),
+  /** Accepted translations for that sense, in the learner's language. */
+  translations: z.array(z.string().min(1)).min(1),
+  /** A name of a person, place or brand. Rust drops these. */
+  properNoun: z.boolean(),
+  /** The word cannot be translated well without its sentence. */
+  needsContext: z.boolean(),
+});
+export type VocabItem = z.infer<typeof vocabItemSchema>;
+
+export const vocabSchema = z.object({ items: z.array(vocabItemSchema) });
+export type Vocab = z.infer<typeof vocabSchema>;
+
+/** Which way a word was asked: English → native, or native → English. */
+export const directionSchema = z.enum(["recognition", "production"]);
+
+/** "I was right": a missed answer the learner stands by. */
+export const vocabJudgeParams = z.object({
+  nativeLang: z.string(),
+  direction: directionSchema,
+  /** The English base form of the word. */
+  lemma: z.string().min(1),
+  /** The sentence of the book the word was taken from. */
+  sentence: z.string(),
+  /** The translations accepted so far, in the learner's language. */
+  translations: z.array(z.string()),
+  /** What the learner typed, as they typed it. */
+  answer: z.string().min(1),
+});
+export type VocabJudgeParams = z.infer<typeof vocabJudgeParams>;
+
+export const vocabVerdictSchema = z.object({
+  /** The answer is a right translation for the sense of the sentence. */
+  correct: z.boolean(),
+  /** One line in the learner's language saying why. */
+  reason: z.string().min(1),
+});
+export type VocabVerdict = z.infer<typeof vocabVerdictSchema>;

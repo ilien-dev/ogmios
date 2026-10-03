@@ -1,16 +1,17 @@
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { ChevronRight } from "lucide-react";
-import type { Progress } from "@shared/domain";
+import type { Progress, VocabEntry } from "@shared/domain";
+import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
 import { Spinner } from "@/components/ui/Spinner";
 import type { Navigate } from "@/app/routes";
 import { cn } from "@/lib/cn";
 import { errorMessage } from "@/lib/errors";
-import { getProgress } from "@/lib/ipc";
+import { deleteSession, getProgress } from "@/lib/ipc";
 import { formatDate } from "@/lib/text";
 import { PatternList } from "./PatternList";
+import { SessionList } from "./SessionList";
 import { WeeklyBars } from "./WeeklyBars";
 
 function Section({
@@ -29,6 +30,48 @@ function Section({
       <h2 className="text-lg font-semibold text-ink">{title}</h2>
       {empty === null ? children : <p className="text-ink-soft">{empty}</p>}
     </section>
+  );
+}
+
+/** Words shown before the learner asks for all of them. */
+const VOCABULARY_SHOWN = 12;
+
+/**
+ * The words learned, the latest first: a few of them, and the rest on
+ * request. A book brings them in by the hundred.
+ */
+function Vocabulary({ words }: { words: VocabEntry[] }): ReactNode {
+  const { t } = useTranslation();
+  const [all, setAll] = useState(false);
+  const shown = all ? words : words.slice(0, VOCABULARY_SHOWN);
+  return (
+    <div className="flex flex-col items-start gap-3">
+      <dl className="flex w-full flex-col divide-y divide-line">
+        {shown.map((word) => (
+          <div
+            key={`${word.date}-${word.english}-${word.asked ?? ""}`}
+            className="flex items-baseline justify-between gap-4 py-2.5 first:pt-0"
+          >
+            <dt className="font-medium text-ink">{word.english}</dt>
+            <dd className="truncate text-sm text-ink-faint">
+              {word.asked ?? ""}
+            </dd>
+          </div>
+        ))}
+      </dl>
+      {shown.length < words.length && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="-ml-3"
+          onClick={() => {
+            setAll(true);
+          }}
+        >
+          {t("progress.vocabularyAll", { count: words.length })}
+        </Button>
+      )}
+    </div>
   );
 }
 
@@ -157,19 +200,7 @@ export function ProgressScreen({
                 : null
             }
           >
-            <dl className="flex flex-col divide-y divide-line">
-              {progress.vocabulary.map((word) => (
-                <div
-                  key={`${word.date}-${word.english}`}
-                  className="flex items-baseline justify-between gap-4 py-2.5 first:pt-0"
-                >
-                  <dt className="font-medium text-ink">{word.english}</dt>
-                  <dd className="truncate text-sm text-ink-faint">
-                    {word.asked ?? ""}
-                  </dd>
-                </div>
-              ))}
-            </dl>
+            <Vocabulary words={progress.vocabulary} />
           </Section>
         </div>
 
@@ -179,59 +210,14 @@ export function ProgressScreen({
             progress.sessions.length === 0 ? t("progress.sessionsEmpty") : null
           }
         >
-          <ul className="flex flex-col divide-y divide-line border-y border-line">
-            {progress.sessions.map((session) => {
-              const meta = [
-                formatDate(session.startedAt, locale),
-                t(`mode.${session.mode}`),
-                t(`level.${session.level}`),
-                t("common.minutes", {
-                  count: Math.round(session.speechMinutes),
-                }),
-              ].join(" · ");
-              return (
-                <li key={session.id}>
-                  {session.hasReport ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        navigate({
-                          name: "report",
-                          sessionId: session.id,
-                          report: null,
-                          origin: "progress",
-                        });
-                      }}
-                      className="group flex w-full items-center gap-4 px-2 py-4 text-left hover:bg-raised"
-                    >
-                      <span className="flex min-w-0 flex-1 flex-col gap-1">
-                        <span className="truncate text-ink">
-                          {session.topic}
-                        </span>
-                        <span className="text-sm text-ink-faint">{meta}</span>
-                      </span>
-                      <span className="flex items-center gap-1 text-sm text-accent-text">
-                        {t("progress.viewReport")}
-                        <ChevronRight aria-hidden className="size-4" />
-                      </span>
-                    </button>
-                  ) : (
-                    <div className="flex items-center gap-4 px-2 py-4">
-                      <span className="flex min-w-0 flex-1 flex-col gap-1">
-                        <span className="truncate text-ink">
-                          {session.topic}
-                        </span>
-                        <span className="text-sm text-ink-faint">{meta}</span>
-                      </span>
-                      <span className="text-sm text-ink-faint">
-                        {t("progress.noReport")}
-                      </span>
-                    </div>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
+          <SessionList
+            sessions={progress.sessions}
+            navigate={navigate}
+            onDelete={async (sessionId) => {
+              await deleteSession(sessionId);
+              setProgress(await getProgress());
+            }}
+          />
         </Section>
       </div>
     </main>

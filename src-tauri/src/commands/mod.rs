@@ -1,10 +1,16 @@
+pub mod book;
+pub mod chapter;
+pub mod dispute;
 pub mod drill;
+pub mod practice;
 pub mod profile;
 pub mod progress;
+pub mod refresh;
 pub mod session;
 pub mod stt;
 #[cfg(test)]
 mod tests;
+pub mod tts;
 pub mod update;
 
 use tauri::{AppHandle, Manager};

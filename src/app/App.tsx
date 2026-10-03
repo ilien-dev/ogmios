@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import type { Profile, Settings } from "@shared/domain";
 import { Notice } from "@/components/ui/Notice";
 import { Spinner } from "@/components/ui/Spinner";
+import { BooksScreen } from "@/features/books/BooksScreen";
 import { Conversation } from "@/features/conversation/Conversation";
 import { Practice } from "@/features/drills/Practice";
 import { Home } from "@/features/home/Home";
@@ -11,6 +12,7 @@ import { Onboarding } from "@/features/onboarding/Onboarding";
 import { ProgressScreen } from "@/features/progress/ProgressScreen";
 import { ReportScreen } from "@/features/report/ReportScreen";
 import { SettingsScreen } from "@/features/settings/SettingsScreen";
+import { SpeechProvider } from "@/features/speech/speech";
 import { Setup } from "@/features/setup/Setup";
 import { errorMessage } from "@/lib/errors";
 import { setUiLang } from "@/lib/i18n/i18n";
@@ -129,6 +131,19 @@ export function App(): ReactNode {
             navigate={setRoute}
           />
         );
+      case "books":
+        return (
+          <BooksScreen
+            nativeLang={profile.nativeLang}
+            bookId={route.bookId}
+            chapterId={route.chapterId ?? null}
+            known={route.known === true}
+            practising={route.practising === true}
+            refresh={route.refresh === true}
+            triage={route.triage === true}
+            navigate={setRoute}
+          />
+        );
       case "progress":
         return <ProgressScreen navigate={setRoute} />;
       case "settings":
@@ -148,9 +163,11 @@ export function App(): ReactNode {
   })();
 
   return (
-    <div className="flex h-full">
-      {showsNav(route) && <Sidebar route={route} navigate={setRoute} />}
-      <div className="min-w-0 flex-1">{screen}</div>
-    </div>
+    <SpeechProvider>
+      <div className="flex h-full">
+        {showsNav(route) && <Sidebar route={route} navigate={setRoute} />}
+        <div className="min-w-0 flex-1">{screen}</div>
+      </div>
+    </SpeechProvider>
   );
 }

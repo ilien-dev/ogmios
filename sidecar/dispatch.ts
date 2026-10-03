@@ -16,8 +16,17 @@ import {
   requestSchema,
   selfCheckParams,
   selfCheckSchema,
+  vocabExtractParams,
+  vocabJudgeParams,
+  vocabSchema,
+  vocabVerdictSchema,
 } from "../shared/protocol.ts";
-import type { ConfigureParams, Outgoing } from "../shared/protocol.ts";
+import type {
+  ChatParams,
+  ChatResult,
+  ConfigureParams,
+  Outgoing,
+} from "../shared/protocol.ts";
 import { AgentError } from "./errors.ts";
 import { log } from "./log.ts";
 import { analyzeSystemPrompt, analyzeUserPrompt } from "./prompts/analyze.ts";
@@ -36,12 +45,19 @@ import {
   selfCheckSystemPrompt,
   selfCheckUserPrompt,
 } from "./prompts/feedback.ts";
+import {
+  vocabExtractSystemPrompt,
+  vocabExtractUserPrompt,
+  vocabJudgeSystemPrompt,
+  vocabJudgeUserPrompt,
+} from "./prompts/vocab.ts";
 import type { Provider } from "./providers/provider.ts";
 import {
   sanitizeAnalysis,
   sanitizeComposed,
   sanitizeDrills,
 } from "./sanitize.ts";
+import { hideStarters, splitStarters } from "./starters.ts";
 
 export type Emit = (message: Outgoing) => void;
 export type ProviderFactory = (config: ConfigureParams) => Provider;
@@ -54,6 +70,8 @@ const MAX_TOKENS = {
   selfCheck: 1024,
   drillGenerate: 8192,
   drillGrade: 1024,
+  vocabExtract: 16_000,
+  vocabJudge: 1024,
 } as const;
 
 function parseParams<T>(schema: z.ZodType<T>, method: string, raw: unknown): T {
@@ -147,20 +165,30 @@ export class Dispatcher {
         return this.#requireProvider().models();
       case "chat": {
         const params = parseParams(chatParams, method, raw);
-        return this.#requireProvider().chat(
-          {
-            context: params.context,
-            system: chatSystemPrompt(params.context),
-            history: params.history,
-            providerRef: params.providerRef,
-            kickoff: KICKOFF,
-          },
-          onDelta,
-        );
+        return this.#chat(params, onDelta);
       }
       default:
         return this.#structured(method, raw);
     }
+  }
+
+  async #chat(
+    params: ChatParams,
+    onDelta: (text: string) => void,
+  ): Promise<ChatResult> {
+    const stream = hideStarters(onDelta);
+    const reply = await this.#requireProvider().chat(
+      {
+        context: params.context,
+        system: chatSystemPrompt(params.context),
+        history: params.history,
+        providerRef: params.providerRef,
+        kickoff: KICKOFF,
+      },
+      stream.push,
+    );
+    stream.finish();
+    return { ...reply, ...splitStarters(reply.text) };
   }
 
   async #structured(method: string, raw: unknown): Promise<unknown> {
@@ -227,6 +255,26 @@ export class Dispatcher {
           user: drillGradeUserPrompt(params),
           schema: drillGradeSchema,
           maxTokens: MAX_TOKENS.drillGrade,
+        });
+      }
+      case "vocabExtract": {
+        const params = parseParams(vocabExtractParams, method, raw);
+        return provider.structured({
+          request: { method, params },
+          system: vocabExtractSystemPrompt(params),
+          user: vocabExtractUserPrompt(params),
+          schema: vocabSchema,
+          maxTokens: MAX_TOKENS.vocabExtract,
+        });
+      }
+      case "vocabJudge": {
+        const params = parseParams(vocabJudgeParams, method, raw);
+        return provider.structured({
+          request: { method, params },
+          system: vocabJudgeSystemPrompt(params),
+          user: vocabJudgeUserPrompt(params),
+          schema: vocabVerdictSchema,
+          maxTokens: MAX_TOKENS.vocabJudge,
         });
       }
       default:

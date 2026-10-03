@@ -18,7 +18,7 @@ Estado: borrador v1 · Fecha: 2026-09-24 · Licencia: AGPL-3.0
 | Modelo     | Claude (un solo modelo elegido por el usuario para todo; recomendado Sonnet 5)          |
 | Conexión   | API key (vía segura) + Claude Code local (binario del usuario, con aviso de riesgo)     |
 | Entrada    | Voz → texto local (editable antes de enviar) o texto escrito                            |
-| Salida     | Solo texto (sin voz sintética)                                                          |
+| Salida     | Texto; el inglés en pantalla se lee con una voz local opcional (§12)                    |
 | Datos      | 100 % locales                                                                           |
 | Idioma UI  | Inglés y español, con i18n listo para más                                               |
 | Feedback   | Al final de la sesión: 1 foco + 2 menores, autocorrección primero                       |
@@ -268,13 +268,15 @@ objetivo de lectura: ≤ 2 min. Orden:
      "Antes 5 veces, hoy 1".
 3. **Menores (2).** Formato corto, mismo flujo.
 4. **Pudiste decir…** 2–3 frases correctas pero mejorables, con versión más natural o rica.
-   **Reescritura nativa** de un fragmento, lado a lado, colapsada por defecto.
-5. **Vocabulario.** Palabras pedidas con "¿Cómo digo…?" y 2–3 palabras útiles que usó Claude.
-6. **Métricas.** Minutos de habla, palabras, errores por 100 palabras, palabras por turno, variedad
+5. **Cómo lo diría un nativo.** Otro fragmento de la charla, lado a lado con su reescritura, y
+   debajo hasta 3 cambios (qué dijo → qué diría un nativo, y por qué en su idioma), marcados en
+   ambos textos.
+6. **Vocabulario.** Palabras pedidas con "¿Cómo digo…?" y 2–3 palabras útiles que usó Claude.
+7. **Métricas.** Minutos de habla, palabras, errores por 100 palabras, palabras por turno, variedad
    léxica. Siempre como tendencia frente a sesiones anteriores, nunca como nota.
-7. **Reto para la próxima.** Una misión: "En tu próxima charla usa 2 veces el present perfect".
+8. **Reto para la próxima.** Una misión: "En tu próxima charla usa 2 veces el present perfect".
    Se valida sola en la siguiente sesión.
-8. **Cierre.** "¿Practicar este punto 2 min?" (drill opcional) · "Otra charla" · "Listo".
+9. **Cierre.** "¿Practicar este punto 2 min?" (drill opcional) · "Otra charla" · "Listo".
 
 Cada corrección tiene un botón **"No estoy de acuerdo"**: marca el evento como disputado, no cuenta
 para la memoria y queda registrado para mejorar los prompts. Protege la confianza ante falsos
@@ -396,6 +398,10 @@ las tendencias se muestran separadas por modo. Tendencias sobre ≥5 sesiones.
 - **Recordatorio diario:** notificación de escritorio a la hora elegida; desactivable.
 - **Mapa de progreso:** patrones por estado (dominados vs activos), minutos de habla por semana,
   nivel CEFR estimado en el tiempo, colección de mejores frases, vocabulario aprendido.
+- **Eliminar una charla:** desde la lista de charlas, con confirmación. Se van sus turnos, audio,
+  feedback, vocabulario y mejor frase; deja de contar en minutos, CEFR, racha y patrones. Un patrón
+  visto solo en ella desaparece, un foco que solo ella abrió vuelve a detectado y el resto se
+  recalcula como tras un "No estoy de acuerdo".
 - **Rotación anti-novedad:** si el usuario repite el mismo modo 4 sesiones, el inicio sugiere otro.
 
 ---
@@ -417,6 +423,18 @@ las tendencias se muestran separadas por modo. Tendencias sobre ≥5 sesiones.
 - **Captura de audio en Rust** (crate `cpal`), no en el webview: `getUserMedia` en WebKitGTK (Linux)
   es poco fiable.
 - Audio guardado localmente (WAV 16 kHz mono 16 bits), borrable por sesión o en bloque desde ajustes.
+
+### Texto a voz
+
+- **Local, en CPU**, con Kokoro 82M (pesos Apache-2.0, 367 MB) sobre sherpa-onnx (Apache-2.0),
+  enlazado en el binario. Una descarga opcional desde ajustes, con tamaño visible y sha256; sin
+  ella la app no habla.
+- **Solo se lee inglés:** las líneas del compañero en la conversación (nunca las del usuario) y,
+  en los libros, la palabra y su frase. Preguntada hacia el inglés, la palabra es la respuesta:
+  se lee cuando el veredicto la muestra, no antes.
+- Lectura automática al aparecer, con un botón para oírlo otra vez; se puede dejar solo a
+  petición. Cuatro voces, americanas y británicas; la primera sigue la variante del perfil.
+- Reproducción en Rust (`cpal`), frase a frase según se sintetiza. Empezar a grabar la calla.
 
 ---
 
@@ -526,7 +544,11 @@ type Analysis = {
     better: string;
     why: string;
   }[];
-  native_rewrite: { original: string; rewrite: string };
+  native_rewrite: {
+    original: string;
+    rewrite: string;
+    notes: { from: string; to: string; why: string }[]; // el reporte muestra 3 como máximo
+  };
   strengths: { text: string; evidence_turn_ids: string[] }[];
   best_sentence_turn_id: string;
   complexity: { clauses_per_unit: number; subordination_ratio: number };
@@ -592,6 +614,20 @@ activos, reto. Reglas fijas:
 - El texto del usuario puede venir de reconocimiento de voz: no reacciones a errores obvios de
   transcripción.
 - Al abrir: una pregunta concreta que guíe el tema y sugiera el largo esperado.
+
+**Inglés real.** Todo prompt que escribe inglés que el usuario puede copiar (conversación, "¿cómo
+digo…?", análisis y ejercicios) lleva la misma regla (`REAL_ENGLISH_RULE`): decir lo que la gente dice
+en esa situación, no lo que enseña un libro, y, cuando no pueda saberse si una forma se usa, elegir la
+más llana y común y no inventar modismos. Sus ejemplos están medidos en transcripciones de habla real
+(The People's Speech e ICSI Meeting Corpus, CC BY 4.0). Ningún código comprueba todavía una frase
+contra uso real: la regla es el mejor esfuerzo del modelo, no una validación.
+
+**Frases de reuniones reales.** Con objetivo "trabajo", variante americana y nivel intermedio o
+avanzado, Rust entrega al compañero 8 frases por sesión (`src-tauri/src/phrases/`), las mismas en cada
+turno y otras en la sesión siguiente, para que las use donde encajen sin señalarlas. Cada una la
+dijeron al menos 8 hablantes nativos en 12 o más reuniones del ICSI Meeting Corpus y aparece al menos
+una vez por millón de palabras en The People's Speech. Los demás objetivos, el británico y el nivel
+básico no reciben frases: no hay grabaciones abiertas que las respalden.
 
 ---
 

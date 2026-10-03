@@ -89,6 +89,8 @@ export interface SessionSetup {
   targetMinutes: number | null;
   /** Pasted text for `mode: "material"`. */
   material: string | null;
+  /** Picks up where the last conversation ended. */
+  continuePrevious: boolean;
 }
 
 export interface Turn {
@@ -156,6 +158,8 @@ export interface Streak {
 export interface HomeState {
   profile: Profile;
   lastSetup: SessionSetup | null;
+  /** Topic of the conversation a new one can continue, when there is one. */
+  continueTopic: string | null;
   suggestedTopics: string[];
   focus: PatternView | null;
   dueReviews: number;
@@ -208,9 +212,21 @@ export interface Rewrite {
   why: string;
 }
 
+/** One change between the learner's fragment and the fluent version. */
+export interface RewriteNote {
+  /** Exact span of the learner's fragment. */
+  from: string;
+  /** Exact span of the rewrite that replaced it. */
+  to: string;
+  /** In the learner's language. */
+  why: string;
+}
+
 export interface NativeRewrite {
   original: string;
   rewrite: string;
+  /** At most three; empty in reports saved before notes existed. */
+  notes: RewriteNote[];
 }
 
 export interface VocabItem {
@@ -271,6 +287,8 @@ export interface DrillItem {
   index: number;
   format: DrillFormat;
   patternId: string;
+  /** What the item drills: its pattern's description; empty if unknown. */
+  focus: string;
   /** In English. */
   prompt: string;
   /** In the learner's language. */
@@ -369,6 +387,30 @@ export interface SttPartial {
   text: string;
 }
 
+/** Someone the voice that reads English aloud can sound like. */
+export interface TtsVoice {
+  id: string;
+  name: string;
+  variant: Variant;
+}
+
+export interface TtsStatus {
+  /** What the one model weighs, downloaded or not. */
+  bytes: number;
+  downloaded: boolean;
+  voices: TtsVoice[];
+  /** The voice in use: the learner's pick, or the first of their English. */
+  voice: string;
+  /** Off, nothing is read aloud until asked for. */
+  enabled: boolean;
+}
+
+/** Event name: `tts-download`. */
+export interface TtsDownload {
+  received: number;
+  total: number;
+}
+
 export interface Recording {
   text: string;
   audioId: string;
@@ -380,6 +422,237 @@ export interface UpdateInfo {
   version: string;
   notes: string | null;
 }
+
+/** An uploaded book and its chapters in reading order. */
+export interface Book {
+  id: string;
+  title: string;
+  author: string | null;
+  chapters: Chapter[];
+}
+
+export interface Chapter {
+  id: string;
+  index: number;
+  /**
+   * Empty when the book gives this part no name and the learner has not
+   * given it one: the interface then calls it by its place in the book.
+   */
+  title: string;
+  words: number;
+  /** The deepest depth its words were taken at; null before it is prepared. */
+  prepared: Depth | null;
+  /**
+   * The share of its words that are done or known, as a percentage; null
+   * before it is prepared. 100, and only 100, is ready to read.
+   */
+  readiness: number | null;
+}
+
+/** The readiness of a chapter that can be read: every word done or known. */
+export const READY = 100;
+
+/**
+ * How much of a chapter's vocabulary to learn, judged against the learner's
+ * level. From shallowest to deepest: hardest, relevant, most.
+ */
+export type Depth = "most" | "relevant" | "hardest";
+
+/** One word of a prepared chapter. */
+export interface BookWord {
+  id: string;
+  /** The base form: "run" for "ran". */
+  lemma: string;
+  /** Accepted translations in the learner's language, the first one first. */
+  translations: string[];
+  /** How often it occurs in the chapter. */
+  count: number;
+  /** Finished in both directions. */
+  done: boolean;
+  /**
+   * The learner said they know it already: it is not asked, here or in any
+   * other chapter, until they take that back.
+   */
+  known: boolean;
+}
+
+/** A chapter and its words, most frequent first. */
+export interface ChapterWords {
+  chapter: Chapter;
+  words: BookWord[];
+}
+
+/** A word the learner said they know already, whatever chapter it came from. */
+export interface KnownWord {
+  /** What the word is known by, in every chapter of every book. */
+  key: string;
+  /** The base form: "run" for "ran". */
+  lemma: string;
+  /** Its translations in a chapter that has it; none once its books are gone. */
+  translations: string[];
+}
+
+/** Event `chapter-progress`: pieces of the chapter read so far. */
+export interface ChapterProgress {
+  chapterId: string;
+  done: number;
+  total: number;
+}
+
+/** Which way a word is asked: English → native, or native → English. */
+export type Direction = "recognition" | "production";
+
+/** A piece of a sentence from the book; the word being asked is `marked`. */
+export interface SentencePart {
+  text: string;
+  marked: boolean;
+}
+
+/** One word to answer in a sitting. */
+export interface PracticeItem {
+  wordId: string;
+  direction: Direction;
+  /**
+   * What is shown to translate: the English base form for `recognition`,
+   * the word's translations for `production`.
+   */
+  prompt: string;
+  /**
+   * The word's sentence from the book, for a word that needs it. For
+   * `production` its marked pieces have no text: they are the blank the
+   * answer goes in, and the English word is nowhere in the item.
+   */
+  context: SentencePart[] | null;
+}
+
+/** How a sitting ended. */
+export interface SittingSummary {
+  /** Words finished during this sitting. */
+  done: number;
+  /** Words of the chapter neither finished nor known, asked or not. */
+  open: number;
+}
+
+/**
+ * How far a sitting is, as the bar at its top shows it: `value` steps out of
+ * `total`. Rust counts them; the screen only draws the share. A sitting with
+ * nothing to count has a `total` of none, and is as far as it goes.
+ */
+export interface SittingProgress {
+  value: number;
+  total: number;
+}
+
+/**
+ * What a sitting shows next: a word, or its summary once it is over. Either
+ * way it says how far the sitting is by then; on the summary, and only
+ * there, `value` is `total`.
+ */
+export type PracticeStep =
+  | { type: "item"; item: PracticeItem; progress: SittingProgress }
+  | { type: "summary"; summary: SittingSummary; progress: SittingProgress };
+
+/** A sitting just started, or the unfinished one gone on with. */
+export interface Sitting {
+  id: string;
+  step: PracticeStep;
+}
+
+/** One size a session can be started in, with about how long it takes. */
+export interface SessionSize {
+  /** What to start the session with; null for every open word. */
+  size: number | null;
+  /** How many words that is. */
+  words: number;
+  /** The estimate, in minutes. */
+  minutes: number;
+}
+
+/** What "Practice" on a chapter can do now. */
+export interface PracticeOptions {
+  /**
+   * A session was left unfinished: starting goes on with it, with the words
+   * it had, and no size is asked for.
+   */
+  resume: boolean;
+  /**
+   * The sizes on offer, smallest first; the last one is every open word, and
+   * is the one to start with unless the learner picks another.
+   */
+  sizes: SessionSize[];
+}
+
+/** The verdict on one answer, and what comes after it. */
+export interface AnswerResult {
+  /** Names this answer, for "I was right" (`dispute_answer`). */
+  answerId: number;
+  correct: boolean;
+  /**
+   * What was asked for: the word's accepted translations, the first one
+   * first, or for `production` its English base form.
+   */
+  accepted: string[];
+  step: PracticeStep;
+}
+
+/** What came of "I was right" on a missed answer. */
+export interface DisputeResult {
+  /**
+   * The miss is undone: the answer counts as correct, and is accepted from
+   * now on.
+   */
+  upheld: boolean;
+  /** One line in the learner's language saying why. */
+  reason: string;
+  /**
+   * What the answer's sitting shows next as things stand now. An upheld
+   * answer can finish its word, and a word that is finished is not asked.
+   */
+  step: PracticeStep;
+}
+
+/** How a pass of the refresh before reading stands. */
+export interface RefreshSummary {
+  /** Words answered right in the pass: they stay done. */
+  solid: number;
+  /** Words missed in the pass that are back in the chapter's practice. */
+  reopened: number;
+}
+
+/**
+ * What a refresh shows next: a done word, asked English → native, or its
+ * summary once every done word has been asked. Either way it says how far
+ * the pass is: the words it has asked, out of the ones it asks.
+ */
+export type RefreshStep =
+  | { type: "item"; item: PracticeItem; progress: SittingProgress }
+  | { type: "summary"; summary: RefreshSummary; progress: SittingProgress };
+
+/** A refresh just started, or gone on with. */
+export interface Refresh {
+  id: string;
+  step: RefreshStep;
+}
+
+/** The verdict on one answer of a refresh, and what comes after it. */
+export interface RefreshAnswer {
+  correct: boolean;
+  /** The word's accepted translations, the first one first. */
+  accepted: string[];
+  step: RefreshStep;
+}
+
+/**
+ * Why `prepare_chapter` refuses a chapter: the `message` of its `invalid`
+ * error is this, for the interface to word.
+ */
+export type ChapterRefusal = "notEnglish";
+
+/**
+ * Why `import_book` refuses a file: the `message` of its `invalid` error is
+ * one of these, for the interface to word.
+ */
+export type BookRefusal = "drm" | "unreadable" | "scanned";
 
 /** The only error shape a command returns. */
 export interface CommandError {

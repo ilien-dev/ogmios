@@ -32,6 +32,8 @@ pub const RECURRENCE_CAP: u32 = 4;
 pub const MAX_ACTIVE: usize = 3;
 /// Minor corrections per report, besides the focus.
 pub const MAX_MINORS: usize = 2;
+/// Changes explained under the native rewrite.
+pub const MAX_REWRITE_NOTES: usize = 3;
 /// Days until the next review, by step (SPEC §9.3).
 pub const REVIEW_DAYS: [i64; 4] = [1, 3, 7, 21];
 

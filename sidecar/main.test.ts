@@ -53,6 +53,7 @@ const context = {
     focusMode: "free",
     targetMinutes: 10,
     material: null,
+    continuePrevious: false,
   },
   learner: {
     name: "Ana",
@@ -65,6 +66,9 @@ const context = {
   },
   targets: [],
   challenge: null,
+  recentOpenings: [],
+  phrases: [],
+  previous: null,
 };
 
 const drillItem = {
@@ -185,7 +189,9 @@ describe("sidecar over stdio (fake provider)", () => {
     );
     const chat = responseFor(lines, 2);
     expect(deltas.length).toBeGreaterThan(0);
-    expect(chat).toMatchObject({ result: { text: deltas.join("") } });
+    expect(chat).toMatchObject({
+      result: { text: deltas.join(""), starters: [] },
+    });
 
     const schemas = {
       3: helpResultSchema,
@@ -202,6 +208,25 @@ describe("sidecar over stdio (fake provider)", () => {
         expect(schema.safeParse(response.result).success).toBe(true);
       }
     }
+  });
+
+  test("cuts a basic partner's starters out of what it streams and returns", async () => {
+    const basic = { ...context, setup: { ...context.setup, level: "basic" } };
+    const lines = await exchange([
+      {
+        id: 1,
+        method: "chat",
+        params: { context: basic, history: [], providerRef: null },
+      },
+    ]);
+    const streamed = lines
+      .flatMap((line) => ("event" in line ? [line.text] : []))
+      .join("");
+    expect(streamed).not.toContain("starters");
+    expect(streamed).toEndWith("Tell me what happened.");
+    expect(responseFor(lines, 1)).toMatchObject({
+      result: { text: streamed, starters: ["Last week I…", "One day, I…"] },
+    });
   });
 
   test("lists the configured provider's models", async () => {

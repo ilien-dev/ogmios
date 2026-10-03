@@ -6,6 +6,7 @@ import type { SessionSetup } from "@shared/domain";
 import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
 import type { Navigate } from "@/app/routes";
+import { useReadAloud } from "@/features/speech/speech";
 import { errorMessage } from "@/lib/errors";
 import { endSession } from "@/lib/ipc";
 import { formatNumber } from "@/lib/text";
@@ -38,6 +39,9 @@ export function Conversation({
   const [ending, setEnding] = useState(false);
   const [endError, setEndError] = useState<string | null>(null);
   const userTurns = state.messages.filter((m) => m.role === "user").length;
+  // Only the partner is read aloud, each line once it is all there.
+  const latest = state.messages.at(-1);
+  useReadAloud(latest?.role === "assistant" ? latest.text : null, latest?.id);
 
   const end = async (): Promise<void> => {
     if (state.sessionId === null) {

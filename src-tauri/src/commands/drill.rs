@@ -46,11 +46,22 @@ fn drill_pattern(conn: &rusqlite::Connection, p: &PatternRow) -> Result<DrillPat
     })
 }
 
-fn visible(index: usize, item: &GeneratedDrillItem) -> DrillItem {
+/// What an item drills, shown with it so the learner knows what is expected
+/// whatever the generated instruction says.
+fn focus_of(patterns: &[DrillPattern], pattern_id: &str) -> String {
+    patterns
+        .iter()
+        .find(|p| p.id == pattern_id)
+        .map(|p| p.description.clone())
+        .unwrap_or_default()
+}
+
+fn visible(index: usize, item: &GeneratedDrillItem, focus: String) -> DrillItem {
     DrillItem {
         index: u32::try_from(index).unwrap_or(u32::MAX),
         format: item.format,
         pattern_id: item.pattern_id.clone(),
+        focus,
         prompt: item.prompt.clone(),
         instruction: item.instruction.clone(),
         options: item.options.clone(),
@@ -125,7 +136,7 @@ pub fn start(ctx: Ctx<'_>, pattern_id: Option<&str>, format: Option<DrillFormat>
         items: stored
             .iter()
             .enumerate()
-            .map(|(i, s)| visible(i, &s.item))
+            .map(|(i, s)| visible(i, &s.item, focus_of(&params.patterns, &s.item.pattern_id)))
             .collect(),
     })
 }
@@ -191,6 +202,9 @@ pub fn answer(ctx: Ctx<'_>, drill_id: &str, index: u32, response: &str) -> Resul
     if let Some(stored) = drill.items.get_mut(at) {
         stored.correct = Some(grade.correct);
     }
+    let focus = patterns::get_pattern(&tx, &item.item.pattern_id)
+        .map(|p| p.description)
+        .unwrap_or_default();
     let retry = retry_item.map(|item| {
         drill.items.push(StoredItem {
             item,
@@ -198,7 +212,7 @@ pub fn answer(ctx: Ctx<'_>, drill_id: &str, index: u32, response: &str) -> Resul
             correct: None,
         });
         let last = drill.items.len() - 1;
-        visible(last, &drill.items[last].item)
+        visible(last, &drill.items[last].item, focus)
     });
     drills::save_items(&tx, drill_id, &drill.items)?;
     if patterns::get_pattern(&tx, &item.item.pattern_id).is_ok() {

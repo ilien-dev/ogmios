@@ -1,6 +1,7 @@
 import type { AnalyzeParams } from "../../shared/protocol.ts";
 import {
   DATA_NOT_INSTRUCTIONS,
+  REAL_ENGLISH_RULE,
   asJson,
   languageName,
   levelLine,
@@ -42,7 +43,7 @@ For voice turns where "said" and "sent" differ, one entry per change: before and
 Two or three learner sentences that were correct but could sound more natural, precise or rich, one step above their level. original is copied exactly; better is the improved version; why is one sentence in the learner's language. Never repeat an item from errors.
 
 # nativeRewrite
-One learner fragment of one to three sentences, copied exactly, and how a fluent speaker of the learner's variant would say the same thing. Null if the learner wrote too little.
+One learner fragment of one to three sentences, copied exactly and free of any item from errors, and how a fluent speaker of the learner's variant would say the same thing. notes: the two or three changes that teach the most, each one a from (the span of original that changed, copied exactly), a to (the span of rewrite that replaced it, copied exactly) and a why (one sentence in the learner's language on what makes the new wording sound fluent). Keep each span to a few words, and leave notes empty rather than explain a trivial change. Null if the learner wrote too little.
 
 # strengths
 One or two things the learner did well, each with concrete evidence from the transcript: a count or a quotation ("You used the past simple correctly 8 times"). No generic praise.
@@ -64,6 +65,10 @@ Two or three useful words or phrases from the partner's turns, a little above th
 
 # challengeAchieved
 If a challenge is given, true when the learner met it in this conversation and false when not. Null when there is no challenge.
+
+# Real English
+This holds for every corrected, better and rewrite you write. When you are not sure the improved wording is what people say, keep closer to the learner's own words, or leave the item out of couldHaveSaid.
+${REAL_ENGLISH_RULE}
 
 # Language
 ${nativeLanguageRule(nativeLang)}`;

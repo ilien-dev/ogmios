@@ -37,6 +37,20 @@ export function formatWeek(label: string, locale: string): string {
   }).format(monday);
 }
 
+/**
+ * Minutes of speech as a whole number a learner can read: seconds below a
+ * minute, minutes from there up.
+ */
+export function speechDuration(minutes: number): {
+  unit: "seconds" | "minutes";
+  count: number;
+} {
+  const seconds = Math.round(minutes * 60);
+  return seconds > 0 && seconds < 60
+    ? { unit: "seconds", count: seconds }
+    : { unit: "minutes", count: Math.round(minutes) };
+}
+
 export function formatNumber(
   value: number,
   locale: string,

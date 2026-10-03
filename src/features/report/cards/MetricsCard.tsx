@@ -36,7 +36,7 @@ function value(metrics: SessionMetrics, key: MetricKey): number | null {
   return key === "userShare" ? raw * 100 : raw;
 }
 
-/** §7.6: trends against earlier sessions of the same kind. Never a score. */
+/** §7.7: trends against earlier sessions of the same kind. Never a score. */
 export function MetricsCard({
   card,
 }: {
@@ -85,7 +85,11 @@ export function MetricsCard({
                 <dd
                   className={cn(
                     "flex items-center gap-1 text-sm",
-                    better === true ? "text-accent-text" : "text-ink-faint",
+                    better === null
+                      ? "text-ink-faint"
+                      : better
+                        ? "text-correct"
+                        : "text-partial",
                   )}
                 >
                   <Icon aria-hidden className="size-4" />

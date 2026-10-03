@@ -5,6 +5,7 @@ import type {
 } from "../../shared/protocol.ts";
 import {
   DATA_NOT_INSTRUCTIONS,
+  REAL_ENGLISH_RULE,
   asJson,
   languageName,
   nativeLanguageRule,
@@ -59,7 +60,9 @@ export function selfCheckUserPrompt(params: SelfCheckParams): string {
 export function helpSystemPrompt(params: HelpParams): string {
   return `An English learner in the middle of a spoken conversation wants to say something and asks how to say it. They write it in ${languageName(params.nativeLang)}, or in a mix of that and English.
 
-Give one to three ways to say it in ${variantName(params.variant)}, the most natural first, as a person would say them in conversation. Each must fit what the conversation partner just said. Add a note only when the options differ in a way worth knowing (more casual, more formal, a different nuance), otherwise null.
+Give one to three ways to say it in ${variantName(params.variant)}, the most natural first, as a person would say them in conversation. Each must fit what the conversation partner just said. Add a note only when the options differ in a way worth knowing (more casual, more formal, a different nuance), otherwise null. One option you are sure people say is better than three you are not: leave out any you would not expect to hear.
+
+${REAL_ENGLISH_RULE}
 
 ${nativeLanguageRule(params.nativeLang)}`;
 }
