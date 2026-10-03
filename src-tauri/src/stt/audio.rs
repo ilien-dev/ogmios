@@ -58,26 +58,42 @@ pub fn to_mono(interleaved: &[f32], channels: usize) -> Vec<f32> {
 /// phase jump at buffer boundaries. Linear is enough for speech headed into a
 /// model trained on 16 kHz: what it aliases lies above anything the model hears.
 pub fn to_16k(samples: &[f32], from: u32) -> Vec<f32> {
-    if from == RATE || samples.is_empty() {
+    resample(samples, from, RATE)
+}
+
+/// Resample mono audio from one rate to another, linearly. The voice that
+/// reads aloud goes through this too, on its way to the speakers.
+pub fn resample(samples: &[f32], from: u32, to: u32) -> Vec<f32> {
+    if from == to || from == 0 || to == 0 || samples.is_empty() {
         return samples.to_vec();
     }
-    // Integer positions: output sample `i` sits at `i * from / RATE` input
-    // samples, and the remainder over RATE is the interpolation fraction.
+    // The ratio in lowest terms: 24 kHz to 48 kHz is 1 to 2, and the terms of
+    // every rate a sound card offers fit sixteen bits.
+    let common = gcd(from, to);
+    let (from, to) = (u64::from(from / common), u64::from(to / common));
+    // Integer positions: output sample `i` sits at `i * from / to` input
+    // samples, and the remainder over `to` is the interpolation fraction.
     let last = samples.len() - 1;
     let total = u64::try_from(samples.len()).unwrap_or(u64::MAX);
-    let out_len = usize::try_from(total * u64::from(RATE) / u64::from(from)).unwrap_or(0);
-    let rate = f32::from(u16::try_from(RATE).unwrap_or(u16::MAX));
+    let out_len = usize::try_from(total * to / from).unwrap_or(0);
+    let rate = f32::from(u16::try_from(to).unwrap_or(u16::MAX));
     (0..out_len)
         .map(|index| {
-            let at = u64::try_from(index).unwrap_or(u64::MAX) * u64::from(from);
-            let left = usize::try_from(at / u64::from(RATE))
-                .unwrap_or(last)
-                .min(last);
+            let at = u64::try_from(index).unwrap_or(u64::MAX) * from;
+            let left = usize::try_from(at / to).unwrap_or(last).min(last);
             let right = (left + 1).min(last);
-            let frac = f32::from(u16::try_from(at % u64::from(RATE)).unwrap_or(0)) / rate;
+            let frac = f32::from(u16::try_from(at % to).unwrap_or(0)) / rate;
             samples[left] + (samples[right] - samples[left]) * frac
         })
         .collect()
+}
+
+fn gcd(a: u32, b: u32) -> u32 {
+    if b == 0 {
+        a
+    } else {
+        gcd(b, a % b)
+    }
 }
 
 /// Save 16 kHz mono audio as 16-bit PCM WAV.
@@ -200,6 +216,17 @@ mod tests {
         // A non-integer ratio interpolates between neighbours.
         let found = to_16k(&samples, 24_000);
         assert!((found[1] - 1.5).abs() < 0.001, "{}", found[1]);
+    }
+
+    #[test]
+    fn resampling_up_doubles_and_lands_between_neighbours() {
+        let found = resample(&[0.0, 1.0, 2.0], 24_000, 48_000);
+        assert_eq!(found.len(), 6);
+        assert!((found[1] - 0.5).abs() < 0.001, "{}", found[1]);
+        assert_eq!(resample(&vec![0.0; 24_000], 24_000, 44_100).len(), 44_100);
+        // Rates past sixteen bits still interpolate: the ratio is reduced first.
+        let found = resample(&[0.0, 1.0], 48_000, 192_000);
+        assert!((found[1] - 0.25).abs() < 0.001, "{}", found[1]);
     }
 
     #[test]

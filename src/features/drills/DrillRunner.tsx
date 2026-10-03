@@ -1,14 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 import type { SyntheticEvent, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowRight, CircleCheck, CircleDot, RotateCcw, X } from "lucide-react";
+import { ArrowRight, RotateCcw, X } from "lucide-react";
 import type { Drill, DrillItem, DrillResult } from "@shared/domain";
 import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
 import { Spinner } from "@/components/ui/Spinner";
 import { TextArea } from "@/components/ui/TextArea";
+import { GRADE_FILL, VerdictLine } from "@/components/ui/Verdict";
 import { cn } from "@/lib/cn";
 import { errorMessage } from "@/lib/errors";
+import { grade } from "@/lib/grade";
+import type { Grade } from "@/lib/grade";
 import { answerDrill } from "@/lib/ipc";
 import { SpotErrorChoice } from "./SpotErrorChoice";
 
@@ -17,6 +20,13 @@ interface Answered {
   response: string;
   result: DrillResult;
 }
+
+/** What each grade is called. */
+const VERDICT = {
+  right: "drills.right",
+  partial: "drills.rightRetry",
+  wrong: "drills.notQuite",
+} as const;
 
 interface DrillRunnerProps {
   drill: Drill;
@@ -45,6 +55,17 @@ export function DrillRunner({
   const field = useRef<HTMLTextAreaElement>(null);
   const item = queue[position];
   const current = answered.find((entry) => entry.item === item);
+  // An item that follows a miss is a second chance: right there is partly right.
+  const retries = new Set(answered.map((entry) => entry.result.retry));
+  const graded = (entry: Answered): Grade =>
+    grade(entry.result.correct, retries.has(entry.item));
+  const fill = (entry: DrillItem, i: number): string => {
+    const done = answered.find((held) => held.item === entry);
+    if (done !== undefined) {
+      return GRADE_FILL[graded(done)];
+    }
+    return i <= position ? "bg-accent" : "bg-line";
+  };
 
   useEffect(() => {
     field.current?.focus();
@@ -58,9 +79,22 @@ export function DrillRunner({
           <h1 className="text-display font-semibold text-ink">
             {t("drills.summary")}
           </h1>
-          <p className="text-lead text-ink">
-            {t("drills.summaryCount", { correct, total: answered.length })}
-          </p>
+          <div className="flex flex-col gap-3">
+            <ol aria-hidden className="flex gap-1.5">
+              {answered.map((entry) => (
+                <li
+                  key={entry.item.index}
+                  className={cn(
+                    "h-1.5 flex-1 rounded-full",
+                    GRADE_FILL[graded(entry)],
+                  )}
+                />
+              ))}
+            </ol>
+            <p className="text-lead text-ink">
+              {t("drills.summaryCount", { correct, total: answered.length })}
+            </p>
+          </div>
           <p className="text-ink-soft">{t("drills.summaryNote")}</p>
           <div className="flex gap-2">
             <Button variant="primary" onClick={onAgain}>
@@ -131,7 +165,7 @@ export function DrillRunner({
               key={entry.index}
               className={cn(
                 "h-1 flex-1 rounded-full transition-colors duration-300",
-                i <= position ? "bg-accent" : "bg-line",
+                fill(entry, i),
               )}
             />
           ))}
@@ -158,9 +192,16 @@ export function DrillRunner({
           })}
           className="mx-auto flex max-w-2xl flex-col gap-8 px-10 pt-10 pb-12 motion-safe:animate-rise"
         >
-          <p className="text-sm font-medium text-ink-faint">
-            {t(`drillFormat.${item.format}`)}
-          </p>
+          <div className="flex flex-col gap-1">
+            <p className="text-sm font-medium text-ink-faint">
+              {t(`drillFormat.${item.format}`)}
+            </p>
+            {item.focus !== "" && (
+              <p className="text-ink-soft">
+                {t("drills.focus", { pattern: item.focus })}
+              </p>
+            )}
+          </div>
 
           {thread.length > 0 && (
             <ol className="flex flex-col gap-6">
@@ -250,24 +291,9 @@ export function DrillRunner({
             {current !== undefined && (
               <div className="flex flex-col gap-5 motion-safe:animate-rise">
                 <div className="flex flex-col gap-2">
-                  <p
-                    className={cn(
-                      "flex items-center gap-2 font-medium",
-                      current.result.correct ? "text-accent-text" : "text-ink",
-                    )}
-                  >
-                    {current.result.correct ? (
-                      <CircleCheck aria-hidden className="size-5" />
-                    ) : (
-                      <CircleDot
-                        aria-hidden
-                        className="size-5 text-ink-faint"
-                      />
-                    )}
-                    {current.result.correct
-                      ? t("drills.right")
-                      : t("drills.notQuite")}
-                  </p>
+                  <VerdictLine tone={graded(current)}>
+                    {t(VERDICT[graded(current)])}
+                  </VerdictLine>
                   {!current.result.correct && (
                     <p className="text-ink">
                       {t("drills.expected", { text: current.result.expected })}

@@ -317,6 +317,35 @@ pub fn dispute(conn: &Connection, event_id: &str, now: DateTime<Utc>) -> Result<
     patterns::update_pattern(conn, &row)
 }
 
+/// Deletes a session and works the memory out again without it: a pattern
+/// seen in no other conversation goes with it, a focus it opened closes, and
+/// the rest step as after a dispute. Steps are not replayed, so a state the
+/// session helped earn (improving, mastered) stays.
+pub fn forget_session(conn: &Connection, session_id: &str, now: DateTime<Utc>) -> Result<()> {
+    let analysed_at = patterns::analysed_at(conn, session_id)?;
+    let touched = patterns::in_session(conn, session_id)?;
+    sessions::delete_session(conn, session_id)?;
+    let events = patterns::events_by_pattern(conn)?;
+    for id in &touched {
+        let left = events.get(id).map_or(&[][..], Vec::as_slice);
+        if left.iter().all(|e| e.session_id.is_none()) {
+            patterns::delete_pattern(conn, id)?;
+            continue;
+        }
+        let mut row = patterns::get_pattern(conn, id)?;
+        // A focus starts at the analysis time of the session that opened it.
+        let opened_here = row.state == PatternState::Focus && row.focus_at == analysed_at;
+        let state = if opened_here {
+            PatternState::Detected
+        } else {
+            state_after_dispute(&row.facts(), left)
+        };
+        row.set_state(state, now);
+        patterns::update_pattern(conn, &row)?;
+    }
+    Ok(())
+}
+
 /// A drill counts as a review; see `advance_review` for why only a due one
 /// moves the schedule.
 pub fn record_drill(
@@ -528,6 +557,94 @@ mod tests {
         let focus = out.focus.expect("focus");
         dispute(&conn, &focus.event.id, now).expect("dispute");
         let row = patterns::get_pattern(&conn, &focus.pattern.id).expect("row");
+        assert_eq!(row.state, PatternState::Detected);
+        assert!(!row.is_primary);
+        assert_eq!(row.next_review_at, None);
+    }
+
+    #[test]
+    fn forgetting_a_session_drops_the_patterns_only_it_showed() {
+        let conn = open_in_memory().expect("db");
+        let t0 = Utc::now();
+        let s0 = session(&conn, t0);
+        let first = analysis(&json!([error("a", false, 0.9)]), &json!([]));
+        apply(&conn, &s0, &first, Goal::Other, t0).expect("s0");
+        let t1 = t0 + Duration::days(1);
+        let s1 = session(&conn, t1);
+        let both = json!([error("a", false, 0.9), error("b", false, 0.9)]);
+        apply(&conn, &s1, &analysis(&both, &json!([])), Goal::Other, t1).expect("s1");
+        let a = patterns::find_by_key(&conn, "a").expect("q").expect("a");
+        record_drill(&conn, &a.id, true, t1).expect("drill");
+
+        forget_session(&conn, &s1, t1).expect("forget");
+        assert_eq!(patterns::find_by_key(&conn, "b").expect("q"), None);
+        let kept = patterns::get_pattern(&conn, &a.id).expect("a");
+        assert_eq!(kept.state, PatternState::Focus);
+        assert!(kept.is_primary);
+        assert_eq!(patterns::events_for(&conn, &a.id).expect("events").len(), 2);
+
+        // Only its drill is left: nothing a conversation showed.
+        forget_session(&conn, &s0, t1).expect("forget");
+        assert_eq!(patterns::list_patterns(&conn).expect("patterns"), []);
+    }
+
+    #[test]
+    fn forgetting_a_session_closes_the_focus_it_opened_on_an_older_pattern() {
+        let conn = open_in_memory().expect("db");
+        let t0 = Utc::now();
+        let s0 = session(&conn, t0);
+        // Seen before, and never picked by a report.
+        let seen = NewPattern {
+            key: "a",
+            description: "a",
+            kind: crate::domain::ErrorKind::GrammarRule,
+            rule_based: true,
+            session_id: &s0,
+        };
+        let id = patterns::insert_pattern(&conn, &seen, t0).expect("pattern");
+        let event = NewEvent {
+            pattern_id: &id,
+            session_id: Some(&s0),
+            turn_id: None,
+            kind: EventKind::Error,
+            global: false,
+            above_level: false,
+            original: Some("wrong a"),
+            corrected: Some("right a"),
+        };
+        patterns::insert_event(&conn, &event, t0).expect("event");
+        let t1 = t0 + Duration::days(1);
+        let s1 = session(&conn, t1);
+        let once = analysis(&json!([error("a", false, 0.9)]), &json!([]));
+        apply(&conn, &s1, &once, Goal::Other, t1).expect("s1");
+        let picked = patterns::get_pattern(&conn, &id).expect("a");
+        assert_eq!(picked.state, PatternState::Focus);
+        assert!(picked.is_primary);
+
+        forget_session(&conn, &s1, t1).expect("forget");
+        let row = patterns::get_pattern(&conn, &id).expect("a");
+        assert_eq!(row.state, PatternState::Detected);
+        assert!(!row.is_primary);
+        assert_eq!(row.next_review_at, None);
+    }
+
+    #[test]
+    fn forgetting_a_session_reverts_a_focus_only_it_caused() {
+        let conn = open_in_memory().expect("db");
+        let t0 = Utc::now();
+        let s0 = session(&conn, t0);
+        let once = analysis(&json!([error("a", false, 0.9)]), &json!([]));
+        let out = apply(&conn, &s0, &once, Goal::Other, t0).expect("s0");
+        let focus = out.focus.expect("focus");
+        dispute(&conn, &focus.event.id, t0).expect("dispute");
+        let t1 = t0 + Duration::days(1);
+        let s1 = session(&conn, t1);
+        apply(&conn, &s1, &once, Goal::Other, t1).expect("s1");
+        let again = patterns::get_pattern(&conn, &focus.pattern.id).expect("a");
+        assert_eq!(again.state, PatternState::Focus);
+
+        forget_session(&conn, &s1, t1).expect("forget");
+        let row = patterns::get_pattern(&conn, &focus.pattern.id).expect("a");
         assert_eq!(row.state, PatternState::Detected);
         assert!(!row.is_primary);
         assert_eq!(row.next_review_at, None);

@@ -17,6 +17,19 @@ export type Route =
       format: DrillFormat | null;
       autostart: boolean;
     }
+  | {
+      name: "books";
+      bookId: string | null;
+      chapterId?: string;
+      /** Instead of the shelf: every word the learner already knows. */
+      known?: boolean;
+      /** A sitting on that chapter is running. */
+      practising?: boolean;
+      /** That sitting is the quick refresh before reading. */
+      refresh?: boolean;
+      /** That sitting sorts the chapter's words into known and not. */
+      triage?: boolean;
+    }
   | { name: "progress" }
   | { name: "settings" };
 
@@ -24,8 +37,8 @@ export type Navigate = (route: Route) => void;
 
 /**
  * The screens that live beside the navigation rather than instead of it. A
- * conversation, a report straight after one, and a running drill take the
- * whole window: one thing at a time.
+ * conversation, a report straight after one, a running drill and a sitting
+ * on a chapter take the whole window: one thing at a time.
  */
 export function showsNav(route: Route): boolean {
   if (route.name === "conversation") {
@@ -33,6 +46,9 @@ export function showsNav(route: Route): boolean {
   }
   if (route.name === "practice") {
     return !route.autostart;
+  }
+  if (route.name === "books") {
+    return route.practising !== true;
   }
   return route.name !== "report" || route.origin === "progress";
 }

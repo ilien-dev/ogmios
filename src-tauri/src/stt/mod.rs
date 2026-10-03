@@ -14,10 +14,11 @@
 //! - `stt.json` — the selected model. Kept here rather than in the settings
 //!   table so the choice lives with the models it names.
 
-mod audio;
-mod catalogue;
+pub(crate) mod audio;
+pub(crate) mod catalogue;
 mod engine;
-mod fetch;
+pub(crate) mod fetch;
+mod filler;
 mod preview;
 mod session;
 mod vad;
@@ -197,7 +198,9 @@ impl Dictation {
         let model = self.selected()?;
         let mut held = lock(&self.engine)?;
         let engine = load(&mut held, &library, &self.data_dir, model)?;
-        Ok(engine.transcribe(pcm, &model.hint)?.trim().to_string())
+        Ok(filler::without_fillers(
+            &engine.transcribe(pcm, &model.hint)?,
+        ))
     }
 
     /// The model the learner picked, while it is still on disk. Never a model
@@ -247,7 +250,7 @@ fn preview(
             let Ok(text) = loaded.engine.transcribe(&pcm, &model.hint) else {
                 return;
             };
-            text
+            filler::without_fillers(&text)
         } else {
             String::new()
         };

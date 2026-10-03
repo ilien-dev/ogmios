@@ -52,6 +52,7 @@ function initialSetup(profile: Profile): SessionSetup {
     focusMode: "free",
     targetMinutes: 10,
     material: null,
+    continuePrevious: false,
   };
 }
 
@@ -74,7 +75,10 @@ export function Setup({ profile, preset, navigate }: SetupProps): ReactNode {
       setSuggestions(home.suggestedTopics);
       if (home.lastSetup !== null) {
         const last = home.lastSetup;
-        setSetup((held) => ({ ...held, ...last, ...preset }));
+        // The topic is the one thing not repeated: suggestions start with
+        // one the learner has not just talked about.
+        const topic = home.suggestedTopics[0] ?? last.topic;
+        setSetup((held) => ({ ...held, ...last, topic, ...preset }));
       }
     });
     return () => {

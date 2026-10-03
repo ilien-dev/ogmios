@@ -1,4 +1,4 @@
-import type { CorrectionCard, ReportCard } from "@shared/domain";
+import type { CorrectionCard, NativeRewrite, ReportCard } from "@shared/domain";
 
 type CardOf<T extends ReportCard["type"]> = Extract<ReportCard, { type: T }>;
 
@@ -11,6 +11,7 @@ export type Step =
   | { kind: "focus"; card: CorrectionCard }
   | { kind: "minors"; cards: CorrectionCard[] }
   | { kind: "couldHaveSaid"; card: CardOf<"couldHaveSaid"> }
+  | { kind: "nativeRewrite"; rewrite: NativeRewrite }
   | { kind: "vocabulary"; card: CardOf<"vocabulary"> }
   | { kind: "metrics"; card: CardOf<"metrics"> }
   | { kind: "challenge"; card: CardOf<"challenge"> }
@@ -31,6 +32,16 @@ export function toSteps(cards: ReportCard[]): Step[] {
         previous.cards.push(card);
       } else {
         steps.push({ kind: "minors", cards: [card] });
+      }
+      continue;
+    }
+    // The rewrite is about another fragment, so it gets a screen of its own.
+    if (card.type === "couldHaveSaid") {
+      if (card.items.length > 0) {
+        steps.push({ kind: "couldHaveSaid", card });
+      }
+      if (card.nativeRewrite !== null) {
+        steps.push({ kind: "nativeRewrite", rewrite: card.nativeRewrite });
       }
       continue;
     }

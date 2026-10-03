@@ -15,7 +15,7 @@ use super::run;
 use crate::agent::protocol::{
     Analysis, AnalyzeParams, AnalyzeTurn, ChallengeRef, ChatContext, ChatParams, ComposeParams,
     Composed, CorrectionInput, EditType, FocusInput, HelpParams, HistoryTurn, KnownPattern,
-    Learner, SelfCheckParams, Target,
+    Learner, PreviousSession, SelfCheckParams, Target,
 };
 use crate::db::patterns::{ErrorEvent, PatternRow};
 use crate::db::sessions::{self, NewTurn, SessionRow};
@@ -67,12 +67,35 @@ pub fn guide(level: Level) -> &'static LevelGuide {
     }
 }
 
+const MAX_SCAFFOLDS: usize = 4;
+/// A starter opens a sentence; anything longer is an answer.
+const MAX_SCAFFOLD_CHARS: usize = 40;
+
 /// Sentence starters for basic level only (SPEC §4: advanced gets nothing).
-pub fn scaffolds(level: Level, mode: Mode) -> Vec<String> {
+/// The partner's own, written for the turn it just said, when it sent any
+/// that fit; the mode's fixed ones otherwise.
+pub fn scaffolds(level: Level, mode: Mode, starters: &[String]) -> Vec<String> {
     if level != Level::Basic {
         return Vec::new();
     }
-    let starters: &[&str] = match mode {
+    let mut fitted: Vec<String> = Vec::new();
+    for starter in starters.iter().map(|s| s.trim()) {
+        let fits = !starter.is_empty() && starter.chars().count() <= MAX_SCAFFOLD_CHARS;
+        if fits && fitted.len() < MAX_SCAFFOLDS && !fitted.iter().any(|f| f == starter) {
+            fitted.push(starter.to_owned());
+        }
+    }
+    if fitted.is_empty() {
+        fitted = mode_scaffolds(mode)
+            .iter()
+            .map(|s| (*s).to_owned())
+            .collect();
+    }
+    fitted
+}
+
+fn mode_scaffolds(mode: Mode) -> &'static [&'static str] {
+    match mode {
         Mode::Casual => &[
             "I think that…",
             "I like… because…",
@@ -100,8 +123,7 @@ pub fn scaffolds(level: Level, mode: Mode) -> Vec<String> {
             "I think the author…",
             "The main idea is…",
         ],
-    };
-    starters.iter().map(|s| (*s).to_owned()).collect()
+    }
 }
 
 /// Offered next to the learner's own interests.
@@ -113,6 +135,11 @@ const DEFAULT_TOPICS: [&str; 5] = [
     "A small problem you solved this week",
 ];
 const MAX_TOPICS: usize = 6;
+/// Openings of this many earlier sessions are shown to the partner, so a new
+/// session does not start like them.
+const RECENT_OPENINGS: u32 = 5;
+/// How much of the conversation being continued the partner reads: its end.
+const PREVIOUS_TURNS: usize = 12;
 
 /// Modes the rotation suggestion picks from; "material" needs pasted text.
 const ROTATION: [Mode; 5] = [
@@ -160,7 +187,10 @@ pub fn level_suggestion(recent: &[(Level, crate::domain::Cefr)]) -> Option<Level
         .then_some(suggested)
 }
 
-fn suggested_topics(profile: &Profile) -> Vec<String> {
+/// Interests, then the defaults. A topic already talked about goes behind the
+/// ones that were not, the latest one last, so the first is always a change.
+/// `recent_topics` is newest first.
+fn suggested_topics(profile: &Profile, recent_topics: &[&str]) -> Vec<String> {
     let mut topics: Vec<String> = Vec::new();
     for topic in profile
         .interests
@@ -173,6 +203,14 @@ fn suggested_topics(profile: &Profile) -> Vec<String> {
             topics.push(topic.to_owned());
         }
     }
+    topics.sort_by_key(|topic| {
+        Reverse(
+            recent_topics
+                .iter()
+                .position(|r| r.eq_ignore_ascii_case(topic))
+                .unwrap_or(usize::MAX),
+        )
+    });
     topics.truncate(MAX_TOPICS);
     topics
 }
@@ -196,9 +234,15 @@ pub fn home(ctx: Ctx<'_>, now: DateTime<Utc>) -> Result<HomeState> {
         .iter()
         .filter_map(|s| Some((s.setup.level, s.estimated_cefr?)))
         .collect();
+    let recent_topics: Vec<&str> = rows.iter().map(|s| s.setup.topic.as_str()).collect();
     Ok(HomeState {
-        suggested_topics: suggested_topics(&profile),
-        last_setup: rows.first().map(|s| s.setup.clone()),
+        suggested_topics: suggested_topics(&profile, &recent_topics),
+        // Continuing is asked for each time, never inherited.
+        last_setup: rows.first().map(|s| SessionSetup {
+            continue_previous: false,
+            ..s.setup.clone()
+        }),
+        continue_topic: sessions::previous_conversation(&conn, now)?.map(|(_, topic)| topic),
         focus,
         due_reviews: u32::try_from(due).unwrap_or(u32::MAX),
         streak: streak(&sessions::practice_days(&conn)?, local_date(now)),
@@ -215,12 +259,36 @@ fn latest_cefr(rows: &[SessionRow]) -> Option<crate::domain::Cefr> {
     rows.iter().find_map(|s| s.estimated_cefr)
 }
 
+/// The end of the conversation held before the one started at `started_at`.
+fn previous_session(
+    conn: &Connection,
+    started_at: DateTime<Utc>,
+) -> Result<Option<PreviousSession>> {
+    let Some((id, topic)) = sessions::previous_conversation(conn, started_at)? else {
+        return Ok(None);
+    };
+    let turns = sessions::list_turns(conn, &id)?;
+    let from = turns.len().saturating_sub(PREVIOUS_TURNS);
+    Ok(Some(PreviousSession {
+        topic,
+        turns: turns[from..]
+            .iter()
+            .map(|t| HistoryTurn {
+                role: t.role,
+                text: t.sent_text.clone(),
+            })
+            .collect(),
+    }))
+}
+
 /// SPEC §8.5: active patterns are targets when the learner chose to practise
-/// them; otherwise only those due for review are slipped in.
+/// them; otherwise only those due for review are slipped in. `started_at` is
+/// the session's own, so its context stays the same on every turn.
 fn chat_context(
     conn: &Connection,
     setup: &SessionSetup,
     profile: &Profile,
+    started_at: DateTime<Utc>,
     now: DateTime<Utc>,
 ) -> Result<ChatContext> {
     let mut targets = Vec::new();
@@ -260,6 +328,18 @@ fn chat_context(
         },
         targets,
         challenge: sessions::active_challenge(conn)?.map(|c| c.text),
+        recent_openings: sessions::recent_openings(conn, started_at, RECENT_OPENINGS)?,
+        phrases: crate::phrases::for_session(
+            profile.goal,
+            setup.level,
+            profile.variant,
+            started_at,
+        ),
+        previous: if setup.continue_previous {
+            previous_session(conn, started_at)?
+        } else {
+            None
+        },
     })
 }
 
@@ -308,7 +388,7 @@ pub fn start(ctx: Ctx<'_>, setup: &SessionSetup, on_delta: OnDelta<'_>) -> Resul
     let (session_id, context) = {
         let conn = ctx.conn()?;
         let profile = require_profile(&conn)?;
-        let context = chat_context(&conn, &setup, &profile, now)?;
+        let context = chat_context(&conn, &setup, &profile, now, now)?;
         (sessions::insert_session(&conn, &setup, now)?, context)
     };
     let params = ChatParams {
@@ -333,7 +413,7 @@ pub fn start(ctx: Ctx<'_>, setup: &SessionSetup, on_delta: OnDelta<'_>) -> Resul
         opening,
         length_hint: guide.hint.to_owned(),
         turn_word_goal: guide.min_words,
-        scaffolds: scaffolds(setup.level, setup.mode),
+        scaffolds: scaffolds(setup.level, setup.mode, &reply.starters),
     })
 }
 
@@ -374,7 +454,13 @@ pub fn send(
         let session = open_session(&conn, session_id)?;
         let profile = require_profile(&conn)?;
         let turns = sessions::list_turns(&conn, session_id)?;
-        let context = chat_context(&conn, &session.setup, &profile, Utc::now())?;
+        let context = chat_context(
+            &conn,
+            &session.setup,
+            &profile,
+            session.started_at,
+            Utc::now(),
+        )?;
         let mut history: Vec<HistoryTurn> = turns
             .iter()
             .map(|t| HistoryTurn {
@@ -430,7 +516,7 @@ pub fn send(
         user_turn,
         reply: reply_turn,
         length_hint: guide(session.setup.level).hint.to_owned(),
-        scaffolds: scaffolds(session.setup.level, session.setup.mode),
+        scaffolds: scaffolds(session.setup.level, session.setup.mode, &reply.starters),
         speech_minutes,
         target_reached,
     })
@@ -763,22 +849,8 @@ fn cards(input: CardInputs<'_>) -> Vec<ReportCard> {
             recurrence: pick.recurrence.map(|r| recurrence_text(input.ui_lang, r)),
         });
     }
-    if !a.could_have_said.is_empty() || a.native_rewrite.is_some() {
-        cards.push(ReportCard::CouldHaveSaid {
-            items: a
-                .could_have_said
-                .iter()
-                .map(|c| Rewrite {
-                    original: c.original.clone(),
-                    better: c.better.clone(),
-                    why: c.why.clone(),
-                })
-                .collect(),
-            native_rewrite: a.native_rewrite.as_ref().map(|n| NativeRewrite {
-                original: n.original.clone(),
-                rewrite: n.rewrite.clone(),
-            }),
-        });
+    if let Some(card) = could_have_said(a) {
+        cards.push(card);
     }
     if !input.vocabulary.is_empty() {
         cards.push(ReportCard::Vocabulary {
@@ -797,6 +869,34 @@ fn cards(input: CardInputs<'_>) -> Vec<ReportCard> {
         });
     }
     cards
+}
+
+/// The app shows the rewrite as its own step, with a few of its changes.
+fn could_have_said(a: &Analysis) -> Option<ReportCard> {
+    if a.could_have_said.is_empty() && a.native_rewrite.is_none() {
+        return None;
+    }
+    Some(ReportCard::CouldHaveSaid {
+        items: a
+            .could_have_said
+            .iter()
+            .map(|c| Rewrite {
+                original: c.original.clone(),
+                better: c.better.clone(),
+                why: c.why.clone(),
+            })
+            .collect(),
+        native_rewrite: a.native_rewrite.as_ref().map(|n| NativeRewrite {
+            original: n.original.clone(),
+            rewrite: n.rewrite.clone(),
+            notes: n
+                .notes
+                .iter()
+                .take(crate::memory::MAX_REWRITE_NOTES)
+                .cloned()
+                .collect(),
+        }),
+    })
 }
 
 /// A session with nothing said still ends, with its metrics only.
@@ -979,6 +1079,26 @@ pub fn delete_audio(ctx: Ctx<'_>, session_id: Option<&str>) -> Result<()> {
     sessions::clear_audio(&conn, session_id)
 }
 
+/// Deletes a conversation with everything it left behind: its recordings,
+/// its turns and report, its practised day and its part in the patterns.
+pub fn remove(ctx: Ctx<'_>, session_id: &str, now: DateTime<Utc>) -> Result<()> {
+    delete_audio(ctx, Some(session_id))?;
+    let mut conn = ctx.conn()?;
+    let tx = conn.transaction()?;
+    let session = sessions::get_session(&tx, session_id)?;
+    // Only an analysed session marked its day, at the analysis time (see
+    // `remember`), which its events carry; one without events has only its
+    // end to go by.
+    if sessions::get_applied(&tx, session_id)?.is_some() {
+        let at = patterns::analysed_at(&tx, session_id)?
+            .or(session.ended_at)
+            .unwrap_or(session.started_at);
+        sessions::unmark_practice(&tx, local_date(at))?;
+    }
+    memory_update::forget_session(&tx, session_id, now)?;
+    Ok(tx.commit()?)
+}
+
 fn remove_if_present(path: &Path) -> Result<()> {
     match std::fs::remove_file(path) {
         Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(e.into()),
@@ -1078,6 +1198,11 @@ pub async fn dispute_item(app: AppHandle, item_id: String) -> Result<()> {
 #[tauri::command]
 pub async fn delete_session_audio(app: AppHandle, session_id: Option<String>) -> Result<()> {
     run(app, move |_, ctx| delete_audio(ctx, session_id.as_deref())).await
+}
+
+#[tauri::command]
+pub async fn delete_session(app: AppHandle, session_id: String) -> Result<()> {
+    run(app, move |_, ctx| remove(ctx, &session_id, Utc::now())).await
 }
 
 #[cfg(test)]
@@ -1191,6 +1316,82 @@ mod tests {
     }
 
     #[test]
+    fn deleting_a_session_takes_its_day_its_audio_and_its_patterns_with_it() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let db = Mutex::new(open_in_memory().expect("db"));
+        let agent = Agent::new(None);
+        let ctx = Ctx {
+            db: &db,
+            agent: &agent,
+            data_dir: dir.path(),
+        };
+        let id = applied_but_unreported(ctx);
+        let wav = dir.path().join("audio/a1.wav");
+        std::fs::create_dir_all(dir.path().join("audio")).expect("audio dir");
+        std::fs::write(&wav, b"RIFF").expect("audio");
+        ctx.conn()
+            .expect("conn")
+            .execute(
+                "UPDATE turns SET audio_id = 'a1' WHERE session_id = ?1 AND role = 'user'",
+                [&id],
+            )
+            .expect("audio id");
+        let left = |tables: &[&str]| -> Vec<i64> { tables.iter().map(|t| count(ctx, t)).collect() };
+
+        // One started by mistake the same day never marked it.
+        let now = Utc::now();
+        let stray =
+            sessions::insert_session(&ctx.conn().expect("conn"), &sessions::tests::setup(), now)
+                .expect("stray");
+        remove(ctx, &stray, now).expect("stray");
+        assert_eq!(left(&["sessions", "practice_days", "patterns"]), [1, 1, 1]);
+        assert!(wav.exists());
+
+        remove(ctx, &id, Utc::now()).expect("remove");
+        assert_eq!(
+            left(&[
+                "sessions",
+                "turns",
+                "practice_days",
+                "patterns",
+                "pattern_events",
+                "report_items"
+            ]),
+            [0; 6]
+        );
+        assert!(!wav.exists());
+        assert_eq!(
+            remove(ctx, &id, Utc::now()).expect_err("gone").kind(),
+            "notFound"
+        );
+    }
+
+    #[test]
+    fn the_native_rewrite_keeps_at_most_three_notes() {
+        let note = serde_json::json!({"from": "a", "to": "b", "why": "c"});
+        let analysis: Analysis = serde_json::from_value(serde_json::json!({
+            "errors": [], "correctUses": [], "edits": [], "couldHaveSaid": [],
+            "nativeRewrite": {"original": "a a a a", "rewrite": "b b b b",
+                              "notes": [note, note, note, note]},
+            "strengths": [], "bestSentenceTurnId": null, "bestSentence": null,
+            "complexity": {"clausesPerUnit": null, "subordinationRatio": null},
+            "cefr": {"range": "B1", "accuracy": "B1", "fluency": "B1", "interaction": "B1",
+                     "coherence": "B1", "overall": "B1"},
+            "profileFacts": [], "partnerVocabulary": [], "challengeAchieved": null
+        }))
+        .expect("analysis");
+        let Some(ReportCard::CouldHaveSaid {
+            items,
+            native_rewrite: Some(rewrite),
+        }) = could_have_said(&analysis)
+        else {
+            panic!("a rewrite alone still makes the card");
+        };
+        assert_eq!(items, []);
+        assert_eq!(rewrite.notes.len(), crate::memory::MAX_REWRITE_NOTES);
+    }
+
+    #[test]
     fn level_guides_match_the_spec_table() {
         assert_eq!(
             [BASIC.min_words, INTERMEDIATE.min_words, ADVANCED.min_words],
@@ -1201,10 +1402,40 @@ mod tests {
 
     #[test]
     fn scaffolds_only_at_basic_level() {
-        assert_ne!(scaffolds(Level::Basic, Mode::Debate), [] as [String; 0]);
-        assert_eq!(
-            scaffolds(Level::Intermediate, Mode::Debate),
+        let own = ["I prefer…".to_owned()];
+        assert_ne!(
+            scaffolds(Level::Basic, Mode::Debate, &[]),
             [] as [String; 0]
+        );
+        assert_eq!(
+            scaffolds(Level::Intermediate, Mode::Debate, &own),
+            [] as [String; 0]
+        );
+    }
+
+    #[test]
+    fn scaffolds_follow_the_partners_turn() {
+        let own: Vec<String> = [" I prefer… ", "", "I prefer…", "I usually drink…"]
+            .iter()
+            .map(|s| (*s).to_owned())
+            .collect();
+        assert_eq!(
+            scaffolds(Level::Basic, Mode::Casual, &own),
+            ["I prefer…", "I usually drink…"]
+        );
+    }
+
+    #[test]
+    fn scaffolds_are_few_and_short() {
+        let many: Vec<String> = (1..=6).map(|n| format!("Starter {n}…")).collect();
+        assert_eq!(
+            scaffolds(Level::Basic, Mode::Casual, &many),
+            many[..MAX_SCAFFOLDS]
+        );
+        let answer = ["I went to the beach with my family and we swam all day.".to_owned()];
+        assert_eq!(
+            scaffolds(Level::Basic, Mode::Casual, &answer),
+            scaffolds(Level::Basic, Mode::Casual, &[])
         );
     }
 
@@ -1257,10 +1488,70 @@ mod tests {
     fn topics_mix_interests_and_defaults_without_duplicates() {
         let mut profile = crate::db::profile::tests::profile();
         profile.interests = vec!["Chess".into(), "chess".into(), " ".into()];
-        let topics = suggested_topics(&profile);
+        let topics = suggested_topics(&profile, &[]);
         assert_eq!(topics.len(), MAX_TOPICS);
         assert_eq!(topics[0], "Chess");
         assert_eq!(topics[1], DEFAULT_TOPICS[0]);
+    }
+
+    #[test]
+    fn topics_talked_about_lately_go_last() {
+        let mut profile = crate::db::profile::tests::profile();
+        profile.interests = vec!["Chess".into(), "Films".into(), "Books".into()];
+        assert_eq!(
+            suggested_topics(&profile, &["chess", "Chess"])[..2],
+            ["Films", "Books"],
+            "the topic of the last sessions is not offered first"
+        );
+        // Newest first: Films was the latest, Chess the one before.
+        let topics = suggested_topics(&profile, &["Films", "Chess", "Something else"]);
+        assert_eq!(topics[0], "Books");
+        assert_eq!(topics[1], DEFAULT_TOPICS[0]);
+        assert!(!topics.contains(&"Films".to_owned()), "{topics:?}");
+        // Once everything has been used, the oldest comes back first.
+        let mut all: Vec<&str> = vec!["Films", "Books", "Chess"];
+        all.extend(DEFAULT_TOPICS);
+        assert_eq!(suggested_topics(&profile, &all).len(), MAX_TOPICS);
+        assert_eq!(
+            suggested_topics(&profile, &all)[0],
+            DEFAULT_TOPICS[4],
+            "least recently used"
+        );
+    }
+
+    #[test]
+    fn a_continued_session_reads_the_end_of_the_one_before() {
+        let conn = open_in_memory().expect("db");
+        let profile = crate::db::profile::tests::profile();
+        let now = Utc::now();
+        let before = now - chrono::Duration::minutes(5);
+        let id =
+            sessions::insert_session(&conn, &sessions::tests::setup(), before).expect("session");
+        sessions::insert_turn(&conn, &assistant_turn(&id, "What did you do?"), before)
+            .expect("opening");
+        for n in 0..PREVIOUS_TURNS {
+            let text = format!("Answer {n}");
+            let user = NewTurn {
+                role: Role::User,
+                ..assistant_turn(&id, &text)
+            };
+            sessions::insert_turn(&conn, &user, before).expect("turn");
+        }
+        let mut setup = sessions::tests::setup();
+        let context = |setup: &SessionSetup, started_at| {
+            chat_context(&conn, setup, &profile, started_at, now).expect("context")
+        };
+        assert_eq!(context(&setup, now).previous, None, "only when asked for");
+        setup.continue_previous = true;
+        let previous = context(&setup, now).previous.expect("previous");
+        assert_eq!(previous.topic, "My job");
+        assert_eq!(previous.turns.len(), PREVIOUS_TURNS);
+        assert_eq!(previous.turns[0].text, "Answer 0", "the opening is cut");
+        assert_eq!(
+            previous.turns[PREVIOUS_TURNS - 1].text,
+            format!("Answer {}", PREVIOUS_TURNS - 1)
+        );
+        assert_eq!(context(&setup, before).previous, None, "nothing before it");
     }
 
     #[test]
