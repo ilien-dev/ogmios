@@ -1201,8 +1201,11 @@ mod tests {
 
     #[test]
     fn scaffolds_only_at_basic_level() {
-        assert!(!scaffolds(Level::Basic, Mode::Debate).is_empty());
-        assert!(scaffolds(Level::Intermediate, Mode::Debate).is_empty());
+        assert_ne!(scaffolds(Level::Basic, Mode::Debate), [] as [String; 0]);
+        assert_eq!(
+            scaffolds(Level::Intermediate, Mode::Debate),
+            [] as [String; 0]
+        );
     }
 
     #[test]

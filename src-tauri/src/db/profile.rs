@@ -217,6 +217,6 @@ pub mod tests {
         assert_eq!(facts.len(), 1);
         delete_fact(&conn, &facts[0].id).expect("delete");
         add_fact(&conn, "Works in logistics", "s", now).expect("again");
-        assert!(list_facts(&conn).expect("list").is_empty());
+        assert_eq!(list_facts(&conn).expect("list"), [] as [ProfileFact; 0]);
     }
 }

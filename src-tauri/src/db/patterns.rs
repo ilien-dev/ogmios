@@ -468,7 +468,10 @@ mod tests {
         record_attempt(&conn, &item.id, false).expect("attempt");
 
         set_disputed(&conn, &event_id).expect("dispute");
-        assert!(error_events(&conn, Some(&id)).expect("errors").is_empty());
+        assert_eq!(
+            error_events(&conn, Some(&id)).expect("errors"),
+            [] as [ErrorEvent; 0]
+        );
         let events = events_for(&conn, &id).expect("events");
         assert!(events[0].disputed);
         let view = view(&back, &events);
