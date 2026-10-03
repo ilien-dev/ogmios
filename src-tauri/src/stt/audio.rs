@@ -188,7 +188,7 @@ mod tests {
         assert_eq!(to_16k(&samples, RATE), samples);
         assert_eq!(to_16k(&vec![0.0; 48_000], 48_000).len(), 16_000);
         assert_eq!(to_16k(&vec![0.0; 44_100], 44_100).len(), 16_000);
-        assert!(to_16k(&[], 48_000).is_empty());
+        assert_eq!(to_16k(&[], 48_000), [] as [f32; 0]);
     }
 
     #[test]
