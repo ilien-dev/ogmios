@@ -10,8 +10,9 @@
  * without a backend.
  *
  * Profile and settings survive a reload through `localStorage`. Add
- * `?mock=fresh` to the URL to start over at onboarding, or `?mock=ready` to
- * skip it.
+ * `?mock=fresh` to the URL to start over at onboarding, `?mock=ready` to
+ * skip it, or `?mock=update` to have a newer release on offer
+ * (`ipcMockUpdate.ts`).
  */
 import type {
   AnalysisProgress,
@@ -20,6 +21,7 @@ import type {
   DrillResult,
   HelpOption,
   HomeState,
+  ModelOption,
   Profile,
   ProviderCheck,
   Recording,
@@ -37,6 +39,8 @@ import type {
 } from "@shared/domain";
 import type { Lang } from "./ipcMockData";
 import {
+  API_MODELS,
+  CLAUDE_CODE_MODELS,
   CORRECTION_ANSWERS,
   FACTS,
   HEARD_PHRASES,
@@ -55,6 +59,7 @@ import {
 } from "./ipcMockData";
 import type { SeededItem } from "./ipcMockDrills";
 import { drillItems, retryItem } from "./ipcMockDrills";
+import { updateCommands } from "./ipcMockUpdate";
 
 type Handler = (payload: never) => void;
 
@@ -111,7 +116,8 @@ function freshState(): MockState {
     profile: null,
     settings: {
       providerMode: "apiKey",
-      model: "claude-sonnet-5",
+      model: "claude-sonnet-5-5",
+      effort: null,
       claudePath: null,
       sttModel: null,
     },
@@ -261,7 +267,8 @@ function restore(): void {
     }
     const saved = JSON.parse(raw) as Partial<MockState>;
     state.profile = saved.profile ?? null;
-    state.settings = saved.settings ?? state.settings;
+    // Saved before effort existed, a stored copy may lack it.
+    state.settings = { ...state.settings, effort: null, ...saved.settings };
     state.apiKey = saved.apiKey ?? null;
     state.lastSetup = saved.lastSetup ?? null;
     const model = state.models.find(
@@ -406,12 +413,18 @@ async function selfCheck(args: unknown): Promise<SelfCheck> {
   return { correct, hint: correct ? null : answer.hint };
 }
 
-async function sttDownload(args: unknown): Promise<void> {
+function sttModel(args: unknown): SttModel {
   const modelId = field(args, "modelId") as string;
   const model = state.models.find((candidate) => candidate.id === modelId);
   if (model === undefined) {
     throw new MockCommandError("notFound", `No model ${modelId}`);
   }
+  return model;
+}
+
+async function sttDownload(args: unknown): Promise<void> {
+  const model = sttModel(args);
+  const modelId = model.id;
   const steps = 20;
   for (let step = 1; step <= steps; step += 1) {
     await wait(120);
@@ -422,6 +435,19 @@ async function sttDownload(args: unknown): Promise<void> {
     });
   }
   model.downloaded = true;
+}
+
+/** Like Rust: only a model already on disk can be picked. */
+async function sttSelect(args: unknown): Promise<void> {
+  const model = sttModel(args);
+  if (!model.downloaded) {
+    throw new MockCommandError("stt", `${model.name} is not downloaded yet`);
+  }
+  await after(60, () => {
+    state.selectedModel = model.id;
+    state.settings = { ...state.settings, sttModel: model.id };
+    persist();
+  });
 }
 
 function sttStart(): Promise<void> {
@@ -537,6 +563,14 @@ function homeState(): HomeState {
   };
 }
 
+function listModels(): ModelOption[] {
+  const viaClaude = state.settings.providerMode === "claudeCode";
+  if (viaClaude ? state.settings.claudePath === null : state.apiKey === null) {
+    throw new MockCommandError("provider", "Not connected yet.");
+  }
+  return (viaClaude ? CLAUDE_CODE_MODELS : API_MODELS).map((m) => ({ ...m }));
+}
+
 function checkProvider(): ProviderCheck {
   if (state.settings.providerMode === "claudeCode") {
     return state.settings.claudePath === null
@@ -590,6 +624,7 @@ const commands: Record<string, (args: unknown) => Promise<unknown>> = {
     }),
   has_api_key: () => after(40, () => state.apiKey !== null),
   detect_claude: () => after(700, () => "/home/you/.local/bin/claude"),
+  list_models: () => after(400, listModels),
   check_provider: () => after(900, checkProvider),
   home_state: () => after(120, homeState),
   start_session: startSession,
@@ -617,19 +652,14 @@ const commands: Record<string, (args: unknown) => Promise<unknown>> = {
   get_progress: () => after(200, () => progress(lang())),
   stt_status: () => after(80, sttStatus),
   stt_download: sttDownload,
-  stt_select: (args) =>
-    after(60, () => {
-      state.selectedModel = field(args, "modelId") as string;
-      state.settings = { ...state.settings, sttModel: state.selectedModel };
-      persist();
-    }),
+  stt_select: sttSelect,
   stt_start: sttStart,
   stt_stop: sttStop,
   stt_cancel: sttCancel,
 };
 
 export function mock<T>(command: string, args: unknown): Promise<T> {
-  const handler = commands[command];
+  const handler = commands[command] ?? updateCommands(after)[command];
   if (handler === undefined) {
     return Promise.reject(
       new MockCommandError("notFound", `The mock has no command ${command}.`),

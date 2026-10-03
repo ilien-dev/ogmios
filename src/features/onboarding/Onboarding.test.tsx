@@ -7,7 +7,8 @@ import { Onboarding } from "./Onboarding";
 
 const SETTINGS: Settings = {
   providerMode: "apiKey",
-  model: "claude-sonnet-5",
+  model: "claude-sonnet-5-5",
+  effort: null,
   claudePath: null,
   sttModel: null,
 };

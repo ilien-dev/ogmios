@@ -1144,6 +1144,7 @@ mod tests {
         agent.configure(ConfigureParams {
             mode: ProviderMode::ApiKey,
             model: "m".into(),
+            effort: None,
             api_key: Some("k".into()),
             claude_path: None,
         });

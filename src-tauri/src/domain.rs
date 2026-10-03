@@ -57,6 +57,7 @@ wire_enum!(Personality {
 });
 wire_enum!(FocusMode { Free => "free", Pending => "pending" });
 wire_enum!(ProviderMode { ApiKey => "apiKey", ClaudeCode => "claudeCode" });
+wire_enum!(Effort { Low => "low", Medium => "medium", High => "high", Xhigh => "xhigh", Max => "max" });
 wire_enum!(PatternState {
     Detected => "detected", Focus => "focus", Improving => "improving",
     Mastered => "mastered", Relapse => "relapse",
@@ -108,8 +109,20 @@ pub struct ProfileFact {
 pub struct Settings {
     pub provider_mode: ProviderMode,
     pub model: String,
+    /// `None` lets the sidecar choose per call.
+    pub effort: Option<Effort>,
     pub claude_path: Option<String>,
     pub stt_model: Option<String>,
+}
+
+/// A model the configured provider offers, as the provider describes it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelOption {
+    pub id: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub efforts: Vec<Effort>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -458,6 +471,14 @@ pub struct Recording {
     pub text: String,
     pub audio_id: String,
     pub speech_seconds: f64,
+}
+
+/// A newer release than the one running, as `latest.json` describes it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateInfo {
+    pub version: String,
+    pub notes: Option<String>,
 }
 
 #[cfg(test)]

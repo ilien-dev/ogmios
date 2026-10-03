@@ -20,6 +20,23 @@ next ones toward them until they are gone.
 - **Local and private.** Conversations, audio and progress stay in a SQLite
   file on your computer.
 
+## Install
+
+**macOS** (Apple Silicon or Intel), with Homebrew:
+
+```sh
+brew tap ilien-dev/ogmios https://github.com/ilien-dev/ogmios
+brew install --cask ogmios
+```
+
+**Windows**: download `Ogmios_x64-setup.exe` from the
+[latest release](https://github.com/ilien-dev/ogmios/releases/latest) and run
+it. The installer is not signed yet, so SmartScreen warns about it: choose
+**More info → Run anyway**.
+
+After that Ogmios updates itself: it checks for a new release at start-up, and
+**Settings → About Ogmios** shows the version and installs the update.
+
 ## Connecting to Claude
 
 Ogmios needs one of these:

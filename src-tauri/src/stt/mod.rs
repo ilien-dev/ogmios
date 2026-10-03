@@ -107,8 +107,12 @@ impl Dictation {
         fetched
     }
 
+    /// Pick the model to use. Only one already on disk.
     pub fn select(&self, model_id: &str) -> Result<()> {
         let model = find(model_id)?;
+        if !fetch::is_downloaded(&self.data_dir, model) {
+            return Err(Error::Stt(format!("{} is not downloaded yet", model.name)));
+        }
         let choice = Choice {
             selected: Some(model.id.clone()),
         };
@@ -128,9 +132,6 @@ impl Dictation {
             Error::Stt("voice input is not available on this platform yet".into())
         })?;
         let model = self.selected()?;
-        if !fetch::is_downloaded(&self.data_dir, model) {
-            return Err(Error::Stt(format!("{} is not downloaded yet", model.name)));
-        }
 
         let session = Session::begin(on_level)?;
         let listening = session.listening();
@@ -187,7 +188,7 @@ impl Dictation {
     }
 
     fn transcribe(&self, pcm: &[f32]) -> Result<String> {
-        if pcm.len() < SHORTEST_SAMPLES {
+        if !worth_reading(pcm) {
             return Ok(String::new());
         }
         let library = library().ok_or_else(|| {
@@ -199,16 +200,16 @@ impl Dictation {
         Ok(engine.transcribe(pcm, &model.hint)?.trim().to_string())
     }
 
-    /// The stored choice, or the default when there is none or it names a
-    /// model this build no longer knows.
+    /// The model the learner picked, while it is still on disk. Never a model
+    /// they did not pick: none is in use until they download and choose one.
     fn selected(&self) -> Result<&'static Model> {
         std::fs::read(self.choice_path())
             .ok()
             .and_then(|bytes| serde_json::from_slice::<Choice>(&bytes).ok())
             .and_then(|choice| choice.selected)
             .and_then(|id| catalogue::find(&id))
-            .or_else(|| catalogue::find(catalogue::DEFAULT_MODEL))
-            .ok_or_else(|| Error::Internal("the speech model catalogue is empty".into()))
+            .filter(|model| fetch::is_downloaded(&self.data_dir, model))
+            .ok_or_else(|| Error::Stt("no speech model is chosen yet".into()))
     }
 
     fn choice_path(&self) -> PathBuf {
@@ -241,8 +242,14 @@ fn preview(
         let Some(loaded) = held.as_mut().filter(|loaded| loaded.model_id == model.id) else {
             return;
         };
-        let Ok(stretch) = loaded.engine.transcribe(&pcm, &model.hint) else {
-            return;
+        // A silent stretch adds nothing, and still settles once it is a pause.
+        let stretch = if worth_reading(&pcm) {
+            let Ok(text) = loaded.engine.transcribe(&pcm, &model.hint) else {
+                return;
+            };
+            text
+        } else {
+            String::new()
         };
         // Checked with the engine still held: release transcribes under the
         // same lock, so no preview can land after the final text.
@@ -252,6 +259,13 @@ fn preview(
         let text = so_far.heard(&stretch, end, vad::ends_in_pause(&pcm, audio::RATE));
         on_partial(SttPartial { text });
     }
+}
+
+/// Long enough to be more than a tap, and with speech in it. Parakeet answers
+/// silence and room noise with invented words ("Yeah.", "Oh"), so it is never
+/// asked about them.
+fn worth_reading(pcm: &[f32]) -> bool {
+    pcm.len() >= SHORTEST_SAMPLES && vad::has_speech(pcm, audio::RATE)
 }
 
 /// The engine for `model`, loading it (and unloading any other) if needed.
@@ -322,34 +336,45 @@ mod tests {
     }
 
     #[test]
-    fn a_downloaded_model_is_used_when_the_preferred_one_is_missing() {
+    fn a_downloaded_model_is_not_used_until_the_learner_picks_it() {
         let dir = tempfile::tempdir().unwrap();
         fake_download(dir.path(), "parakeet-tdt-ctc-110m");
+        fake_download(dir.path(), "parakeet-tdt-0.6b-v3");
+        assert_eq!(Dictation::new(dir.path()).status().selected, None);
+    }
+
+    #[test]
+    fn the_learners_choice_is_used_and_survives_a_restart() {
+        let dir = tempfile::tempdir().unwrap();
+        let stt = Dictation::new(dir.path());
+        fake_download(dir.path(), "parakeet-tdt-ctc-110m");
+        stt.select("parakeet-tdt-ctc-110m").unwrap();
         assert_eq!(
             Dictation::new(dir.path()).status().selected.as_deref(),
-            Some("parakeet-tdt-ctc-110m"),
-            "the default is not on disk, so the one that is gets used"
+            Some("parakeet-tdt-ctc-110m")
         );
     }
 
     #[test]
-    fn the_learners_choice_wins_once_it_is_on_disk() {
+    fn only_a_downloaded_model_can_be_picked() {
+        let dir = tempfile::tempdir().unwrap();
+        let stt = Dictation::new(dir.path());
+        assert_eq!(
+            stt.select("parakeet-tdt-ctc-110m").unwrap_err().kind(),
+            "stt"
+        );
+        assert_eq!(stt.select("nope").unwrap_err().kind(), "notFound");
+        assert_eq!(stt.status().selected, None);
+    }
+
+    #[test]
+    fn a_choice_whose_files_are_gone_is_no_choice() {
         let dir = tempfile::tempdir().unwrap();
         let stt = Dictation::new(dir.path());
         fake_download(dir.path(), "parakeet-tdt-ctc-110m");
-        fake_download(dir.path(), catalogue::DEFAULT_MODEL);
-        assert_eq!(
-            stt.status().selected.as_deref(),
-            Some(catalogue::DEFAULT_MODEL)
-        );
-
         stt.select("parakeet-tdt-ctc-110m").unwrap();
-        assert_eq!(
-            Dictation::new(dir.path()).status().selected.as_deref(),
-            Some("parakeet-tdt-ctc-110m"),
-            "the choice survives a restart"
-        );
-        assert_eq!(stt.select("nope").unwrap_err().kind(), "notFound");
+        std::fs::remove_dir_all(dir.path().join("models")).unwrap();
+        assert_eq!(stt.status().selected, None);
     }
 
     #[test]
@@ -366,6 +391,16 @@ mod tests {
         let stt = Dictation::new(dir.path());
         stt.cancel();
         assert_eq!(stt.stop().unwrap_err().kind(), "invalid");
+    }
+
+    /// Parakeet answers silence with "Yeah." or "Oh": audio with no speech
+    /// never reaches it, so no model is needed here.
+    #[test]
+    fn silence_is_never_transcribed() {
+        let dir = tempfile::tempdir().unwrap();
+        let stt = Dictation::new(dir.path());
+        let quiet = vec![0.005; audio::RATE as usize * 3];
+        assert_eq!(stt.transcribe(&quiet).unwrap(), "");
     }
 
     #[test]
@@ -394,11 +429,11 @@ mod tests {
         let model_id =
             std::env::var("STT_E2E_MODEL").unwrap_or_else(|_| "parakeet-tdt-ctc-110m".into());
         let stt = Dictation::new(&clips);
-        stt.select(&model_id).unwrap();
 
         let began = std::time::Instant::now();
         stt.download(&model_id, |_, _| {}).unwrap();
         println!("download+verify: {:?}", began.elapsed());
+        stt.select(&model_id).unwrap();
 
         let began = std::time::Instant::now();
         let mut held = stt.engine.lock().unwrap();

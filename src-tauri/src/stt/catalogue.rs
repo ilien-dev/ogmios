@@ -8,19 +8,19 @@
 //!
 //! Each model carries the locale handed to `transcribe_pcm_lang`:
 //!
-//! - **Parakeet TDT 0.6B v3** gets `auto`. It is the default because a beginner
-//!   drops into their own language when a word is missing ("I work in a
-//!   *ferretería*"). Forcing `en` would turn that word into English-sounding
-//!   noise; `auto` keeps it readable, so Claude can offer the English word back
-//!   (SPEC §6.3) and the report can collect it as vocabulary.
+//! - **Parakeet TDT 0.6B v3** gets `auto`. A beginner drops into their own
+//!   language when a word is missing ("I work in a *ferretería*"). Forcing
+//!   `en` would turn that word into English-sounding noise; `auto` keeps it
+//!   readable, so Claude can offer the English word back (SPEC §6.3) and the
+//!   report can collect it as vocabulary.
+//!
+//! None of them is a default: no model is in use until the learner downloads
+//! one and picks it.
 //! - **Parakeet TDT-CTC 110M** gets `en`: it only knows English.
 
 use std::sync::OnceLock;
 
 use serde::Deserialize;
-
-/// Picked when the learner has not chosen: multilingual, see the module comment.
-pub const DEFAULT_MODEL: &str = "parakeet-tdt-0.6b-v3";
 
 const MODELS: &str = include_str!("models.json");
 
@@ -80,12 +80,11 @@ mod tests {
         let models = parse(MODELS).unwrap();
         let ids: Vec<&str> = models.iter().map(|m| m.id.as_str()).collect();
         assert_eq!(ids, ["parakeet-tdt-0.6b-v3", "parakeet-tdt-ctc-110m"]);
-        assert!(find(DEFAULT_MODEL).is_some());
     }
 
     #[test]
-    fn the_default_speaks_english_and_spanish() {
-        let model = find(DEFAULT_MODEL).unwrap();
+    fn the_multilingual_model_speaks_english_and_spanish() {
+        let model = find("parakeet-tdt-0.6b-v3").unwrap();
         assert!(model.languages.iter().any(|l| l == "en"));
         assert!(model.languages.iter().any(|l| l == "es"));
         assert_eq!(model.hint, "auto");

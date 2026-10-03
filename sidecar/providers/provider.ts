@@ -10,6 +10,7 @@ import type {
   DrillGenerateParams,
   DrillGradeParams,
   HelpParams,
+  ModelsResult,
   SelfCheckParams,
 } from "../../shared/protocol.ts";
 
@@ -49,6 +50,8 @@ export type DeltaSink = (text: string) => void;
 /** One way of reaching Claude (SPEC §13). */
 export interface Provider {
   check: () => Promise<CheckResult>;
+  /** What this provider can be asked to use, as it describes it. */
+  models: () => Promise<ModelsResult>;
   chat: (task: ChatTask, onDelta: DeltaSink) => Promise<ChatResult>;
   structured: <T>(task: StructuredTask<T>) => Promise<T>;
 }

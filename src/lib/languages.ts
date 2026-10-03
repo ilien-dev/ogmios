@@ -25,13 +25,6 @@ export const NATIVE_LANGUAGES = [
   "fa",
 ] as const;
 
-export const MODELS = [
-  { id: "claude-sonnet-5", key: "sonnet" },
-  { id: "claude-opus-5-5", key: "opus" },
-  { id: "claude-haiku-4-5-20251001", key: "haiku" },
-  { id: "claude-fable-5-1", key: "fable" },
-] as const;
-
 export const INTEREST_KEYS = [
   "technology",
   "travel",

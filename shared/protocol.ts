@@ -12,11 +12,14 @@
  */
 import { z } from "zod";
 
+import type { ModelOption } from "./domain.ts";
+
 // ── Shared vocabulary ─────────────────────────────────────────────────────
 
 export const levelSchema = z.enum(["basic", "intermediate", "advanced"]);
 export const cefrSchema = z.enum(["A1", "A2", "B1", "B2", "C1", "C2"]);
 export const providerModeSchema = z.enum(["apiKey", "claudeCode"]);
+export const effortSchema = z.enum(["low", "medium", "high", "xhigh", "max"]);
 export const errorKindSchema = z.enum([
   "grammarRule",
   "lexical",
@@ -49,11 +52,13 @@ export type Outgoing =
   | { id: number; result: unknown }
   | { id: number; error: { kind: AgentErrorKind; message: string } };
 
-// ── configure / check ─────────────────────────────────────────────────────
+// ── configure / check / models ────────────────────────────────────────────
 
 export const configureParams = z.object({
   mode: providerModeSchema,
   model: z.string().min(1),
+  /** Null keeps the per-call defaults in `sidecar/providers/models.ts`. */
+  effort: effortSchema.nullable(),
   apiKey: z.string().nullable(),
   claudePath: z.string().nullable(),
 });
@@ -65,6 +70,9 @@ export interface CheckResult {
   ok: boolean;
   message: string | null;
 }
+
+/** `models` takes no params and lists what the configured provider offers. */
+export type ModelsResult = ModelOption[];
 
 // ── chat ──────────────────────────────────────────────────────────────────
 

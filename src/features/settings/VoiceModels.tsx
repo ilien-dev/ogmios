@@ -15,7 +15,10 @@ interface VoiceModelsProps {
   onSelected?: (modelId: string) => void;
 }
 
-/** Speech-to-text models: size, download with progress, and which is in use. */
+/**
+ * Speech-to-text models: size, download with progress, and which is in use.
+ * Downloading never picks a model; the learner does, among those on disk.
+ */
 export function VoiceModels({ onSelected }: VoiceModelsProps): ReactNode {
   const { t, i18n } = useTranslation();
   const [status, setStatus] = useState<SttStatus | null>(null);
@@ -54,9 +57,7 @@ export function VoiceModels({ onSelected }: VoiceModelsProps): ReactNode {
     setProgress((held) => ({ ...held, [modelId]: 0 }));
     try {
       await sttDownload(modelId);
-      await sttSelect(modelId);
       setStatus(await sttStatus());
-      onSelected?.(modelId);
     } catch (error) {
       setFailure(errorMessage(error));
     } finally {

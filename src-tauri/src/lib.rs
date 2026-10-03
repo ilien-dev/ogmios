@@ -57,6 +57,7 @@ impl Ctx<'_> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             let data_dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&data_dir)?;
@@ -82,6 +83,7 @@ pub fn run() {
             commands::profile::set_api_key,
             commands::profile::has_api_key,
             commands::profile::detect_claude,
+            commands::profile::list_models,
             commands::profile::check_provider,
             commands::session::home_state,
             commands::session::start_session,
@@ -101,6 +103,9 @@ pub fn run() {
             commands::stt::stt_start,
             commands::stt::stt_stop,
             commands::stt::stt_cancel,
+            commands::update::app_version,
+            commands::update::check_update,
+            commands::update::install_update,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

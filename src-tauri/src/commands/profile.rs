@@ -9,7 +9,7 @@ use super::run;
 use crate::agent::protocol::ConfigureParams;
 use crate::agent::Agent;
 use crate::db::profile as repo;
-use crate::domain::{Profile, ProfileFact, ProviderCheck, ProviderMode, Settings};
+use crate::domain::{ModelOption, Profile, ProfileFact, ProviderCheck, ProviderMode, Settings};
 use crate::error::{Error, Result};
 use crate::{AppState, Ctx};
 
@@ -55,6 +55,7 @@ fn configure(ctx: Ctx<'_>) -> Result<()> {
     ctx.agent.configure(ConfigureParams {
         mode: settings.provider_mode,
         model: settings.model,
+        effort: settings.effort,
         api_key,
         claude_path: settings.claude_path,
     });
@@ -171,6 +172,13 @@ pub async fn detect_claude(app: AppHandle) -> Result<Option<String>> {
         Ok(found.map(|p| p.to_string_lossy().into_owned()))
     })
     .await
+}
+
+/// What the configured provider offers, straight from it: Claude Code's own
+/// list, or the models the API key can use.
+#[tauri::command]
+pub async fn list_models(app: AppHandle) -> Result<Vec<ModelOption>> {
+    run(app, |_, ctx| agent(ctx)?.models()).await
 }
 
 /// A provider error is an answer here ("the key is wrong"), not a failure.

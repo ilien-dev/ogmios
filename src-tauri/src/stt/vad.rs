@@ -76,19 +76,36 @@ impl Vad {
     }
 }
 
+/// Whether any frame of `samples` reaches the speech gate. Audio without one
+/// is silence or room noise, which the model would answer with invented words.
+pub fn has_speech(samples: &[f32], rate: u32) -> bool {
+    let frame_len = frame_len(rate);
+    samples
+        .chunks(frame_len)
+        .any(|frame| is_loud(frame, frame_len))
+}
+
 /// Whether the last [`PAUSE_FRAMES`] of `samples` are all below the speech
 /// gate. Audio shorter than that is not a pause yet.
 pub fn ends_in_pause(samples: &[f32], rate: u32) -> bool {
-    let frame_len = usize::try_from(rate * FRAME_MS / 1000).unwrap_or(1).max(1);
+    let frame_len = frame_len(rate);
     let wanted = frame_len * PAUSE_FRAMES;
     let Some(tail) = samples.len().checked_sub(wanted).map(|at| &samples[at..]) else {
         return false;
     };
+    !tail
+        .chunks(frame_len)
+        .any(|frame| is_loud(frame, frame_len))
+}
+
+fn frame_len(rate: u32) -> usize {
+    usize::try_from(rate * FRAME_MS / 1000).unwrap_or(1).max(1)
+}
+
+/// A frame at the speech gate, its RMS taken over a whole `frame_len`.
+fn is_loud(frame: &[f32], frame_len: usize) -> bool {
     let frame_len_f = f32::from(u16::try_from(frame_len).unwrap_or(u16::MAX));
-    tail.chunks(frame_len).all(|frame| {
-        let rms = (frame.iter().map(|s| s * s).sum::<f32>() / frame_len_f).sqrt();
-        rms < SPEECH_RMS
-    })
+    (frame.iter().map(|s| s * s).sum::<f32>() / frame_len_f).sqrt() >= SPEECH_RMS
 }
 
 #[cfg(test)]
@@ -161,6 +178,14 @@ mod tests {
         assert!(!ends_in_pause(&tone(1000, 0.3), RATE));
         let breath = [tone(800, 0.3), vec![0.0; 16 * 300]].concat();
         assert!(!ends_in_pause(&breath, RATE));
+    }
+
+    #[test]
+    fn only_a_frame_above_the_gate_is_speech() {
+        assert!(!has_speech(&vec![0.0; RATE as usize * 2], RATE));
+        assert!(!has_speech(&tone(2000, 0.01), RATE));
+        let word = [vec![0.0; 16 * 900], tone(200, 0.3), vec![0.0; 16 * 900]].concat();
+        assert!(has_speech(&word, RATE));
     }
 
     #[test]

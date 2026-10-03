@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { formatDate } from "@/lib/text";
+import { formatWeek } from "@/lib/text";
 
 interface WeeklyBarsProps {
   weeks: Array<{ week: string; minutes: number }>;
@@ -54,7 +54,7 @@ export function WeeklyBars({ weeks }: WeeklyBarsProps): ReactNode {
             className="flex-1 text-center text-xs text-ink-faint tabular-nums"
           >
             {i % 2 === lastIndex % 2
-              ? formatDate(week.week, i18n.language)
+              ? formatWeek(week.week, i18n.language)
               : ""}
           </span>
         ))}
@@ -64,7 +64,7 @@ export function WeeklyBars({ weeks }: WeeklyBarsProps): ReactNode {
         <tbody>
           {weeks.map((week) => (
             <tr key={week.week}>
-              <th scope="row">{formatDate(week.week, i18n.language)}</th>
+              <th scope="row">{formatWeek(week.week, i18n.language)}</th>
               <td>{t("common.minutes", { count: week.minutes })}</td>
             </tr>
           ))}

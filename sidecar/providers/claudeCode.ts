@@ -9,10 +9,15 @@ import type {
   SDKResultMessage,
   SDKResultSuccess,
 } from "@anthropic-ai/claude-agent-sdk";
-import type { ChatResult, CheckResult } from "../../shared/protocol.ts";
+import type { Effort } from "../../shared/domain.ts";
+import type {
+  ChatResult,
+  CheckResult,
+  ModelsResult,
+} from "../../shared/protocol.ts";
 import { AgentError, providerError } from "../errors.ts";
 import { log } from "../log.ts";
-import { modelKnobs } from "./models.ts";
+import { claudeCodeModels, modelKnobs } from "./models.ts";
 import type {
   ChatTask,
   DeltaSink,
@@ -37,6 +42,15 @@ const denyTools: CanUseTool = (toolName) =>
       ? { behavior: "allow" }
       : { behavior: "deny", message: "No tools are available here." },
   );
+
+/** A prompt stream that never sends a turn, so the session only answers queries. */
+function noTurns(): AsyncIterable<never> {
+  return {
+    [Symbol.asyncIterator]: () => ({
+      next: () => new Promise<IteratorResult<never>>(() => {}),
+    }),
+  };
+}
 
 interface Run {
   result: SDKResultSuccess;
@@ -98,14 +112,16 @@ function logResult(method: string, result: SDKResultMessage): void {
 export class ClaudeCodeProvider implements Provider {
   readonly #claudePath: string;
   readonly #model: string;
+  readonly #effort: Effort | null;
 
-  constructor(claudePath: string, model: string) {
+  constructor(claudePath: string, model: string, effort: Effort | null) {
     this.#claudePath = claudePath;
     this.#model = model;
+    this.#effort = effort;
   }
 
   options(system: string, purpose: "chat" | "structured"): Options {
-    const { thinking, effort } = modelKnobs(this.#model, purpose);
+    const { thinking, effort } = modelKnobs(this.#model, purpose, this.#effort);
     return {
       pathToClaudeCodeExecutable: this.#claudePath,
       model: this.#model,
@@ -202,6 +218,24 @@ export class ClaudeCodeProvider implements Provider {
         ok: false,
         message: error instanceof Error ? error.message : String(error),
       };
+    }
+  }
+
+  /** Asks the user's `claude` which models it offers; no turn is sent. */
+  async models(): Promise<ModelsResult> {
+    if (!existsSync(this.#claudePath)) {
+      throw providerError(`Claude Code was not found at ${this.#claudePath}.`);
+    }
+    const session = query({
+      prompt: noTurns(),
+      options: { ...this.options("", "chat"), persistSession: false },
+    });
+    try {
+      return claudeCodeModels(await session.supportedModels());
+    } catch (error) {
+      throw describeClaudeFailure(String(error));
+    } finally {
+      session.close();
     }
   }
 

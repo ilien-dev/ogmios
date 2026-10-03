@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   CircleAlert,
@@ -8,7 +8,7 @@ import {
   Search,
   TriangleAlert,
 } from "lucide-react";
-import type { ProviderMode, Settings } from "@shared/domain";
+import type { ModelOption, ProviderMode, Settings } from "@shared/domain";
 import { Button } from "@/components/ui/Button";
 import { ChoiceGroup } from "@/components/ui/ChoiceGroup";
 import { Field } from "@/components/ui/Field";
@@ -20,10 +20,11 @@ import { errorMessage } from "@/lib/errors";
 import {
   checkProvider,
   detectClaude,
+  listModels,
   saveSettings,
   setApiKey,
 } from "@/lib/ipc";
-import { MODELS } from "@/lib/languages";
+import { reconcileModel } from "@/lib/models";
 
 interface ConnectionPanelProps {
   settings: Settings;
@@ -39,6 +40,19 @@ type Check =
   | { state: "failed"; message: string };
 
 type Detect = "idle" | "running" | "missing";
+
+/** The provider's own model list; it can only be asked once connected. */
+type Models =
+  | { state: "waiting" }
+  | { state: "loading" }
+  | { state: "ready"; models: ModelOption[] }
+  | { state: "failed"; message: string };
+
+function modelLabel(model: ModelOption): string {
+  return model.description === null
+    ? model.name
+    : `${model.name} — ${model.description}`;
+}
 
 /**
  * How Ogmios reaches Claude: the learner's API key (recommended, §1.2) or
@@ -57,6 +71,7 @@ export function ConnectionPanel({
   const [detect, setDetect] = useState<Detect>("idle");
   const [check, setCheck] = useState<Check>({ state: "idle" });
   const [failure, setFailure] = useState<string | null>(null);
+  const [models, setModels] = useState<Models>({ state: "waiting" });
 
   const update = async (next: Settings): Promise<void> => {
     setCheck({ state: "idle" });
@@ -127,6 +142,59 @@ export function ConnectionPanel({
 
   const ready =
     settings.providerMode === "apiKey" ? hasKey : settings.claudePath !== null;
+
+  // Asks again whenever the way of reaching Claude changes, then fits the
+  // stored model and effort to what is on offer.
+  useEffect(() => {
+    if (!ready) {
+      setModels({ state: "waiting" });
+      return;
+    }
+    let live = true;
+    setModels({ state: "loading" });
+    listModels()
+      .then(async (offered) => {
+        if (!live) {
+          return;
+        }
+        setModels({ state: "ready", models: offered });
+        const fitted = reconcileModel(offered, settings);
+        if (fitted !== settings) {
+          await saveSettings(fitted);
+          onSettingsChange(fitted);
+        }
+      })
+      .catch((error: unknown) => {
+        if (live) {
+          setModels({ state: "failed", message: errorMessage(error) });
+        }
+      });
+    return () => {
+      live = false;
+    };
+  }, [ready, settings.providerMode, settings.claudePath, hasKey]);
+
+  const offered = models.state === "ready" ? models.models : [];
+  // Until the list arrives, the stored model is the only option to show.
+  const options: ModelOption[] =
+    offered.length > 0
+      ? offered
+      : [
+          {
+            id: settings.model,
+            name: settings.model,
+            description: null,
+            efforts: [],
+          },
+        ];
+  const efforts =
+    offered.find((model) => model.id === settings.model)?.efforts ?? [];
+  const modelHint =
+    models.state === "loading"
+      ? t("connection.modelsLoading")
+      : models.state === "waiting"
+        ? t("connection.modelsWaiting")
+        : t("connection.modelHint");
 
   return (
     <div className="flex flex-col gap-6">
@@ -240,22 +308,62 @@ export function ConnectionPanel({
       <Field
         id="model"
         label={t("connection.model")}
-        hint={t("connection.modelHint")}
+        hint={modelHint}
+        error={
+          models.state === "failed"
+            ? t("connection.modelsFailed", { message: models.message })
+            : null
+        }
       >
         <Select
           id="model"
+          aria-describedby="model-hint"
           value={settings.model}
+          disabled={offered.length === 0}
           onChange={(event) => {
-            void update({ ...settings, model: event.target.value });
+            void update(
+              reconcileModel(offered, {
+                ...settings,
+                model: event.target.value,
+              }),
+            );
           }}
         >
-          {MODELS.map((model) => (
+          {options.map((model) => (
             <option key={model.id} value={model.id}>
-              {`${t(`model.${model.key}`)} — ${t(`model.${model.key}Hint`)}`}
+              {modelLabel(model)}
             </option>
           ))}
         </Select>
       </Field>
+
+      {efforts.length > 0 && (
+        <Field
+          id="effort"
+          label={t("connection.effort")}
+          hint={t("connection.effortHint")}
+        >
+          <Select
+            id="effort"
+            aria-describedby="effort-hint"
+            value={settings.effort ?? ""}
+            onChange={(event) => {
+              const chosen = event.target.value;
+              void update({
+                ...settings,
+                effort: efforts.find((level) => level === chosen) ?? null,
+              });
+            }}
+          >
+            <option value="">{t("connection.effortAuto")}</option>
+            {efforts.map((level) => (
+              <option key={level} value={level}>
+                {t(`connection.effortLevel.${level}`)}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      )}
 
       <div className="flex flex-col gap-3">
         <div>

@@ -17,6 +17,8 @@ export type Personality =
   "curiousFriend" | "strictInterviewer" | "coworker" | "contrarian";
 export type FocusMode = "free" | "pending";
 export type ProviderMode = "apiKey" | "claudeCode";
+/** How hard the model thinks before it answers. */
+export type Effort = "low" | "medium" | "high" | "xhigh" | "max";
 export type PatternState =
   "detected" | "focus" | "improving" | "mastered" | "relapse";
 export type ErrorKind =
@@ -53,9 +55,22 @@ export interface ProfileFact {
 export interface Settings {
   providerMode: ProviderMode;
   model: string;
+  /** Null lets Ogmios pick per call: fast chat, a little more for analysis. */
+  effort: Effort | null;
   /** Absolute path of the user's own `claude` executable. */
   claudePath: string | null;
   sttModel: string | null;
+}
+
+/** A model the configured provider offers, as it describes it. */
+export interface ModelOption {
+  /** What is sent as `model`: an alias in Claude Code, an id with a key. */
+  id: string;
+  name: string;
+  /** Claude Code describes its models; the API does not. */
+  description: string | null;
+  /** Empty when the model takes no effort setting. */
+  efforts: Effort[];
 }
 
 export interface ProviderCheck {
@@ -360,6 +375,12 @@ export interface Recording {
   speechSeconds: number;
 }
 
+/** A newer release than the one running. */
+export interface UpdateInfo {
+  version: string;
+  notes: string | null;
+}
+
 /** The only error shape a command returns. */
 export interface CommandError {
   kind:
@@ -369,6 +390,7 @@ export interface CommandError {
     | "database"
     | "io"
     | "stt"
+    | "update"
     | "internal";
   message: string;
 }

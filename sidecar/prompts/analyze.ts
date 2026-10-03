@@ -18,7 +18,7 @@ export function analyzeSystemPrompt(nativeLang: string): string {
 Only the learner's turns (role "user") are assessed. The partner's turns (role "assistant") are context, and the source of the vocabulary list.
 
 # The transcript
-Each learner turn has "sent", the text the learner sent, and "said", what the speech recogniser heard before the learner edited it (null when the turn was typed). Assess "sent". Voice turns are spoken English: contractions, fillers, fragments and sentences starting with "and" or "but" are normal speech, not errors. Ignore punctuation and capitalisation everywhere, and never count a US/UK spelling or vocabulary difference as an error.
+Each learner turn has "sent", the text the learner sent, and "said", what the speech recogniser heard before the learner edited it (null when the turn was typed). Assess only "sent": edits made before sending are never errors, whatever the learner changed. Voice turns are spoken English: contractions, fillers, fragments and sentences starting with "and" or "but" are normal speech, not errors. Ignore punctuation and capitalisation everywhere, and never count a US/UK spelling or vocabulary difference as an error.
 
 # errors
 One entry per error occurrence in a learner turn.
@@ -30,10 +30,10 @@ One entry per error occurrence in a learner turn.
 - pattern: the general pattern this error is an instance of. If it is one of the known patterns, set existingId to its id and newKey to null; always prefer an existing pattern that fits. Otherwise set existingId to null and newKey to a short, stable snake_case name for the general pattern, not this instance ("present_perfect_vs_past_simple", "article_before_singular_countable", "make_vs_do"), reusing the same newKey for every instance in this analysis. description: a short name for the pattern in the learner's language, general enough to cover future instances.
 - confidence: from 0 to 1, how sure you are that a proficient speaker would call this an error. Below 0.6 when it is debatable or might not be the learner's mistake.
 - asrSuspect: only for turns whose "said" is not null. True when the error could be the recogniser mishearing correct speech: homophones (their/there, to/two), a/the or an/and swaps, dropped short words, lost -s or -ed endings, a word that sounds like the right one.
-If an error appears in "said" but the learner fixed it in "sent", it is not an error: it belongs in edits.
+Never use "said" to find errors: something wrong in "said" that "sent" fixes is not an error.
 
 # correctUses
-Learner turns where a known pattern's structure was required and the learner got it right. Known pattern ids only.
+Learner turns where a known pattern's structure was required and "sent" gets it right, even when the learner fixed it before sending. Known pattern ids only.
 
 # edits
 For voice turns where "said" and "sent" differ, one entry per change: before and after are the changed spans, copied exactly. type is asrFix when the learner repaired the recogniser (misheard words, homophones, names) and selfCorrection when they changed their own grammar, structure or word choice ("go" → "went"). patternId is a known pattern id when a self-correction fixes one, otherwise null. Skip punctuation- and capitalisation-only changes.

@@ -5,6 +5,7 @@ pub mod session;
 pub mod stt;
 #[cfg(test)]
 mod tests;
+pub mod update;
 
 use tauri::{AppHandle, Manager};
 
