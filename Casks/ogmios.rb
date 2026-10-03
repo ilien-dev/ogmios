@@ -3,18 +3,17 @@
 #   brew install --cask ogmios
 # It always installs the latest release; after that the app updates itself.
 cask "ogmios" do
-  arch arm: "aarch64", intel: "x64"
-
   version :latest
   sha256 :no_check
 
-  url "https://github.com/ilien-dev/ogmios/releases/latest/download/Ogmios_#{arch}.dmg"
+  url "https://github.com/ilien-dev/ogmios/releases/latest/download/Ogmios_aarch64.dmg"
   name "Ogmios"
   desc "Speak English, get feedback at the end"
   homepage "https://github.com/ilien-dev/ogmios"
 
   auto_updates true
   depends_on macos: ">= :big_sur"
+  depends_on arch: :arm64
 
   app "Ogmios.app"
 

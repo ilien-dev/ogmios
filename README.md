@@ -22,7 +22,7 @@ next ones toward them until they are gone.
 
 ## Install
 
-**macOS** (Apple Silicon or Intel), with Homebrew:
+**macOS** (Apple Silicon), with Homebrew:
 
 ```sh
 brew tap ilien-dev/ogmios https://github.com/ilien-dev/ogmios

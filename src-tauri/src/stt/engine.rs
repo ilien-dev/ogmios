@@ -60,11 +60,17 @@ const LIBRARY: &str = if cfg!(target_os = "windows") {
 
 /// Where the library sits beside the running binary, if it is there at all.
 ///
-/// `build.rs` puts it there in development and the bundler in a release.
+/// `build.rs` puts it there in development and the bundler in a release. A
+/// macOS bundle keeps libraries apart from the binary, in `Contents/Frameworks`
+/// beside `Contents/MacOS`, so that is looked in too.
 /// `None` is not an error: it is a platform without voice input yet.
 pub fn library_beside(exe: &Path) -> Option<PathBuf> {
-    let beside = exe.parent()?.join(LIBRARY);
-    beside.is_file().then_some(beside)
+    let dir = exe.parent()?;
+    let bundled = dir.parent().map(|contents| contents.join("Frameworks"));
+    std::iter::once(dir.to_path_buf())
+        .chain(bundled)
+        .map(|dir| dir.join(LIBRARY))
+        .find(|library| library.is_file())
 }
 
 /// A loaded model, and the library it came out of.
@@ -235,6 +241,22 @@ mod tests {
         assert_eq!(
             library_beside(&dir.path().join("ogmios")),
             Some(dir.path().join(LIBRARY))
+        );
+    }
+
+    /// A macOS bundle: `Ogmios.app/Contents/MacOS/ogmios` runs, and the bundler
+    /// puts the library in `Contents/Frameworks`.
+    #[test]
+    fn a_library_in_the_bundles_frameworks_is_found() {
+        let dir = tempfile::tempdir().unwrap();
+        let contents = dir.path().join("Ogmios.app").join("Contents");
+        std::fs::create_dir_all(contents.join("MacOS")).unwrap();
+        std::fs::create_dir_all(contents.join("Frameworks")).unwrap();
+        let library = contents.join("Frameworks").join(LIBRARY);
+        std::fs::write(&library, b"not really a library").unwrap();
+        assert_eq!(
+            library_beside(&contents.join("MacOS").join("ogmios")),
+            Some(library)
         );
     }
 

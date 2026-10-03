@@ -14,7 +14,9 @@ cheaper side of that trade.
 
 `build.rs` copies the library for the target triple being built beside the
 binary cargo produces (and into `deps/`, for tests); `tauri.<os>.conf.json`
-bundles it. Add that file together with the library, never before: Tauri
+bundles it. On macOS that is `bundle.macOS.frameworks`, which puts it in
+`Contents/Frameworks`, not `resources`: `engine::library_beside` looks beside
+the binary and in the bundle's `Frameworks`, never in `Resources`. Add that file together with the library, never before: Tauri
 refuses to build, even in dev, when a bundled resource is missing
 (`scripts/tauri-resources.test.ts` checks it). Voice input is offered where the library exists and nowhere else:
 `engine::library_beside` answers `None`, and `stt_status` reports
@@ -27,9 +29,9 @@ refuses to build, even in dev, when a bundled resource is missing
 | `x86_64-unknown-linux-gnu` | `libparakeet.so` | `e270af73b94c9a5c37ec516230219ed4580e1db6` |
 | `x86_64-pc-windows-msvc`   | `parakeet.dll`   | `e270af73b94c9a5c37ec516230219ed4580e1db6` |
 
-macOS (`aarch64-apple-darwin/libparakeet.dylib`, `x86_64-apple-darwin/…`) is
-not built yet. The same revision and flags apply; each has to be built on (or
-cross-compiled for) its own platform.
+| `aarch64-apple-darwin` | `libparakeet.dylib` | `e270af73b94c9a5c37ec516230219ed4580e1db6` |
+
+macOS ships for Apple Silicon only, so there is no `x86_64-apple-darwin`.
 
 ggml is linked statically inside the library, so there is one file per
 platform rather than four (`BUILD_SHARED_LIBS=ON` would add `ggml`,
@@ -55,7 +57,8 @@ cmake -S . -B build -G Ninja \
   -DPARAKEET_BUILD_TESTS=OFF \
   -DPARAKEET_BUILD_SERVER=OFF \
   -DGGML_NATIVE=OFF \
-  -DGGML_OPENMP=OFF
+  -DGGML_OPENMP=OFF \
+  -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0
 cmake --build build
 ```
 
@@ -66,6 +69,9 @@ Then copy the library into `vendor/parakeet/<target-triple>/`.
   a fast desktop crashes on an older laptop with an illegal instruction.
 - `CMAKE_POSITION_INDEPENDENT_CODE=ON` is needed on Linux: ggml is built as
   static archives and then linked into a shared object, which requires `-fPIC`.
+- `CMAKE_OSX_DEPLOYMENT_TARGET=11.0` matches `minimumSystemVersion` in
+  `tauri.conf.json`. Without it the library targets the macOS of the machine
+  that built it and will not load on an older one. Ignored off macOS.
 - On Windows, also pass `-DCMAKE_WINDOWS_EXPORT_ALL_SYMBOLS=ON`. Upstream
   marks nothing `__declspec(dllexport)`, so without it the DLL loads but
   exports no `parakeet_capi_*` symbol and the first press fails.
