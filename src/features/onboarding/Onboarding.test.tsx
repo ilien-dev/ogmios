@@ -11,6 +11,7 @@ const SETTINGS: Settings = {
   effort: null,
   claudePath: null,
   sttModel: null,
+  strictSpelling: false,
 };
 
 describe("Onboarding", () => {

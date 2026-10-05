@@ -8,7 +8,8 @@ use rusqlite::Connection;
 use tauri::AppHandle;
 
 use super::run;
-use crate::db::{patterns, sessions, words};
+use crate::books::vocab::key;
+use crate::db::{patterns, recall, sessions, words};
 use crate::domain::{
     CefrPoint, DatedText, Progress, SessionSummary, Streak, TrendPoint, VocabEntry, WeekMinutes,
 };
@@ -103,9 +104,11 @@ fn vocabulary(conn: &Connection) -> Result<Vec<VocabEntry>> {
         .map(|word| (word.done_at, word.translation, word.lemma));
     let mut all: Vec<_> = asked.chain(read).collect();
     all.sort_by_key(|(at, ..)| Reverse(*at));
+    let strengths = recall::strengths(conn)?;
     Ok(all
         .into_iter()
         .map(|(at, asked, english)| VocabEntry {
+            strength: strengths.get(&key(&english)).copied(),
             asked,
             english,
             date: local_date(at).to_string(),
@@ -258,6 +261,7 @@ mod tests {
                 asked: Some("asomarse".into()),
                 english: "peep".into(),
                 date: local_date(Utc::now()).to_string(),
+                strength: None,
             }]
         );
         for table in ["patterns", "pattern_events", "vocab"] {

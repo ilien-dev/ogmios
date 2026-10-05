@@ -8,6 +8,7 @@ import {
   Flame,
   History,
   RefreshCw,
+  Repeat,
   Shuffle,
   SlidersHorizontal,
   Sparkles,
@@ -189,6 +190,19 @@ export function Home({ navigate }: HomeProps): ReactNode {
               }}
             >
               {t("home.due")}
+            </HomeLine>
+          )}
+          {home.dueWords > 0 && (
+            <HomeLine
+              icon={Repeat}
+              action={{
+                label: t("home.review"),
+                onClick: () => {
+                  navigate({ name: "recall" });
+                },
+              }}
+            >
+              {t("home.dueWords", { count: home.dueWords })}
             </HomeLine>
           )}
           <HomeLine icon={Flame}>

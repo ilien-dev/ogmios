@@ -2,6 +2,8 @@ import type { z } from "zod";
 
 import type {
   AnalyzeParams,
+  AttemptSummaryParams,
+  ChapterBriefParams,
   ChatContext,
   ChatParams,
   ChatResult,
@@ -11,9 +13,16 @@ import type {
   DrillGradeParams,
   HelpParams,
   ModelsResult,
+  ParagraphReviewParams,
+  ParagraphVersionParams,
   SelfCheckParams,
+  SentenceReviewParams,
+  SentenceWriteParams,
+  StructureDetectParams,
+  StructureGradeParams,
   VocabExtractParams,
   VocabJudgeParams,
+  VocabLabelParams,
 } from "../../shared/protocol.ts";
 
 /** The calls whose answer is a JSON document rather than prose. */
@@ -25,7 +34,16 @@ export type StructuredRequest =
   | { method: "drillGenerate"; params: DrillGenerateParams }
   | { method: "drillGrade"; params: DrillGradeParams }
   | { method: "vocabExtract"; params: VocabExtractParams }
-  | { method: "vocabJudge"; params: VocabJudgeParams };
+  | { method: "vocabJudge"; params: VocabJudgeParams }
+  | { method: "vocabLabel"; params: VocabLabelParams }
+  | { method: "sentenceWrite"; params: SentenceWriteParams }
+  | { method: "sentenceReview"; params: SentenceReviewParams }
+  | { method: "chapterBrief"; params: ChapterBriefParams }
+  | { method: "paragraphVersion"; params: ParagraphVersionParams }
+  | { method: "paragraphReview"; params: ParagraphReviewParams }
+  | { method: "attemptSummary"; params: AttemptSummaryParams }
+  | { method: "structureGrade"; params: StructureGradeParams }
+  | { method: "structureDetect"; params: StructureDetectParams };
 
 /**
  * One structured call, fully rendered: a real provider only transports

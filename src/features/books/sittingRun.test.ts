@@ -21,7 +21,14 @@ function item(
 ): PracticeStep {
   return {
     type: "item",
-    item: { wordId, direction, prompt: wordId, context: null },
+    item: {
+      wordId,
+      direction,
+      prompt: wordId,
+      partOfSpeech: null,
+      context: null,
+      sentenceId: null,
+    },
     progress,
   };
 }
@@ -33,7 +40,17 @@ const SUMMARY: PracticeStep = {
 };
 
 function miss(answerId: number, step: PracticeStep): AnswerResult {
-  return { answerId, correct: false, accepted: ["x"], step };
+  return {
+    answerId,
+    correct: false,
+    accepted: ["x"],
+    step,
+    again: false,
+    another: null,
+    helped: false,
+    exact: null,
+    sentence: null,
+  };
 }
 
 function verdict(upheld: boolean, step: PracticeStep): DisputeResult {

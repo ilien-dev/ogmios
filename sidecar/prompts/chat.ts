@@ -165,6 +165,12 @@ ${REAL_ENGLISH_RULE}`,
 These were heard again and again in recorded work meetings between native speakers: ${context.phrases.map((phrase) => `"${phrase}"`).join(", ")}. Over the conversation, say the ones that fit what you are talking about, the way a colleague would. Skip any that do not fit, never force one in, and never point one out or explain it.`,
     );
   }
+  if (context.words.length > 0) {
+    sections.push(
+      `# Words the learner has learned
+The learner learned these recently: ${context.words.map((word) => `"${word}"`).join(", ")}. Meeting a word again in a real conversation is what makes it stay. Use the ones that fit what you are talking about, each in an ordinary sentence of your own, and where it comes naturally ask something that gives the learner a reason to say one. Skip any that does not fit, never force one in, and never point one out, explain it or ask what it means.`,
+    );
+  }
   sections.push(learnerSection(learner));
   const targets = targetSection(context);
   if (targets !== null) {

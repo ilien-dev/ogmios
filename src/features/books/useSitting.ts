@@ -3,8 +3,9 @@ import type { Dispatch, RefObject, SetStateAction } from "react";
 import type {
   AnswerResult,
   DisputeResult,
+  PracticeOptions,
   PracticeStep,
-  SessionSize,
+  Ways,
 } from "@shared/domain";
 import { errorMessage } from "@/lib/errors";
 import {
@@ -13,6 +14,7 @@ import {
   sittingStep,
   startSitting,
 } from "@/lib/ipc";
+import { hasChoice } from "./SittingParts";
 import { began, disputed, settled } from "./sittingRun";
 import type { Disputed, Running } from "./sittingRun";
 
@@ -70,11 +72,13 @@ async function deliver(desk: Desk, verdict: Verdict): Promise<void> {
   );
 }
 
-/** The session to start: which round of the screen it is, and its size. */
+/** The session to start: which round of the screen it is, and how. */
 interface Plan {
   round: number;
   /** Null for every open word, and for a session that is gone on with. */
   size: number | null;
+  /** Both for a session that is gone on with: it keeps the ways it had. */
+  ways: Ways;
 }
 
 export interface SittingRun {
@@ -83,13 +87,13 @@ export interface SittingRun {
   /** Why the sitting could not start. */
   failure: string | null;
   /**
-   * The sizes to choose from before the session starts; null when there is
-   * nothing to choose: a session was left unfinished and is gone on with, or
-   * the chapter has too few open words for more than one size.
+   * What to choose from before the session starts, its ways and its size;
+   * null when there is nothing to choose: a session was left unfinished and
+   * is gone on with, or the chapter has one size and one way to ask.
    */
-  sizes: SessionSize[] | null;
-  /** Starts the session in the size chosen; null for every open word. */
-  choose: (size: number | null) => void;
+  options: PracticeOptions | null;
+  /** Starts the session as chosen; a size of null is every open word. */
+  choose: (size: number | null, ways: Ways) => void;
   /** What happened to the sitting, applied to wherever it is by then. */
   move: (change: (held: Running) => Running) => void;
   /** Asks Claude about a miss. A failure is kept quiet: the miss stands. */
@@ -101,8 +105,8 @@ export interface SittingRun {
 /**
  * The sittings on a chapter, one after another, for as long as the screen is
  * open. Each begins by asking what "Practice" can do: a session left
- * unfinished is gone on with at once, and otherwise the learner chooses a
- * size, unless there is only one. "I was right" is asked from here and not
+ * unfinished is gone on with at once, and otherwise the learner chooses its
+ * ways and its size, unless there is nothing to choose. "I was right" is asked from here and not
  * from a word or from one sitting: the learner goes on while Claude answers,
  * into the next sitting if they like, and the verdict is shown wherever they
  * are when it arrives.
@@ -111,7 +115,7 @@ export function useSitting(chapterId: string): SittingRun {
   const [running, setRunning] = useState<Running | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const [round, setRound] = useState(0);
-  const [sizes, setSizes] = useState<SessionSize[] | null>(null);
+  const [options, setOptions] = useState<PracticeOptions | null>(null);
   const [plan, setPlan] = useState<Plan | null>(null);
   const current = useRef<string | null>(null);
   const waiting = useRef<Verdict[]>([]);
@@ -119,14 +123,14 @@ export function useSitting(chapterId: string): SittingRun {
   useEffect(() => {
     let live = true;
     practiceOptions(chapterId)
-      .then((options) => {
+      .then((offered) => {
         if (!live) {
           return;
         }
-        if (options.resume || options.sizes.length < 2) {
-          setPlan({ round, size: null });
+        if (offered.resume || !hasChoice(offered)) {
+          setPlan({ round, size: null, ways: "both" });
         } else {
-          setSizes(options.sizes);
+          setOptions(offered);
         }
       })
       .catch((error: unknown) => {
@@ -139,13 +143,15 @@ export function useSitting(chapterId: string): SittingRun {
     };
   }, [chapterId, round]);
 
-  const size = plan?.round === round ? plan.size : undefined;
+  const planned = plan?.round === round ? plan : null;
+  const size = planned === null ? undefined : planned.size;
+  const ways = planned?.ways ?? "both";
   useEffect(() => {
     if (size === undefined) {
       return;
     }
     let live = true;
-    startSitting(chapterId, size)
+    startSitting(chapterId, size, ways)
       .then((sitting) => {
         if (live) {
           current.current = sitting.id;
@@ -164,12 +170,12 @@ export function useSitting(chapterId: string): SittingRun {
       live = false;
       current.current = null;
     };
-  }, [chapterId, size]);
+  }, [chapterId, size, ways]);
 
   const choose = useCallback(
-    (chosen: number | null): void => {
-      setSizes(null);
-      setPlan({ round, size: chosen });
+    (chosen: number | null, asked: Ways): void => {
+      setOptions(null);
+      setPlan({ round, size: chosen, ways: asked });
     },
     [round],
   );
@@ -197,9 +203,9 @@ export function useSitting(chapterId: string): SittingRun {
   const again = useCallback((): void => {
     current.current = null;
     setRunning(null);
-    setSizes(null);
+    setOptions(null);
     setRound((held) => held + 1);
   }, []);
 
-  return { running, failure, sizes, choose, move, dispute, again };
+  return { running, failure, options, choose, move, dispute, again };
 }

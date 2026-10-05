@@ -148,6 +148,82 @@ describe("sorting a chapter's words into known and not", () => {
     expect(screen.getByText("1 / 7")).toBeInTheDocument();
   });
 
+  test("a sorting left halfway is taken up at the word it stopped on", async () => {
+    const user = await sort();
+    await shows("rabbit hole");
+    await user.keyboard("d");
+    await shows("tumble");
+    await user.keyboard("a");
+    await shows("curtsey");
+    await user.keyboard("{Escape}");
+
+    expect(await screen.findByText("7 words to learn")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Sort the list" }));
+    await shows("curtsey");
+    expect(screen.getByText("2 / 7")).toBeInTheDocument();
+    expect(screen.getByText("1 to learn")).toBeInTheDocument();
+    // The word known on the earlier visit still counts.
+    expect(screen.getByText("1 known")).toBeInTheDocument();
+    expect(bar()).toBe(14);
+    // Nothing of this visit to take back yet.
+    expect(screen.getByRole("button", { name: "Undo" })).toBeDisabled();
+
+    // A word left to learn and then taken back is asked again next time.
+    await user.keyboard("d");
+    await shows("waistcoat");
+    await user.keyboard("z");
+    await shows("curtsey");
+    await user.keyboard("{Escape}");
+    await user.click(
+      await screen.findByRole("button", { name: "Sort the list" }),
+    );
+    await shows("curtsey");
+  });
+
+  test("a list gone through to its end says so, and offers another pass", async () => {
+    const user = await sort();
+    await shows("rabbit hole");
+    await user.keyboard("a");
+    for (let at = 2; at <= 8; at += 1) {
+      await screen.findByText(`${String(at)} / 8`);
+      await user.keyboard("d");
+    }
+    await user.click(
+      await screen.findByRole("button", { name: "Back to the chapter" }),
+    );
+
+    await user.click(
+      await screen.findByRole("button", { name: "Sort the list" }),
+    );
+    expect(
+      await screen.findByRole("heading", { name: "List sorted" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("You already went through this whole list."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("7 words to learn")).toBeInTheDocument();
+    expect(bar()).toBe(100);
+    expect(screen.getByRole("button", { name: "Practice" })).toHaveFocus();
+    expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
+
+    // Another pass asks the words left to learn again, from the first.
+    await user.click(screen.getByRole("button", { name: "Another pass" }));
+    await shows("tumble");
+    expect(screen.getByText("1 / 7")).toBeInTheDocument();
+    expect(screen.getByText("0 to learn")).toBeInTheDocument();
+    expect(screen.getByText("1 known")).toBeInTheDocument();
+    expect(bar()).toBe(0);
+    await user.keyboard("a");
+    await shows("curtsey");
+    expect(screen.getByText("2 known")).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    await user.click(
+      await screen.findByRole("button", { name: "Sort the list" }),
+    );
+    await shows("curtsey");
+    expect(screen.getByText("1 / 6")).toBeInTheDocument();
+  });
+
   test("the summary can undo its last word", async () => {
     const user = await sort();
     for (let at = 1; at <= 8; at += 1) {
@@ -205,5 +281,17 @@ describe("sorting a chapter's words into known and not", () => {
     expect(
       screen.getByRole("button", { name: "Deshacer" }),
     ).toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: "Volver al capítulo" }),
+    );
+    await user.click(
+      await screen.findByRole("button", { name: "Limpiar la lista" }),
+    );
+    expect(
+      await screen.findByText("Ya repasaste toda esta lista."),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Otra pasada" }));
+    await shows("tumble");
   });
 });

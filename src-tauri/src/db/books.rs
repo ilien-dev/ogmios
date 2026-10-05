@@ -1,5 +1,6 @@
-//! Books and their chapters. The chapter text is stored here and never sent
-//! to the webview.
+//! Books and their chapters. The chapter text is stored here; the webview
+//! sees it only as the sentences of a chapter being translated or listened
+//! to.
 
 use chrono::{DateTime, Utc};
 use rusqlite::{params, Connection, OptionalExtension};
@@ -96,8 +97,8 @@ pub fn get_chapter(conn: &Connection, id: &str) -> Result<Chapter> {
     )
 }
 
-/// The chapter as plain text. It goes to the sidecar in pieces and never to
-/// the webview.
+/// The chapter as plain text. It goes to the sidecar in pieces, and to the
+/// webview only cut into the sentences to translate (`commands::translate`).
 pub fn chapter_text(conn: &Connection, id: &str) -> Result<String> {
     found(
         conn.query_row(

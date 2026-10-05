@@ -3,6 +3,10 @@ import type { z } from "zod";
 import {
   analysisSchema,
   analyzeParams,
+  attemptSummaryParams,
+  attemptSummarySchema,
+  chapterBriefParams,
+  chapterBriefSchema,
   chatParams,
   composeParams,
   composedSchema,
@@ -13,11 +17,25 @@ import {
   drillSetSchema,
   helpParams,
   helpResultSchema,
+  paragraphReviewParams,
+  paragraphReviewSchema,
+  paragraphVersionParams,
+  paragraphVersionSchema,
   requestSchema,
   selfCheckParams,
   selfCheckSchema,
+  sentenceReviewParams,
+  sentenceVerdictsSchema,
+  sentenceWriteParams,
+  sentencesWrittenSchema,
+  structureDetectParams,
+  structureGradeParams,
+  structureGradeSchema,
+  structuresFoundSchema,
   vocabExtractParams,
   vocabJudgeParams,
+  vocabLabelParams,
+  vocabLabelsSchema,
   vocabSchema,
   vocabVerdictSchema,
 } from "../shared/protocol.ts";
@@ -25,6 +43,7 @@ import type {
   ChatParams,
   ChatResult,
   ConfigureParams,
+  ConfigureResult,
   Outgoing,
 } from "../shared/protocol.ts";
 import { AgentError } from "./errors.ts";
@@ -46,11 +65,36 @@ import {
   selfCheckUserPrompt,
 } from "./prompts/feedback.ts";
 import {
+  sentenceReviewSystemPrompt,
+  sentenceReviewUserPrompt,
+  sentenceWriteSystemPrompt,
+  sentenceWriteUserPrompt,
+} from "./prompts/sentences.ts";
+import {
+  structureDetectSystemPrompt,
+  structureDetectUserPrompt,
+  structureGradeSystemPrompt,
+  structureGradeUserPrompt,
+} from "./prompts/structures.ts";
+import {
+  attemptSummarySystemPrompt,
+  attemptSummaryUserPrompt,
+  chapterBriefSystemPrompt,
+  chapterBriefUserPrompt,
+  paragraphReviewSystemPrompt,
+  paragraphReviewUserPrompt,
+  paragraphVersionSystemPrompt,
+  paragraphVersionUserPrompt,
+} from "./prompts/translate.ts";
+import {
   vocabExtractSystemPrompt,
   vocabExtractUserPrompt,
   vocabJudgeSystemPrompt,
   vocabJudgeUserPrompt,
+  vocabLabelSystemPrompt,
+  vocabLabelUserPrompt,
 } from "./prompts/vocab.ts";
+import { protocolFingerprint } from "./fingerprint.ts" with { type: "macro" };
 import type { Provider } from "./providers/provider.ts";
 import {
   sanitizeAnalysis,
@@ -72,6 +116,15 @@ const MAX_TOKENS = {
   drillGrade: 1024,
   vocabExtract: 16_000,
   vocabJudge: 1024,
+  vocabLabel: 4096,
+  sentenceWrite: 16_000,
+  sentenceReview: 4096,
+  chapterBrief: 2048,
+  paragraphVersion: 4096,
+  paragraphReview: 4096,
+  attemptSummary: 2048,
+  structureGrade: 1024,
+  structureDetect: 4096,
 } as const;
 
 function parseParams<T>(schema: z.ZodType<T>, method: string, raw: unknown): T {
@@ -157,7 +210,8 @@ export class Dispatcher {
         const config = parseParams(configureParams, method, raw);
         checkConfig(config);
         this.#provider = this.#factory(config);
-        return Promise.resolve(null);
+        const answer: ConfigureResult = { protocol: protocolFingerprint() };
+        return Promise.resolve(answer);
       }
       case "check":
         return this.#requireProvider().check();
@@ -257,6 +311,14 @@ export class Dispatcher {
           maxTokens: MAX_TOKENS.drillGrade,
         });
       }
+      default:
+        return this.#books(provider, method, raw);
+    }
+  }
+
+  /** The calls about a book: its words, their sentences, its translation. */
+  #books(provider: Provider, method: string, raw: unknown): Promise<unknown> {
+    switch (method) {
       case "vocabExtract": {
         const params = parseParams(vocabExtractParams, method, raw);
         return provider.structured({
@@ -275,6 +337,108 @@ export class Dispatcher {
           user: vocabJudgeUserPrompt(params),
           schema: vocabVerdictSchema,
           maxTokens: MAX_TOKENS.vocabJudge,
+        });
+      }
+      case "vocabLabel": {
+        const params = parseParams(vocabLabelParams, method, raw);
+        return provider.structured({
+          request: { method, params },
+          system: vocabLabelSystemPrompt(),
+          user: vocabLabelUserPrompt(params),
+          schema: vocabLabelsSchema,
+          maxTokens: MAX_TOKENS.vocabLabel,
+        });
+      }
+      case "sentenceWrite": {
+        const params = parseParams(sentenceWriteParams, method, raw);
+        return provider.structured({
+          request: { method, params },
+          system: sentenceWriteSystemPrompt(params),
+          user: sentenceWriteUserPrompt(params),
+          schema: sentencesWrittenSchema,
+          maxTokens: MAX_TOKENS.sentenceWrite,
+        });
+      }
+      case "sentenceReview": {
+        const params = parseParams(sentenceReviewParams, method, raw);
+        return provider.structured({
+          request: { method, params },
+          system: sentenceReviewSystemPrompt(params),
+          user: sentenceReviewUserPrompt(params),
+          schema: sentenceVerdictsSchema,
+          maxTokens: MAX_TOKENS.sentenceReview,
+        });
+      }
+      case "chapterBrief": {
+        const params = parseParams(chapterBriefParams, method, raw);
+        return provider.structured({
+          request: { method, params },
+          system: chapterBriefSystemPrompt(params),
+          user: chapterBriefUserPrompt(params),
+          schema: chapterBriefSchema,
+          maxTokens: MAX_TOKENS.chapterBrief,
+        });
+      }
+      case "paragraphVersion": {
+        const params = parseParams(paragraphVersionParams, method, raw);
+        return provider.structured({
+          request: { method, params },
+          system: paragraphVersionSystemPrompt(params),
+          user: paragraphVersionUserPrompt(params),
+          schema: paragraphVersionSchema,
+          maxTokens: MAX_TOKENS.paragraphVersion,
+        });
+      }
+      case "paragraphReview": {
+        const params = parseParams(paragraphReviewParams, method, raw);
+        return provider.structured({
+          request: { method, params },
+          system: paragraphReviewSystemPrompt(params),
+          user: paragraphReviewUserPrompt(params),
+          schema: paragraphReviewSchema,
+          maxTokens: MAX_TOKENS.paragraphReview,
+        });
+      }
+      case "attemptSummary": {
+        const params = parseParams(attemptSummaryParams, method, raw);
+        return provider.structured({
+          request: { method, params },
+          system: attemptSummarySystemPrompt(params),
+          user: attemptSummaryUserPrompt(params),
+          schema: attemptSummarySchema,
+          maxTokens: MAX_TOKENS.attemptSummary,
+        });
+      }
+      default:
+        return this.#structures(provider, method, raw);
+    }
+  }
+
+  /** The calls about the structures a learner practises writing. */
+  #structures(
+    provider: Provider,
+    method: string,
+    raw: unknown,
+  ): Promise<unknown> {
+    switch (method) {
+      case "structureGrade": {
+        const params = parseParams(structureGradeParams, method, raw);
+        return provider.structured({
+          request: { method, params },
+          system: structureGradeSystemPrompt(params),
+          user: structureGradeUserPrompt(params),
+          schema: structureGradeSchema,
+          maxTokens: MAX_TOKENS.structureGrade,
+        });
+      }
+      case "structureDetect": {
+        const params = parseParams(structureDetectParams, method, raw);
+        return provider.structured({
+          request: { method, params },
+          system: structureDetectSystemPrompt(params),
+          user: structureDetectUserPrompt(params),
+          schema: structuresFoundSchema,
+          maxTokens: MAX_TOKENS.structureDetect,
         });
       }
       default:

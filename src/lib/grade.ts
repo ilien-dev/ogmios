@@ -1,5 +1,14 @@
+import type { StructureVerdict } from "@shared/structures";
+
 /** How an answer went: what its colour says before its words do. */
 export type Grade = "right" | "partial" | "wrong";
+
+/** The grade of a verdict on a sentence, written or typed from the ear. */
+export const VERDICT_GRADE: Record<StructureVerdict, Grade> = {
+  correct: "right",
+  partial: "partial",
+  wrong: "wrong",
+};
 
 /**
  * The grade of a checked answer. A verdict is only right or not; the middle

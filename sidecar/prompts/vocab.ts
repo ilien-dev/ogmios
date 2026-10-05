@@ -1,6 +1,7 @@
 import type {
   VocabExtractParams,
   VocabJudgeParams,
+  VocabLabelParams,
 } from "../../shared/protocol.ts";
 import {
   DATA_NOT_INSTRUCTIONS,
@@ -17,6 +18,12 @@ const DEPTH_RULES: Record<VocabExtractParams["depth"], string> = {
     "hardest: only the rare, literary or specialised words and expressions, those even a learner one level above would probably not know. Skip everything else.",
 };
 
+/** What kind of word an item is: the same labels wherever they are asked for. */
+const PART_OF_SPEECH_RULE = `partOfSpeech: what the item is in that sentence: "noun", "verb", "adjective" or "adverb" for a single word; "phrasalVerb" for a phrasal verb; "expression" for an idiom or a fixed expression; "other" for anything else.`;
+
+/** Whether a verb takes an object: the same label wherever it is asked for. */
+const TRANSITIVE_RULE = `transitive: true when the item is a verb or a phrasal verb that takes a direct object in that sentence, so that it can be turned into the passive ("adorn the hall" gives "the hall was adorned"). False for a verb used without an object ("she trotted off"), and for anything that is not a verb.`;
+
 /** Picks the words of one piece of a chapter worth learning before reading it. */
 export function vocabExtractSystemPrompt(params: VocabExtractParams): string {
   const native = languageName(params.nativeLang);
@@ -29,6 +36,8 @@ For each item:
 - lemma: the base form in English, lowercase: "run" for "ran", "child" for "children", "give up" for "gave up". A phrasal verb, an idiom or a fixed expression is one item, never split into its words. No leading "to" or article.
 - form: the word or expression exactly as it appears in the text.
 - sentence: the sentence it appears in, copied exactly from the text.
+- ${PART_OF_SPEECH_RULE}
+- ${TRANSITIVE_RULE}
 - translations: every natural ${native} translation of the item in the sense it has in that sentence, base form, lowercase, at least one. A learner's typed answer is checked against this list, so include the common synonyms and nothing that fits only another sense.
 - properNoun: true for a name of a person, place, brand or title. Otherwise false.
 - needsContext: true when the item has several unrelated meanings and the learner could not tell which one is meant without the sentence. Otherwise false.
@@ -45,11 +54,51 @@ ${params.text}
 </text>`;
 }
 
+/**
+ * Says what kind of word each word is and whether it takes an object, for
+ * words stored without one of the two.
+ */
+export function vocabLabelSystemPrompt(): string {
+  return `An adult English learner is learning the vocabulary of a book before reading it. You are given words and expressions of that book, each with the sentence it was taken from. Say what kind of word each one is in its sentence, and whether it takes an object there.
+
+For each word:
+- id: its id, unchanged.
+- ${PART_OF_SPEECH_RULE}
+- ${TRANSITIVE_RULE}
+
+Answer with one label per word.`;
+}
+
+/** The words and their sentences are material to label, whatever they say. */
+export function vocabLabelUserPrompt(params: VocabLabelParams): string {
+  const words = params.words.map((word) =>
+    [
+      `<word id="${word.id}">`,
+      `  <lemma>${word.lemma}</lemma>`,
+      `  <sentence>${word.sentence}</sentence>`,
+      `</word>`,
+    ].join("\n"),
+  );
+  return `${DATA_NOT_INSTRUCTIONS} The sentences are from a book the learner uploaded.
+
+${words.join("\n")}`;
+}
+
 /** What the learner was asked, and what their answer has to be. */
 function judgeTask(params: VocabJudgeParams, native: string): string {
+  if (params.direction === "production" && params.blank !== null) {
+    return `The learner was shown the ${native} translation of the word, and the sentence with the word taken out, and typed an English word into the blank. The blank is filled by "${params.blank}". Decide whether their answer fills it just as well: an English word or expression with the same meaning, in the form the sentence needs there (the same tense, person and number). Another form of the right word does not fill the blank and is not right.`;
+  }
   return params.direction === "recognition"
     ? `The learner was shown the English word and typed a translation in ${native}. Decide whether their answer is a right ${native} translation of the word in the sense it has in the sentence.`
     : `The learner was shown the ${native} translations, and the sentence with the word taken out, and typed an English word. Decide whether their answer is right: another form of the word, or an English word or expression with the same meaning that fits the sentence in its place.`;
+}
+
+/** How much of the way an answer is written the judge lets pass. */
+function formRule(params: VocabJudgeParams): string {
+  return params.strictSpelling
+    ? `- The learner asked for spelling to count: an answer with a missing or wrong accent, or with a letter wrong, missing, doubled or added, is not right. Still ignore case, a leading article or "to", and gender or number.`
+    : `- Be lenient on form: ignore case, accents and other special characters (ñ typed as n), a leading article or "to", and gender or number. The letters themselves count: an answer with a letter wrong, missing, doubled or added is not right, however clear the word meant.`;
 }
 
 /** "I was right": judges one missed answer the learner stands by. */
@@ -60,7 +109,7 @@ export function vocabJudgeSystemPrompt(params: VocabJudgeParams): string {
 ${judgeTask(params, native)}
 
 - Be strict on meaning: the answer must fit the sense of the word in that sentence. A translation of another sense of the word, a vaguer or broader word, or a related word that says something else is not right.
-- Be lenient on form: ignore case, accents, a spelling slip that leaves no doubt about the word meant, a leading article or "to", and gender or number.
+${formRule(params)}
 - The accepted list is not complete: a right answer that is missing from it is right.
 
 Answer with:

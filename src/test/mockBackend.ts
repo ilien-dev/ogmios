@@ -3,9 +3,13 @@ import { i18n } from "@/lib/i18n/i18n";
 import { resetMock, setMockLatency } from "@/lib/ipcMock";
 import { resetMockBooks } from "@/lib/ipcMockBooks";
 import { resetMockChapters } from "@/lib/ipcMockChapters";
+import { resetMockListening } from "@/lib/ipcMockListening";
 import { resetMockPractice } from "@/lib/ipcMockPractice";
+import { resetMockRecall } from "@/lib/ipcMockRecall";
 import { resetMockRefresh } from "@/lib/ipcMockRefresh";
 import { resetMockSpeech } from "@/lib/ipcMockSpeech";
+import { resetMockStructures } from "@/lib/ipcMockStructures";
+import { resetMockTranslate } from "@/lib/ipcMockTranslate";
 import { setMockUpdate } from "@/lib/ipcMockUpdate";
 
 /**
@@ -21,6 +25,10 @@ export function useMockBackend(onboarded = true): void {
     resetMockChapters();
     resetMockPractice();
     resetMockRefresh();
+    resetMockRecall();
+    resetMockStructures();
+    resetMockListening();
+    resetMockTranslate();
     resetMockSpeech();
     setMockUpdate(null);
     await i18n.changeLanguage("en");

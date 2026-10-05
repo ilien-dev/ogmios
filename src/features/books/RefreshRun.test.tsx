@@ -62,6 +62,14 @@ async function answer(
   await user.keyboard("{Enter}");
 }
 
+/** The right answer to each prompt of the two words missed below. */
+const RIGHT: Record<string, string> = {
+  peep: "asomarse",
+  marmalade: "mermelada",
+  "asomarse, echar un vistazo": "peep",
+  mermelada: "marmalade",
+};
+
 describe("the quick refresh before reading", () => {
   useMockBackend();
 
@@ -165,8 +173,10 @@ describe("the quick refresh before reading", () => {
     ).toBeInTheDocument();
 
     // Straight on to practising them: two right answers in a row each,
-    // English → native only, and the chapter is ready again.
+    // both ways, and the chapter is ready again.
     expect(screen.getByRole("button", { name: "Practice them" })).toHaveFocus();
+    await user.keyboard("{Enter}");
+    expect(await screen.findByRole("button", { name: "Start" })).toHaveFocus();
     await user.keyboard("{Enter}");
     await screen.findByLabelText("Your translation");
     expect(
@@ -178,11 +188,12 @@ describe("the quick refresh before reading", () => {
     ) {
       const shown = prompt();
       asked.push(shown);
-      await answer(user, shown === "peep" ? "asomarse" : "mermelada", "Right.");
+      await answer(user, RIGHT[shown] ?? "", "Right.");
     }
-    expect(asked).toHaveLength(4);
-    expect(asked.filter((shown) => shown === "peep")).toHaveLength(2);
-    expect(asked.filter((shown) => shown === "marmalade")).toHaveLength(2);
+    expect(asked).toHaveLength(8);
+    for (const shown of Object.keys(RIGHT)) {
+      expect(asked.filter((each) => each === shown)).toHaveLength(2);
+    }
     expect(screen.getByText("2 words done")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Done" }));
     expect(await screen.findByText("Ready to read")).toBeInTheDocument();

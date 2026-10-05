@@ -2,9 +2,14 @@
 //! database or the disk: bytes in, chapters out.
 
 pub mod epub;
+pub mod hint;
 pub mod pdf;
 mod pdftext;
 pub mod practice;
+pub mod segment;
+pub mod sentences;
+pub mod spelling;
+pub mod translate;
 pub mod vocab;
 mod xml;
 

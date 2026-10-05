@@ -103,6 +103,24 @@ export function setMockChapterPrepared(id: string, depth: Depth): void {
   }));
 }
 
+/** The title of the book a chapter is of; empty for one on no shelf. */
+export function mockBookTitle(chapterId: string): string {
+  return (
+    books.find((candidate) =>
+      candidate.chapters.some((chapter) => chapter.id === chapterId),
+    )?.title ?? ""
+  );
+}
+
+/** The id of the book a chapter is of; empty for one on no shelf. */
+export function mockBookId(chapterId: string): string {
+  return (
+    books.find((candidate) =>
+      candidate.chapters.some((chapter) => chapter.id === chapterId),
+    )?.id ?? ""
+  );
+}
+
 /** Every chapter of every book on the shelf. */
 export function allMockChapters(): Chapter[] {
   return books.flatMap((candidate) => candidate.chapters);

@@ -7,7 +7,7 @@ use std::sync::Mutex;
 
 use chrono::{Local, Utc};
 
-use super::{drill, progress, session};
+use super::{drill, progress, session, structures};
 use crate::agent::protocol::ConfigureParams;
 use crate::agent::Agent;
 use crate::db::{open_in_memory, patterns, profile, sessions};
@@ -315,7 +315,7 @@ fn a_chapter_is_prepared_once_and_a_deeper_depth_adds_to_it() {
     let path = dir.path().join("alice.epub");
     std::fs::write(&path, crate::books::epub::fixtures::alice()).expect("book file");
     let imported = book::import(ctx, &path).expect("import");
-    let first = &imported.chapters[2];
+    let first = &imported.chapters[0];
     assert_eq!(first.prepared, None);
 
     let steps = Mutex::new(Vec::new());
@@ -421,8 +421,8 @@ fn a_chapter_practised_to_the_end_is_ready_and_its_words_are_in_progress() {
     let path = dir.path().join("alice.epub");
     std::fs::write(&path, crate::books::epub::fixtures::alice()).expect("book file");
     let imported = book::import(ctx, &path).expect("import");
-    let first = imported.chapters[2].id.clone();
-    assert_eq!(imported.chapters[2].readiness, None, "not prepared yet");
+    let first = imported.chapters[0].id.clone();
+    assert_eq!(imported.chapters[0].readiness, None, "not prepared yet");
     let found = chapter::prepare(
         ctx,
         &first,
@@ -446,7 +446,7 @@ fn a_chapter_practised_to_the_end_is_ready_and_its_words_are_in_progress() {
     assert!(ready.words.iter().all(|word| word.done && !word.known));
     let shelf = book::list(ctx).expect("books");
     let shown: Vec<_> = shelf[0].chapters.iter().map(|c| c.readiness).collect();
-    assert_eq!(shown[2], Some(READY));
+    assert_eq!(shown[0], Some(READY));
     assert_eq!(shown.iter().filter(|r| r.is_some()).count(), 1);
 
     // Every word is in the progress vocabulary with its translation.
@@ -527,7 +527,13 @@ fn practise_to_the_end(ctx: Ctx<'_>, chapter: &crate::domain::ChapterWords) -> u
     let mut now = Utc::now();
     let mut answers = 0;
     for _ in 0..20 {
-        let sitting = practice::start(ctx, &chapter.chapter.id, None, now).expect("sitting");
+        let sitting = practice::start(
+            ctx,
+            &chapter.chapter.id,
+            (None, crate::domain::Ways::Both),
+            now,
+        )
+        .expect("sitting");
         let mut step = sitting.step;
         while let PracticeStep::Item { item, .. } = step {
             let asked = (item.word_id.as_str(), item.direction);
@@ -570,18 +576,31 @@ fn a_disputed_miss_is_judged_by_the_sidecar_and_an_upheld_one_is_accepted() {
     let imported = book::import(ctx, &path).expect("import");
     let found = chapter::prepare(
         ctx,
-        &imported.chapters[2].id,
+        &imported.chapters[0].id,
         Depth::Relevant,
         &mut |params| agent.vocab_extract(params),
         &|_| {},
     )
     .expect("prepare");
     let now = Utc::now();
-    let sitting = practice::start(ctx, &found.chapter.id, None, now).expect("sitting");
+    let sitting = practice::start(
+        ctx,
+        &found.chapter.id,
+        (None, crate::domain::Ways::Both),
+        now,
+    )
+    .expect("sitting");
     let PracticeStep::Item { item, .. } = sitting.step else {
         panic!("a prepared chapter has a word to ask");
     };
     let asked = (item.word_id.as_str(), Direction::Recognition);
+    // Which word comes first is drawn for the sitting: the reasons name it.
+    let lemma = found
+        .words
+        .iter()
+        .find(|word| word.id == item.word_id)
+        .map(|word| word.lemma.clone())
+        .expect("the word asked is one of the chapter's");
     let say = |text: &str| practice::answer(ctx, &sitting.id, asked, text, now).expect("answer");
     let judge = |answer_id: i64| {
         dispute::dispute(ctx, answer_id, &mut |params| agent.vocab_judge(params), now)
@@ -594,7 +613,7 @@ fn a_disputed_miss_is_judged_by_the_sidecar_and_an_upheld_one_is_accepted() {
     assert!(!rejected.upheld);
     assert_eq!(
         rejected.reason,
-        r#""charlas" does not fit "conversations" (es)."#
+        format!(r#""charlas" does not fit "{lemma}" (es)."#)
     );
     assert!(!say("charlas").correct);
 
@@ -605,7 +624,7 @@ fn a_disputed_miss_is_judged_by_the_sidecar_and_an_upheld_one_is_accepted() {
     assert!(upheld.upheld);
     assert_eq!(
         upheld.reason,
-        r#""also charlas" fits "conversations" (es)."#
+        format!(r#""also charlas" fits "{lemma}" (es)."#)
     );
     assert!(say("Also charlas").correct);
     assert_eq!(judge(miss.answer_id).expect_err("once").kind(), "invalid");
@@ -630,4 +649,225 @@ fn a_disputed_miss_is_judged_by_the_sidecar_and_an_upheld_one_is_accepted() {
             .expect("count");
         assert_eq!(rows, 0, "book words never touch {table}");
     }
+}
+
+/// A chapter made ready, then its first paragraph translated into the
+/// learner's language and back, reviewed each way through the real sidecar.
+#[test]
+#[ignore = "needs bun; run with `cargo test -- --ignored`"]
+fn a_ready_chapter_is_translated_there_and_back_through_the_sidecar() {
+    use super::{book, chapter, translate};
+    use crate::domain::Depth;
+    use crate::domain::TranslationDirection::{ToEnglish, ToNative};
+
+    let dir = tempfile::tempdir().expect("tempdir");
+    let db = Mutex::new(open_in_memory().expect("db"));
+    let agent = fake_agent();
+    let ctx = Ctx {
+        db: &db,
+        agent: &agent,
+        data_dir: dir.path(),
+    };
+    profile::save_profile(&ctx.conn().expect("conn"), &profile::tests::profile()).expect("profile");
+    let path = dir.path().join("alice.epub");
+    std::fs::write(&path, crate::books::epub::fixtures::alice()).expect("book file");
+    let imported = book::import(ctx, &path).expect("import");
+    let found = chapter::prepare(
+        ctx,
+        &imported.chapters[0].id,
+        Depth::Most,
+        &mut |params| agent.vocab_extract(params),
+        &|_| {},
+    )
+    .expect("prepare");
+    practise_to_the_end(ctx, &found);
+    let id = found.chapter.id.as_str();
+    let mut model = translate::Sidecar(ctx);
+
+    let there = translate::start(ctx, id, ToNative, Utc::now()).expect("an attempt");
+    assert_eq!(there.current, Some(0));
+    let english = there.paragraphs[0].source.clone().expect("the author's");
+    for (sentence, _) in (0u32..).zip(&english) {
+        translate::write(
+            ctx,
+            &there.attempt_id,
+            (0, sentence),
+            "una frase",
+            Utc::now(),
+        )
+        .expect("kept");
+    }
+    let reviewed =
+        translate::review(ctx, &there.attempt_id, 0, &mut model, Utc::now()).expect("review");
+    let review = reviewed.paragraphs[0].review.clone().expect("a review");
+    assert_eq!(
+        review.good.as_deref(),
+        Some("Every sentence is there (es).")
+    );
+    // A note on the first word of each sentence, placed where it was written.
+    assert_eq!(review.marks.len(), english.len());
+    let first = &review.marks[0];
+    assert_eq!(
+        (first.fragment.as_str(), first.severity),
+        ("una", crate::domain::Severity::Slip)
+    );
+    assert_eq!(review.sentences[0][0].mark, Some(0));
+    assert!(review.score < 100);
+    let offered = first.word.clone().expect("a word to practise");
+    assert!(!offered.in_practice);
+    let added = translate::practise(ctx, &there.attempt_id, (0, 0), Utc::now()).expect("added");
+    let marks = &added.paragraphs[0].review.as_ref().expect("a review").marks;
+    assert_eq!(marks[0].word.as_ref().map(|w| w.in_practice), Some(true));
+
+    // Finished, the attempt is summed up from its notes.
+    translate::close(ctx, &there.attempt_id, true, Utc::now()).expect("finished");
+    let summed =
+        translate::summarize(ctx, &there.attempt_id, &mut model, Utc::now()).expect("summary");
+    let summary = summed.summary.expect("a summary");
+    assert_eq!(summary.habits[0].examples[0], "una");
+    assert!(summary.points[0].ends_with("(es)."));
+
+    // The way back: a version with a sentence for each one, then the review
+    // says what the author wrote.
+    let back = translate::start(ctx, id, ToEnglish, Utc::now()).expect("the way back");
+    let open =
+        translate::prepare(ctx, &back.attempt_id, 0, &mut model, Utc::now()).expect("version");
+    let version = open.paragraphs[0].source.clone().expect("a version");
+    let expected: Vec<String> = english.iter().map(|each| format!("[es] {each}")).collect();
+    assert_eq!(version, expected);
+    for (sentence, _) in (0u32..).zip(&version) {
+        translate::write(
+            ctx,
+            &back.attempt_id,
+            (0, sentence),
+            "a sentence",
+            Utc::now(),
+        )
+        .expect("kept");
+    }
+    let back = translate::review(ctx, &back.attempt_id, 0, &mut model, Utc::now()).expect("review");
+    let being = &back.paragraphs[0];
+    let marks = &being.review.as_ref().expect("a review").marks;
+    assert_eq!(marks[0].fragment, "a");
+    assert_eq!(being.english, english);
+}
+
+#[test]
+#[ignore = "needs bun; run with `cargo test -- --ignored`"]
+fn a_chapters_words_get_their_sentences_through_the_sidecar() {
+    use super::sentences::{top_up, Scope, Sidecar};
+    use crate::db::sentences as bank;
+    use crate::db::words::{self, tests as shelf};
+    use crate::domain::Depth;
+
+    let dir = tempfile::tempdir().expect("tempdir");
+    let db = Mutex::new(open_in_memory().expect("db"));
+    let agent = fake_agent();
+    let ctx = Ctx {
+        db: &db,
+        agent: &agent,
+        data_dir: dir.path(),
+    };
+    profile::save_profile(&ctx.conn().expect("conn"), &profile::tests::profile()).expect("profile");
+    let chapter = {
+        let conn = ctx.conn().expect("conn");
+        let chapter = shelf::book(&conn, "b", &["text"]).remove(0);
+        let list = [shelf::word("hedge", &["seto"], 1)];
+        words::finish(&conn, &chapter, Depth::Most, &list, Utc::now()).expect("words");
+        chapter
+    };
+    let given =
+        top_up(ctx, Scope::Chapter(&chapter), &mut Sidecar(ctx), &|_, _| {}).expect("top up");
+    assert_eq!(given, 1);
+
+    // The sentence of the book glossed, and none written.
+    let held = bank::bank(&ctx.conn().expect("conn"), "hedge").expect("bank");
+    let texts: Vec<&str> = held.iter().map(|each| each.text.as_str()).collect();
+    assert_eq!(texts, ["A sentence with hedge."]);
+    assert!(held[0].book);
+    assert!(held
+        .iter()
+        .all(|each| each.form == "hedge" && !each.hint.is_empty()));
+}
+
+#[test]
+#[ignore = "needs bun; run with `cargo test -- --ignored`"]
+fn words_stored_without_a_kind_are_labelled_through_the_sidecar() {
+    use super::label::{label_all, Sidecar};
+    use crate::db::words::{self, tests as shelf};
+    use crate::domain::{Depth, PartOfSpeech};
+
+    let dir = tempfile::tempdir().expect("tempdir");
+    let db = Mutex::new(open_in_memory().expect("db"));
+    let agent = fake_agent();
+    let ctx = Ctx {
+        db: &db,
+        agent: &agent,
+        data_dir: dir.path(),
+    };
+    let chapter = {
+        let conn = ctx.conn().expect("conn");
+        let chapter = shelf::book(&conn, "b", &["text"]).remove(0);
+        let list = [shelf::word("hedge", &["seto"], 1)];
+        words::finish(&conn, &chapter, Depth::Most, &list, Utc::now()).expect("words");
+        chapter
+    };
+    assert_eq!(label_all(ctx, &mut Sidecar(ctx)).expect("label"), 1);
+    let listed = words::list(&ctx.conn().expect("conn"), &chapter).expect("list");
+    // The fake calls every word it labels a verb.
+    assert_eq!(listed[0].part_of_speech, Some(PartOfSpeech::Verb));
+}
+
+#[test]
+#[ignore = "needs bun; run with `cargo test -- --ignored`"]
+fn a_sentence_and_a_chapter_through_the_sidecar() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let db = Mutex::new(open_in_memory().expect("db"));
+    let agent = fake_agent();
+    let ctx = Ctx {
+        db: &db,
+        agent: &agent,
+        data_dir: dir.path(),
+    };
+    {
+        let conn = ctx.conn().expect("conn");
+        profile::save_profile(&conn, &profile::tests::profile()).expect("profile");
+        conn.execute_batch(
+            "INSERT INTO books VALUES ('b', 'Alice', NULL, 'epub', 'h', 'f', '2026-01-01');
+             INSERT INTO book_chapters (id, book_id, idx, title, words, text)
+               VALUES ('c', 'b', 0, 'I', 6, 'He ran home. He can swim.');",
+        )
+        .expect("rows");
+    }
+    let now = Utc::now();
+    let mut model = structures::Sidecar(ctx);
+
+    let sitting = structures::start(ctx, &["can".to_owned()], 10, None, now).expect("start");
+    let item = sitting.item.expect("a sentence to write");
+    let right = structures::answer(
+        ctx,
+        &mut model,
+        &sitting.id,
+        (item.index, "I can swim.", false),
+        now,
+    )
+    .expect("answer");
+    assert_eq!(right.verdict, crate::domain::StructureVerdict::Correct);
+    assert!(right.explanation.contains("can / can't + verb"));
+    assert!(right.better.contains("(can)"));
+
+    let found = structures::scan(ctx, &mut model, "c", &|_| {}, now).expect("scan");
+    let seen: Vec<_> = found
+        .structures
+        .iter()
+        .map(|each| (each.key.as_str(), each.count, each.example.as_str()))
+        .collect();
+    // The fake finds the first two of the catalogue, in the first sentence.
+    assert_eq!(
+        seen,
+        [
+            ("present-simple", 2, "He ran home."),
+            ("present-continuous", 1, "He ran home.")
+        ]
+    );
 }

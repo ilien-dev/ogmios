@@ -14,7 +14,7 @@ import type {
   ChapterWords,
   ChatDelta,
   Depth,
-  Direction,
+  PracticeItem,
   DisputeResult,
   Drill,
   DrillFormat,
@@ -34,19 +34,43 @@ import type {
   SessionStarted,
   Settings,
   PracticeOptions,
+  Ways,
+  WordHint,
   PracticeStep,
+  Recall,
+  RecallAnswer,
+  RecallState,
+  RecallStep,
   Refresh,
   RefreshAnswer,
+  SentenceProgress,
   Sitting,
   SttDownload,
   SttLevel,
   SttPartial,
   SttStatus,
+  Translation,
+  TranslationAttempts,
+  TranslationDirection,
   TtsDownload,
   TtsStatus,
   TurnReply,
   UpdateInfo,
 } from "@shared/domain";
+import type {
+  ChapterListening,
+  ChapterReading,
+  Dictation,
+  DictationResult,
+  ListeningState,
+  Pace,
+} from "@shared/listening";
+import type {
+  ChapterStructures,
+  StructureResult,
+  StructureSitting,
+  StructuresState,
+} from "@shared/structures";
 import type { InvokeArgs } from "@tauri-apps/api/core";
 import { mock, mockListen } from "./ipcMock";
 
@@ -57,6 +81,9 @@ interface Events {
   "chat-delta": ChatDelta;
   "analysis-progress": AnalysisProgress;
   "chapter-progress": ChapterProgress;
+  "chapter-listening": ChapterListening;
+  "structure-scan-progress": ChapterProgress;
+  "sentence-progress": SentenceProgress;
   "stt-level": SttLevel;
   "stt-partial": SttPartial;
   "stt-download": SttDownload;
@@ -204,6 +231,18 @@ export const setWordKnown = (
   wordId: string,
   known: boolean,
 ): Promise<ChapterWords> => call("set_word_known", { wordId, known });
+/**
+ * Keeps that a word was left to learn while sorting its chapter's list, or
+ * takes that back: the next sorting starts after the words that have it.
+ * Resolves to the word's chapter as it stands after it.
+ */
+export const setWordSorted = (
+  wordId: string,
+  sorted: boolean,
+): Promise<ChapterWords> => call("set_word_sorted", { wordId, sorted });
+/** Has a chapter's list to be sorted again from its first word. */
+export const restartSorting = (id: string): Promise<ChapterWords> =>
+  call("restart_sorting", { id });
 /** Every word marked as known, from any chapter of any book, latest first. */
 export const listKnownWords = (): Promise<KnownWord[]> =>
   call("list_known_words");
@@ -223,31 +262,82 @@ export const onChapterProgress = (
 export const practiceOptions = (chapterId: string): Promise<PracticeOptions> =>
   call("practice_options", { chapterId });
 /**
- * Starts a session on a prepared chapter with `size` of its open words, most
- * frequent first, or with all of them for null: its first word, or its
- * summary when nothing is left to ask. A session left halfway needs no
- * goodbye: every answer is kept as it is given, and while it is unfinished
- * this goes on with it, with the words it had, whatever the size.
+ * Starts a session on a prepared chapter with `size` of its open words,
+ * drawn among them, or with all of them for null, asked in `ways`: its first
+ * word, or its summary when nothing is left to ask. A session left halfway
+ * needs no goodbye: every answer is kept as it is given, and while it is
+ * unfinished this goes on with it, with the words and the ways it had,
+ * whatever is asked for.
  */
 export const startSitting = (
   chapterId: string,
   size: number | null,
-): Promise<Sitting> => call("start_sitting", { chapterId, size });
+  ways: Ways,
+): Promise<Sitting> => call("start_sitting", { chapterId, size, ways });
+/** The word an answer is given to, and the sentence it was asked with. */
+type Asked = Pick<PracticeItem, "wordId" | "direction" | "sentenceId">;
+
 /**
  * Checks one answer at once and says what the sitting shows next. An empty
  * answer is "I don't know": a miss, answered with what was asked for.
  */
 export const answerWord = (
   sittingId: string,
-  item: { wordId: string; direction: Direction },
+  item: Asked,
   answer: string,
+  second = false,
+  hinted = false,
 ): Promise<AnswerResult> =>
   call("answer_word", {
     sittingId,
     wordId: item.wordId,
     direction: item.direction,
     answer,
+    sentenceId: item.sentenceId,
+    tries: { second, hinted },
   });
+/**
+ * A hint on the word a sitting is showing, once `asked` others were given:
+ * the sentence the word was asked without, then how long its answer is,
+ * then one more of its letters each time. Made by code: Claude is not
+ * asked. The answer that follows says it was `hinted`, and a right one is
+ * then a helped one.
+ */
+export const hintWord = (
+  sittingId: string,
+  item: Asked,
+  asked: number,
+): Promise<WordHint> =>
+  call("hint_word", {
+    sittingId,
+    wordId: item.wordId,
+    direction: item.direction,
+    sentenceId: item.sentenceId,
+    asked,
+  });
+/**
+ * "This sentence is bad" on the answer just given: the sentence is never
+ * asked with again and the answer is taken back, a miss or not.
+ */
+export const discardSentence = (answerId: number): Promise<PracticeStep> =>
+  call("discard_sentence", { answerId });
+/**
+ * Says what kind of word each stored word without one is, of every book:
+ * the ones prepared before words were labelled. How many got one. It runs
+ * in the background and asks the model.
+ */
+export const labelWords = (): Promise<number> => call("label_words");
+/**
+ * Gives the words of a chapter, or with null the learned words of the
+ * recall, the sentences of their book they do not have yet: Claude says
+ * what the word is in each, and writes none. It runs in the background,
+ * reporting `sentence-progress`.
+ */
+export const writeSentences = (chapterId: string | null): Promise<number> =>
+  call("write_sentences", { chapterId });
+export const onSentenceProgress = (
+  h: (p: SentenceProgress) => void,
+): Promise<Unlisten> => on("sentence-progress", h);
 /**
  * "I know this" on the word a sitting shows: the word is marked as known,
  * nothing is recorded as an answer, and the sitting says what comes next.
@@ -287,6 +377,249 @@ export const answerRefresh = (
   answer: string,
 ): Promise<RefreshAnswer> =>
   call("answer_refresh", { sittingId, wordId, answer });
+
+// ── The daily recall ──────────────────────────────────────────────────────
+
+/** What is due today, and how strong the learned words are. */
+export const recallState = (): Promise<RecallState> => call("recall_state");
+/**
+ * Starts a run of the recall in these ways: at most ten of the learned words
+ * that are due, of any book or conversation, each asked once.
+ */
+export const startRecall = (ways: Ways): Promise<Recall> =>
+  call("start_recall", { ways });
+/**
+ * Checks one answer of a run. A right one sends the word further away; a
+ * miss, or an empty answer ("I don't know"), brings it back sooner. It never
+ * reopens the word in its chapter. The word goes by its key.
+ */
+export const answerRecall = (
+  sittingId: string,
+  item: Asked,
+  answer: string,
+  second = false,
+  hinted = false,
+): Promise<RecallAnswer> =>
+  call("answer_recall", {
+    sittingId,
+    wordId: item.wordId,
+    answer,
+    sentenceId: item.sentenceId,
+    tries: { second, hinted },
+  });
+/** A hint on the word a run of the recall is showing: see `hintWord`. */
+export const hintRecall = (
+  sittingId: string,
+  item: Asked,
+  asked: number,
+): Promise<WordHint> =>
+  call("hint_recall", {
+    sittingId,
+    wordId: item.wordId,
+    sentenceId: item.sentenceId,
+    asked,
+  });
+/** "This sentence is bad" on the answer just given in a run of the recall. */
+export const discardRecallSentence = (
+  sittingId: string,
+  answerId: number,
+): Promise<RecallStep> =>
+  call("discard_recall_sentence", { sittingId, answerId });
+/** Keeps the learner's own note on a word; an empty one takes it away. */
+export const saveWordNote = (wordId: string, note: string): Promise<void> =>
+  call("save_word_note", { wordId, note });
+
+// ── Translating a chapter ─────────────────────────────────────────────────
+
+// ── Structures ────────────────────────────────────────────────────────────
+
+/** Every structure, the sessions left unfinished, and the chapter one is on. */
+export const structuresState = (): Promise<StructuresState> =>
+  call("structures_state");
+
+/**
+ * Reads the chapter for its structures, once, reporting
+ * `structure-scan-progress` on the way; it asks the model.
+ */
+export const scanChapterStructures = (
+  chapterId: string,
+): Promise<ChapterStructures> => call("scan_chapter_structures", { chapterId });
+
+export const onStructureScan = (
+  h: (p: ChapterProgress) => void,
+): Promise<Unlisten> => on("structure-scan-progress", h);
+
+/** Starts a session; on a chapter, with that chapter's words. */
+export const startStructureSitting = (
+  structures: readonly string[],
+  size: number,
+  chapterId: string | null,
+): Promise<StructureSitting> =>
+  call("start_structure_sitting", { structures, size, chapterId });
+
+export const getStructureSitting = (
+  sittingId: string,
+): Promise<StructureSitting> => call("get_structure_sitting", { sittingId });
+
+/** The word asked for at `index` will not fit: it is asked without it. */
+export const dropStructureWord = (
+  sittingId: string,
+  index: number,
+): Promise<StructureSitting> =>
+  call("drop_structure_word", { sittingId, index });
+
+/** Judges the sentence written for the one at `index`; it asks the model. */
+export const answerStructure = (
+  sittingId: string,
+  index: number,
+  answer: string,
+  peeked: boolean,
+): Promise<StructureResult> =>
+  call("answer_structure", { sittingId, index, answer, peeked });
+
+/** Leaves a session: paused, or finished as it is. */
+export const closeStructureSitting = (
+  sittingId: string,
+  finished: boolean,
+): Promise<void> => call("close_structure_sitting", { sittingId, finished });
+
+// ── Listening ─────────────────────────────────────────────────────────────
+
+/**
+ * The pace understood, how each pace stands, and the chapter to listen to:
+ * the one given, or the one opened last.
+ */
+export const listeningState = (
+  chapterId: string | null = null,
+): Promise<ListeningState> => call("listening_state", { chapterId });
+
+/** A chapter by its sentences, and where its reading aloud was left. */
+export const chapterReading = (chapterId: string): Promise<ChapterReading> =>
+  call("chapter_reading", { chapterId });
+
+/**
+ * Reads a chapter aloud from a sentence on, reporting `chapter-listening`
+ * as each one starts. Resolves to whether it was heard to its end; `ttsStop`
+ * or anything else read aloud ends it before.
+ */
+export const listenChapter = (
+  chapterId: string,
+  from: number,
+  pace: Pace,
+): Promise<boolean> => call("listen_chapter", { chapterId, from, pace });
+
+export const onChapterListening = (
+  h: (heard: ChapterListening) => void,
+): Promise<Unlisten> => on("chapter-listening", h);
+
+/** Starts a dictation of sentences of a chapter, at a pace. */
+export const startDictation = (
+  chapterId: string,
+  pace: Pace,
+): Promise<Dictation> => call("start_dictation", { chapterId, pace });
+
+export const getDictation = (sittingId: string): Promise<Dictation> =>
+  call("get_dictation", { sittingId });
+
+/**
+ * Plays the sentence a dictation is on, and counts the listen. Resolves
+ * once it has been heard, or was silenced.
+ */
+export const hearDictation = (
+  sittingId: string,
+  index: number,
+  pace: Pace,
+): Promise<Dictation> => call("hear_dictation", { sittingId, index, pace });
+
+/** Compares what was typed with the sentence; `pace` counts if unheard. */
+export const answerDictation = (
+  sittingId: string,
+  index: number,
+  answer: string,
+  pace: Pace,
+): Promise<DictationResult> =>
+  call("answer_dictation", { sittingId, index, answer, pace });
+
+/** Leaves a dictation: paused, or finished as it is. */
+export const closeDictation = (
+  sittingId: string,
+  finished: boolean,
+): Promise<void> => call("close_dictation", { sittingId, finished });
+
+/** Every attempt at translating a chapter, the latest first. */
+export const listAttempts = (chapterId: string): Promise<TranslationAttempts> =>
+  call("list_attempts", { chapterId });
+/**
+ * Starts an attempt from the first paragraph. Back into English it is
+ * refused until a paragraph is whole in the learner's language.
+ */
+export const startAttempt = (
+  chapterId: string,
+  direction: TranslationDirection,
+): Promise<Translation> => call("start_attempt", { chapterId, direction });
+/** An attempt as it stands: to go on with it, or to read it once finished. */
+export const getAttempt = (attemptId: string): Promise<Translation> =>
+  call("get_attempt", { attemptId });
+/**
+ * Leaves an attempt: paused, to go on with later, or finished for good. One
+ * with nothing written is not kept either way.
+ */
+export const closeAttempt = (
+  attemptId: string,
+  finished: boolean,
+): Promise<void> => call("close_attempt", { attemptId, finished });
+/**
+ * Deletes an attempt for good, paused or finished, with what was written in
+ * it, its reviews and its summary.
+ */
+export const deleteAttempt = (attemptId: string): Promise<void> =>
+  call("delete_attempt", { attemptId });
+/**
+ * Keeps one sentence of the paragraph being translated: the next one, or one
+ * already written. No sentence is skipped, and a paragraph that is whole is
+ * not touched again.
+ */
+export const writeSentence = (
+  attemptId: string,
+  paragraph: number,
+  sentence: number,
+  text: string,
+): Promise<Translation> =>
+  call("write_sentence", { attemptId, paragraph, sentence, text });
+/**
+ * Writes the version of a paragraph that is translated back into English, if
+ * it has none yet: Claude takes seconds. The paragraph has to be whole the
+ * other way. The attempt as it stands after it.
+ */
+export const prepareParagraph = (
+  attemptId: string,
+  paragraph: number,
+): Promise<Translation> => call("prepare_paragraph", { attemptId, paragraph });
+/**
+ * Reviews a paragraph that is whole, if it has no review yet: Claude takes
+ * seconds, and the learner goes on meanwhile. A failed request keeps nothing.
+ */
+export const reviewParagraph = (
+  attemptId: string,
+  paragraph: number,
+): Promise<Translation> => call("review_paragraph", { attemptId, paragraph });
+
+/**
+ * Sums a finished attempt up from the notes of its reviews, if it has no
+ * summary yet: Claude takes seconds.
+ */
+export const summarizeAttempt = (attemptId: string): Promise<Translation> =>
+  call("summarize_attempt", { attemptId });
+/**
+ * Adds the word a mark of a review is about to the practice of the
+ * attempt's chapter. One the chapter already asks is left as it is.
+ */
+export const practiseWord = (
+  attemptId: string,
+  paragraph: number,
+  mark: number,
+): Promise<Translation> =>
+  call("practise_word", { attemptId, paragraph, mark });
 
 // ── Progress ──────────────────────────────────────────────────────────────
 
