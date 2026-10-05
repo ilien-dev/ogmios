@@ -40,6 +40,25 @@ pub fn set_known(
     chapter_words(ctx, &chapter_id)
 }
 
+/// Keeps that a word was left to learn while sorting the list, or takes that
+/// back; the word's chapter as it stands after it.
+pub fn set_sorted(
+    ctx: Ctx<'_>,
+    word_id: &str,
+    sorted: bool,
+    now: DateTime<Utc>,
+) -> Result<ChapterWords> {
+    let chapter_id = words::set_sorted(&*ctx.conn()?, word_id, sorted, now)?;
+    chapter_words(ctx, &chapter_id)
+}
+
+/// Has the chapter's list to be sorted again from its first word; the
+/// chapter as it stands after it.
+pub fn sort_again(ctx: Ctx<'_>, chapter_id: &str) -> Result<ChapterWords> {
+    words::unsort(&*ctx.conn()?, chapter_id)?;
+    chapter_words(ctx, chapter_id)
+}
+
 /// Takes the chapter's words at `depth`. `extract` asks the model about one
 /// piece; `progress` hears how many pieces are in.
 ///
@@ -109,7 +128,12 @@ pub fn prepare(
 
 #[tauri::command]
 pub async fn get_chapter_words(app: AppHandle, id: String) -> Result<ChapterWords> {
-    run(app, move |_, ctx| chapter_words(ctx, &id)).await
+    run(app, move |_, ctx| {
+        // Opening a chapter makes it the one the learner is on.
+        crate::db::structures::mark_opened(&*ctx.conn()?, &id, Utc::now())?;
+        chapter_words(ctx, &id)
+    })
+    .await
 }
 
 #[tauri::command]
@@ -135,6 +159,23 @@ pub async fn set_word_known(app: AppHandle, word_id: String, known: bool) -> Res
         set_known(ctx, &word_id, known, Utc::now())
     })
     .await
+}
+
+#[tauri::command]
+pub async fn set_word_sorted(
+    app: AppHandle,
+    word_id: String,
+    sorted: bool,
+) -> Result<ChapterWords> {
+    run(app, move |_, ctx| {
+        set_sorted(ctx, &word_id, sorted, Utc::now())
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn restart_sorting(app: AppHandle, id: String) -> Result<ChapterWords> {
+    run(app, move |_, ctx| sort_again(ctx, &id)).await
 }
 
 #[tauri::command]
@@ -244,6 +285,8 @@ mod tests {
                     lemma: form.trim_end_matches("ed").to_lowercase(),
                     form: form.to_owned(),
                     sentence: params.text.clone(),
+                    part_of_speech: crate::domain::PartOfSpeech::Other,
+                    transitive: false,
                     translations: vec![format!("{form}-es")],
                     proper_noun: form.starts_with(char::is_uppercase),
                     needs_context: false,
@@ -410,7 +453,8 @@ mod tests {
         let bank = word_id(&desk, chapter, "bank");
         {
             let conn = desk.db.lock().expect("db");
-            let sitting = practice::start(&conn, chapter, Utc::now()).expect("sitting");
+            let sitting = practice::start(&conn, chapter, crate::domain::Ways::Both, Utc::now())
+                .expect("sitting");
             let asked = (bank.as_str(), Direction::Recognition);
             practice::record(&conn, &sitting, asked, ("banco", false), Utc::now()).expect("miss");
         }
@@ -456,6 +500,39 @@ mod tests {
         assert!(undone.words.iter().all(|w| w.known == (w.lemma == "tir")));
         assert_eq!(standing(&desk, chapter).1, before.1[..1]);
         let missing = set_known(desk.ctx(), "nowhere", true, Utc::now());
+        assert_eq!(missing.expect_err("no word").kind(), "notFound");
+    }
+
+    #[test]
+    fn a_word_left_to_learn_stays_sorted_until_another_pass() {
+        let desk = Desk::new();
+        let chapters = desk.book("b", &[CHAPTER]);
+        let chapter = &chapters[0];
+        let stub = Stub::new();
+        run(&desk, &stub, chapter, Depth::Hardest).expect("prepare");
+        let sorted = |found: &ChapterWords| -> Vec<(String, bool)> {
+            let words = found.words.iter();
+            words.map(|w| (w.lemma.clone(), w.sorted)).collect()
+        };
+        let fresh = chapter_words(desk.ctx(), chapter).expect("read");
+        assert_eq!(sorted(&fresh), [("peep".to_owned(), false)]);
+
+        let peep = word_id(&desk, chapter, "peep");
+        let left = set_sorted(desk.ctx(), &peep, true, Utc::now()).expect("sort");
+        assert_eq!(sorted(&left), [("peep".to_owned(), true)]);
+        let undone = set_sorted(desk.ctx(), &peep, false, Utc::now()).expect("undo");
+        assert_eq!(sorted(&undone), [("peep".to_owned(), false)]);
+        set_sorted(desk.ctx(), &peep, true, Utc::now()).expect("again");
+
+        // A deeper depth adds words to sort and keeps the ones sorted.
+        run(&desk, &stub, chapter, Depth::Relevant).expect("deeper");
+        let deeper = chapter_words(desk.ctx(), chapter).expect("read");
+        let mixed = [("bank".to_owned(), false), ("peep".to_owned(), true)];
+        assert_eq!(sorted(&deeper), mixed);
+
+        let again = sort_again(desk.ctx(), chapter).expect("another pass");
+        assert!(again.words.iter().all(|word| !word.sorted));
+        let missing = set_sorted(desk.ctx(), "nowhere", true, Utc::now());
         assert_eq!(missing.expect_err("no word").kind(), "notFound");
     }
 

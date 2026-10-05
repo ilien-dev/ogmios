@@ -6,6 +6,7 @@ import type {
   PracticeOptions,
   PracticeStep,
   Sitting,
+  Ways,
 } from "@shared/domain";
 import { useMockBackend } from "@/test/mockBackend";
 import { mockChapterWords, seedMockLongChapter } from "./ipcMockChapters";
@@ -14,6 +15,11 @@ import { practiceCommands } from "./ipcMockPractice";
 const CHAPTER = "book-alice-0";
 const THERE: Direction = "recognition";
 const BACK: Direction = "production";
+
+/** The English a word is asked for: what fills the blank of its sentence. */
+function english(lemma: string | undefined): string | undefined {
+  return lemma === "tumble" ? "tumbled" : lemma;
+}
 
 /** The mock's sitting commands, answering at once. */
 const commands = practiceCommands((_, value) => Promise.resolve(value()));
@@ -161,7 +167,9 @@ describe("the mock's bar", () => {
       expect(before.value).toBeLessThan(before.total);
       const word = mockChapterWords(CHAPTER).find((each) => each.id === wordId);
       const right =
-        direction === THERE ? (word?.translations[0] ?? "") : word?.lemma;
+        direction === THERE
+          ? (word?.translations[0] ?? "")
+          : english(word?.lemma);
       const wrong = turn % 4 === 1;
       const result = await call<AnswerResult>("answer_word", {
         sittingId: id,
@@ -221,7 +229,9 @@ describe("the mock's session", () => {
         throw new Error(`${wordId} is not to be asked`);
       }
       const right =
-        direction === THERE ? (word.translations[0] ?? "") : word.lemma;
+        direction === THERE
+          ? (word.translations[0] ?? "")
+          : english(word.lemma);
       const answer = wrong(turns.length) ? "no" : right;
       turns.push({ wordId, open: openWords(words) });
       const result = await call<AnswerResult>("answer_word", {
@@ -246,6 +256,18 @@ describe("the mock's session", () => {
         { size: 10, words: 10, minutes: 7 },
         { size: null, words: 12, minutes: 8 },
       ],
+      // One way alone is every word, at three answers a word and not five.
+      oneWay: {
+        recognition: [
+          { size: 10, words: 10, minutes: 4 },
+          { size: null, words: 12, minutes: 5 },
+        ],
+        production: [
+          { size: 10, words: 10, minutes: 4 },
+          { size: null, words: 12, minutes: 5 },
+        ],
+      },
+      extra: [],
     });
     const ten = new Set(
       mockChapterWords(LONG)
@@ -286,7 +308,7 @@ describe("the mock's session", () => {
     const after = await call<PracticeOptions>("practice_options", {
       chapterId: LONG,
     });
-    expect(after).toEqual({
+    expect(after).toMatchObject({
       resume: false,
       sizes: [{ size: null, words: 2, minutes: 1 }],
     });
@@ -356,9 +378,75 @@ describe("the mock's session", () => {
     const short = await call<PracticeOptions>("practice_options", {
       chapterId: CHAPTER,
     });
-    expect(short).toEqual({
+    expect(short).toMatchObject({
       resume: false,
       sizes: [{ size: null, words: 8, minutes: 5 }],
+    });
+  });
+
+  test("a way with nothing left to ask is an extra review, counted from its own answers", async () => {
+    const one = (ways: Ways): Promise<Sitting> =>
+      call<Sitting>("start_sitting", { chapterId: CHAPTER, ways });
+    const offered = (): Promise<PracticeOptions> =>
+      call<PracticeOptions>("practice_options", { chapterId: CHAPTER });
+    /** Answers to the summary, right but on the turns `wrong` names. */
+    async function finish(
+      sitting: Sitting,
+      wrong: (turn: number) => boolean = () => false,
+    ): Promise<[turns: number, end: PracticeStep]> {
+      let { step } = sitting;
+      let turns = 0;
+      while (step.type === "item") {
+        const { wordId, direction } = step.item;
+        const word = mockChapterWords(CHAPTER).find(
+          (each) => each.id === wordId,
+        );
+        const right =
+          direction === THERE ? word?.translations[0] : english(word?.lemma);
+        const result = await call<AnswerResult>("answer_word", {
+          sittingId: sitting.id,
+          wordId,
+          direction,
+          answer: wrong(turns) ? "no" : (right ?? ""),
+        });
+        turns += 1;
+        ({ step } = result);
+      }
+      return [turns, step];
+    }
+
+    const back = await one(BACK);
+    await finish(back);
+    const half = await offered();
+    expect(half.extra).toEqual([BACK]);
+    expect(half.oneWay.production).toEqual([
+      { size: null, words: 8, minutes: 3 },
+    ]);
+
+    // Asked again that way, every word is, from none; a miss is kept.
+    const extra = await one(BACK);
+    expect(extra.id).not.toBe(back.id);
+    expect(extra.step.progress).toEqual({ value: 0, total: 16 });
+    const [turns, end] = await finish(extra, (turn) => turn === 0);
+    expect(turns).toBe(17);
+    expect(end).toMatchObject({
+      type: "summary",
+      summary: { done: 0, open: 8 },
+    });
+
+    // Once every word is done, any way is an extra review of them all.
+    await finish(await one(THERE));
+    expect(mockChapterWords(CHAPTER).every((word) => word.done)).toBe(true);
+    const done = await offered();
+    expect(done.extra).toEqual(["both", THERE, BACK]);
+    expect(done.sizes).toEqual([{ size: null, words: 8, minutes: 5 }]);
+    const both = await one("both");
+    expect(both.step.progress).toEqual({ value: 0, total: 32 });
+    const [all, last] = await finish(both);
+    expect(all).toBe(32);
+    expect(last).toMatchObject({
+      type: "summary",
+      summary: { done: 8, open: 0 },
     });
   });
 });

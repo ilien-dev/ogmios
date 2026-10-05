@@ -1,6 +1,6 @@
-//! A session of practice on a chapter: a number of its open words, fixed
-//! when it starts, asked one question at a time until each is finished in
-//! both directions or known. Every answer is checked at once and kept at
+//! A session of practice on a chapter: a number of its open words, drawn
+//! and fixed when it starts, asked one question at a time until each is
+//! finished in the directions the session asks, both or one alone, or known. Every answer is checked at once and kept at
 //! once, so leaving at any moment loses nothing: "Practice" then goes on
 //! with the same session and the same words. Nothing ends it but its words
 //! running out. No request to the model is made.
@@ -15,14 +15,21 @@ use tauri::AppHandle;
 
 use super::profile::require_profile;
 use super::run;
+use super::sentences::banked;
+use crate::books::hint::{first_letter, letters, mask, most};
+use crate::books::practice::pick;
 use crate::books::practice::{
-    accepts, accepts_english, articles, blank, mark, next, open_questions, pace, progress,
-    progress_over, sizes, SIZES,
+    accepts_english, accepts_native, asked_in, blank, fills, inflects, is_extra, mark, next, pace,
+    progress, progress_over, seed, session_questions, sizes, SIZES,
 };
+use crate::books::sentences::{choose, or_other, production, recognition, Banked, Verdict};
+use crate::books::spelling::Spelling;
 use crate::db::practice::{self, SittingRow, WordRow};
-use crate::db::{books, words};
+use crate::db::sentences::{self, Sentence};
+use crate::db::{books, profile, words};
 use crate::domain::{
-    AnswerResult, Direction, PracticeItem, PracticeOptions, PracticeStep, Sitting,
+    AnotherWord, AnswerResult, Direction, OneWay, PartOfSpeech, PracticeItem, PracticeOptions,
+    PracticeStep, SentencePart, ShownSentence, Sitting, Ways, WordHint,
 };
 use crate::error::{Error, Result};
 use crate::Ctx;
@@ -42,25 +49,275 @@ pub(super) fn step(
     sitting: &SittingRow,
     now: DateTime<Utc>,
 ) -> Result<PracticeStep> {
-    let words = practice::session_words(conn, &sitting.id)?;
+    let words = practice::session_words(conn, sitting)?;
     let log = practice::session_log(conn, &sitting.id)?;
     let asked = if sitting.finished {
         None
     } else {
-        next(&words, &log)
+        next(&words, &log, sitting.ways, seed(&sitting.id))
     };
     let Some(question) = asked else {
         practice::finish(conn, &sitting.id, now)?;
         return Ok(PracticeStep::Summary {
             summary: practice::summary(conn, sitting)?,
-            progress: progress_over(&words),
+            progress: progress_over(&words, sitting.ways),
         });
     };
     let word = practice::word(conn, question.word_id)?;
     Ok(PracticeStep::Item {
-        item: item(word, question.direction),
-        progress: progress(&words),
+        item: in_sentence(conn, word, question.direction, &sitting.id)?,
+        progress: progress(&words, sitting.ways),
     })
+}
+
+/// The sentence of its bank a word is asked with next, in the sitting or
+/// the run `drawn_for`; none for a word with no bank yet. Which one is
+/// `books::sentences::choose`, drawn for that sitting, that word and how
+/// often the word's sentences were shown: it is the same one until the word
+/// is answered, however often the step is read.
+pub(super) fn next_sentence(
+    conn: &Connection,
+    (key, own): (&str, &str),
+    drawn_for: &str,
+) -> Result<Option<Sentence>> {
+    let held = sentences::bank(conn, key)?;
+    let banked: Vec<Banked> = held.iter().map(|each| banked(each, own)).collect();
+    let shown: u32 = held.iter().map(|each| each.shows).sum();
+    let turn = usize::try_from(shown).unwrap_or(usize::MAX);
+    let chosen = choose(&banked, |len| {
+        pick(seed(&format!("{drawn_for}{key}")), turn, len)
+    })
+    .map(|each| each.id.clone());
+    Ok(held
+        .into_iter()
+        .find(|each| Some(&each.id) == chosen.as_ref()))
+}
+
+/// A sentence of a word's bank as a direction shows it: the word marked
+/// English → native, taken out native → English.
+pub(super) fn in_place(sentence: &Sentence, direction: Direction) -> Option<Vec<SentencePart>> {
+    let form = std::slice::from_ref(&sentence.form);
+    match direction {
+        Direction::Recognition => Some(mark(&sentence.text, form)),
+        Direction::Production => blank(&sentence.text, form),
+    }
+}
+
+/// A word asked with a sentence of its bank. English → native shows the
+/// word as the sentence writes it. Native → English shows what that form is
+/// in the learner's language. The sentence itself is kept back for the
+/// first hint ([`hinted`]): only a word that `needs_context` to be told
+/// from another sense shows it from the start ([`in_place`]).
+pub(super) fn asked_with(
+    (word_id, part_of_speech): (String, Option<PartOfSpeech>),
+    sentence: &Sentence,
+    direction: Direction,
+    needs_context: bool,
+) -> PracticeItem {
+    let prompt = match direction {
+        Direction::Recognition => sentence.form.clone(),
+        Direction::Production => sentence.hint.clone(),
+    };
+    PracticeItem {
+        word_id,
+        direction,
+        prompt,
+        part_of_speech,
+        context: needs_context
+            .then(|| in_place(sentence, direction))
+            .flatten(),
+        sentence_id: Some(sentence.id.clone()),
+    }
+}
+
+/// The word as a session of practice asks it: with a sentence of its bank,
+/// a different one each time, or, until it has a bank, as its chapter has
+/// it ([`item`]).
+fn in_sentence(
+    conn: &Connection,
+    word: WordRow,
+    direction: Direction,
+    drawn_for: &str,
+) -> Result<PracticeItem> {
+    Ok(
+        match next_sentence(conn, (&word.key, &word.sentence), drawn_for)? {
+            Some(sentence) => asked_with(
+                (word.id, word.part_of_speech),
+                &sentence,
+                direction,
+                word.needs_context,
+            ),
+            None => item(word, direction),
+        },
+    )
+}
+
+/// What came with an answer: the sentence it was given to, whether it is
+/// the second try at it, and whether the learner asked for a hint first.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Shown<'a> {
+    pub sentence_id: Option<&'a str>,
+    pub second: bool,
+    pub hinted: bool,
+}
+
+/// How an answer was come by, as the screen says: on the second try at the
+/// word, or after a hint.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Tries {
+    pub second: bool,
+    pub hinted: bool,
+}
+
+impl<'a> Shown<'a> {
+    /// What came with an answer given to this sentence in these tries.
+    pub(super) fn of(sentence_id: Option<&'a str>, tries: Option<Tries>) -> Self {
+        let tries = tries.unwrap_or_default();
+        Self {
+            sentence_id,
+            second: tries.second,
+            hinted: tries.hinted,
+        }
+    }
+}
+
+impl Shown<'_> {
+    /// A right answer given with this was helped: it is not a clean one.
+    pub(super) fn helped(self) -> bool {
+        self.second || self.hinted
+    }
+}
+
+/// The sentence an answer says it was given to: it has to be one the word
+/// can still be asked with.
+pub(super) fn shown_sentence(
+    conn: &Connection,
+    key: &str,
+    shown: Shown<'_>,
+) -> Result<Option<Sentence>> {
+    let Some(id) = shown.sentence_id else {
+        return Ok(None);
+    };
+    sentences::usable(conn, id)?
+        .filter(|sentence| sentence.key == key)
+        .map(Some)
+        .ok_or_else(|| Error::Invalid("this sentence is not being asked".into()))
+}
+
+/// What a word means and how it is written, for checking an answer given
+/// to one of its sentences.
+pub(super) struct Meaning<'a> {
+    /// Every accepted translation, in its base form.
+    pub translations: &'a [String],
+    /// The ones it is shown as.
+    pub shown: &'a [String],
+    /// Every way the word is known to be written, its base form included.
+    pub forms: Vec<String>,
+    /// English answers a dispute upheld.
+    pub upheld: &'a [String],
+    /// The other words the learner has that are shown the same way
+    /// (`db::sentences::rivals`).
+    pub rivals: Vec<String>,
+    /// Whether its translations are taken in any form
+    /// (`books::practice::inflects`).
+    pub inflects: bool,
+}
+
+impl<'a> Meaning<'a> {
+    pub(super) fn of(conn: &Connection, word: &'a WordRow) -> Result<Self> {
+        Ok(Self {
+            translations: &word.translations,
+            shown: &word.shown,
+            forms: english(word),
+            upheld: &word.english,
+            rivals: sentences::rivals(conn, &word.key, &word.shown)?,
+            inflects: inflects(word.part_of_speech),
+        })
+    }
+}
+
+/// An answer given to a sentence, judged.
+pub(super) struct Judged {
+    pub verdict: Verdict,
+    /// What was asked for, the first one first.
+    pub accepted: Vec<String>,
+    /// The translation in the form of the sentence, to point out.
+    pub exact: Option<String>,
+}
+
+impl Judged {
+    pub(super) fn is_right(&self) -> bool {
+        matches!(self.verdict, Verdict::Right | Verdict::RightBase)
+    }
+
+    /// Neither right nor a miss the first time it is given: the word in
+    /// another form, or another word for what was shown.
+    pub(super) fn is_no_answer(&self) -> bool {
+        matches!(self.verdict, Verdict::WrongForm | Verdict::OtherWord)
+    }
+}
+
+/// Judges an answer given to a word in a sentence of its bank
+/// (`books::sentences`). Native → English, the forms of every sentence of
+/// the bank are forms of the word too: any of them is the word, and only
+/// the one of this sentence fills its blank. An answer that is neither, and
+/// is another English word for the hint, as the second look listed them or
+/// as the learner's own words have it, is no miss
+/// (`books::sentences::or_other`).
+pub(super) fn judged(
+    conn: &Connection,
+    meaning: &Meaning<'_>,
+    sentence: &Sentence,
+    (direction, answer): (Direction, &str),
+    (native_lang, spelling): (&str, Spelling),
+) -> Result<Judged> {
+    Ok(match direction {
+        Direction::Recognition => {
+            let verdict = recognition(
+                answer,
+                meaning.translations,
+                Some(&sentence.hint),
+                ((native_lang, meaning.inflects), spelling),
+            );
+            let mut accepted = vec![sentence.hint.clone()];
+            for each in meaning.shown {
+                if !accepted.contains(each) {
+                    accepted.push(each.clone());
+                }
+            }
+            Judged {
+                exact: (verdict == Verdict::RightBase).then(|| sentence.hint.clone()),
+                verdict,
+                accepted,
+            }
+        }
+        Direction::Production => {
+            let mut other = meaning.forms.clone();
+            other.extend(
+                sentences::bank(conn, &sentence.key)?
+                    .into_iter()
+                    .map(|each| each.form),
+            );
+            let verdict = production(answer, &sentence.form, (&other, meaning.upheld), spelling);
+            let rivals = [meaning.rivals.as_slice(), sentence.also.as_slice()].concat();
+            Judged {
+                verdict: or_other(verdict, answer, &rivals, spelling),
+                accepted: vec![sentence.form.clone()],
+                exact: None,
+            }
+        }
+    })
+}
+
+/// The sentence as it is shown whole once its word is answered.
+pub(super) fn whole(sentence: &Sentence) -> ShownSentence {
+    ShownSentence {
+        id: sentence.id.clone(),
+        text: sentence.text.clone(),
+        translation: sentence.translation.clone(),
+        book: sentence.book,
+    }
 }
 
 /// The word as it is asked in a direction. English → native shows the base
@@ -86,7 +343,9 @@ pub(super) fn item(word: WordRow, direction: Direction) -> PracticeItem {
         word_id: word.id,
         direction,
         prompt,
+        part_of_speech: word.part_of_speech,
         context,
+        sentence_id: None,
     }
 }
 
@@ -97,6 +356,181 @@ fn english(word: &WordRow) -> Vec<String> {
         forms.push(word.lemma.clone());
     }
     forms
+}
+
+/// What a native → English answer has to be when the word is asked with its
+/// sentence blanked: the forms that fill the blank, as the sentence writes
+/// them. "stir" is not the word of "his mind ____." None when the word is
+/// asked on its own: its base form and any form of the book will do.
+pub(super) fn blanked(word: &WordRow) -> Vec<String> {
+    if word.needs_context {
+        fills(&word.sentence, &english(word))
+    } else {
+        Vec::new()
+    }
+}
+
+/// Whether `answer` is right for the word asked in a direction, and what
+/// was asked for, the first one first. Native → English, a word asked with
+/// its sentence blanked has to be the form that fills the blank
+/// ([`blanked`]); an answer a dispute upheld is accepted either way.
+pub(super) fn verdict(
+    word: &WordRow,
+    direction: Direction,
+    answer: &str,
+    (native_lang, spelling): (&str, Spelling),
+) -> (bool, Vec<String>) {
+    match direction {
+        Direction::Recognition => (
+            accepts_native(
+                answer,
+                &word.translations,
+                (native_lang, inflects(word.part_of_speech)),
+                spelling,
+            ),
+            word.shown.clone(),
+        ),
+        Direction::Production => {
+            let blanks = blanked(word);
+            let written = if blanks.is_empty() {
+                &word.forms
+            } else {
+                &blanks
+            };
+            let forms = [written.as_slice(), word.english.as_slice()].concat();
+            let base = blanks.first().unwrap_or(&word.lemma);
+            let correct = accepts_english(answer, base, &forms, spelling);
+            let accepted = if blanks.is_empty() {
+                vec![word.lemma.clone()]
+            } else {
+                blanks
+            };
+            (correct, accepted)
+        }
+    }
+}
+
+/// [`verdict`], as an answer given to a sentence is judged. Native →
+/// English, an answer that is not the word and is another word the learner
+/// has for what was shown is no miss (`books::sentences::or_other`).
+pub(super) fn plain(
+    conn: &Connection,
+    word: &WordRow,
+    (direction, answer): (Direction, &str),
+    how: (&str, Spelling),
+) -> Result<Judged> {
+    let (correct, accepted) = verdict(word, direction, answer, how);
+    let mut verdict = if correct {
+        Verdict::Right
+    } else {
+        Verdict::Miss
+    };
+    if direction == Direction::Production {
+        let rivals = sentences::rivals(conn, &word.key, &word.shown)?;
+        verdict = or_other(verdict, answer, &rivals, how.1);
+    }
+    Ok(Judged {
+        verdict,
+        accepted,
+        exact: None,
+    })
+}
+
+/// What a hint to a word asked in a direction is made of, with the sentence
+/// of its bank it is asked with if any: the answer it stands for, which is
+/// the one a miss would show first, and the sentence the word was asked
+/// without, that of its bank or else of its chapter. The answer is the form
+/// that sentence has; a word that shows its sentence from the start has
+/// none to add.
+pub(super) fn clue(
+    word: &WordRow,
+    sentence: Option<&Sentence>,
+    direction: Direction,
+) -> (String, Option<Vec<SentencePart>>) {
+    let (answer, context) = match (sentence, direction) {
+        (Some(sentence), Direction::Recognition) => {
+            (sentence.hint.clone(), in_place(sentence, direction))
+        }
+        (Some(sentence), Direction::Production) => {
+            (sentence.form.clone(), in_place(sentence, direction))
+        }
+        (None, Direction::Recognition) => (
+            word.shown.first().cloned().unwrap_or_default(),
+            Some(mark(&word.sentence, &word.forms)),
+        ),
+        (None, Direction::Production) => {
+            let forms = english(word);
+            let answer = fills(&word.sentence, &forms)
+                .into_iter()
+                .next()
+                .unwrap_or_else(|| word.lemma.clone());
+            (answer, blank(&word.sentence, &forms))
+        }
+    };
+    (answer, context.filter(|_| !word.needs_context))
+}
+
+/// A hint to a word once `asked` others were given ([`clue`], [`climb`]).
+pub(super) fn hinted(
+    word: &WordRow,
+    sentence: Option<&Sentence>,
+    direction: Direction,
+    asked: usize,
+) -> WordHint {
+    let (answer, context) = clue(word, sentence, direction);
+    climb(&answer, context, asked)
+}
+
+/// What an answer that is another word for what was shown comes back with:
+/// the sentence the word was asked without, and the first letter of the
+/// `answer`. That is what tells it from the word that was typed.
+pub(super) fn another(answer: &str, context: Option<Vec<SentencePart>>) -> AnotherWord {
+    let asked = first_letter(context.is_some());
+    AnotherWord {
+        hint: climb(answer, context, asked),
+        asked: u32::try_from(asked).unwrap_or(u32::MAX),
+    }
+}
+
+/// The hint to `answer` once `asked` others were given
+/// (`books::hint::letters`): the sentence the word was asked without, alone
+/// the first time and with every hint after it, then the answer letter by
+/// letter (`books::hint::mask`).
+pub(super) fn climb(answer: &str, context: Option<Vec<SentencePart>>, asked: usize) -> WordHint {
+    match letters(asked, context.is_some()) {
+        None => WordHint {
+            mask: None,
+            context,
+            more: true,
+        },
+        Some(given) => WordHint {
+            mask: Some(mask(answer, given)),
+            context,
+            more: given < most(answer),
+        },
+    }
+}
+
+/// The hint the learner asked for on the word a session is showing. Nothing
+/// is kept: the answer that follows says it was given with a hint.
+pub fn hint(
+    ctx: Ctx<'_>,
+    sitting_id: &str,
+    (word_id, direction): (&str, Direction),
+    (sentence_id, asked): (Option<&str>, usize),
+) -> Result<WordHint> {
+    let conn = ctx.conn()?;
+    let sitting = practising(&conn, sitting_id)?;
+    let word = practice::word(&conn, word_id)?;
+    if word.chapter_id != sitting.chapter_id {
+        return Err(Error::Invalid("this word is not being asked".into()));
+    }
+    let shown = Shown {
+        sentence_id,
+        ..Shown::default()
+    };
+    let sentence = shown_sentence(&conn, &word.key, shown)?;
+    Ok(hinted(&word, sentence.as_ref(), direction, asked))
 }
 
 /// The chapter's session to go on with: the one left unfinished, while it
@@ -111,37 +545,67 @@ fn held(conn: &Connection, chapter_id: &str, now: DateTime<Utc>) -> Result<Optio
     let Some(id) = practice::unfinished(conn, chapter_id)? else {
         return Ok(None);
     };
-    let words = practice::session_words(conn, &id)?;
-    if next(&words, &practice::session_log(conn, &id)?).is_some() {
-        return Ok(Some(practice::sitting(conn, &id)?));
+    let sitting = practice::sitting(conn, &id)?;
+    let words = practice::session_words(conn, &sitting)?;
+    let log = practice::session_log(conn, &id)?;
+    if next(&words, &log, sitting.ways, seed(&id)).is_some() {
+        return Ok(Some(sitting));
     }
     practice::finish(conn, &id, now)?;
     Ok(None)
 }
 
 /// What "Practice" on a chapter can do now: go on with the session left
-/// unfinished, or start one in any of the sizes on offer, each with about
-/// how long it takes at the learner's pace.
+/// unfinished, or start one, in both directions or in one alone, in any of
+/// the sizes on offer, each with about how long it takes at the learner's
+/// pace. A session of one direction counts the words that owe that way.
+/// Ways with nothing left to ask are offered all the same, as an extra
+/// review (`books::practice::is_extra`) of every word that can be asked.
 pub fn options(ctx: Ctx<'_>, chapter_id: &str, now: DateTime<Utc>) -> Result<PracticeOptions> {
     let mut conn = ctx.conn()?;
     books::get_chapter(&conn, chapter_id)?;
     let tx = conn.transaction()?;
     let resume = held(&tx, chapter_id, now)?.is_some();
     let (answers, gaps) = practice::pace_sample(&tx)?;
-    let sizes = sizes(practice::open_words(&tx, chapter_id)?, pace(answers, &gaps));
+    let pace = pace(answers, &gaps);
+    let open = practice::open_histories(&tx, chapter_id)?;
+    let all = practice::reviewable(&tx, chapter_id)?;
+    let offered = |ways: Ways| {
+        let words = if is_extra(&open, ways) {
+            all
+        } else {
+            asked_in(&open, ways)
+        };
+        sizes(words, pace, ways)
+    };
     tx.commit()?;
-    Ok(PracticeOptions { resume, sizes })
+    Ok(PracticeOptions {
+        resume,
+        sizes: offered(Ways::Both),
+        one_way: OneWay {
+            recognition: offered(Ways::Recognition),
+            production: offered(Ways::Production),
+        },
+        extra: [Ways::Both, Ways::Recognition, Ways::Production]
+            .into_iter()
+            .filter(|ways| is_extra(&open, *ways))
+            .collect(),
+    })
 }
 
 /// Starts a session on a chapter and gives its first question: `size` of
-/// the chapter's open words, most frequent first, or all of them. While a
-/// session of the chapter is unfinished it is that one that is gone on with,
-/// with the words it had, whatever `size` says. A chapter with nothing left
-/// to ask answers with the summary straight away.
+/// the chapter's open words that have something to ask in `ways`, drawn
+/// among them, or all of them. While a session of the chapter is unfinished
+/// it is that one that is gone on with, with the words and the ways it had,
+/// whatever `size` and `ways` say. When none of the open words has anything
+/// to ask in `ways` the session is an extra review
+/// (`books::practice::is_extra`): it draws among every word the learner has
+/// not said they know. A chapter with no such word answers with the summary
+/// straight away.
 pub fn start(
     ctx: Ctx<'_>,
     chapter_id: &str,
-    size: Option<u32>,
+    (size, ways): (Option<u32>, Ways),
     now: DateTime<Utc>,
 ) -> Result<Sitting> {
     if size.is_some_and(|size| !SIZES.contains(&size)) {
@@ -153,9 +617,14 @@ pub fn start(
     let sitting = if let Some(left) = held(&tx, chapter_id, now)? {
         left
     } else {
-        let id = practice::start(&tx, chapter_id, now)?;
-        practice::fix_words(&tx, &id, chapter_id, size)?;
-        practice::sitting(&tx, &id)?
+        let id = if is_extra(&practice::open_histories(&tx, chapter_id)?, ways) {
+            practice::start_extra(&tx, chapter_id, ways, now)?
+        } else {
+            practice::start(&tx, chapter_id, ways, now)?
+        };
+        let sitting = practice::sitting(&tx, &id)?;
+        practice::fix_words(&tx, &sitting, size)?;
+        sitting
     };
     let step = step(&tx, &sitting, now)?;
     tx.commit()?;
@@ -188,35 +657,79 @@ pub fn current(ctx: Ctx<'_>, sitting_id: &str, now: DateTime<Utc>) -> Result<Pra
 }
 
 /// Checks one answer, keeps it, and says what comes next. The question has
-/// to be one the session has open: of one of its words, in a direction that
-/// still owes something. An empty answer is "I don't know": a miss like any
+/// to be one the session has open: of one of its words, in a direction it
+/// asks that still owes something. Native → English, a word asked with its
+/// sentence blanked has to be the form that fills the blank ([`blanked`]);
+/// an answer a dispute upheld is accepted either way. An empty answer is "I don't know": a miss like any
 /// other, kept as an empty text.
+#[cfg(test)]
 pub fn answer(
     ctx: Ctx<'_>,
     sitting_id: &str,
-    (word_id, direction): (&str, Direction),
+    asked: (&str, Direction),
     answer: &str,
+    now: DateTime<Utc>,
+) -> Result<AnswerResult> {
+    answer_shown(ctx, sitting_id, asked, (answer, Shown::default()), now)
+}
+
+/// [`answer`], for a word asked with a sentence of its bank: the answer
+/// names that sentence, and is checked against it. Native → English, the
+/// word in a form that does not fill the blank is no answer the first time:
+/// nothing is kept, and the learner tries again. Nor is another English
+/// word for what was shown, with a sentence or without: it comes back with
+/// what tells the word asked for from it ([`another`]). On the second try
+/// either is a miss.
+pub fn answer_shown(
+    ctx: Ctx<'_>,
+    sitting_id: &str,
+    (word_id, direction): (&str, Direction),
+    (answer, shown): (&str, Shown<'_>),
     now: DateTime<Utc>,
 ) -> Result<AnswerResult> {
     let mut conn = ctx.conn()?;
     let native_lang = require_profile(&conn)?.native_lang;
+    let spelling = profile::spelling(&conn)?;
     let tx = conn.transaction()?;
     let sitting = practising(&tx, sitting_id)?;
     let word = practice::word(&tx, word_id)?;
     let asked = !sitting.finished
-        && open_questions(&practice::session_words(&tx, &sitting.id)?)
+        && session_questions(&practice::session_words(&tx, &sitting)?, sitting.ways)
             .iter()
             .any(|open| open.word_id == word.id && open.direction == direction);
     if !asked {
         return Err(Error::Invalid("this word is not being asked".into()));
     }
-    let correct = match direction {
-        Direction::Recognition => accepts(answer, &word.translations, articles(&native_lang)),
-        Direction::Production => {
-            let forms = [word.forms.as_slice(), word.english.as_slice()].concat();
-            accepts_english(answer, &word.lemma, &forms)
-        }
+    let sentence = shown_sentence(&tx, &word.key, shown)?;
+    let judged = if let Some(sentence) = &sentence {
+        judged(
+            &tx,
+            &Meaning::of(&tx, &word)?,
+            sentence,
+            (direction, answer),
+            (&native_lang, spelling),
+        )?
+    } else {
+        plain(&tx, &word, (direction, answer), (&native_lang, spelling))?
     };
+    if judged.is_no_answer() && !shown.second {
+        let another = (judged.verdict == Verdict::OtherWord).then(|| {
+            let (answer, context) = clue(&word, sentence.as_ref(), direction);
+            another(&answer, context)
+        });
+        return Ok(AnswerResult {
+            answer_id: 0,
+            correct: false,
+            accepted: Vec::new(),
+            step: step(&tx, &sitting, now)?,
+            again: true,
+            another,
+            helped: false,
+            exact: None,
+            sentence: None,
+        });
+    }
+    let correct = judged.is_right();
     let answer_id = practice::record(
         &tx,
         &sitting.id,
@@ -224,17 +737,45 @@ pub fn answer(
         (answer.trim(), correct),
         now,
     )?;
+    if let Some(sentence) = &sentence {
+        practice::tag(&tx, answer_id, &sentence.id)?;
+    }
     let step = step(&tx, &sitting, now)?;
     tx.commit()?;
     Ok(AnswerResult {
         answer_id,
         correct,
-        accepted: match direction {
-            Direction::Recognition => word.shown,
-            Direction::Production => vec![word.lemma],
-        },
+        accepted: judged.accepted,
         step,
+        again: false,
+        another: None,
+        helped: correct && shown.helped(),
+        exact: judged.exact,
+        sentence: sentence.as_ref().map(whole),
     })
+}
+
+/// "This sentence is bad" on the answer just given: the sentence is never
+/// asked with again, and the answer is taken back as if it had not been
+/// given, a miss or not. Only the last answer of a session can be, while it
+/// has not been put to "I was right": what was answered after it stands on
+/// it. The session goes on from where it was.
+pub fn discard(ctx: Ctx<'_>, answer_id: i64, now: DateTime<Utc>) -> Result<PracticeStep> {
+    let mut conn = ctx.conn()?;
+    let tx = conn.transaction()?;
+    let answer = practice::answer(&tx, answer_id)?;
+    let sitting = practising(&tx, &answer.sitting_id)?;
+    let Some(sentence_id) = answer.sentence_id.as_deref() else {
+        return Err(Error::Invalid("this answer has no sentence".into()));
+    };
+    if answer.disputed || !practice::is_latest(&tx, &answer)? {
+        return Err(Error::Invalid("this answer cannot be taken back".into()));
+    }
+    sentences::discard(&tx, sentence_id)?;
+    practice::void(&tx, &answer, now)?;
+    let step = step(&tx, &practice::sitting(&tx, &sitting.id)?, now)?;
+    tx.commit()?;
+    Ok(step)
 }
 
 /// "I know this" on the word a session is showing: the word is marked as
@@ -268,8 +809,10 @@ pub async fn start_sitting(
     app: AppHandle,
     chapter_id: String,
     size: Option<u32>,
+    ways: Option<Ways>,
 ) -> Result<Sitting> {
-    run(app, move |_, ctx| start(ctx, &chapter_id, size, Utc::now())).await
+    let plan = (size, ways.unwrap_or(Ways::Both));
+    run(app, move |_, ctx| start(ctx, &chapter_id, plan, Utc::now())).await
 }
 
 #[tauri::command]
@@ -284,11 +827,46 @@ pub async fn answer_word(
     word_id: String,
     direction: Direction,
     answer: String,
+    sentence_id: Option<String>,
+    tries: Option<Tries>,
 ) -> Result<AnswerResult> {
     run(app, move |_, ctx| {
-        self::answer(ctx, &sitting_id, (&word_id, direction), &answer, Utc::now())
+        let shown = Shown::of(sentence_id.as_deref(), tries);
+        answer_shown(
+            ctx,
+            &sitting_id,
+            (&word_id, direction),
+            (&answer, shown),
+            Utc::now(),
+        )
     })
     .await
+}
+
+#[tauri::command]
+pub async fn hint_word(
+    app: AppHandle,
+    sitting_id: String,
+    word_id: String,
+    direction: Direction,
+    sentence_id: Option<String>,
+    asked: u32,
+) -> Result<WordHint> {
+    run(app, move |_, ctx| {
+        let asked = usize::try_from(asked).unwrap_or(usize::MAX);
+        hint(
+            ctx,
+            &sitting_id,
+            (&word_id, direction),
+            (sentence_id.as_deref(), asked),
+        )
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn discard_sentence(app: AppHandle, answer_id: i64) -> Result<PracticeStep> {
+    run(app, move |_, ctx| discard(ctx, answer_id, Utc::now())).await
 }
 
 #[tauri::command]
@@ -364,12 +942,12 @@ pub mod tests {
 
         /// Every open word of the chapter, or the session left unfinished.
         pub fn start(&self, chapter: &str, now: DateTime<Utc>) -> Sitting {
-            start(self.ctx(), chapter, None, now).expect("start")
+            start(self.ctx(), chapter, (None, Ways::Both), now).expect("start")
         }
 
         /// A session of `size` words, or the session left unfinished.
         pub fn sized(&self, chapter: &str, size: u32, now: DateTime<Utc>) -> Sitting {
-            start(self.ctx(), chapter, Some(size), now).expect("start")
+            start(self.ctx(), chapter, (Some(size), Ways::Both), now).expect("start")
         }
 
         pub fn answer(
@@ -491,6 +1069,37 @@ pub mod tests {
     }
 
     #[test]
+    fn spelling_counts_only_once_the_learner_asks_for_it() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let desk = Desk::new(&dir);
+        let list = [word("grayish-white", &["blanco grisáceo"], 1)];
+        let chapter = desk.chapter("b", &list);
+        let sitting = desk.start(&chapter, t0());
+        let asked = item(&sitting.step).clone();
+        let say = |text: &str| desk.answer(&sitting, &asked, text, t0()).correct;
+        assert!(!say("blango grisaceo"), "a wrong letter is a miss");
+        assert!(say("blanco grisaceo"));
+
+        let strict = {
+            let conn = desk.db.lock().expect("db");
+            let mut settings = profile::get_settings(&conn).expect("settings");
+            settings.strict_spelling = true;
+            profile::save_settings(&conn, &settings).expect("saved");
+            settings
+        };
+        assert!(strict.strict_spelling);
+        assert!(
+            !desk
+                .answer(&sitting, &asked, "blanco grisaceo", t0())
+                .correct
+        );
+        assert!(
+            desk.answer(&sitting, &asked, "Blanco grisáceo.", t0())
+                .correct
+        );
+    }
+
+    #[test]
     fn a_sitting_asks_checks_and_finishes_words() {
         let dir = tempfile::tempdir().expect("tempdir");
         let desk = Desk::new(&dir);
@@ -505,57 +1114,51 @@ pub mod tests {
 
         let sitting = desk.start(&chapter, now);
         let first = item(&sitting.step).clone();
-        assert_eq!(first.prompt, "bank", "the most frequent word first");
         assert_eq!(first.direction, Direction::Recognition);
-        assert_eq!(
-            shown(&first),
-            [("She sat on the ", false), ("Bank", true), (".", false)]
-        );
+        let (there, other) = (Direction::Recognition, Direction::Production);
 
-        let miss = desk.answer(&sitting, &first, "banco", now);
-        assert!(!miss.correct);
-        assert_eq!(miss.accepted, ["orilla", "la ribera"]);
-        let second = item(&miss.step).clone();
-        assert_eq!((second.prompt.as_str(), &second.context), ("peep", &None));
-
-        // The miss added nothing: bank owes 2 English → native and peep 1.
-        // Two in a row that way open the other way. The two words alternate
-        // until both are done.
-        let mut step = desk.answer(&sitting, &second, " Asomarse. ", now).step;
+        // The first look at "bank" is a miss, and it adds nothing: two in a
+        // row English → native open the other way, as for "peep". The two
+        // words alternate until both are done.
+        let mut step = sitting.step.clone();
         let mut asked = Vec::new();
+        let mut missed = false;
         while let PracticeStep::Item { item, .. } = step {
             let (word, text) = match item.prompt.as_str() {
+                "bank" if !std::mem::replace(&mut missed, true) => ("bank", "banco"),
                 "bank" => ("bank", "La Orilla"),
-                "peep" => ("peep", "asomarse"),
-                "orilla, la ribera" => ("bank", "The Banks."),
+                "peep" => ("peep", " Asomarse. "),
+                "orilla, la ribera" => ("bank", "The Bank."),
                 "asomarse" => ("peep", "to peep"),
                 other => panic!("{other} is not asked"),
             };
-            if (word, item.direction) == ("bank", Direction::Production) {
-                assert_eq!(
+            match (word, item.direction) {
+                ("bank", Direction::Recognition) => assert_eq!(
+                    shown(&item),
+                    [("She sat on the ", false), ("Bank", true), (".", false)]
+                ),
+                ("bank", Direction::Production) => assert_eq!(
                     shown(&item),
                     [("She sat on the ", false), ("", true), (".", false)],
                     "the word is taken out of its sentence"
-                );
+                ),
+                _ => assert_eq!(item.context, None),
             }
             let result = desk.answer(&sitting, &item, text, now);
-            assert!(result.correct, "{text}");
+            assert_eq!(result.correct, text != "banco", "{text}");
+            if !result.correct {
+                assert_eq!(result.accepted, ["orilla", "la ribera"]);
+            }
             asked.push((word, item.direction));
             step = result.step;
         }
-        let (there, other) = (Direction::Recognition, Direction::Production);
-        assert_eq!(
-            asked,
-            [
-                ("bank", there),
-                ("peep", there),
-                ("bank", there),
-                ("peep", other),
-                ("bank", other),
-                ("peep", other),
-                ("bank", other),
-            ]
-        );
+        let times = |word: &str, way: Direction| {
+            let same = asked.iter().filter(|each| **each == (word, way));
+            same.count()
+        };
+        assert_eq!(times("bank", there), 3, "the miss and two in a row");
+        assert_eq!(times("peep", there), 2);
+        assert_eq!((times("bank", other), times("peep", other)), (2, 2));
         assert_eq!(step, ended(2, 0, 2));
         assert_eq!(
             desk.count("SELECT COUNT(*) FROM chapter_words WHERE done_at IS NOT NULL"),
@@ -567,9 +1170,10 @@ pub mod tests {
             assert_eq!(rows, 0, "book words never touch {table}");
         }
 
-        // Nothing left: a new sitting is over before it begins.
-        let empty = desk.start(&chapter, now);
-        assert_eq!(empty.step, ended(0, 0, 0));
+        // Nothing left to ask: a new sitting is an extra review of the two.
+        let extra = desk.start(&chapter, now);
+        assert_ne!(extra.id, sitting.id);
+        assert_eq!(bar(&extra.step), (0, 8));
         let late = desk_error(&desk, &sitting.id, &first.word_id);
         assert_eq!(late.kind(), "invalid", "a finished word is not asked");
     }
@@ -611,7 +1215,7 @@ pub mod tests {
     }
 
     #[test]
-    fn a_session_of_ten_asks_only_its_ten_most_frequent_words_and_the_next_takes_the_following() {
+    fn a_session_of_ten_asks_only_its_ten_words_and_the_next_takes_ten_of_the_others() {
         let dir = tempfile::tempdir().expect("tempdir");
         let desk = Desk::new(&dir);
         let chapter = desk.chapter("b", &numbered(30));
@@ -622,8 +1226,8 @@ pub mod tests {
             10
         );
         let (asked, summary) = desk.finish(&first, t0());
-        assert_eq!(distinct(&asked), range(0, 10), "the ten most frequent");
-        assert_eq!(asked[..10], range(0, 10), "most frequent first");
+        let mut taken = distinct(&asked);
+        assert_eq!(taken.len(), 10, "ten of the chapter's thirty");
         assert_eq!(asked.len(), 40, "two right answers each way");
         assert_eq!(summary, SittingSummary { done: 10, open: 20 });
         assert_eq!(
@@ -635,16 +1239,19 @@ pub mod tests {
         assert_eq!(over, ended(summary.done, summary.open, 10));
         assert!(!offered(&desk, &chapter, t0()).resume);
 
-        // The next one takes the following words, as many as it is asked for.
+        // The next one takes other words, as many as it is asked for.
         let second = desk.sized(&chapter, 10, t0());
         assert_ne!(second.id, first.id);
         let (asked, summary) = desk.finish(&second, t0());
-        assert_eq!(distinct(&asked), range(10, 20));
+        assert_eq!(distinct(&asked).len(), 10);
+        taken.extend(distinct(&asked));
         assert_eq!(summary, SittingSummary { done: 10, open: 10 });
 
-        // "All" is what is left.
+        // "All" is what is left: no word was taken twice.
         let (asked, summary) = desk.play(&chapter, t0());
-        assert_eq!(distinct(&asked), range(20, 30));
+        assert_eq!(distinct(&asked).len(), 10);
+        taken.extend(distinct(&asked));
+        assert_eq!(distinct(&taken), range(0, 30));
         assert_eq!(summary, SittingSummary { done: 10, open: 0 });
         assert_eq!(
             books::get_chapter(&desk.db.lock().expect("db"), &chapter)
@@ -663,10 +1270,14 @@ pub mod tests {
             let chapter = desk.chapter("b", &numbered(30));
             let sitting = desk.sized(&chapter, 10, t0());
             let mut step = sitting.step.clone();
+            let mut third = String::new();
             // Eight answers, the third and the sixth wrong, hours apart;
             // then the learner leaves with a word on the screen.
             for turn in 1..=8 {
                 let asked = item(&step).clone();
+                if turn == 3 {
+                    third.clone_from(&asked.word_id);
+                }
                 let text = if turn % 3 == 0 {
                     "wrong".to_owned()
                 } else {
@@ -675,6 +1286,7 @@ pub mod tests {
                 let now = t0() + TimeDelta::hours(turn);
                 step = desk.answer(&sitting, &asked, &text, now).step;
             }
+            assert_eq!(item(&step).word_id, third, "missed five questions before");
             (chapter, sitting.id, item(&step).clone(), bar(&step))
         };
         // Six right answers, and each miss fell on a word with no run.
@@ -683,20 +1295,19 @@ pub mod tests {
         let desk = Desk::open(&path);
         let later = t0() + TimeDelta::days(40);
         assert!(offered(&desk, &chapter, later).resume);
-        // The size is not asked again, and says nothing if it is given.
-        let resumed = start(desk.ctx(), &chapter, Some(20), later).expect("resumed");
+        // Neither the size nor the ways are asked again, and they say
+        // nothing if they are given.
+        let resumed =
+            start(desk.ctx(), &chapter, (Some(20), Ways::Recognition), later).expect("resumed");
         assert_eq!(resumed.id, id, "the same session");
         assert_eq!(item(&resumed.step), &pending, "the word left on the screen");
         assert_eq!(bar(&resumed.step), left_at, "the bar where it was");
-        assert_eq!(pending.prompt, "w02", "missed five questions before");
         assert_eq!(desk.count("SELECT COUNT(*) FROM practice_sittings"), 1);
         assert_eq!(desk.count("SELECT COUNT(*) FROM word_answers"), 8);
 
-        // Played out, it asked its ten words and no other.
+        // Played out, it asked its ten words and no other, both ways.
         let (asked, summary) = desk.finish(&resumed, later);
-        assert!(distinct(&asked)
-            .iter()
-            .all(|word| range(0, 10).contains(word)));
+        assert_eq!(distinct(&asked).len(), 10);
         assert_eq!(asked.len(), 10 * 4 + 2 - 8, "each miss cost its own answer");
         assert_eq!(summary, SittingSummary { done: 10, open: 20 });
         assert_eq!(
@@ -720,6 +1331,13 @@ pub mod tests {
             "eight seconds an answer"
         );
         assert_eq!(sizes_of(&offered(&desk, &small, t0())), [(None, 10, 7)]);
+        // One way alone is every word, at three answers a word and not five.
+        let one_way = [(Some(10), 10, 4), (Some(20), 20, 8), (None, 30, 12)];
+        for sizes in [&fresh.one_way.recognition, &fresh.one_way.production] {
+            let sizes = sizes.iter();
+            let sizes = sizes.map(|size| (size.size, size.words, size.minutes));
+            assert_eq!(sizes.collect::<Vec<_>>(), one_way);
+        }
 
         // Twenty-nine answers three seconds apart, and one after a break.
         let sitting = desk.sized(&chapter, 10, t0());
@@ -736,8 +1354,8 @@ pub mod tests {
         let after_a_break = t0() + TimeDelta::hours(2);
         desk.answer(&sitting, &asked, &right(&asked), after_a_break);
         assert_eq!(
-            sizes_of(&offered(&desk, &chapter, after_a_break)),
-            [(Some(10), 10, 3), (Some(20), 20, 5), (None, 30, 8)],
+            sizes_of(&offered(&desk, &chapter, after_a_break))[..2],
+            [(Some(10), 10, 3), (Some(20), 20, 5)],
             "the median of the learner's own answers, the break left out"
         );
         // The pace is the learner's, whatever the chapter.
@@ -748,8 +1366,105 @@ pub mod tests {
 
         let missing = options(desk.ctx(), "nowhere", t0()).expect_err("no chapter");
         assert_eq!(missing.kind(), "notFound");
-        let odd = start(desk.ctx(), &small, Some(7), t0()).expect_err("not a size");
+        let odd = start(desk.ctx(), &small, (Some(7), Ways::Both), t0()).expect_err("not a size");
         assert_eq!(odd.kind(), "invalid");
+    }
+
+    #[test]
+    fn a_session_of_one_way_ends_with_that_way_and_leaves_its_words_half_done() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let desk = Desk::new(&dir);
+        let chapter = desk.chapter("b", &numbered(3));
+        let (there, back) = (Direction::Recognition, Direction::Production);
+        let one_way = |ways: Ways| start(desk.ctx(), &chapter, (None, ways), t0()).expect("start");
+        let listed = || words::list(&desk.db.lock().expect("db"), &chapter).expect("list");
+
+        // Native → English alone is asked from the start, two steps a word.
+        let sitting = one_way(Ways::Production);
+        assert_eq!(bar(&sitting.step), (0, 6));
+        assert_eq!(item(&sitting.step).direction, back);
+        let (asked, summary) = desk.finish(&sitting, t0());
+        assert_eq!(asked.len(), 6, "two right answers a word, one way");
+        // One way is half a word: none is done, and each says which half.
+        assert_eq!(summary, SittingSummary { done: 0, open: 3 });
+        assert!(listed()
+            .iter()
+            .all(|word| !word.done && word.half == Some(back)));
+
+        // That way has nothing left to ask, so it is offered as an extra
+        // review of every word; the other one has every word to ask.
+        let options = offered(&desk, &chapter, t0());
+        assert!(!options.resume);
+        assert_eq!(sizes_of(&options), [(None, 3, 2)]);
+        assert_eq!(options.extra, [Ways::Production]);
+        assert_eq!(options.one_way.production[0].words, 3);
+        assert_eq!(options.one_way.recognition[0].words, 3);
+
+        // The other way finishes the words.
+        let rest = one_way(Ways::Recognition);
+        assert_eq!(item(&rest.step).direction, there);
+        let (asked, summary) = desk.finish(&rest, t0());
+        assert_eq!(asked.len(), 6);
+        assert_eq!(summary, SittingSummary { done: 3, open: 0 });
+        assert!(listed().iter().all(|word| word.done && word.half.is_none()));
+    }
+
+    #[test]
+    fn a_way_with_nothing_left_to_ask_is_an_extra_review_counted_from_its_own_answers() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let desk = Desk::new(&dir);
+        let chapter = desk.chapter("b", &numbered(3));
+        let back = Direction::Production;
+        let one_way = |ways: Ways| start(desk.ctx(), &chapter, (None, ways), t0()).expect("start");
+        let listed = || words::list(&desk.db.lock().expect("db"), &chapter).expect("list");
+        desk.finish(&one_way(Ways::Production), t0());
+
+        // Asked again that way, every word is, from none: two steps a word.
+        let extra = one_way(Ways::Production);
+        assert_eq!(bar(&extra.step), (0, 6));
+        let first = item(&extra.step).clone();
+        assert_eq!(first.direction, back);
+        // A miss is kept like any other: the word owes that way again.
+        let missed = desk.answer(&extra, &first, "wrong", t0());
+        assert_eq!(bar(&missed.step), (0, 6));
+        let half = |id: &str| {
+            listed()
+                .iter()
+                .find(|word| word.id == id)
+                .expect("word")
+                .half
+        };
+        assert_eq!(half(&first.word_id), None);
+
+        // Left and gone on with, it is the same session where it was.
+        let resumed = one_way(Ways::Recognition);
+        assert_eq!(resumed.id, extra.id);
+        assert_eq!(resumed.step, missed.step);
+        let (asked, summary) = desk.finish(&resumed, t0());
+        assert_eq!(asked.len(), 6, "two right answers in a row a word");
+        assert_eq!(summary, SittingSummary { done: 0, open: 3 });
+        assert!(listed().iter().all(|word| word.half == Some(back)));
+
+        // Once every word is done, any way is an extra review of them all.
+        desk.finish(&one_way(Ways::Recognition), t0());
+        let options = offered(&desk, &chapter, t0());
+        assert_eq!(
+            options.extra,
+            [Ways::Both, Ways::Recognition, Ways::Production]
+        );
+        assert_eq!(sizes_of(&options), [(None, 3, 2)]);
+        let both = one_way(Ways::Both);
+        assert_eq!(bar(&both.step), (0, 12));
+        let (asked, summary) = desk.finish(&both, t0());
+        assert_eq!(asked.len(), 12);
+        assert_eq!(summary, SittingSummary { done: 3, open: 0 });
+
+        // A word the learner knows is not asked, in an extra review either.
+        let known = listed()[0].id.clone();
+        words::set_known(&desk.db.lock().expect("db"), &known, true, t0()).expect("known");
+        assert_eq!(offered(&desk, &chapter, t0()).sizes[0].words, 2);
+        let (asked, _) = desk.finish(&one_way(Ways::Both), t0());
+        assert_eq!(distinct(&asked).len(), 2);
     }
 
     #[test]
@@ -768,7 +1483,8 @@ pub mod tests {
             .lock()
             .expect("db")
             .query_row(
-                "SELECT id FROM chapter_words WHERE lemma = 'w11'",
+                "SELECT id FROM chapter_words
+                 WHERE id NOT IN (SELECT word_id FROM practice_session_words) LIMIT 1",
                 [],
                 |row| row.get(0),
             )
@@ -801,7 +1517,7 @@ pub mod tests {
         let next = desk.start(&chapter, t0());
         assert_ne!(next.id, sitting.id);
         let (asked, summary) = desk.finish(&next, t0());
-        assert_eq!(distinct(&asked), range(10, 12));
+        assert_eq!(distinct(&asked).len(), 2);
         assert_eq!(summary, SittingSummary { done: 2, open: 0 });
     }
 
@@ -814,7 +1530,7 @@ pub mod tests {
         // never marked so. The sitting they were given in has no words.
         {
             let conn = desk.db.lock().expect("db");
-            let old = practice::start(&conn, &chapter, t0()).expect("sitting");
+            let old = practice::start(&conn, &chapter, Ways::Both, t0()).expect("sitting");
             let id: String = conn
                 .query_row(
                     "SELECT id FROM chapter_words WHERE lemma = 'w00'",
@@ -868,7 +1584,8 @@ pub mod tests {
         assert_eq!(desk_error(&desk, &sitting.id, &foreign).kind(), "invalid");
         assert_eq!(desk_error(&desk, &sitting.id, "nowhere").kind(), "notFound");
         assert_eq!(desk_error(&desk, "nowhere", &foreign).kind(), "notFound");
-        let missing = start(desk.ctx(), "nowhere", None, t0()).expect_err("no chapter");
+        let missing =
+            start(desk.ctx(), "nowhere", (None, Ways::Both), t0()).expect_err("no chapter");
         assert_eq!(missing.kind(), "notFound");
         let production = answer(
             desk.ctx(),
@@ -895,7 +1612,7 @@ pub mod tests {
         // The word on the screen is settled from elsewhere: it gives way.
         words::set_known(&desk.db.lock().expect("db"), &first.word_id, true, t0()).expect("known");
         let moved = current(desk.ctx(), &sitting.id, t0()).expect("step");
-        assert_eq!(item(&moved).prompt, "w01");
+        assert_ne!(item(&moved).prompt, first.prompt);
         // However late: no time ends a session.
         let late = t0() + TimeDelta::days(400);
         let still = current(desk.ctx(), &sitting.id, late).expect("step");
@@ -913,10 +1630,13 @@ pub mod tests {
         let other = desk.chapter("c", &numbered(3));
         let sitting = desk.start(&chapter, t0());
         let first = item(&sitting.step).clone();
-        assert_eq!(first.prompt, "w00");
+        let rest: Vec<String> = range(0, 3)
+            .into_iter()
+            .filter(|word| *word != first.prompt)
+            .collect();
 
         let step = know(desk.ctx(), &sitting.id, &first.word_id, t0()).expect("known");
-        assert_eq!(item(&step).prompt, "w01");
+        assert_ne!(item(&step).prompt, first.prompt);
         assert_eq!(desk.count("SELECT COUNT(*) FROM word_answers"), 0);
         assert_eq!(desk.count("SELECT COUNT(*) FROM known_words"), 1);
         let late = desk_error(&desk, &sitting.id, &first.word_id);
@@ -924,7 +1644,7 @@ pub mod tests {
 
         // The same word in another book's chapter is known there too.
         let elsewhere = desk.start(&other, t0());
-        assert_eq!(item(&elsewhere.step).prompt, "w01");
+        assert_ne!(item(&elsewhere.step).prompt, first.prompt);
         let foreign = item(&elsewhere.step).word_id.clone();
         let refused = know(desk.ctx(), &sitting.id, &foreign, t0()).expect_err("other chapter");
         assert_eq!(refused.kind(), "invalid");
@@ -936,7 +1656,7 @@ pub mod tests {
         let resumed = desk.start(&chapter, t0());
         assert_eq!(resumed.id, sitting.id);
         let (asked, summary) = desk.finish(&resumed, t0());
-        assert_eq!(distinct(&asked), range(1, 3));
+        assert_eq!(distinct(&asked), rest);
         assert_eq!(summary, SittingSummary { done: 2, open: 0 });
         let last = know(desk.ctx(), &sitting.id, &first.word_id, t0()).expect("again");
         assert_eq!(last, ended(summary.done, summary.open, 2));
@@ -961,12 +1681,13 @@ pub mod tests {
             bar(&result.expect("answer").step)
         };
 
+        let native = translation(&first.prompt);
         assert_eq!(say(there, "wrong"), (0, 12), "a miss on a fresh word");
-        assert_eq!(say(there, "w00es"), (1, 12), "a right answer");
+        assert_eq!(say(there, &native), (1, 12), "a right answer");
         assert_eq!(say(there, ""), (0, 12), "a miss after one right answer");
-        assert_eq!(say(there, "w00es"), (1, 12));
-        assert_eq!(say(there, "w00es"), (2, 12));
-        assert_eq!(say(back, "w00"), (3, 12));
+        assert_eq!(say(there, &native), (1, 12));
+        assert_eq!(say(there, &native), (2, 12));
+        assert_eq!(say(back, &first.prompt), (3, 12));
 
         // Read again, or gone on with after leaving: the bar is where it was.
         let now = current(desk.ctx(), &sitting.id, t0()).expect("step");
@@ -978,8 +1699,8 @@ pub mod tests {
         // "I know this" takes the word's four steps out of the total, and
         // the one it had earned out of the value.
         let other = item(&resumed.step).clone();
-        assert_eq!(other.prompt, "w01");
-        let earned = desk.answer(&sitting, &other, "w01es", t0());
+        assert_ne!(other.word_id, id, "asked a moment ago");
+        let earned = desk.answer(&sitting, &other, &right(&other), t0());
         assert_eq!(bar(&earned.step), (4, 12));
         let known = know(desk.ctx(), &sitting.id, &other.word_id, t0()).expect("known");
         assert_eq!(bar(&known), (3, 8));
@@ -1000,7 +1721,7 @@ pub mod tests {
         // that ended is over, and its bar stays full.
         {
             let conn = desk.db.lock().expect("db");
-            let later = practice::start(&conn, &chapter, t0()).expect("sitting");
+            let later = practice::start(&conn, &chapter, Ways::Both, t0()).expect("sitting");
             practice::record(&conn, &later, (&id, there), ("no", false), t0()).expect("miss");
         }
         let over = current(desk.ctx(), &sitting.id, t0()).expect("step");
@@ -1030,8 +1751,7 @@ pub mod tests {
         };
         let chapter = desk.chapter("b", &[run, word("give up", &["rendirse"], 1)]);
         let sitting = desk.start(&chapter, t0());
-        let first = item(&sitting.step).clone();
-        let id = first.word_id.clone();
+        let id = word_in(&desk, &chapter, "run");
         let (there, back) = (Direction::Recognition, Direction::Production);
         let say = |direction: Direction, text: &str| {
             answer(desk.ctx(), &sitting.id, (&id, direction), text, t0())
@@ -1061,25 +1781,31 @@ pub mod tests {
         let done = "SELECT COUNT(*) FROM chapter_words WHERE done_at IS NOT NULL";
         assert_eq!(desk.count(done), 0);
 
-        // A miss this way shows the English word and adds nothing either.
+        // A miss this way shows the word its sentence is blanked of, and
+        // adds nothing either.
         let miss = say(back, "walk").expect("miss");
         assert!(!miss.correct);
-        assert_eq!(miss.accepted, ["run"]);
+        assert_eq!(miss.accepted, ["ran"]);
         assert_eq!(owes(&desk, &chapter, &id), [(back, 2)]);
         let unknown = say(back, "  ").expect("no idea");
         assert!(!unknown.correct);
-        assert_eq!(unknown.accepted, ["run"]);
+        assert_eq!(unknown.accepted, ["ran"]);
         assert_eq!(owes(&desk, &chapter, &id), [(back, 2)]);
 
-        // A right answer followed by a miss is a run of none.
-        assert!(say(back, "run").expect("right").correct);
+        // A right answer followed by a miss is a run of none. The base form
+        // is a miss: "He run, and run again" is not what the book says.
+        assert!(say(back, "ran").expect("right").correct);
         assert_eq!(owes(&desk, &chapter, &id), [(back, 1)]);
-        assert!(!say(back, "walk").expect("miss").correct);
+        for text in ["run", "To run"] {
+            let base = say(back, text).expect("miss");
+            assert!(!base.correct, "{text}");
+            assert_eq!(base.accepted, ["ran"]);
+        }
         assert_eq!(owes(&desk, &chapter, &id), [(back, 2)]);
 
-        // "to" before the base form, or the form in the book: two in a row
-        // finish this way too, and with it the word.
-        for text in ["To run", "ran."] {
+        // The form in the book, whatever its case: two in a row finish this
+        // way too, and with it the word.
+        for text in ["Ran", "ran."] {
             assert!(say(back, text).expect("right").correct, "{text}");
         }
         assert_eq!(owes(&desk, &chapter, &id), []);
@@ -1128,17 +1854,18 @@ pub mod tests {
 
         let sitting = desk.start(&second, t0());
         let check = item(&sitting.step).clone();
-        assert_eq!((check.prompt.as_str(), check.direction), ("w00es", back));
+        assert_eq!(check.direction, back);
         let refused = answer(desk.ctx(), &sitting.id, (&id, there), "w00es", t0());
         assert_eq!(refused.expect_err("not asked").kind(), "invalid");
 
-        let right = desk.answer(&sitting, &check, "w00", t0());
-        assert!(right.correct);
-        assert_eq!(owes(&desk, &second, &id), []);
+        let passed = desk.answer(&sitting, &check, &right(&check), t0());
+        assert!(passed.correct);
+        assert_eq!(owes(&desk, &second, &check.word_id), []);
         assert_eq!(readiness(&desk, &second), Some(50));
-        let last = item(&right.step).clone();
-        assert_eq!((last.prompt.as_str(), last.direction), ("w01es", back));
-        let over = desk.answer(&sitting, &last, "w01", t0());
+        let last = item(&passed.step).clone();
+        assert_eq!(last.direction, back);
+        assert_ne!(last.word_id, check.word_id);
+        let over = desk.answer(&sitting, &last, &right(&last), t0());
         assert!(matches!(
             over.step,
             PracticeStep::Summary {
@@ -1161,26 +1888,30 @@ pub mod tests {
         let second = desk.chapter("c", &numbered(8));
         desk.play(&first, t0());
         let id = word_in(&desk, &second, "w00");
-        let (there, back) = (Direction::Recognition, Direction::Production);
+        let back = Direction::Production;
 
         let sitting = desk.start(&second, t0());
-        let check = item(&sitting.step).clone();
-        assert_eq!(
-            (check.word_id.as_str(), check.direction),
-            (id.as_str(), back)
-        );
+        // The others answered right until its check comes up.
+        let others_until_it = |mut step: PracticeStep| {
+            let mut others = 0;
+            while item(&step).word_id != id {
+                let other = item(&step).clone();
+                step = desk.answer(&sitting, &other, &right(&other), t0()).step;
+                others += 1;
+            }
+            (step, others)
+        };
+        let (step, _) = others_until_it(sitting.step.clone());
+        let check = item(&step).clone();
+        assert_eq!(check.direction, back);
         let miss = desk.answer(&sitting, &check, "", t0());
         assert!(!miss.correct);
         assert_eq!(owes(&desk, &second, &id), [(back, 2)]);
 
-        // Five other questions, and it is asked again the same way.
-        let mut step = miss.step;
-        for _ in 0..5 {
-            let other = item(&step).clone();
-            assert_ne!(other.word_id, id);
-            assert_eq!(other.direction, there);
-            step = desk.answer(&sitting, &other, &right(&other), t0()).step;
-        }
+        // No more than five other questions, and it is asked again the same
+        // way.
+        let (step, others) = others_until_it(miss.step);
+        assert!(others <= 5, "{others} questions before it came back");
         let again = item(&step).clone();
         assert_eq!(
             (again.word_id.as_str(), again.direction),
@@ -1224,8 +1955,9 @@ pub mod tests {
         let (asked, summary) = desk.play(&second, t0());
         assert_eq!(asked, ["w00"]);
         assert_eq!(summary, SittingSummary { done: 1, open: 0 });
-        // Checked in the second, it still owes what it owed in the first.
-        assert_eq!(owes(&desk, &first, &own), [(there, 2)]);
+        // Checked in the second, it still owes what it owed in the first,
+        // and as a review word there its check the other way with it.
+        assert_eq!(owes(&desk, &first, &own), [(there, 2), (back, 1)]);
     }
 
     #[test]
@@ -1240,10 +1972,17 @@ pub mod tests {
         // In the second chapter: both words finished English → native, and
         // "w00" answered right once the other way. Then the learner leaves.
         let ahead = desk.start(&second, t0());
-        let mut step = ahead.step.clone();
-        for _ in 0..5 {
-            let asked = item(&step).clone();
-            step = desk.answer(&ahead, &asked, &right(&asked), t0()).step;
+        let other = word_in(&desk, &second, "w01");
+        let turns = [
+            (&id, there, "w00es"),
+            (&other, there, "w01es"),
+            (&id, there, "w00es"),
+            (&other, there, "w01es"),
+            (&id, back, "w00"),
+        ];
+        for (word, way, text) in turns {
+            let given = answer(desk.ctx(), &ahead.id, (word, way), text, t0());
+            assert!(given.expect("answer").correct, "{text}");
         }
         assert_eq!(owes(&desk, &second, &id), [(back, 1)]);
         let done = "SELECT COUNT(*) FROM chapter_words WHERE done_at IS NOT NULL";
@@ -1256,9 +1995,7 @@ pub mod tests {
         assert_eq!(desk.count(done), 2);
         assert_eq!(readiness(&desk, &second), Some(50));
         assert_eq!(owes(&desk, &second, &id), []);
-        let other = word_in(&desk, &second, "w01");
         assert_eq!(owes(&desk, &second, &other), [(back, 2)], "not shared");
-        assert_eq!(there, Direction::Recognition);
     }
 
     #[test]

@@ -8,12 +8,15 @@ import { BooksScreen } from "@/features/books/BooksScreen";
 import { Conversation } from "@/features/conversation/Conversation";
 import { Practice } from "@/features/drills/Practice";
 import { Home } from "@/features/home/Home";
+import { ListeningScreen } from "@/features/listening/ListeningScreen";
 import { Onboarding } from "@/features/onboarding/Onboarding";
 import { ProgressScreen } from "@/features/progress/ProgressScreen";
+import { RecallScreen } from "@/features/recall/RecallScreen";
 import { ReportScreen } from "@/features/report/ReportScreen";
 import { SettingsScreen } from "@/features/settings/SettingsScreen";
 import { SpeechProvider } from "@/features/speech/speech";
 import { Setup } from "@/features/setup/Setup";
+import { StructuresScreen } from "@/features/structures/StructuresScreen";
 import { errorMessage } from "@/lib/errors";
 import { setUiLang } from "@/lib/i18n/i18n";
 import { getProfile, getSettings } from "@/lib/ipc";
@@ -141,6 +144,33 @@ export function App(): ReactNode {
             practising={route.practising === true}
             refresh={route.refresh === true}
             triage={route.triage === true}
+            translating={route.translating === true}
+            navigate={setRoute}
+          />
+        );
+      case "recall":
+        return (
+          <RecallScreen
+            nativeLang={profile.nativeLang}
+            running={route.running ?? null}
+            navigate={setRoute}
+          />
+        );
+      case "structures":
+        return (
+          <StructuresScreen
+            running={route.running ?? null}
+            chapterId={route.chapterId ?? null}
+            bookId={route.bookId ?? null}
+            navigate={setRoute}
+          />
+        );
+      case "listening":
+        return (
+          <ListeningScreen
+            running={route.running ?? null}
+            reading={route.reading ?? null}
+            chapterId={route.chapterId ?? null}
             navigate={setRoute}
           />
         );

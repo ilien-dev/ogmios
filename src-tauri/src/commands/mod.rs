@@ -2,14 +2,20 @@ pub mod book;
 pub mod chapter;
 pub mod dispute;
 pub mod drill;
+pub mod label;
+pub mod listening;
 pub mod practice;
 pub mod profile;
 pub mod progress;
+pub mod recall;
 pub mod refresh;
+pub mod sentences;
 pub mod session;
+pub mod structures;
 pub mod stt;
 #[cfg(test)]
 mod tests;
+pub mod translate;
 pub mod tts;
 pub mod update;
 

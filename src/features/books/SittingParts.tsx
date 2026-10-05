@@ -2,7 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import type { ReactNode, SyntheticEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { X } from "lucide-react";
-import type { SessionSize, SittingProgress } from "@shared/domain";
+import type {
+  PracticeOptions,
+  SessionSize,
+  SittingProgress,
+  Ways,
+} from "@shared/domain";
 import { Button } from "@/components/ui/Button";
 import { ChoiceGroup } from "@/components/ui/ChoiceGroup";
 import { Notice } from "@/components/ui/Notice";
@@ -11,6 +16,7 @@ import { Spinner } from "@/components/ui/Spinner";
 import { GRADE_TEXT } from "@/components/ui/Verdict";
 import { cn } from "@/lib/cn";
 import type { Grade } from "@/lib/grade";
+import { languageName } from "@/lib/text";
 
 interface SittingFrameProps {
   /** What the way out is called. */
@@ -82,20 +88,45 @@ export function SittingWait({ failure }: SittingWaitProps): ReactNode {
 /** How every open word is named among the sizes. */
 const ALL = "all";
 
+/** The words a direction has to ask: the last size is all of them. */
+function wordsOf(sizes: readonly SessionSize[]): number {
+  return sizes.at(-1)?.words ?? 0;
+}
+
+/** Whether there is anything to choose before a session starts. */
+export function hasChoice(options: PracticeOptions): boolean {
+  const { sizes, oneWay } = options;
+  return (
+    sizes.length > 1 ||
+    wordsOf(oneWay.recognition) > 0 ||
+    wordsOf(oneWay.production) > 0
+  );
+}
+
 interface SittingSizesProps {
-  /** The sizes on offer, smallest first; the last one is every open word. */
-  sizes: readonly SessionSize[];
-  /** Starts a session of that many words; null for every open word. */
-  onStart: (size: number | null) => void;
+  /** The sizes on offer, both ways and one way alone. */
+  options: PracticeOptions;
+  /** The learner's first language, named beside English on each way. */
+  nativeLang: string;
+  /** Starts a session of that many words, null for every one, in the ways. */
+  onStart: (size: number | null, ways: Ways) => void;
 }
 
 /**
- * How many words the session takes, each size with about how long it lasts.
- * Every open word is chosen already and "Start" holds the keyboard, so Enter
- * alone begins; the sizes are one Shift+Tab and the arrows away.
+ * Which way the session asks and how many words it takes, each size with
+ * about how long it lasts. Both ways and every open word are chosen already
+ * and "Start" holds the keyboard, so Enter alone begins; the choices are one
+ * Shift+Tab and the arrows away. A way with nothing left to ask is offered
+ * all the same, as an extra review of every word, and says so once chosen;
+ * only a chapter with no word to ask offers none.
  */
-export function SittingSizes({ sizes, onStart }: SittingSizesProps): ReactNode {
-  const { t } = useTranslation();
+export function SittingSizes({
+  options,
+  nativeLang,
+  onStart,
+}: SittingSizesProps): ReactNode {
+  const { t, i18n } = useTranslation();
+  const [ways, setWays] = useState<Ways>("both");
   const [chosen, setChosen] = useState(ALL);
   const primary = useRef<HTMLButtonElement>(null);
 
@@ -105,8 +136,24 @@ export function SittingSizes({ sizes, onStart }: SittingSizesProps): ReactNode {
 
   const start = (event: SyntheticEvent): void => {
     event.preventDefault();
-    onStart(chosen === ALL ? null : Number(chosen));
+    onStart(chosen === ALL ? null : Number(chosen), ways);
   };
+
+  const english = languageName("en", i18n.language);
+  const native = languageName(nativeLang, i18n.language);
+  const offered: Record<Ways, readonly SessionSize[]> = {
+    both: options.sizes,
+    ...options.oneWay,
+  };
+  const labels: Record<Ways, string> = {
+    both: t("books.sitting.waysBoth"),
+    recognition: t("books.sitting.direction", { from: english, to: native }),
+    production: t("books.sitting.direction", { from: native, to: english }),
+  };
+  const directions = (["both", "recognition", "production"] as const).filter(
+    (each) => each === "both" || wordsOf(offered[each]) > 0,
+  );
+  const sizes = offered[ways];
 
   return (
     <div className="grid h-full place-items-center px-10">
@@ -117,6 +164,30 @@ export function SittingSizes({ sizes, onStart }: SittingSizesProps): ReactNode {
         <h1 className="text-display font-semibold text-ink">
           {t("books.sitting.size")}
         </h1>
+        {directions.length > 1 && (
+          <div className="w-full">
+            <ChoiceGroup
+              legend={t("books.sitting.ways")}
+              columns={3}
+              size="sm"
+              choices={directions.map((each) => ({
+                value: each,
+                label: labels[each],
+              }))}
+              value={ways}
+              onChange={(next) => {
+                // A size the other way does not have falls back to all.
+                setWays(next);
+                setChosen(ALL);
+              }}
+            />
+            {options.extra.includes(ways) && (
+              <p className="mt-2 text-sm text-ink-soft">
+                {t("books.sitting.extra")}
+              </p>
+            )}
+          </div>
+        )}
         <div className="w-full">
           <ChoiceGroup
             legend={t("books.sitting.size")}

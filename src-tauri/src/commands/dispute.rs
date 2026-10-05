@@ -8,19 +8,28 @@ use chrono::{DateTime, Utc};
 use rusqlite::Connection;
 use tauri::AppHandle;
 
-use super::practice::step;
+use super::practice::{blanked, step};
 use super::profile::{agent, require_profile};
 use super::run;
 use crate::agent::protocol::{VocabJudgeParams, VocabVerdict};
+use crate::books::practice::accepts_english;
+use crate::books::sentences::{or_other, Verdict};
 use crate::db::practice::{self, AnswerRow};
-use crate::domain::DisputeResult;
+use crate::db::{profile, sentences};
+use crate::domain::{Direction, DisputeResult};
 use crate::error::{Error, Result};
 use crate::Ctx;
 
 /// The answer, if it can be disputed: a miss the learner typed in a sitting
 /// of "Practice", not judged before. "I don't know" is no answer to stand
 /// by, and the refresh before reading does not offer it: what comes next
-/// here is a step of practice.
+/// here is a step of practice. Nor is another form of the word, native →
+/// English, when its sentence was blanked: code already said it does not
+/// fill the blank, and the model, which takes any form of the word for
+/// right, is not asked to say otherwise. Nor is another English word for
+/// what was shown: the learner was told it is not the word asked for, and
+/// the model, which takes a word that means the same for right, would make
+/// it one.
 fn disputable(conn: &Connection, answer_id: i64) -> Result<AnswerRow> {
     let answer = practice::answer(conn, answer_id)?;
     if practice::sitting(conn, &answer.sitting_id)?.refresh {
@@ -35,6 +44,33 @@ fn disputable(conn: &Connection, answer_id: i64) -> Result<AnswerRow> {
         return Err(Error::Invalid(
             "this answer is not a miss to dispute".into(),
         ));
+    }
+    if answer.direction == Direction::Production {
+        let word = practice::word(conn, &answer.word_id)?;
+        let spelling = profile::spelling(conn)?;
+        // Asked with a sentence of its bank the word is always blanked, and
+        // the forms its other sentences have it in are forms of it too.
+        let in_sentence = answer.sentence_id.is_some();
+        let mut forms = word.forms.clone();
+        if in_sentence {
+            forms.extend(sentences::forms(conn, &word.key)?);
+        }
+        if (in_sentence || !blanked(&word).is_empty())
+            && accepts_english(&answer.answer, &word.lemma, &forms, spelling)
+        {
+            return Err(Error::Invalid(
+                "another form of the word does not fill the blank".into(),
+            ));
+        }
+        let mut rivals = sentences::rivals(conn, &word.key, &word.shown)?;
+        if let Some(id) = answer.sentence_id.as_deref() {
+            rivals.extend(sentences::also(conn, id)?);
+        }
+        if or_other(Verdict::Miss, &answer.answer, &rivals, spelling) == Verdict::OtherWord {
+            return Err(Error::Invalid(
+                "another word for what was shown is not the word asked for".into(),
+            ));
+        }
     }
     Ok(answer)
 }
@@ -63,13 +99,32 @@ pub fn dispute(
         let conn = ctx.conn()?;
         let answer = disputable(&conn, answer_id)?;
         let word = practice::word(&conn, &answer.word_id)?;
+        // The sentence the answer was given to, not the one of the chapter.
+        let shown = answer
+            .sentence_id
+            .as_deref()
+            .map(|id| sentences::text(&conn, id))
+            .transpose()?
+            .flatten();
+        let (sentence, form) = match shown {
+            Some((sentence, form)) => (sentence, Some(form)),
+            None => (word.sentence, None),
+        };
+        // English → native the learner saw the form of the sentence, and
+        // native → English only that form fills its blank.
+        let (lemma, blank) = match (answer.direction, form) {
+            (Direction::Recognition, Some(form)) => (form, None),
+            (_, form) => (word.lemma, form),
+        };
         VocabJudgeParams {
             native_lang: require_profile(&conn)?.native_lang,
             direction: answer.direction,
-            lemma: word.lemma,
-            sentence: word.sentence,
+            lemma,
+            sentence,
+            blank,
             translations: word.translations,
             answer: answer.answer,
+            strict_spelling: profile::spelling(&conn)?.is_strict(),
         }
     };
     let verdict = judge(&params)?;
@@ -144,6 +199,20 @@ mod tests {
         }
     }
 
+    /// "bank" asked English → native, whichever word the sitting shows:
+    /// which of its words comes first is drawn.
+    fn asking_bank(desk: &Desk, chapter: &str) -> PracticeItem {
+        let listed = words::list(&desk.db.lock().expect("db"), chapter).expect("list");
+        PracticeItem {
+            word_id: listed[0].id.clone(),
+            direction: THERE,
+            prompt: "bank".into(),
+            part_of_speech: None,
+            context: None,
+            sentence_id: None,
+        }
+    }
+
     /// (text, source) of every stored translation, in order.
     fn translations(desk: &Desk) -> Vec<(String, String)> {
         let conn = desk.db.lock().expect("db");
@@ -176,7 +245,7 @@ mod tests {
         let desk = Desk::new(&dir);
         let chapter = desk.chapter("b", &[bank(), word("peep", &["asomarse"], 1)]);
         let sitting = desk.start(&chapter, t0());
-        let first = item(&sitting.step).clone();
+        let first = asking_bank(&desk, &chapter);
         let id = first.word_id.clone();
 
         let miss = desk.answer(&sitting, &first, " Margen ", t0());
@@ -206,6 +275,8 @@ mod tests {
                 sentence: "She sat on the bank.".into(),
                 translations: vec!["orilla".into(), "la ribera".into()],
                 answer: "Margen".into(),
+                strict_spelling: false,
+                blank: None,
             }]
         );
         assert!(result.upheld);
@@ -255,7 +326,7 @@ mod tests {
         let desk = Desk::new(&dir);
         let chapter = desk.chapter("b", &[bank(), word("peep", &["asomarse"], 1)]);
         let sitting = desk.start(&chapter, t0());
-        let first = item(&sitting.step).clone();
+        let first = asking_bank(&desk, &chapter);
         let id = first.word_id.clone();
 
         // Right, then a miss: the run is gone and the other way is closed.
@@ -280,7 +351,7 @@ mod tests {
         let desk = Desk::new(&dir);
         let chapter = desk.chapter("b", &[bank(), word("peep", &["asomarse"], 1)]);
         let sitting = desk.start(&chapter, t0());
-        let first = item(&sitting.step).clone();
+        let first = asking_bank(&desk, &chapter);
         let say = |text: &str| desk.answer(&sitting, &first, text, t0());
 
         // A rejected one leaves the bar where the miss left it.
@@ -308,7 +379,7 @@ mod tests {
         let desk = Desk::new(&dir);
         let chapter = desk.chapter("b", &[bank(), word("peep", &["asomarse"], 1)]);
         let sitting = desk.start(&chapter, t0());
-        let first = item(&sitting.step).clone();
+        let first = asking_bank(&desk, &chapter);
         let id = first.word_id.clone();
         let miss = desk.answer(&sitting, &first, "banco", t0());
         let before = translations(&desk);
@@ -363,7 +434,7 @@ mod tests {
         let desk = Desk::new(&dir);
         let chapter = desk.chapter("b", &[bank(), word("peep", &["asomarse"], 1)]);
         let sitting = desk.start(&chapter, t0());
-        let first = item(&sitting.step).clone();
+        let first = asking_bank(&desk, &chapter);
         let id = first.word_id.clone();
         let miss = desk.answer(&sitting, &first, "margen", t0());
 
@@ -388,6 +459,7 @@ mod tests {
         let right = Answer {
             direction: THERE,
             correct: true,
+            refresh: false,
         };
         let wrong = Answer {
             correct: false,
@@ -441,7 +513,7 @@ mod tests {
         let desk = Desk::new(&dir);
         let chapter = desk.chapter("b", &[bank(), word("peep", &["asomarse"], 1)]);
         let sitting = desk.start(&chapter, t0());
-        let first = item(&sitting.step).clone();
+        let first = asking_bank(&desk, &chapter);
         let miss = desk.answer(&sitting, &first, "margen", t0());
 
         let result = dispute(
@@ -491,6 +563,17 @@ mod tests {
         assert_eq!(asked.direction, BACK);
         let blanked = pieces(&asked);
         let before = translations(&desk);
+
+        // The base form does not fill the blank, and that is not put to the
+        // model: it would take any form of the word for right.
+        let base = say(BACK, "to run");
+        assert!(!base.correct);
+        let refused = dispute(desk.ctx(), base.answer_id, &mut unasked, t0());
+        assert_eq!(
+            refused.expect_err("not a miss to dispute").kind(),
+            "invalid"
+        );
+        assert_eq!(desk.count("SELECT COUNT(*) FROM word_english"), 0);
 
         let miss = say(BACK, "Sprint");
         assert!(!miss.correct);

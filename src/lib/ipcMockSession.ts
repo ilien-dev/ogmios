@@ -4,16 +4,21 @@
  * asks next is read off what it has left to ask and the answers given in it,
  * and nothing else: no clock ends a session and nothing caps its words.
  *
- * One thing is simpler here than in Rust: the estimate always counts eight
- * seconds an answer. The mock keeps no times to read a learner's pace from.
+ * Two things are simpler here than in Rust. The estimate always counts
+ * eight seconds an answer: the mock keeps no times to read a learner's pace
+ * from. And nothing is drawn: a session takes the most frequent words and
+ * asks them in the order of the list, round after round, so that what the
+ * mock shows can be told beforehand.
  */
-import type { Direction, SessionSize } from "@shared/domain";
+import type { Direction, SessionSize, Ways } from "@shared/domain";
 
 /** Other questions that come between two about the same word. */
 const SPACING = 5;
 /** The sizes a session is offered in, beside every open word. */
 const SIZES: readonly number[] = [10, 20, 40];
+/** Answers a word is expected to take: both ways, and one way alone. */
 const ANSWERS_PER_WORD = 5;
+const ANSWERS_ONE_WAY = 3;
 const SECONDS_PER_ANSWER = 8;
 
 /** A word in one direction. */
@@ -89,26 +94,27 @@ export function nextQuestion(
   return missed ?? longestAgo(log, spaced) ?? longestAgo(log, open);
 }
 
-/** About how many minutes a session of this many words takes. */
-function minutes(words: number): number {
+/** About how many minutes a session of this many words takes in `ways`. */
+function minutes(words: number, ways: Ways): number {
   if (words === 0) {
     return 0;
   }
-  const seconds = words * ANSWERS_PER_WORD * SECONDS_PER_ANSWER;
+  const answers = ways === "both" ? ANSWERS_PER_WORD : ANSWERS_ONE_WAY;
+  const seconds = words * answers * SECONDS_PER_ANSWER;
   return Math.max(1, Math.round(seconds / 60));
 }
 
 /**
- * The sizes on offer for a chapter with `open` words to practise: every
- * size it has more open words than, and then all of them.
+ * The sizes on offer for a chapter with `open` words to practise in `ways`:
+ * every size it has more open words than, and then all of them.
  */
-export function sizesFor(open: number): SessionSize[] {
+export function sizesFor(open: number, ways: Ways = "both"): SessionSize[] {
   return [
     ...SIZES.filter((size) => open > size).map((size) => ({
       size,
       words: size,
-      minutes: minutes(size),
+      minutes: minutes(size, ways),
     })),
-    { size: null, words: open, minutes: minutes(open) },
+    { size: null, words: open, minutes: minutes(open, ways) },
   ];
 }

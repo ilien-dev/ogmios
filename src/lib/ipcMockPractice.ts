@@ -8,7 +8,8 @@
  * A session has its own words: as many of the chapter's open ones as it was
  * started with, most frequent first. It asks only those, in the order
  * `ipcMockSession.ts` gives, and ends when each is done or known, however
- * long that takes. One left before that is gone on with by the next
+ * long that takes. One started in one way alone asks that way from the
+ * start and ends when it is finished: its words are then half done. One left before that is gone on with by the next
  * "Practice", with the same words. Answers are checked for a Spanish
  * speaker, the learner the mock is seeded with.
  *
@@ -23,6 +24,7 @@
  */
 import type {
   AnswerResult,
+  WordHint,
   BookWord,
   Direction,
   DisputeResult,
@@ -32,14 +34,20 @@ import type {
   SentencePart,
   Sitting,
   SittingProgress,
+  Ways,
 } from "@shared/domain";
 import { mockChapterWords } from "./ipcMockChapters";
 import { nextQuestion, sizesFor } from "./ipcMockSession";
 import type { Asked } from "./ipcMockSession";
-import { setMockWordDone, setMockWordKnown } from "./ipcMockWords";
+import {
+  setMockWordDone,
+  setMockWordHalf,
+  setMockWordKnown,
+} from "./ipcMockWords";
 
 const IN_A_ROW = 2;
 const DIRECTIONS: readonly Direction[] = ["recognition", "production"];
+const WAYS: readonly Ways[] = ["both", "recognition", "production"];
 /** What may lead an answer in the learner's language, and in English. */
 const ARTICLES = new Set(["el", "la", "los", "las", "un", "una"]);
 const LEADING = new Set(["to", "a", "an", "the"]);
@@ -92,12 +100,22 @@ interface Given {
   correct: boolean;
   /** "I was right" has had its verdict: an answer is judged once. */
   judged: boolean;
+  /** Given in the refresh before reading. */
+  refresh?: true;
 }
 
 interface MockSitting {
+  id: string;
   chapterId: string;
   /** The words it was started with, most frequent first. */
   words: readonly string[];
+  /** The ways it asks them in. */
+  ways: Ways;
+  /**
+   * An extra review: started in ways nothing was owed in, it asks its words
+   * anyway, done ones included, each counted from the answers given in it.
+   */
+  extra: boolean;
   /** It ran out of words to ask: it is over, and is not gone on with. */
   finished: boolean;
 }
@@ -174,12 +192,60 @@ function bookForms(word: BookWord): string[] {
     .map((part) => part.text);
 }
 
+/**
+ * The English the word is asked for: the forms its sentence is blanked of,
+ * or its base form when it is asked without one.
+ */
+function english(word: BookWord): string[] {
+  const forms = bookForms(word);
+  return forms.length > 0 ? forms : [word.lemma];
+}
+
+/** The mock asks no word with a sentence of a bank: nothing to add. */
+export const PLAIN = {
+  again: false,
+  another: null,
+  helped: false,
+  exact: null,
+  sentence: null,
+};
+
+/**
+ * A hint to the word asked this way: `books::hint::mask` in small. The mock
+ * keeps no sentence back: a word shows its own from the start or has none,
+ * so every hint is to the answer.
+ */
+export function hintOf(
+  word: BookWord,
+  direction: Direction,
+  letters: number,
+): WordHint {
+  const whole =
+    (direction === "recognition" ? word.translations[0] : english(word)[0]) ??
+    word.lemma;
+  const chars = Array.from(whole);
+  const isLetter = (char: string): boolean => /[\p{L}\p{N}]/u.test(char);
+  const most = Math.max(chars.filter(isLetter).length - 1, 0);
+  const shown = Math.min(letters, most);
+  const mask = chars
+    .map((char, at) => {
+      const before = chars.slice(0, at).filter(isLetter).length;
+      return isLetter(char) && before >= shown ? "_" : char;
+    })
+    .join("");
+  return { mask, context: null, more: letters < most };
+}
+
 /** Whether the answer is right for the word asked this way. */
-function isRight(word: BookWord, direction: Direction, text: string): boolean {
+export function isRight(
+  word: BookWord,
+  direction: Direction,
+  text: string,
+): boolean {
   const [listed, leading] =
     direction === "recognition"
       ? [word.translations, ARTICLES]
-      : [[word.lemma, ...bookForms(word)], LEADING];
+      : [english(word), LEADING];
   const accepted = [
     ...listed,
     ...(upheld.get(`${word.id}:${direction}`) ?? []),
@@ -205,26 +271,82 @@ function isDone(standing: Standing | undefined): boolean {
   );
 }
 
-/** The ways a word is still asked. */
-function openItems(wordId: string): Asked[] {
-  const standing = standings.get(wordId) ?? FRESH;
-  return DIRECTIONS.filter(
-    (direction) =>
-      standing.owed[direction] > 0 &&
-      (direction === "recognition" || standing.opened),
-  ).map((direction) => ({ wordId, direction }));
+/** The directions a session of `ways` asks. */
+function directionsOf(ways: Ways): readonly Direction[] {
+  return ways === "both" ? DIRECTIONS : [ways];
+}
+
+/**
+ * Where a word stands going by `past`, its answers oldest first: each way
+ * owes what its run of right answers at the end lacks to be two, and native
+ * → English is open once English → native has had two in a row. A miss in
+ * the refresh before reading starts the word over, both ways.
+ */
+function tally(past: readonly Given[]): Standing {
+  let run = { recognition: 0, production: 0 };
+  let opened = false;
+  for (const { direction, correct, refresh } of past) {
+    if (refresh === true && !correct) {
+      run = { recognition: 0, production: 0 };
+      opened = false;
+      continue;
+    }
+    run[direction] = correct ? Math.min(IN_A_ROW, run[direction] + 1) : 0;
+    opened = opened || run.recognition === IN_A_ROW;
+  }
+  const owed = {
+    recognition: IN_A_ROW - run.recognition,
+    production: IN_A_ROW - run.production,
+  };
+  return { owed, opened };
+}
+
+/**
+ * Where a word stands for a session: as every answer left it, or, in an
+ * extra review, as the answers given in that session alone leave it.
+ */
+function standingIn(sitting: MockSitting, wordId: string): Standing {
+  if (!sitting.extra) {
+    return standings.get(wordId) ?? FRESH;
+  }
+  return tally(
+    given.filter(
+      (each) => each.sittingId === sitting.id && each.wordId === wordId,
+    ),
+  );
+}
+
+/**
+ * The ways a word that stands at `standing` is still asked in a session of
+ * `ways`. Both ways wait for English → native to be finished before the
+ * other one; one way alone is asked from the start.
+ */
+function openItems(wordId: string, ways: Ways, standing: Standing): Asked[] {
+  return directionsOf(ways)
+    .filter(
+      (direction) =>
+        standing.owed[direction] > 0 &&
+        (ways !== "both" || direction === "recognition" || standing.opened),
+    )
+    .map((direction) => ({ wordId, direction }));
 }
 
 /**
  * What the session has left to ask: its own words, less the ones finished
- * or marked as known, most frequent first, each way that is still open.
+ * or marked as known, most frequent first, each way that is still open. An
+ * extra review asks a finished word too.
  */
 function openOf(sitting: MockSitting): Asked[] {
   return mockChapterWords(sitting.chapterId)
     .filter(
-      (word) => sitting.words.includes(word.id) && !word.known && !word.done,
+      (word) =>
+        sitting.words.includes(word.id) &&
+        !word.known &&
+        (sitting.extra || !word.done),
     )
-    .flatMap((word) => openItems(word.id));
+    .flatMap((word) =>
+      openItems(word.id, sitting.ways, standingIn(sitting, word.id)),
+    );
 }
 
 /** What to ask next; null when the session is over. */
@@ -240,35 +362,45 @@ function nextItem(sittingId: string, sitting: MockSitting): Asked | null {
 export function itemOf(word: BookWord, direction: Direction): PracticeItem {
   const context = CONTEXT[word.lemma] ?? null;
   if (direction === "recognition") {
-    return { wordId: word.id, direction, prompt: word.lemma, context };
+    return {
+      wordId: word.id,
+      direction,
+      prompt: word.lemma,
+      partOfSpeech: word.partOfSpeech,
+      context,
+      sentenceId: null,
+    };
   }
   return {
     wordId: word.id,
     direction,
     prompt: word.translations.join(", "),
+    partOfSpeech: word.partOfSpeech,
     context:
       context?.map((part) => (part.marked ? { ...part, text: "" } : part)) ??
       null,
+    sentenceId: null,
   };
 }
 
 /**
  * How far the session is: the right answers in a row its words stand on,
- * each way, out of the ones they take in all. A word marked as known leaves
+ * each way it asks, out of the ones they take in all. A word marked as known leaves
  * both numbers; a word never answered stands on none.
  */
 function progressOf(sitting: MockSitting): SittingProgress {
   const counted = mockChapterWords(sitting.chapterId).filter(
     (word) => sitting.words.includes(word.id) && !word.known,
   );
+  const asked = directionsOf(sitting.ways);
   let value = 0;
   for (const word of counted) {
-    const { owed } = standings.get(word.id) ?? FRESH;
-    for (const direction of DIRECTIONS) {
+    const { owed } = standingIn(sitting, word.id);
+    for (const direction of asked) {
       value += IN_A_ROW - owed[direction];
     }
   }
-  return { value, total: counted.length * DIRECTIONS.length * IN_A_ROW };
+  return { value, total: counted.length * asked.length * IN_A_ROW };
 }
 
 function stepOf(sittingId: string): PracticeStep {
@@ -293,11 +425,36 @@ function stepOf(sittingId: string): PracticeStep {
   return { type: "item", item: itemOf(word, next.direction), progress };
 }
 
-/** The chapter's words neither finished nor known, most frequent first. */
-function openWords(chapterId: string): string[] {
+/**
+ * The chapter's words neither finished nor known that have something to ask
+ * in `ways`, most frequent first.
+ */
+function openWords(chapterId: string, ways: Ways = "both"): string[] {
   // An unknown chapter is refused here, as the commands refuse it.
   return mockChapterWords(chapterId)
     .filter((word) => !word.done && !word.known)
+    .map((word) => word.id)
+    .filter((id) => openItems(id, ways, standings.get(id) ?? FRESH).length > 0);
+}
+
+/**
+ * Whether a session of `ways` on the chapter is an extra review: none of
+ * its open words has anything left to ask that way.
+ */
+function isExtra(chapterId: string, ways: Ways): boolean {
+  return openWords(chapterId, ways).length === 0;
+}
+
+/**
+ * The words a session of `ways` draws from: the open ones with something to
+ * ask that way, or, for an extra review, every word not marked as known.
+ */
+function wordsFor(chapterId: string, ways: Ways): string[] {
+  if (!isExtra(chapterId, ways)) {
+    return openWords(chapterId, ways);
+  }
+  return mockChapterWords(chapterId)
+    .filter((word) => !word.known)
     .map((word) => word.id);
 }
 
@@ -318,24 +475,62 @@ function heldSitting(chapterId: string): string | null {
 }
 
 function options(chapterId: string): PracticeOptions {
-  const open = openWords(chapterId);
+  const offered = (ways: Ways): PracticeOptions["sizes"] =>
+    sizesFor(wordsFor(chapterId, ways).length, ways);
   return {
     resume: heldSitting(chapterId) !== null,
-    sizes: sizesFor(open.length),
+    sizes: offered("both"),
+    oneWay: {
+      recognition: offered("recognition"),
+      production: offered("production"),
+    },
+    extra: WAYS.filter((ways) => isExtra(chapterId, ways)),
   };
 }
 
-/** A session of `size` open words, or all; or the one left unfinished. */
-function start(chapterId: string, size: number | null): Sitting {
-  const open = openWords(chapterId);
+/**
+ * A session of `size` open words asked in `ways`, or all of them; or the one
+ * left unfinished, with the words and the ways it had. With nothing left to
+ * ask in `ways` it is an extra review.
+ */
+function start(chapterId: string, size: number | null, ways: Ways): Sitting {
+  const open = wordsFor(chapterId, ways);
+  const extra = isExtra(chapterId, ways);
   const left = heldSitting(chapterId);
   if (left !== null) {
     return { id: left, step: stepOf(left) };
   }
   const id = `sitting-${String(sittings.size + 1)}`;
   const words = open.slice(0, size ?? open.length);
-  sittings.set(id, { chapterId, words, finished: false });
+  sittings.set(id, { id, chapterId, words, ways, extra, finished: false });
   return { id, step: stepOf(id) };
+}
+
+/** Keeps where the word stands, and what the word list says of it. */
+function stand(wordId: string, standing: Standing): void {
+  standings.set(wordId, standing);
+  const finished = DIRECTIONS.filter(
+    (direction) => standing.owed[direction] === 0,
+  );
+  const [only] = finished;
+  setMockWordHalf(wordId, finished.length === 1 ? (only ?? null) : null);
+  setMockWordDone(wordId, isDone(standing));
+}
+
+/**
+ * A word that came done with the shelf has no answers behind it: it is
+ * given the four right ones a done word has, as of the sitting `sittingId`.
+ */
+function backfill(wordId: string, sittingId: string): void {
+  if (standings.has(wordId)) {
+    return;
+  }
+  const kept = { sittingId, wordId, judged: true, text: "", correct: true };
+  for (const direction of DIRECTIONS) {
+    for (let count = 0; count < IN_A_ROW; count += 1) {
+      given.push({ ...kept, direction });
+    }
+  }
 }
 
 /**
@@ -344,22 +539,22 @@ function start(chapterId: string, size: number | null): Sitting {
  * native → English is open once English → native has had two in a row.
  */
 function recount(wordId: string, before: Standing): Standing {
-  const run = { recognition: 0, production: 0 };
-  let opened = false;
-  for (const past of given.filter((each) => each.wordId === wordId)) {
-    const { direction, correct } = past;
-    run[direction] = correct ? Math.min(IN_A_ROW, run[direction] + 1) : 0;
-    opened = opened || run.recognition === IN_A_ROW;
-  }
-  const owed = {
-    recognition: IN_A_ROW - run.recognition,
-    production: IN_A_ROW - run.production,
+  return {
+    ...before,
+    ...tally(given.filter((each) => each.wordId === wordId)),
   };
-  return { ...before, owed, opened };
 }
 
-/** An empty answer is "I don't know": a miss like any other. */
-function answer(sittingId: string, asked: Asked, text: string): AnswerResult {
+/**
+ * An empty answer is "I don't know": a miss like any other. A right one
+ * given after a hint is a helped one.
+ */
+function answer(
+  sittingId: string,
+  asked: Asked,
+  text: string,
+  hinted = false,
+): AnswerResult {
   const sitting = findSitting(sittingId);
   const { wordId, direction } = asked;
   const word = mockChapterWords(sitting.chapterId).find(
@@ -376,6 +571,10 @@ function answer(sittingId: string, asked: Asked, text: string): AnswerResult {
     throw new PracticeError("invalid", "this word is not being asked");
   }
   const correct = isRight(word, direction, text);
+  if (word.done) {
+    // Only an extra review asks a done word; its past is no part of it.
+    backfill(wordId, "");
+  }
   given.push({
     sittingId,
     wordId,
@@ -384,27 +583,35 @@ function answer(sittingId: string, asked: Asked, text: string): AnswerResult {
     correct,
     judged: false,
   });
-  const after = recount(wordId, before);
-  standings.set(wordId, after);
-  if (isDone(after)) {
-    setMockWordDone(wordId);
-  }
+  stand(wordId, recount(wordId, before));
   return {
     answerId: given.length,
     correct,
     accepted:
-      direction === "recognition" ? [...word.translations] : [word.lemma],
+      direction === "recognition" ? [...word.translations] : english(word),
     step: stepOf(sittingId),
+    ...PLAIN,
+    helped: correct && hinted,
   };
+}
+
+/** The hint to a word of the session's chapter, asked this way. */
+function hint(sittingId: string, asked: Asked, letters: number): WordHint {
+  const word = mockChapterWords(findSitting(sittingId).chapterId).find(
+    (candidate) => candidate.id === asked.wordId,
+  );
+  if (word === undefined) {
+    throw new PracticeError("invalid", "this word is not being asked");
+  }
+  return hintOf(word, asked.direction, letters);
 }
 
 /**
  * One answer of the refresh before reading (`ipcMockRefresh.ts`), English →
  * native, to a word that is done: whether it was right. It is kept with the
  * answers of practice, as Rust keeps it, so that a miss puts the word back
- * in practice owing two in a row that way and nothing the other. A word that
- * came done with the shelf has no answers behind it: it is given the four
- * right ones a done word has.
+ * in practice owing two in a row both ways, English → native first. A word that
+ * came done with the shelf has no answers behind it ([`backfill`]).
  */
 export function answerMockRefresh(
   sittingId: string,
@@ -413,22 +620,22 @@ export function answerMockRefresh(
 ): boolean {
   const wordId = word.id;
   const kept = { sittingId, wordId, judged: true };
-  if (!standings.has(wordId)) {
-    for (const direction of DIRECTIONS) {
-      for (let count = 0; count < IN_A_ROW; count += 1) {
-        given.push({ ...kept, direction, text: "", correct: true });
-      }
-    }
-  }
+  backfill(wordId, sittingId);
   const before = standings.get(wordId) ?? {
     owed: { recognition: 0, production: 0 },
     opened: true,
   };
   const correct = isRight(word, "recognition", text);
   // Not to be stood by: the refresh does not offer "I was right".
-  given.push({ ...kept, direction: "recognition", text: text.trim(), correct });
+  given.push({
+    ...kept,
+    direction: "recognition",
+    text: text.trim(),
+    correct,
+    refresh: true,
+  });
   // A right answer to a word that owes nothing changes nothing.
-  standings.set(wordId, recount(wordId, before));
+  stand(wordId, recount(wordId, before));
   if (!correct) {
     setMockWordDone(wordId, false);
   }
@@ -488,11 +695,7 @@ function dispute(answerId: number): DisputeResult {
     miss.correct = true;
     const key = `${wordId}:${direction}`;
     upheld.set(key, [...(upheld.get(key) ?? []), text]);
-    const after = recount(wordId, before);
-    standings.set(wordId, after);
-    if (isDone(after)) {
-      setMockWordDone(wordId);
-    }
+    stand(wordId, recount(wordId, before));
   }
   return {
     upheld: isUpheld,
@@ -517,8 +720,8 @@ export function practiceCommands(
       after(80, () => options(arg(args, "chapterId"))),
     start_sitting: (args) =>
       after(150, () => {
-        const { size } = args as { size?: number | null };
-        return start(arg(args, "chapterId"), size ?? null);
+        const { size, ways } = args as { size?: number | null; ways?: Ways };
+        return start(arg(args, "chapterId"), size ?? null, ways ?? "both");
       }),
     sitting_step: (args) => after(80, () => stepOf(arg(args, "sittingId"))),
     know_word: (args) =>
@@ -540,6 +743,21 @@ export function practiceCommands(
                 : "recognition",
           },
           arg(args, "answer"),
+          (args as { tries?: { hinted?: boolean } }).tries?.hinted === true,
+        ),
+      ),
+    hint_word: (args) =>
+      after(60, () =>
+        hint(
+          arg(args, "sittingId"),
+          {
+            wordId: arg(args, "wordId"),
+            direction:
+              arg(args, "direction") === "production"
+                ? "production"
+                : "recognition",
+          },
+          Number(arg(args, "asked")),
         ),
       ),
   };

@@ -11,6 +11,7 @@ import type {
   ChapterWords,
   Depth,
   KnownWord,
+  PartOfSpeech,
 } from "@shared/domain";
 import { READY } from "@shared/domain";
 import {
@@ -22,32 +23,39 @@ import {
   isMockWordDone,
   isMockWordKnown,
   mockKnownLemmas,
+  mockWordHalf,
+  mockWordStrength,
   resetMockWords,
   setMockWordDone,
   setMockWordKnown,
 } from "./ipcMockWords";
 
-type Entry = [lemma: string, translations: string[], count: number];
+type Entry = [
+  lemma: string,
+  translations: string[],
+  count: number,
+  partOfSpeech: PartOfSpeech,
+];
 
 /** The words each depth brings in that the shallower ones did not. */
 const FOUND: Record<Depth, Entry[]> = {
   hardest: [
-    ["peep", ["asomarse", "echar un vistazo"], 2],
-    ["waistcoat", ["chaleco"], 3],
-    ["hedge", ["seto"], 1],
-    ["marmalade", ["mermelada"], 2],
+    ["peep", ["asomarse", "echar un vistazo"], 2, "verb"],
+    ["waistcoat", ["chaleco"], 3, "noun"],
+    ["hedge", ["seto"], 1, "noun"],
+    ["marmalade", ["mermelada"], 2, "noun"],
   ],
   relevant: [
-    ["rabbit hole", ["madriguera"], 6],
-    ["tumble", ["caerse", "rodar"], 4],
-    ["curtsey", ["hacer una reverencia", "reverencia"], 3],
-    ["give up", ["rendirse", "dejar"], 2],
+    ["rabbit hole", ["madriguera"], 6, "noun"],
+    ["tumble", ["caerse", "rodar"], 4, "verb"],
+    ["curtsey", ["hacer una reverencia", "reverencia"], 3, "verb"],
+    ["give up", ["rendirse", "dejar"], 2, "phrasalVerb"],
   ],
   most: [
-    ["bank", ["orilla", "ribera"], 5],
-    ["daisy", ["margarita"], 3],
-    ["cupboard", ["armario", "alacena"], 2],
-    ["shelf", ["estante", "repisa"], 2],
+    ["bank", ["orilla", "ribera"], 5, "noun"],
+    ["daisy", ["margarita"], 3, "noun"],
+    ["cupboard", ["armario", "alacena"], 2, "noun"],
+    ["shelf", ["estante", "repisa"], 2, "noun"],
   ],
 };
 
@@ -61,8 +69,12 @@ const LONG_CHAPTER = "book-alice-3";
 const FLAKY_CHAPTER = "book-alice-4";
 
 let words: Map<string, BookWord[]> = new Map();
+/** The ids of the words left to learn in a sorting of their list. */
+let sorted: Set<string> = new Set();
 let failed: Set<string> = new Set();
 let refusal: ChapterRefusal | null = null;
+/** The words are as stored before words were labelled: of no kind yet. */
+let unlabelled = false;
 
 /** The `invalid` or `provider` error `prepare_chapter` rejects with. */
 class ChapterError extends Error {
@@ -78,13 +90,17 @@ class ChapterError extends Error {
 function wordsUpTo(chapterId: string, depth: Depth): BookWord[] {
   return DEPTHS.slice(0, DEPTHS.indexOf(depth) + 1)
     .flatMap((each) => FOUND[each])
-    .map(([lemma, translations, count]) => ({
+    .map(([lemma, translations, count, partOfSpeech]) => ({
       id: `${chapterId}-${lemma.replaceAll(" ", "-")}`,
       lemma,
+      partOfSpeech,
       translations: [...translations],
       count,
       done: false,
+      strength: null,
+      half: null,
       known: false,
+      sorted: false,
     }));
 }
 
@@ -97,9 +113,19 @@ function byCount(list: BookWord[]): BookWord[] {
 /** Forgets what was prepared since the shelf was last filled. */
 export function resetMockChapters(): void {
   words = new Map();
+  sorted = new Set();
   failed = new Set();
   refusal = null;
+  unlabelled = false;
   resetMockWords();
+}
+
+/**
+ * Every word is as it was stored before words were labelled, until
+ * `label_words` says what kind each is.
+ */
+export function seedMockUnlabelled(): void {
+  unlabelled = true;
 }
 
 /** The next `prepare_chapter` is refused for this reason, once. */
@@ -114,11 +140,19 @@ function wordsOf(chapter: Chapter): BookWord[] {
     chapter.prepared === null
       ? []
       : byCount(wordsUpTo(chapter.id, chapter.prepared));
-  return (words.get(chapter.id) ?? seeded).map((word) => ({
-    ...word,
-    done: isMockWordDone(word.id),
-    known: isMockWordKnown(word.lemma),
-  }));
+  return (words.get(chapter.id) ?? seeded).map((word) => {
+    const done = isMockWordDone(word.id);
+    const known = isMockWordKnown(word.lemma);
+    return {
+      ...word,
+      partOfSpeech: unlabelled ? null : word.partOfSpeech,
+      done,
+      strength: done && !known ? mockWordStrength(word.lemma) : null,
+      half: mockWordHalf(word.id),
+      known,
+      sorted: sorted.has(word.id),
+    };
+  });
 }
 
 /**
@@ -202,6 +236,29 @@ function setKnown(wordId: string, known: boolean): ChapterWords {
     }
   }
   throw new ChapterError("notFound", "word not found");
+}
+
+/** Keeps a word as left to learn in a sorting, or takes that back. */
+function setSorted(wordId: string, left: boolean): ChapterWords {
+  for (const chapter of allMockChapters()) {
+    if (wordsOf(chapter).some((each) => each.id === wordId)) {
+      if (left) {
+        sorted.add(wordId);
+      } else {
+        sorted.delete(wordId);
+      }
+      return chapterWords(chapter.id);
+    }
+  }
+  throw new ChapterError("notFound", "word not found");
+}
+
+/** Has the chapter's list to be sorted again from its first word. */
+function restartSorting(id: string): ChapterWords {
+  for (const word of chapterWords(id).words) {
+    sorted.delete(word.id);
+  }
+  return chapterWords(id);
 }
 
 /** Every word marked as known, the latest first; its base form is its key. */
@@ -289,6 +346,20 @@ export function chapterCommands(
           (args as Record<string, unknown>).known === true,
         ),
       ),
+    set_word_sorted: (args) =>
+      after(80, () =>
+        setSorted(
+          arg(args, "wordId"),
+          (args as Record<string, unknown>).sorted === true,
+        ),
+      ),
+    restart_sorting: (args) => after(80, () => restartSorting(arg(args, "id"))),
+    label_words: () =>
+      after(600, () => {
+        const labelled = unlabelled ? Object.values(FOUND).flat().length : 0;
+        unlabelled = false;
+        return labelled;
+      }),
     list_known_words: () => after(80, knownWords),
     forget_known_word: (args) =>
       after(80, () => {

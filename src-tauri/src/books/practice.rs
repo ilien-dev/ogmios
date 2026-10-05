@@ -7,8 +7,11 @@
 //! A word's standing is never stored. It is read off its answers, oldest
 //! first ([`owed`]), so undoing a miss later is changing that one answer.
 
+use rust_stemmers::{Algorithm, Stemmer};
+
+use super::spelling::{self, Spelling};
 use super::vocab::{tokens, LEADING};
-use crate::domain::{Direction, SentencePart, SessionSize, SittingProgress};
+use crate::domain::{Direction, PartOfSpeech, SentencePart, SessionSize, SittingProgress, Ways};
 
 /// Correct answers in a row that finish a word in a direction.
 pub const IN_A_ROW: u32 = 2;
@@ -24,8 +27,12 @@ pub const READY: u32 = 100;
 pub const SPACING: usize = 5;
 /// The sizes a session is offered in, in words, beside "every open word".
 pub const SIZES: [u32; 3] = [10, 20, 40];
-/// Answers a word is expected to take: two each way and one miss.
+/// Answers a word is expected to take in a session of both ways: two each
+/// way and one miss.
 pub const ANSWERS_PER_WORD: u32 = 5;
+/// Answers a word is expected to take in a session of one way: two and one
+/// miss.
+pub const ANSWERS_ONE_WAY: u32 = 3;
 /// How long an answer is taken to last, in milliseconds, until the learner
 /// has given [`OWN_PACE_AFTER`] of them.
 pub const DEFAULT_PACE_MS: u64 = 8_000;
@@ -40,14 +47,25 @@ pub const LONGEST_GAP_MS: i64 = 60_000;
 pub struct Answer {
     pub direction: Direction,
     pub correct: bool,
+    /// Given in the refresh before reading, which asks words that are done.
+    pub refresh: bool,
+}
+
+/// The answers a word stands on: those given since its last miss in the
+/// refresh before reading, or all of them. That miss is a done word found
+/// forgotten, so the word starts over, in both directions.
+fn standing(answers: &[Answer]) -> &[Answer] {
+    let forgotten = |answer: &Answer| answer.refresh && !answer.correct;
+    answers.rsplit(forgotten).next().unwrap_or(answers)
 }
 
 /// The run of correct answers in `direction` as it stood after each answer
 /// given that way, oldest first: one more for a correct answer, never past
 /// [`IN_A_ROW`]; back to none for a miss. Answers the other way are not part
-/// of it and do not break it.
+/// of it and do not break it, but for a miss in the refresh before reading:
+/// only the answers since the last one count ([`standing`]).
 fn runs(direction: Direction, answers: &[Answer]) -> impl Iterator<Item = u32> + '_ {
-    answers
+    standing(answers)
         .iter()
         .filter(move |answer| answer.direction == direction)
         .scan(0_u32, |run, answer| {
@@ -69,8 +87,9 @@ pub fn run(direction: Direction, answers: &[Answer]) -> u32 {
 
 /// Correct answers in a row the word still owes in `direction`: what its
 /// [`run`] lacks to reach [`IN_A_ROW`]. A miss adds nothing beyond undoing
-/// the run, and a direction that was finished owes again after one: that is
-/// how a miss in the refresh before reading sends a word back.
+/// the run, and a direction that was finished owes again after one. A miss
+/// in the refresh before reading undoes the run of the other direction too:
+/// that is how it sends a word back, to be practised both ways again.
 pub fn owed(direction: Direction, answers: &[Answer]) -> u32 {
     IN_A_ROW.saturating_sub(run(direction, answers))
 }
@@ -102,7 +121,8 @@ pub fn readiness(words: u32, settled: u32) -> u32 {
 /// Whether the word is asked in `direction` yet. English → native always
 /// is; native → English opens once English → native has been finished, at
 /// any point of the answers, and stays open even if a later miss makes
-/// English → native owe again.
+/// English → native owe again. A miss in the refresh before reading closes
+/// it until English → native is finished once more ([`standing`]).
 pub fn is_open(direction: Direction, answers: &[Answer]) -> bool {
     match direction {
         Direction::Recognition => true,
@@ -133,18 +153,18 @@ const ARTICLES: [(&str, &[&str]); 7] = [
 /// The leading articles of a language, by its tag ("es", "es-MX"); none for
 /// a language without a table.
 pub fn articles(lang: &str) -> &'static [&'static str] {
-    let primary = lang.split(['-', '_']).next().unwrap_or(lang).to_lowercase();
+    let primary = primary(lang);
     ARTICLES
         .iter()
         .find(|(tag, _)| *tag == primary)
         .map_or(&[], |(_, list)| list)
 }
 
-/// An answer as it is compared: lowercase, without accents, punctuation or
-/// surrounding spaces, and without a leading article. An article alone stays:
-/// it is the whole answer.
-fn normal(text: &str, articles: &[&str]) -> String {
-    let mut words = tokens(text);
+/// An answer as it is compared: its words under `spelling`, without
+/// punctuation or surrounding spaces, and without a leading article. An
+/// article alone stays: it is the whole answer.
+fn normal(text: &str, articles: &[&str], spelling: Spelling) -> Vec<String> {
+    let mut words = spelling::words(text, spelling);
     if words.len() > 1 && articles.contains(&words[0].as_str()) {
         words.remove(0);
     } else if let Some(first) = words.first_mut() {
@@ -158,27 +178,253 @@ fn normal(text: &str, articles: &[&str]) -> String {
             *first = rest;
         }
     }
-    words.join(" ")
+    words
 }
 
 /// Whether `answer` is one of the `accepted` translations, ignoring case,
-/// accents, punctuation, surrounding spaces and a leading article from
-/// `articles`. An empty answer is never right.
-pub fn accepts(answer: &str, accepted: &[String], articles: &[&str]) -> bool {
-    let given = normal(answer, articles);
+/// punctuation, surrounding spaces and a leading article from `articles`.
+/// Lenient spelling also ignores accents; strict spelling takes them too.
+/// Every letter counts either way. An empty answer is never right.
+pub fn accepts(answer: &str, accepted: &[String], articles: &[&str], spelling: Spelling) -> bool {
+    let given = normal(answer, articles, spelling);
     !given.is_empty()
         && accepted
             .iter()
-            .any(|translation| normal(translation, articles) == given)
+            .any(|translation| normal(translation, articles, spelling) == given)
+}
+
+/// The forms of "to be" that may lead an answer in the learner's language,
+/// without their accents: "estar apoyado" says what "apoyado" says.
+const COPULAS: [(&str, &[&str]); 4] = [
+    (
+        "es",
+        &[
+            "ser",
+            "es",
+            "son",
+            "era",
+            "eran",
+            "fue",
+            "fueron",
+            "estar",
+            "esta",
+            "estan",
+            "estaba",
+            "estaban",
+            "estuvo",
+            "estuvieron",
+        ],
+    ),
+    (
+        "pt",
+        &[
+            "ser", "sao", "era", "eram", "foi", "foram", "estar", "esta", "estao", "estava",
+            "estavam", "ficar",
+        ],
+    ),
+    ("fr", &["etre", "est", "sont", "etait", "etaient"]),
+    (
+        "it",
+        &[
+            "essere", "sono", "era", "erano", "stare", "sta", "stanno", "stava", "stavano",
+        ],
+    ),
+];
+
+/// The pronouns that may lead a reflexive verb in the learner's language,
+/// written apart from it: "se serenó" says what "serenarse" says.
+const REFLEXIVES: [(&str, &[&str]); 1] = [("es", &["me", "te", "se", "nos", "os"])];
+
+/// The languages whose words can be brought to their stem.
+const STEMMERS: [(&str, Algorithm); 6] = [
+    ("es", Algorithm::Spanish),
+    ("pt", Algorithm::Portuguese),
+    ("fr", Algorithm::French),
+    ("it", Algorithm::Italian),
+    ("de", Algorithm::German),
+    ("nl", Algorithm::Dutch),
+];
+
+/// The primary subtag of a language tag: "es" for "es-MX".
+fn primary(lang: &str) -> String {
+    lang.split(['-', '_']).next().unwrap_or(lang).to_lowercase()
+}
+
+/// A word without its accents, as lenient spelling compares it.
+fn plain(word: &str) -> String {
+    spelling::words(word, Spelling::Lenient).concat()
+}
+
+/// How a language writes more than one: the ending of the one and the
+/// ending of the many, without their accents.
+const PLURALS: [(&str, &[(&str, &str)]); 3] = [
+    ("es", &[("z", "ces"), ("", "s"), ("", "es")]),
+    (
+        "pt",
+        &[
+            ("ao", "oes"),
+            ("ao", "aes"),
+            ("m", "ns"),
+            ("l", "is"),
+            ("", "s"),
+            ("", "es"),
+        ],
+    ),
+    ("fr", &[("al", "aux"), ("", "s"), ("", "x")]),
+];
+
+/// Whether `many` is `one` in the plural, by the `endings` of a language.
+fn plural_of(one: &str, many: &str, endings: &[(&str, &str)]) -> bool {
+    endings.iter().any(|(single, plural)| {
+        one.strip_suffix(single)
+            .zip(many.strip_suffix(plural))
+            .is_some_and(|(left, right)| !left.is_empty() && left == right)
+    })
+}
+
+/// Whether two answers are the same words with one or more of them in the
+/// other number: "rodamientos" and "rodamiento", "examen de admisión" and
+/// "exámenes de admisión". An accent moves with the number and is not
+/// compared there. The same answers are not apart, and nothing is in a
+/// language without a table.
+fn apart_in_number(given: &[String], accepted: &[String], lang: &str) -> bool {
+    let lang = primary(lang);
+    let Some((_, endings)) = PLURALS.iter().find(|(tag, _)| *tag == lang) else {
+        return false;
+    };
+    given.len() == accepted.len()
+        && given != accepted
+        && given.iter().zip(accepted).all(|(left, right)| {
+            let (one, other) = (plain(left), plain(right));
+            left == right || plural_of(&one, &other, endings) || plural_of(&other, &one, endings)
+        })
+}
+
+/// Whether the translations of a word of this kind are taken in any form.
+/// A verb and an adjective are: "apoyados" and "apoyaba" are "apoyar". A
+/// noun is not: its ending can make it another word ("puerto", "puerta"),
+/// and only its number is free ([`apart_in_number`]). Nor is a word whose
+/// kind is not known.
+pub fn inflects(part: Option<PartOfSpeech>) -> bool {
+    matches!(
+        part,
+        Some(PartOfSpeech::Verb | PartOfSpeech::PhrasalVerb | PartOfSpeech::Adjective)
+    )
+}
+
+/// An answer in the learner's language as its meaning is compared: its
+/// words without a leading article or form of "to be", each brought to its
+/// stem when the word `inflects`, which also drops the pronoun leading a
+/// reflexive verb. A form of "to be" or a pronoun alone stays: it is the
+/// whole answer. A language without a table keeps its words as they are.
+fn roots(text: &str, (lang, inflects): (&str, bool), spelling: Spelling) -> Vec<String> {
+    let lang = primary(lang);
+    // Accents are kept for the stemmer: an ending may be told by one.
+    let mut words = normal(text, articles(&lang), Spelling::Strict);
+    let reflexives = REFLEXIVES
+        .iter()
+        .find(|(tag, _)| inflects && *tag == lang)
+        .map_or(&[][..], |(_, list)| list);
+    if words.len() > 1 && reflexives.contains(&words[0].as_str()) {
+        words.remove(0);
+    }
+    let copulas = COPULAS
+        .iter()
+        .find(|(tag, _)| *tag == lang)
+        .map_or(&[][..], |(_, list)| list);
+    if words.len() > 1 && copulas.contains(&plain(&words[0]).as_str()) {
+        words.remove(0);
+    }
+    let stemmer = STEMMERS
+        .iter()
+        .find(|(tag, _)| inflects && *tag == lang)
+        .map(|(_, algorithm)| Stemmer::create(*algorithm));
+    words
+        .iter()
+        .map(|word| {
+            let stem = stemmer
+                .as_ref()
+                .map_or_else(|| word.clone(), |stemmer| stemmer.stem(word).into_owned());
+            match spelling {
+                Spelling::Lenient => plain(&stem),
+                Spelling::Strict => stem,
+            }
+        })
+        .collect()
+}
+
+/// Whether `answer` says what one of the `accepted` translations says, in
+/// the learner's language: one of them as [`accepts`] reads it, with or
+/// without a leading form of "to be" ("apoyado" for "estar apoyado"), or,
+/// for a word that `inflects`, in another form of its words ("apoyado" for
+/// "apoyar"), or, for one that does not, in the other number ("rodamientos"
+/// for "rodamiento"). English → native asks what a word means, not which
+/// form its translation takes.
+pub fn accepts_native(
+    answer: &str,
+    accepted: &[String],
+    native: (&str, bool),
+    spelling: Spelling,
+) -> bool {
+    let lang = native.0;
+    if accepts(answer, accepted, articles(lang), spelling) {
+        return true;
+    }
+    let given = roots(answer, native, spelling);
+    // The same letters as a translation, which `accepts` did not take: the
+    // spelling counts and an accent is wrong. That is no other form.
+    let written = normal(answer, articles(lang), Spelling::Lenient);
+    !given.is_empty()
+        && accepted.iter().any(|translation| {
+            let said = roots(translation, native, spelling);
+            (said == given && normal(translation, articles(lang), Spelling::Lenient) != written)
+                || (!native.1 && apart_in_number(&given, &said, lang))
+        })
+}
+
+/// The translations a word is `shown` as, the one the learner answers with
+/// most first. Each of their right `answers` English → native counts for the
+/// first translation it is as written ([`accepts`]), or else for the first
+/// it says in another form ([`accepts_native`]). An answer that is none of
+/// them, one a dispute upheld, counts for nothing and is never listed. As
+/// often as each other, two keep the order the chapter was prepared with.
+/// The answers were checked when they were given: spelling is lenient here.
+pub fn preferred(shown: Vec<String>, answers: &[String], native: (&str, bool)) -> Vec<String> {
+    let said = |answer: &str| {
+        let written = |each: &String| {
+            let one = std::slice::from_ref(each);
+            accepts(answer, one, articles(native.0), Spelling::Lenient)
+        };
+        let meant = |each: &String| {
+            accepts_native(
+                answer,
+                std::slice::from_ref(each),
+                native,
+                Spelling::Lenient,
+            )
+        };
+        let exact = shown.iter().position(written);
+        exact.or_else(|| shown.iter().position(meant))
+    };
+    let mut uses = vec![0_u32; shown.len()];
+    for answer in answers {
+        if let Some(count) = said(answer).and_then(|at| uses.get_mut(at)) {
+            *count = count.saturating_add(1);
+        }
+    }
+    let mut ranked: Vec<(u32, String)> = uses.into_iter().zip(shown).collect();
+    // A stable sort: a tie is settled by the order they came in.
+    ranked.sort_by_key(|(uses, _)| std::cmp::Reverse(*uses));
+    ranked.into_iter().map(|(_, text)| text).collect()
 }
 
 /// Whether `answer` is the English word: its base form or any form the book
 /// uses, ignoring case, punctuation, surrounding spaces and a leading "to" or
-/// article.
-pub fn accepts_english(answer: &str, lemma: &str, forms: &[String]) -> bool {
+/// article, and what `spelling` forgives.
+pub fn accepts_english(answer: &str, lemma: &str, forms: &[String], spelling: Spelling) -> bool {
     let mut accepted = forms.to_vec();
     accepted.push(lemma.to_owned());
-    accepts(answer, &accepted, &LEADING)
+    accepts(answer, &accepted, &LEADING, spelling)
 }
 
 /// One word of a session, with every answer it was ever given, in any
@@ -230,6 +476,38 @@ impl SessionWord {
             .iter()
             .all(|direction| self.owed(*direction) == 0)
     }
+
+    /// The one way the word is finished in while it still owes the other;
+    /// none for a done word, and for one finished in neither.
+    pub fn half(&self) -> Option<Direction> {
+        match DIRECTIONS.map(|direction| self.owed(direction) == 0) {
+            [true, false] => Some(Direction::Recognition),
+            [false, true] => Some(Direction::Production),
+            _ => None,
+        }
+    }
+
+    /// What a session of `ways` has left to ask of the word, English →
+    /// native first: one question for every direction of `ways` that still
+    /// owes something. A session of both ways waits for a direction to be
+    /// open ([`SessionWord::is_open`]); a session of one way was asked for
+    /// that way, and asks it from the start.
+    fn questions(&self, ways: Ways) -> impl Iterator<Item = Question<'_>> {
+        directions(ways).iter().filter_map(move |direction| {
+            let owed = self.owed(*direction);
+            let asked = owed > 0 && (ways != Ways::Both || self.is_open(*direction));
+            asked.then_some(Question {
+                word_id: &self.word_id,
+                direction: *direction,
+                owed,
+            })
+        })
+    }
+
+    /// Whether a session of `ways` has anything to ask of the word.
+    pub fn is_asked(&self, ways: Ways) -> bool {
+        self.questions(ways).next().is_some()
+    }
 }
 
 /// One answer given in a session. A session's log is these, oldest first:
@@ -253,47 +531,96 @@ pub struct Question<'a> {
 /// The two ways a word is asked, the one reading needs first.
 const DIRECTIONS: [Direction; 2] = [Direction::Recognition, Direction::Production];
 
-/// What is left to ask of `words`, in their order, English → native before
-/// native → English: one question for every direction of a word that is open
-/// and still owes something. A finished word has none, so it is never asked.
-pub fn open_questions(words: &[SessionWord]) -> Vec<Question<'_>> {
-    let mut open = Vec::new();
-    for word in words {
-        for direction in DIRECTIONS {
-            let owed = word.owed(direction);
-            if owed > 0 && word.is_open(direction) {
-                open.push(Question {
-                    word_id: &word.word_id,
-                    direction,
-                    owed,
-                });
-            }
-        }
+/// The directions a session of `ways` asks its words in.
+pub fn directions(ways: Ways) -> &'static [Direction] {
+    match ways {
+        Ways::Both => &DIRECTIONS,
+        Ways::Recognition => &[Direction::Recognition],
+        Ways::Production => &[Direction::Production],
     }
-    open
+}
+
+/// What a session of `ways` has left to ask of `words`, in their order,
+/// English → native before native → English
+/// ([`SessionWord::questions`]). A word finished in every direction of
+/// `ways` has none, so it is never asked.
+pub fn session_questions(words: &[SessionWord], ways: Ways) -> Vec<Question<'_>> {
+    words.iter().flat_map(|word| word.questions(ways)).collect()
+}
+
+/// What is left to ask of `words` in both ways: every direction of a word
+/// that is open and still owes something.
+#[cfg(test)]
+pub fn open_questions(words: &[SessionWord]) -> Vec<Question<'_>> {
+    session_questions(words, Ways::Both)
+}
+
+/// How many of `words` a session of `ways` has something to ask of.
+pub fn asked_in(words: &[SessionWord], ways: Ways) -> u32 {
+    let asked = words.iter().filter(|word| word.is_asked(ways)).count();
+    u32::try_from(asked).unwrap_or(u32::MAX)
+}
+
+/// THE rule for an extra review, and the only place it is written: a
+/// session started in `ways` that none of the chapter's `open` words has
+/// anything left to ask in. Practice is never refused: such a session asks
+/// the chapter's words again, each counted from the answers given in it.
+pub fn is_extra(open: &[SessionWord], ways: Ways) -> bool {
+    asked_in(open, ways) == 0
+}
+
+/// What a sitting draws its order from: its id, hashed (FNV-1a). The same
+/// id is the same seed on every run of the app.
+pub fn seed(id: &str) -> u64 {
+    id.bytes().fold(0xcbf2_9ce4_8422_2325, |hash, byte| {
+        (hash ^ u64::from(byte)).wrapping_mul(0x0000_0100_0000_01b3)
+    })
+}
+
+/// Scatters the bits of a number (the finalizer of `SplitMix64`).
+fn mix(value: u64) -> u64 {
+    let value = value.wrapping_add(0x9e37_79b9_7f4a_7c15);
+    let value = (value ^ (value >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
+    let value = (value ^ (value >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
+    value ^ (value >> 31)
+}
+
+/// A place among `len`, drawn for the `turn` of the sitting `seed` belongs
+/// to; none among none. It is the same for the same three: a sitting left
+/// and gone on with shows the question it was showing.
+pub fn pick(seed: u64, turn: usize, len: usize) -> Option<usize> {
+    let len = u64::try_from(len).ok().filter(|len| *len > 0)?;
+    let turn = u64::try_from(turn).unwrap_or(u64::MAX);
+    usize::try_from(mix(seed ^ mix(turn)) % len).ok()
 }
 
 /// The question a session asks next, or none when it is over: every one of
-/// its words is finished in both directions.
+/// its words is finished in the directions of its `ways`.
 ///
-/// `words` is the session's words the learner has not said they know, most
-/// frequent in the chapter first; `log` the answers given in this session,
-/// oldest first. A word is *spaced* when it was never asked in the session or
-/// at least [`SPACING`] other questions were asked since its last one, in
-/// either direction. Only the session's own log counts, so a session left and
-/// gone on with later counts on from where it stopped.
+/// `words` is the session's words the learner has not said they know; `log`
+/// the answers given in this session, oldest first; `seed` what its order is
+/// drawn from ([`seed`]). A word is *spaced* when it was never asked in the
+/// session or at least [`SPACING`] other questions were asked since its last
+/// one, in either direction. Only the session's own log counts, so a session
+/// left and gone on with later counts on from where it stopped.
 ///
 /// 1. A missed question comes back as soon as its word is spaced: among the
 ///    open questions whose latest answer in the session was a miss, the one
 ///    missed longest ago.
-/// 2. Otherwise the pass goes on: among the open questions of spaced words,
-///    the one whose word was asked longest ago, a word never asked first and
-///    then by frequency; English → native before native → English.
+/// 2. Otherwise a spaced word is drawn, among the half of them asked longest
+///    ago, a word never asked before any other: no two rounds come in the
+///    same order, so a word is not known by its place, and none waits long.
+///    Of that word, English → native before native → English.
 /// 3. With no spaced word left, near the end, the open question whose word
 ///    was asked longest ago: the gap shrinks to the widest there is, and the
 ///    same word never comes twice in a row while another is open.
-pub fn next<'a>(words: &'a [SessionWord], log: &[Asked]) -> Option<Question<'a>> {
-    let open = open_questions(words);
+pub fn next<'a>(
+    words: &'a [SessionWord],
+    log: &[Asked],
+    ways: Ways,
+    seed: u64,
+) -> Option<Question<'a>> {
+    let open = session_questions(words, ways);
     let asked_at = |word: &str| log.iter().rposition(|asked| asked.word_id == word);
     let spaced = |question: &&Question<'a>| {
         asked_at(question.word_id).is_none_or(|at| log.len() - at > SPACING)
@@ -304,33 +631,44 @@ pub fn next<'a>(words: &'a [SessionWord], log: &[Asked]) -> Option<Question<'a>>
         })?;
         (!log[at].correct).then_some(at)
     };
-    // The first of the least: the words' own order settles a tie.
-    let longest_ago = |questions: Vec<&Question<'a>>| {
-        questions
-            .into_iter()
-            .min_by_key(|question| asked_at(question.word_id))
-            .copied()
+    let drawn = || {
+        // One question a word: its first, so no word weighs double.
+        let mut waiting: Vec<&Question<'a>> = Vec::new();
+        for question in open.iter().filter(spaced) {
+            if waiting.last().map(|last| last.word_id) != Some(question.word_id) {
+                waiting.push(question);
+            }
+        }
+        let mut ages: Vec<_> = waiting.iter().map(|q| asked_at(q.word_id)).collect();
+        ages.sort_unstable();
+        // Never asked sorts first; a tie with the middle one is in the half.
+        let middle = *ages.get(ages.len().saturating_sub(1) / 2)?;
+        waiting.retain(|question| asked_at(question.word_id) <= middle);
+        let at = pick(seed, log.len(), waiting.len())?;
+        waiting.get(at).map(|question| **question)
     };
     open.iter()
         .filter(spaced)
         .filter_map(|question| Some((missed_at(question)?, *question)))
         .min_by_key(|(at, _)| *at)
         .map(|(_, question)| question)
-        .or_else(|| longest_ago(open.iter().filter(spaced).collect()))
-        .or_else(|| longest_ago(open.iter().collect()))
+        .or_else(drawn)
+        // The first of the least: the words' own order settles a tie.
+        .or_else(|| open.iter().min_by_key(|q| asked_at(q.word_id)).copied())
 }
 
-/// The steps `words` words take: [`IN_A_ROW`] correct answers each way.
-fn steps(words: usize) -> u32 {
-    let ways = u32::try_from(DIRECTIONS.len()).unwrap_or(u32::MAX);
+/// The steps `words` words take in a session of `ways`: [`IN_A_ROW`]
+/// correct answers each way it asks.
+fn steps(words: usize, ways: Ways) -> u32 {
+    let ways = u32::try_from(directions(ways).len()).unwrap_or(u32::MAX);
     u32::try_from(words)
         .unwrap_or(u32::MAX)
         .saturating_mul(IN_A_ROW.saturating_mul(ways))
 }
 
 /// How far a session is, for the bar at its top: the correct answers in a
-/// row its `words` stand on now, each way ([`run`]), out of the ones they
-/// take in all. `words` is the session's words the learner has not said they
+/// row its `words` stand on now, each way of its `ways` ([`run`]), out of
+/// the ones they take in all. `words` is the session's words the learner has not said they
 /// know, so a word marked as known leaves both numbers.
 ///
 /// What is missing to the total is exactly what the words still owe
@@ -349,17 +687,20 @@ fn steps(words: usize) -> u32 {
 /// open ([`open_questions`]), because finishing English → native is what
 /// opens the other way.
 ///
-/// A word that comes into a session with a run already standing (sent back
-/// by a miss in the refresh, or answered before the session took it) brings
-/// it along: the bar starts at none only for words never answered.
-pub fn progress(words: &[SessionWord]) -> SittingProgress {
+/// A word that comes into a session with a run already standing (answered
+/// before the session took it) brings it along: the bar starts at none only
+/// for words never answered, and for those a miss in the refresh sent back.
+pub fn progress(words: &[SessionWord], ways: Ways) -> SittingProgress {
     let value = words
         .iter()
-        .flat_map(|word| DIRECTIONS.map(|direction| run(direction, &word.answers)))
+        .flat_map(|word| {
+            let ways = directions(ways).iter();
+            ways.map(|direction| run(*direction, &word.answers))
+        })
         .fold(0_u32, u32::saturating_add);
     SittingProgress {
         value,
-        total: steps(words.len()),
+        total: steps(words.len(), ways),
     }
 }
 
@@ -367,8 +708,8 @@ pub fn progress(words: &[SessionWord]) -> SittingProgress {
 /// ended, and it shows its summary whatever happened to them afterwards, a
 /// miss in the refresh included. With no word left to count it is none out
 /// of none, which the screen draws full too.
-pub fn progress_over(words: &[SessionWord]) -> SittingProgress {
-    let total = steps(words.len());
+pub fn progress_over(words: &[SessionWord], ways: Ways) -> SittingProgress {
+    let total = steps(words.len(), ways);
     SittingProgress {
         value: total,
         total,
@@ -414,29 +755,34 @@ pub fn pace(answers: usize, gaps: &[i64]) -> u64 {
 }
 
 /// About how many minutes a session of `words` words takes at `pace`
-/// milliseconds an answer: [`ANSWERS_PER_WORD`] answers a word, rounded to
-/// the nearest minute and never less than one while there is a word to ask.
-pub fn minutes(words: u32, pace: u64) -> u32 {
+/// milliseconds an answer: [`ANSWERS_PER_WORD`] answers a word in both ways
+/// and [`ANSWERS_ONE_WAY`] in one, rounded to the nearest minute and never
+/// less than one while there is a word to ask.
+pub fn minutes(words: u32, pace: u64, ways: Ways) -> u32 {
     const MINUTE_MS: u64 = 60_000;
     if words == 0 {
         return 0;
     }
+    let answers = match ways {
+        Ways::Both => ANSWERS_PER_WORD,
+        Ways::Recognition | Ways::Production => ANSWERS_ONE_WAY,
+    };
     let total = u64::from(words)
-        .saturating_mul(u64::from(ANSWERS_PER_WORD))
+        .saturating_mul(u64::from(answers))
         .saturating_mul(pace);
     let rounded = total.saturating_add(MINUTE_MS / 2) / MINUTE_MS;
     u32::try_from(rounded).unwrap_or(u32::MAX).max(1)
 }
 
-/// The sizes a session is offered in for a chapter with `open` words to
-/// practise, each with its estimate at `pace`: every size of [`SIZES`] the
+/// The sizes a session of `ways` is offered in for a chapter with `open`
+/// words to practise that way, each with its estimate at `pace`: every size of [`SIZES`] the
 /// chapter has more open words than, and then all of them, which is always
 /// there and is the one chosen unless the learner picks another.
-pub fn sizes(open: u32, pace: u64) -> Vec<SessionSize> {
+pub fn sizes(open: u32, pace: u64, ways: Ways) -> Vec<SessionSize> {
     let all = SessionSize {
         size: None,
         words: open,
-        minutes: minutes(open, pace),
+        minutes: minutes(open, pace, ways),
     };
     SIZES
         .iter()
@@ -444,7 +790,7 @@ pub fn sizes(open: u32, pace: u64) -> Vec<SessionSize> {
         .map(|size| SessionSize {
             size: Some(*size),
             words: *size,
-            minutes: minutes(*size, pace),
+            minutes: minutes(*size, pace, ways),
         })
         .chain([all])
         .collect()
@@ -541,6 +887,20 @@ pub fn blank(sentence: &str, forms: &[String]) -> Option<Vec<SentencePart>> {
     hidden.then_some(parts)
 }
 
+/// What fills the blanks of [`blank`]: the forms taken out of the sentence,
+/// as they are written there, each once whatever its case. None when the
+/// sentence cannot be blanked.
+pub fn fills(sentence: &str, forms: &[String]) -> Vec<String> {
+    let mut found: Vec<String> = Vec::new();
+    for part in mark(sentence, forms).into_iter().filter(|part| part.marked) {
+        let written = part.text.to_lowercase();
+        if !found.iter().any(|fill| fill.to_lowercase() == written) {
+            found.push(part.text);
+        }
+    }
+    found
+}
+
 fn part(text: &str, marked: bool) -> SentencePart {
     SentencePart {
         text: text.to_owned(),
@@ -557,19 +917,28 @@ mod tests {
     const RIGHT: Answer = Answer {
         direction: Direction::Recognition,
         correct: true,
+        refresh: false,
     };
     const MISS: Answer = Answer {
         direction: Direction::Recognition,
         correct: false,
+        refresh: false,
     };
 
     const SAID: Answer = Answer {
         direction: Direction::Production,
         correct: true,
+        refresh: false,
     };
     const UNSAID: Answer = Answer {
         direction: Direction::Production,
         correct: false,
+        refresh: false,
+    };
+    /// A miss in the refresh before reading, which asks English → native.
+    const FORGOT: Answer = Answer {
+        refresh: true,
+        ..MISS
     };
 
     #[test]
@@ -669,7 +1038,7 @@ mod tests {
 
     #[test]
     fn a_later_miss_reopens_a_finished_direction_owing_two_in_a_row() {
-        // Only the refresh before reading asks a finished direction again.
+        // An extra review asks a finished direction again.
         let mut history = vec![RIGHT, RIGHT, SAID, SAID];
         assert!(is_done(&history));
         history.push(MISS);
@@ -682,6 +1051,41 @@ mod tests {
         assert!(is_open(Direction::Production, &history));
         history.extend([RIGHT, RIGHT, SAID, SAID]);
         assert!(is_done(&history));
+    }
+
+    #[test]
+    fn a_miss_in_the_refresh_starts_the_word_over_in_both_directions() {
+        let (there, back) = (Direction::Recognition, Direction::Production);
+        let mut history = vec![RIGHT, RIGHT, SAID, SAID];
+        // A right answer in the refresh changes nothing.
+        history.push(Answer {
+            refresh: true,
+            ..RIGHT
+        });
+        assert!(is_done(&history));
+        history.push(FORGOT);
+        assert_eq!((owed(there, &history), owed(back, &history)), (2, 2));
+        assert_eq!((run(there, &history), run(back, &history)), (0, 0));
+        // Native → English waits for the first way to be finished again.
+        assert!(!is_open(back, &history));
+        history.extend([RIGHT, RIGHT]);
+        assert_eq!((owed(there, &history), owed(back, &history)), (0, 2));
+        assert!(is_open(back, &history));
+        assert!(!is_done(&history));
+        history.extend([SAID, SAID]);
+        assert!(is_done(&history));
+
+        // A session of both ways asks the word both ways, the first first.
+        let mut session = Session::of(1);
+        session.words[0].answers = vec![RIGHT, RIGHT, SAID, SAID, FORGOT];
+        let turns = session.play(|_| true);
+        let ways: Vec<Direction> = turns.iter().map(|turn| turn.direction).collect();
+        assert_eq!(ways, [there, there, back, back]);
+
+        // A review word is checked again native → English as well.
+        let lapsed = review(&[SAID, FORGOT]);
+        assert_eq!((lapsed.owed(there), lapsed.owed(back)), (2, 1));
+        assert!(review(&[SAID, FORGOT, RIGHT, RIGHT, SAID]).is_done());
     }
 
     /// A word finished in another chapter, with these answers in this one.
@@ -738,14 +1142,19 @@ mod tests {
         let back = Direction::Production;
         let mut session = Session::of(8);
         session.words[0].review = true;
-        let turns = session.play(|turn| turn != 0);
-        assert_eq!((turns[0].word.as_str(), turns[0].direction), ("w00", back));
-        assert!(!words_of(&turns[1..=SPACING]).contains(&"w00"));
-        let again = &turns[SPACING + 1];
-        assert_eq!((again.word.as_str(), again.direction), ("w00", back));
-        let asked = turns.iter().filter(|turn| turn.word == "w00");
-        assert!(asked.clone().all(|turn| turn.direction == back));
-        assert_eq!(asked.count(), 3, "the miss and two in a row");
+        let mut missed = false;
+        let turns =
+            session.play_by(|_, word| word != "w00" || std::mem::replace(&mut missed, true));
+        let checks: Vec<usize> = (0..turns.len())
+            .filter(|at| turns[*at].word == "w00")
+            .collect();
+        assert!(checks.iter().all(|at| turns[*at].direction == back));
+        assert_eq!(checks.len(), 3, "the miss and two in a row");
+        assert!(!turns[checks[0]].correct);
+        assert!(
+            checks[1] - checks[0] - 1 <= SPACING,
+            "back as soon as spaced"
+        );
         assert_eq!(turns.len(), 3 + 7 * 4);
         assert_spaced(&turns);
 
@@ -775,38 +1184,279 @@ mod tests {
     #[test]
     fn checking_ignores_case_accents_punctuation_spaces_and_a_leading_article() {
         let spanish = articles("es");
+        let accepts = |answer: &str, accepted: &[String]| {
+            accepts(answer, accepted, spanish, Spelling::Lenient)
+        };
         let casa = ["casa".to_owned(), "el hogar".to_owned()];
         for answer in ["La Casa", "casa", "cása ", "  ¡Casa!", "una casa", "hogar"] {
-            assert!(accepts(answer, &casa, spanish), "{answer}");
+            assert!(accepts(answer, &casa), "{answer}");
         }
         for answer in ["cosa", "", "  ", "la", "casa hogar", "casas"] {
-            assert!(!accepts(answer, &casa, spanish), "{answer}");
+            assert!(!accepts(answer, &casa), "{answer}");
         }
-        // ñ is a letter of its own, not an accent.
-        assert!(!accepts("ano", &["año".to_owned()], spanish));
         // A translation that is an article is asked as it is.
-        assert!(accepts("la", &["la".to_owned()], spanish));
+        assert!(accepts("la", &["la".to_owned()]));
         assert!(accepts(
             "Echar un vistazo.",
-            &["echar un vistazo".to_owned()],
-            spanish
+            &["echar un vistazo".to_owned()]
+        ));
+    }
+
+    #[test]
+    fn a_translation_is_right_in_any_form_and_without_its_form_of_to_be() {
+        let native = |answer: &str, accepted: &[&str], lang: &str| {
+            let accepted: Vec<String> = accepted.iter().map(|each| (*each).to_owned()).collect();
+            accepts_native(answer, &accepted, (lang, true), Spelling::Lenient)
+        };
+        let rested = ["reposaba", "descansar", "reposar", "estar apoyado"];
+        for answer in [
+            "apoyado",
+            "Apoyada.",
+            "estaba apoyado",
+            "estaban apoyados",
+            "descansaba",
+            "reposar",
+            "descansó",
+        ] {
+            assert!(native(answer, &rested, "es"), "{answer}");
+        }
+        for answer in [
+            "estar",
+            "estaba",
+            "sentado",
+            "estar sentado",
+            "",
+            "apoyado reposar",
+        ] {
+            assert!(!native(answer, &rested, "es"), "{answer}");
+        }
+        let supported = ["sostenidos", "mantener", "sostener", "apoyar"];
+        for answer in ["apoyado", "apoyados", "sostenido", "sostenía", "mantenidas"] {
+            assert!(native(answer, &supported, "es-MX"), "{answer}");
+        }
+        assert!(!native("soportado", &supported, "es"));
+        // Either side may have the form of "to be".
+        assert!(native("estar apoyado", &["apoyado"], "es"));
+        // Alone it is the whole answer, and no other word's.
+        assert!(native("Estar", &["estar"], "es"));
+        assert!(!native("ser", &["ser humano"], "es"));
+        assert!(native("humano", &["ser humano"], "es"));
+        // A word that does not inflect is taken as it is written: another
+        // ending can be another word. Its form of "to be" still goes.
+        let noun = |answer: &str, accepted: &[&str]| {
+            let accepted: Vec<String> = accepted.iter().map(|each| (*each).to_owned()).collect();
+            accepts_native(answer, &accepted, ("es", false), Spelling::Lenient)
+        };
+        assert!(noun("la puerta", &["puerta"]));
+        assert!(!noun("puerto", &["puerta"]));
+        assert!(!noun("caso", &["casa"]));
+        assert!(noun("humano", &["ser humano"]));
+        assert!(inflects(Some(PartOfSpeech::Verb)));
+        assert!(inflects(Some(PartOfSpeech::PhrasalVerb)));
+        assert!(inflects(Some(PartOfSpeech::Adjective)));
+        assert!(!inflects(Some(PartOfSpeech::Noun)));
+        assert!(!inflects(None));
+        // A language without a table is read as before.
+        assert!(native("casa", &["casa"], "ja"));
+        assert!(!native("casas", &["casa"], "ja"));
+        assert!(!native("estar apoyado", &["apoyado"], "ja"));
+        // Strict spelling still takes another form.
+        let strict = |answer: &str| {
+            accepts_native(
+                answer,
+                &["apoyar".to_owned()],
+                ("es", true),
+                Spelling::Strict,
+            )
+        };
+        assert!(strict("apoyados"));
+        assert!(!strict("apollados"));
+        // And a missing accent is still a letter wrong.
+        let strict = |answer: &str| {
+            accepts_native(
+                answer,
+                &["sostenía".to_owned()],
+                ("es", true),
+                Spelling::Strict,
+            )
+        };
+        assert!(strict("sostenía") && strict("sostener") && !strict("sostenia"));
+    }
+
+    #[test]
+    fn the_translation_answered_with_most_is_shown_first() {
+        let list = |texts: &[&str]| -> Vec<String> {
+            texts.iter().map(|each| (*each).to_owned()).collect()
+        };
+        let clue = || list(&["pista", "indicio"]);
+        let noun = |answers: &[&str]| preferred(clue(), &list(answers), ("es", false));
+        assert_eq!(noun(&[]), ["pista", "indicio"], "as it was prepared");
+        assert_eq!(noun(&["indicio"]), ["indicio", "pista"]);
+        assert_eq!(
+            noun(&["indicio", "pista", "Indicio."]),
+            ["indicio", "pista"]
+        );
+        // As often as each other, they keep the order they were prepared in.
+        assert_eq!(noun(&["indicio", "pista"]), ["pista", "indicio"]);
+        // With its article or in the other number it is the same translation.
+        assert_eq!(noun(&["los indicios", "un indicio", "pista"])[0], "indicio");
+        // An answer that is none of them, one a dispute upheld or a word
+        // alike, counts for nothing and is never listed.
+        assert_eq!(noun(&["señal", "señal", "indico"]), ["pista", "indicio"]);
+        assert_eq!(noun(&["señal", "indicio"]), ["indicio", "pista"]);
+
+        // A verb in another form counts for the translation it is a form of,
+        // and one written as a translation for that one before any other.
+        let rest = list(&["descansar", "reposar", "descanso"]);
+        let verb = |answers: &[&str]| preferred(rest.clone(), &list(answers), ("es", true));
+        assert_eq!(verb(&["reposaba", "reposó"])[0], "reposar");
+        assert_eq!(
+            verb(&["descanso", "descanso", "descansar"]),
+            ["descanso", "descansar", "reposar"]
+        );
+    }
+
+    #[test]
+    fn a_word_that_does_not_inflect_is_right_in_the_other_number() {
+        let native = |answer: &str, accepted: &[&str], lang: &str, spelling: Spelling| {
+            let accepted: Vec<String> = accepted.iter().map(|each| (*each).to_owned()).collect();
+            accepts_native(answer, &accepted, (lang, false), spelling)
+        };
+        let noun =
+            |answer: &str, accepted: &[&str]| native(answer, accepted, "es", Spelling::Lenient);
+        // "bearings" was shown, and its translations are kept in the base form.
+        assert!(noun("rodamientos", &["cojinete", "rodamiento"]));
+        assert!(noun("los cojinetes", &["cojinete", "rodamiento"]));
+        assert!(noun("murmullos", &["murmullo", "susurro"]));
+        assert!(noun("cimientos", &["base", "cimiento", "fundamento"]));
+        // Either side may be the many.
+        assert!(noun("oportunidad", &["oportunidades", "posibilidades"]));
+        assert!(noun("casas", &["casa"]));
+        // The endings of the language, and the accent that moves with them.
+        assert!(noun("canciones", &["canción"]));
+        assert!(noun("examen", &["exámenes"]));
+        assert!(noun("lápices", &["lápiz"]));
+        assert!(noun("países", &["país"]));
+        // Every word of a translation, each on its own.
+        assert!(noun("exámenes de admisión", &["examen de admisión"]));
+        assert!(noun("queja constante", &["quejas constantes"]));
+        // Another ending is still another word, in either number.
+        for (answer, accepted) in [
+            ("puerto", "puerta"),
+            ("puertos", "puerta"),
+            ("caso", "casas"),
+            ("rodamiento de", "rodamientos"),
+            ("s", "es"),
+        ] {
+            assert!(!noun(answer, &[accepted]), "{answer}");
+        }
+        // Strict spelling takes the other number, and no letter wrong.
+        let strict =
+            |answer: &str, accepted: &str| native(answer, &[accepted], "es", Spelling::Strict);
+        assert!(strict("canciones", "canción"));
+        assert!(strict("rodamientos", "rodamiento"));
+        assert!(!strict("cancion", "canción"));
+        // Each language has its own endings; one without a table has none.
+        assert!(native("animais", &["animal"], "pt-BR", Spelling::Lenient));
+        assert!(native("homens", &["homem"], "pt", Spelling::Lenient));
+        assert!(native("leões", &["leão"], "pt", Spelling::Lenient));
+        assert!(native("chevaux", &["cheval"], "fr", Spelling::Lenient));
+        assert!(native("maisons", &["maison"], "fr", Spelling::Lenient));
+        assert!(!native("casas", &["casa"], "ja", Spelling::Lenient));
+    }
+
+    #[test]
+    fn a_reflexive_verb_is_right_with_its_pronoun_apart() {
+        let native = |answer: &str, accepted: &[&str], inflects: bool| {
+            let accepted: Vec<String> = accepted.iter().map(|each| (*each).to_owned()).collect();
+            accepts_native(answer, &accepted, ("es", inflects), Spelling::Lenient)
+        };
+        let steadied = ["estabilizó", "estabilizarse", "serenarse", "calmarse"];
+        for answer in [
+            "se sereno",
+            "se serenó",
+            "Se calmó.",
+            "me calmé",
+            "se estabilizaron",
+            "se estaba calmando",
+            "serenó",
+        ] {
+            assert!(native(answer, &steadied, true), "{answer}");
+        }
+        for answer in ["se", "se sentó", "se sereno calmó"] {
+            assert!(!native(answer, &steadied, true), "{answer}");
+        }
+        // Either side may have the pronoun apart.
+        assert!(native("calmarse", &["se calmó"], true));
+        // Alone it is the whole answer.
+        assert!(native("se", &["se"], true));
+        // A word that does not inflect keeps it: it is no verb's pronoun.
+        assert!(!native("te verde", &["verde"], false));
+    }
+
+    #[test]
+    fn spelling_is_forgiven_unless_the_learner_asks_for_it_strict() {
+        let spanish = articles("es");
+        let white = ["blanco grisáceo".to_owned(), "año".to_owned()];
+        let lenient = |answer: &str| accepts(answer, &white, spanish, Spelling::Lenient);
+        let strict = |answer: &str| accepts(answer, &white, spanish, Spelling::Strict);
+        // No accent, no ñ: the word is there.
+        for answer in ["blanco grisaceo", "BlAnCo GRISACEO", "ano"] {
+            assert!(lenient(answer), "{answer}");
+            assert!(!strict(answer), "{answer}");
+        }
+        // Strict still ignores case, punctuation and a leading article.
+        for answer in ["Blanco grisáceo.", "el año"] {
+            assert!(lenient(answer), "{answer}");
+            assert!(strict(answer), "{answer}");
+        }
+        // Another word is another word either way.
+        // A letter wrong, doubled or added is not the word, either way.
+        for answer in ["blango grisaceo", "blannco grisáceo", "añoh"] {
+            assert!(!lenient(answer), "{answer}");
+            assert!(!strict(answer), "{answer}");
+        }
+        for answer in ["blanco", "gris blanco", "negro grisáceo"] {
+            assert!(!lenient(answer), "{answer}");
+        }
+        // In English too: "bearingh" is neither "bearing" nor "bearings".
+        let forms = ["bearings".to_owned()];
+        for answer in ["bearingh", "bearring", "baering"] {
+            assert!(!accepts_english(
+                answer,
+                "bearing",
+                &forms,
+                Spelling::Lenient
+            ));
+        }
+        assert!(accepts_english(
+            "BeArInG",
+            "bearing",
+            &forms,
+            Spelling::Lenient
         ));
     }
 
     #[test]
     fn articles_depend_on_the_language() {
+        let accepts = |answer: &str, accepted: &[String], lang: &str| {
+            accepts(answer, accepted, articles(lang), Spelling::Lenient)
+        };
         let casa = ["casa".to_owned()];
-        assert!(!accepts("la casa", &casa, articles("ja")));
-        assert!(accepts("la casa", &casa, articles("es-MX")));
+        assert!(!accepts("la casa", &casa, "ja"));
+        assert!(accepts("la casa", &casa, "es-MX"));
         let eau = ["eau".to_owned()];
-        assert!(accepts("l’eau", &eau, articles("fr")));
-        assert!(accepts("L'eau", &["l'eau".to_owned()], articles("fr")));
-        assert!(accepts("das Haus", &["Haus".to_owned()], articles("de")));
-        assert!(!accepts("das Haus", &["Haus".to_owned()], articles("es")));
+        assert!(accepts("l’eau", &eau, "fr"));
+        assert!(accepts("L'eau", &["l'eau".to_owned()], "fr"));
+        assert!(accepts("das Haus", &["Haus".to_owned()], "de"));
+        assert!(!accepts("das Haus", &["Haus".to_owned()], "es"));
     }
 
     #[test]
     fn the_english_word_is_its_base_form_or_a_form_in_the_book() {
+        let accepts_english = |answer: &str, lemma: &str, forms: &[String]| {
+            accepts_english(answer, lemma, forms, Spelling::Lenient)
+        };
         let forms = ["run".to_owned(), "ran".to_owned(), "running".to_owned()];
         for answer in ["run", "to run", "ran", "Run.", " RAN ", "the run", "a run"] {
             assert!(accepts_english(answer, "run", &forms), "{answer}");
@@ -840,6 +1490,8 @@ mod tests {
     struct Session {
         words: Vec<SessionWord>,
         log: Vec<Asked>,
+        ways: Ways,
+        seed: u64,
     }
 
     impl Session {
@@ -855,16 +1507,30 @@ mod tests {
             Self {
                 words,
                 log: Vec::new(),
+                ways: Ways::Both,
+                seed: seed("a sitting"),
             }
         }
 
+        /// The same words, asked in `ways` alone.
+        fn in_ways(mut self, ways: Ways) -> Self {
+            self.ways = ways;
+            self
+        }
+
+        /// The same words, in the order another sitting draws.
+        fn seeded(mut self, id: &str) -> Self {
+            self.seed = seed(id);
+            self
+        }
+
         fn ask(&self) -> Option<(String, Direction)> {
-            next(&self.words, &self.log)
+            next(&self.words, &self.log, self.ways, self.seed)
                 .map(|question| (question.word_id.to_owned(), question.direction))
         }
 
         fn open_words(&self) -> usize {
-            let open = open_questions(&self.words);
+            let open = session_questions(&self.words, self.ways);
             let words: HashSet<&str> = open.iter().map(|question| question.word_id).collect();
             words.len()
         }
@@ -872,7 +1538,7 @@ mod tests {
         /// Open questions other than this one whose latest answer in the
         /// session was a miss.
         fn missed(&self, word: &str, direction: Direction) -> usize {
-            open_questions(&self.words)
+            session_questions(&self.words, self.ways)
                 .iter()
                 .filter(|question| (question.word_id, question.direction) != (word, direction))
                 .filter(|question| {
@@ -889,9 +1555,11 @@ mod tests {
 
         fn answer(&mut self, word: &str, direction: Direction, correct: bool) {
             let held = self.words.iter_mut().find(|held| held.word_id == word);
-            held.expect("a word of the session")
-                .answers
-                .push(Answer { direction, correct });
+            held.expect("a word of the session").answers.push(Answer {
+                direction,
+                correct,
+                refresh: false,
+            });
             self.log.push(Asked {
                 word_id: word.to_owned(),
                 direction,
@@ -900,19 +1568,26 @@ mod tests {
         }
 
         /// Plays the session to its end, each answer right or wrong as
-        /// `right` says of its turn. A finished word is never asked again.
+        /// `right` says of its turn ([`Session::play_by`]).
         fn play(&mut self, right: impl Fn(usize) -> bool) -> Vec<Turn> {
+            self.play_by(|turn, _| right(turn))
+        }
+
+        /// Plays the session to its end, each answer right or wrong as
+        /// `right` says of its turn and its word. A word with nothing left
+        /// to ask in the session's ways is never asked again.
+        fn play_by(&mut self, mut right: impl FnMut(usize, &str) -> bool) -> Vec<Turn> {
             let mut turns: Vec<Turn> = Vec::new();
             let mut finished: HashSet<String> = HashSet::new();
             while let Some((word, direction)) = self.ask() {
                 assert!(turns.len() < 2_000, "the session never ends");
                 assert!(!finished.contains(&word), "{word} was finished");
                 let open = self.open_words();
-                let correct = right(turns.len());
+                let correct = right(turns.len(), &word);
                 let missed = self.missed(&word, direction);
                 self.answer(&word, direction, correct);
                 let held = self.words.iter().find(|held| held.word_id == word);
-                if held.expect("a word of the session").is_done() {
+                if !held.expect("a word of the session").is_asked(self.ways) {
                     finished.insert(word.clone());
                 }
                 turns.push(Turn {
@@ -923,7 +1598,7 @@ mod tests {
                     missed,
                 });
             }
-            assert_eq!(finished.len(), self.words.len(), "every word is done");
+            assert_eq!(finished.len(), self.words.len(), "every word is through");
             turns
         }
     }
@@ -959,31 +1634,112 @@ mod tests {
         }
     }
 
+    /// The words in the order they were first asked.
+    fn first_asked(turns: &[Turn]) -> Vec<&str> {
+        let mut seen = Vec::new();
+        for word in words_of(turns) {
+            if !seen.contains(&word) {
+                seen.push(word);
+            }
+        }
+        seen
+    }
+
     #[test]
-    fn a_session_goes_round_in_passes_and_ends_when_every_word_is_done() {
+    fn a_session_asks_every_word_two_right_answers_each_way_in_an_order_of_its_own() {
         let mut session = Session::of(10);
         let turns = session.play(|_| true);
-        let pass: Vec<String> = (0..10).map(|n| format!("w{n:02}")).collect();
         let (there, back) = (Direction::Recognition, Direction::Production);
-        // The first look, the second look, and then the same the other way.
-        for (round, direction) in [there, there, back, back].into_iter().enumerate() {
-            let asked = &turns[round * 10..(round + 1) * 10];
-            assert_eq!(words_of(asked), pass, "pass {round}");
-            assert!(asked.iter().all(|turn| turn.direction == direction));
-        }
         assert_eq!(turns.len(), 40, "two right answers each way");
+        for n in 0..10 {
+            let word = format!("w{n:02}");
+            let ways: Vec<Direction> = turns
+                .iter()
+                .filter(|turn| turn.word == word)
+                .map(|turn| turn.direction)
+                .collect();
+            assert_eq!(ways, [there, there, back, back], "{word}");
+        }
         assert_eq!(session.ask(), None);
         assert_spaced(&turns);
+
+        // Not the order of the list, and not the same order twice: neither
+        // from one round to the next nor from one sitting to another.
+        let listed: Vec<String> = (0..10).map(|n| format!("w{n:02}")).collect();
+        let first = first_asked(&turns);
+        assert_ne!(first, listed);
+        assert_ne!(first_asked(&turns[20..]), first, "the round the other way");
+        let other = Session::of(10).seeded("another sitting").play(|_| true);
+        assert_ne!(first_asked(&other), first);
+        assert_eq!(other.len(), 40);
+        assert_spaced(&other);
+        // The same sitting played again is the same sitting.
+        assert_eq!(Session::of(10).play(|_| true), turns);
+    }
+
+    #[test]
+    fn a_draw_is_the_same_for_the_same_sitting_and_turn_and_within_what_there_is() {
+        assert_eq!(pick(seed("a"), 3, 0), None, "none among none");
+        assert_eq!(pick(seed("a"), 3, 1), Some(0));
+        assert_eq!(seed("a"), seed("a"));
+        assert_ne!(seed("a"), seed("b"));
+        let drawn: HashSet<usize> = (0..200)
+            .map(|turn| pick(seed("a"), turn, 7).expect("one of seven"))
+            .collect();
+        assert_eq!(drawn, (0..7).collect(), "every place, and no other");
+        assert_eq!(pick(seed("a"), 9, 7), pick(seed("a"), 9, 7));
+    }
+
+    #[test]
+    fn a_session_of_one_way_asks_only_that_way_from_the_start_and_ends_with_it() {
+        let (there, back) = (Direction::Recognition, Direction::Production);
+        for (ways, way) in [(Ways::Recognition, there), (Ways::Production, back)] {
+            let mut session = Session::of(8).in_ways(ways);
+            assert_eq!(progress(&session.words, ways).total, 16, "two steps a word");
+            let turns = session.play(|turn| turn % 6 != 2);
+            assert!(turns.iter().all(|turn| turn.direction == way), "{ways:?}");
+            assert!(turns.iter().any(|turn| !turn.correct));
+            assert_spaced(&turns);
+            assert_eq!(session.ask(), None);
+            let bar = progress(&session.words, ways);
+            assert_eq!((bar.value, bar.total), (16, 16));
+            assert_eq!(progress_over(&session.words, ways), bar);
+            // One way is half the word: none is done, each says which half.
+            for word in &session.words {
+                assert!(!word.is_done());
+                assert_eq!(word.half(), Some(way));
+                assert!(word.is_asked(Ways::Both), "the other way is still owed");
+            }
+            assert_eq!(asked_in(&session.words, ways), 0);
+        }
+        // Finished one way and then the other, the word is done.
+        let mut session = Session::of(3).in_ways(Ways::Production);
+        session.play(|_| true);
+        session.ways = Ways::Recognition;
+        session.log.clear();
+        assert_eq!(asked_in(&session.words, Ways::Recognition), 3);
+        assert_eq!(session.play(|_| true).len(), 6);
+        assert!(session.words.iter().all(SessionWord::is_done));
+        assert!(session.words.iter().all(|word| word.half().is_none()));
+        assert_eq!(Session::of(1).words[0].half(), None, "finished in neither");
+
+        // A review word owes nothing English → native: that way skips it.
+        let checked = review(&[]);
+        assert!(!checked.is_asked(Ways::Recognition));
+        assert!(checked.is_asked(Ways::Production));
+        // An estimate of one way counts three answers a word, not five.
+        assert_eq!(minutes(10, DEFAULT_PACE_MS, Ways::Production), 4);
+        assert_eq!(sizes(30, DEFAULT_PACE_MS, Ways::Recognition)[0].minutes, 4);
     }
 
     #[test]
     fn the_same_question_is_asked_until_it_is_answered() {
         let mut session = Session::of(3);
         let first = session.ask().expect("a word to ask");
-        assert_eq!(first, ("w00".to_owned(), Direction::Recognition));
-        assert_eq!(session.ask(), Some(first), "left and gone on with");
-        session.answer("w00", Direction::Recognition, true);
-        assert_eq!(session.ask().expect("the next word").0, "w01");
+        assert_eq!(first.1, Direction::Recognition);
+        assert_eq!(session.ask(), Some(first.clone()), "left and gone on with");
+        session.answer(&first.0, Direction::Recognition, true);
+        assert_ne!(session.ask().expect("the next word").0, first.0);
         assert_eq!(Session::of(0).ask(), None, "nothing to ask");
     }
 
@@ -1023,14 +1779,7 @@ mod tests {
                 "the miss of turn {miss}"
             );
         }
-        // Not at the end of the pass: the first one came back within it.
-        assert_eq!(turns[7].word, "w07");
-        assert_eq!(turns[13].word, "w07");
-        assert_eq!(turns[14].word, "w13", "and the pass goes on");
-        assert_eq!(turns[55].direction, Direction::Production);
         assert_spaced(&turns);
-        // A right first look waits for the pass to come round.
-        assert_eq!(before(&turns, 21), Some(0));
     }
 
     #[test]
@@ -1064,24 +1813,31 @@ mod tests {
         for (word, correct) in [("w00", false), ("w01", false), ("w02", true)] {
             session.answer(word, there, correct);
         }
-        // Neither miss is five questions back yet: the pass goes on.
-        for word in ["w03", "w04", "w05"] {
-            assert_eq!(session.ask(), Some((word.to_owned(), there)));
-            session.answer(word, there, true);
+        // Neither miss is five questions back yet: other words are drawn.
+        let answered = ["w00", "w01", "w02"];
+        for _ in 0..3 {
+            let (word, way) = session.ask().expect("a word to ask");
+            assert!(!answered.contains(&word.as_str()), "{word} is not spaced");
+            assert_eq!(way, there);
+            session.answer(&word, there, true);
         }
         assert_eq!(session.ask(), Some(("w00".to_owned(), there)));
         session.answer("w00", there, false);
         assert_eq!(session.ask(), Some(("w01".to_owned(), there)));
         session.answer("w01", there, true);
-        assert_eq!(session.ask(), Some(("w06".to_owned(), there)));
+        let (word, _) = session.ask().expect("a word to ask");
+        assert!(
+            !["w00", "w01"].contains(&word.as_str()),
+            "{word} is not spaced"
+        );
 
-        // A word open both ways, as a miss in the refresh leaves it, is asked
-        // English → native first.
+        // A word open both ways is asked English → native first.
         let mut both = Session::of(1);
         for direction in [there, there, back, back] {
             both.words[0].answers.push(Answer {
                 direction,
                 correct: true,
+                refresh: false,
             });
         }
         both.words[0].answers.push(RIGHT);
@@ -1098,9 +1854,10 @@ mod tests {
         session.words[1].answers.push(RIGHT);
         session.words[2].answers.push(MISS);
         let turns = session.play(|_| true);
-        let first: Vec<String> = (0..8).map(|n| format!("w{n:02}")).collect();
-        assert_eq!(words_of(&turns[..8]), first);
         assert_eq!(turns.len(), 31, "one answer was already given");
+        // Neither comes ahead of the others for what it was given before.
+        let fresh = Session::of(8).play(|_| true);
+        assert_eq!(first_asked(&turns[..6]), first_asked(&fresh[..6]));
     }
 
     #[test]
@@ -1140,7 +1897,7 @@ mod tests {
     }
 
     fn bar(session: &Session) -> SittingProgress {
-        progress(&session.words)
+        progress(&session.words, Ways::Both)
     }
 
     fn steps_of(value: u32, total: u32) -> SittingProgress {
@@ -1169,18 +1926,18 @@ mod tests {
         // the step back and the one the answer was worth.
         let mut upheld = session.words.clone();
         upheld[0].answers[2] = RIGHT;
-        assert_eq!(progress(&upheld), steps_of(3, 12));
+        assert_eq!(progress(&upheld, Ways::Both), steps_of(3, 12));
 
         // A word the learner says they know leaves the session's words: its
         // four steps leave the total, and its run leaves the value.
-        assert_eq!(progress(&session.words[1..]), steps_of(1, 8));
-        assert_eq!(progress(&upheld[1..]), steps_of(1, 8));
-        assert_eq!(progress(&session.words[..1]), steps_of(0, 4));
-        assert_eq!(progress(&[]), steps_of(0, 0));
+        assert_eq!(progress(&session.words[1..], Ways::Both), steps_of(1, 8));
+        assert_eq!(progress(&upheld[1..], Ways::Both), steps_of(1, 8));
+        assert_eq!(progress(&session.words[..1], Ways::Both), steps_of(0, 4));
+        assert_eq!(progress(&[], Ways::Both), steps_of(0, 0));
 
         // More right answers than a direction takes are not more steps.
         upheld[0].answers.extend([RIGHT; 3]);
-        assert_eq!(progress(&upheld[..1]), steps_of(2, 4));
+        assert_eq!(progress(&upheld[..1], Ways::Both), steps_of(2, 4));
     }
 
     #[test]
@@ -1210,7 +1967,7 @@ mod tests {
         assert!(lowered > 2, "misses that broke a run of one");
         assert!(unchanged > 2, "misses on no run");
         assert_eq!(bar(&session), steps_of(40, 40));
-        assert_eq!(progress_over(&session.words), steps_of(40, 40));
+        assert_eq!(progress_over(&session.words, Ways::Both), steps_of(40, 40));
     }
 
     #[test]
@@ -1254,8 +2011,8 @@ mod tests {
         // A miss in the refresh, afterwards: the word owes again.
         session.words[0].answers.push(MISS);
         assert_eq!(bar(&session), steps_of(6, 8));
-        assert_eq!(progress_over(&session.words), steps_of(8, 8));
-        assert_eq!(progress_over(&[]), steps_of(0, 0));
+        assert_eq!(progress_over(&session.words, Ways::Both), steps_of(8, 8));
+        assert_eq!(progress_over(&[], Ways::Both), steps_of(0, 0));
     }
 
     #[test]
@@ -1283,21 +2040,21 @@ mod tests {
         assert_eq!(pace(30, &[]), DEFAULT_PACE_MS);
 
         // Five answers a word, to the nearest minute.
-        assert_eq!(minutes(10, DEFAULT_PACE_MS), 7);
-        assert_eq!(minutes(20, DEFAULT_PACE_MS), 13);
-        assert_eq!(minutes(40, DEFAULT_PACE_MS), 27);
-        assert_eq!(minutes(72, DEFAULT_PACE_MS), 48);
-        assert_eq!(minutes(10, 3_000), 3);
-        assert_eq!(minutes(1, 1_000), 1, "never no time at all");
-        assert_eq!(minutes(10, 0), 1);
-        assert_eq!(minutes(0, DEFAULT_PACE_MS), 0);
-        assert_eq!(minutes(u32::MAX, u64::MAX), u32::MAX);
+        assert_eq!(minutes(10, DEFAULT_PACE_MS, Ways::Both), 7);
+        assert_eq!(minutes(20, DEFAULT_PACE_MS, Ways::Both), 13);
+        assert_eq!(minutes(40, DEFAULT_PACE_MS, Ways::Both), 27);
+        assert_eq!(minutes(72, DEFAULT_PACE_MS, Ways::Both), 48);
+        assert_eq!(minutes(10, 3_000, Ways::Both), 3);
+        assert_eq!(minutes(1, 1_000, Ways::Both), 1, "never no time at all");
+        assert_eq!(minutes(10, 0, Ways::Both), 1);
+        assert_eq!(minutes(0, DEFAULT_PACE_MS, Ways::Both), 0);
+        assert_eq!(minutes(u32::MAX, u64::MAX, Ways::Both), u32::MAX);
     }
 
     #[test]
     fn a_size_is_offered_only_when_the_chapter_has_more_open_words_than_it() {
         let offered = |open: u32| -> Vec<(Option<u32>, u32, u32)> {
-            sizes(open, DEFAULT_PACE_MS)
+            sizes(open, DEFAULT_PACE_MS, Ways::Both)
                 .into_iter()
                 .map(|option| (option.size, option.words, option.minutes))
                 .collect()
@@ -1319,7 +2076,7 @@ mod tests {
             ]
         );
         assert_eq!(offered(0), [(None, 0, 0)], "all is always there");
-        assert_eq!(sizes(30, 3_000)[0].minutes, 3);
+        assert_eq!(sizes(30, 3_000, Ways::Both)[0].minutes, 3);
     }
 
     fn marked(sentence: &str, forms: &[&str]) -> Vec<(String, bool)> {
@@ -1438,5 +2195,31 @@ mod tests {
     fn a_sentence_that_cannot_be_blanked_is_not_shown() {
         assert_eq!(blanked("She gave it up.", &["give up", "gave up"]), None);
         assert_eq!(blanked("", &["peep"]), None);
+    }
+
+    #[test]
+    fn what_fills_the_blanks_is_the_forms_as_the_sentence_writes_them() {
+        let filled = |sentence: &str, forms: &[&str]| {
+            let forms: Vec<String> = forms.iter().map(|form| (*form).to_owned()).collect();
+            fills(sentence, &forms)
+        };
+        assert_eq!(
+            filled("Zhou Mingrui’s mind stirred.", &["stir", "stirred"]),
+            ["stirred"],
+            "not the base form: the sentence does not say it"
+        );
+        assert_eq!(
+            filled("He ran, and Ran again; to run is fun.", &["run", "ran"]),
+            ["ran", "run"],
+            "each once, whatever its case"
+        );
+        assert_eq!(
+            filled("Down the Rabbit-Hole.", &["rabbit hole"]),
+            ["Rabbit-Hole"]
+        );
+        assert_eq!(
+            filled("She gave it up.", &["give up", "gave up"]),
+            Vec::<String>::new()
+        );
     }
 }

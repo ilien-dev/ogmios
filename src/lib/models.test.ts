@@ -37,6 +37,7 @@ function settings(model: string, effort: Settings["effort"] = null): Settings {
     effort,
     claudePath: "/bin/claude",
     sttModel: null,
+    strictSpelling: false,
   };
 }
 

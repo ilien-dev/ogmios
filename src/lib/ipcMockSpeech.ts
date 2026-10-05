@@ -53,6 +53,42 @@ function status(): TtsStatus {
   };
 }
 
+/** Whether the voice is on disk: without it nothing can be said. */
+export function mockVoiceReady(): boolean {
+  return downloaded;
+}
+
+type Wait = <T>(ms: number, value: () => T) => Promise<T>;
+
+/**
+ * Says `text` over whatever was being said, like Rust. Resolves to whether
+ * it was heard to its end; false when something else was said over it or it
+ * was silenced.
+ */
+export async function mockSay(after: Wait, text: string): Promise<boolean> {
+  hush?.();
+  if (text === "") {
+    return true;
+  }
+  if (!downloaded) {
+    throw new Error("the voice is not downloaded yet");
+  }
+  spoken.push(text);
+  let ended = true;
+  const cut: Promise<null> = new Promise((resolve) => {
+    hush = () => {
+      ended = false;
+      resolve(null);
+    };
+  });
+  const silenced = hush;
+  await Promise.race([after(text.length * MS_PER_CHARACTER, () => null), cut]);
+  if (hush === silenced) {
+    hush = null;
+  }
+  return ended;
+}
+
 function field(args: unknown, name: string): unknown {
   return (args as Record<string, unknown>)[name];
 }
@@ -73,30 +109,8 @@ export function speechCommands(
     downloaded = true;
   };
 
-  /** Like Rust: saying something new silences what was being said. */
   const speak = async (args: unknown): Promise<void> => {
-    const text = (field(args, "text") as string).trim();
-    hush?.();
-    if (text === "") {
-      return;
-    }
-    if (!downloaded) {
-      throw new Error("the voice is not downloaded yet");
-    }
-    spoken.push(text);
-    const cut: Promise<null> = new Promise((resolve) => {
-      hush = () => {
-        resolve(null);
-      };
-    });
-    const silenced = hush;
-    await Promise.race([
-      after(text.length * MS_PER_CHARACTER, () => null),
-      cut,
-    ]);
-    if (hush === silenced) {
-      hush = null;
-    }
+    await mockSay(after, (field(args, "text") as string).trim());
   };
 
   return {

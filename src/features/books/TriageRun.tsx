@@ -1,32 +1,21 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import type { BookWord } from "@shared/domain";
+import type { BookWord, ChapterWords } from "@shared/domain";
 import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
-import { cn } from "@/lib/cn";
 import { errorMessage } from "@/lib/errors";
-import { getChapterWords, setWordKnown } from "@/lib/ipc";
+import {
+  getChapterWords,
+  restartSorting,
+  setWordKnown,
+  setWordSorted,
+} from "@/lib/ipc";
 import { SittingEnd, SittingFrame, SittingWait } from "./SittingParts";
-
-/** How many words went one way so far, under the colour of its button. */
-function Tally({
-  dot,
-  children,
-}: {
-  dot: string;
-  children: string;
-}): ReactNode {
-  return (
-    <p className="flex items-center gap-2 text-sm font-medium text-ink-soft">
-      <span aria-hidden className={cn("size-2 rounded-full", dot)} />
-      {children}
-    </p>
-  );
-}
+import { Tally } from "./Tally";
 
 /** The key a choice answers to, shown on its button. */
-function Key({ children }: { children: string }): ReactNode {
+export function Key({ children }: { children: string }): ReactNode {
   return (
     <kbd
       aria-hidden
@@ -35,6 +24,11 @@ function Key({ children }: { children: string }): ReactNode {
       {children}
     </kbd>
   );
+}
+
+/** The words of the chapter still to learn: the ones a sorting goes through. */
+function open(found: ChapterWords): BookWord[] {
+  return found.words.filter((word) => !word.done && !word.known);
 }
 
 interface TriageRunProps {
@@ -48,8 +42,11 @@ interface TriageRunProps {
 /**
  * The chapter's open words as cards, one at a time, to clear the list fast:
  * the word, its translations under it, and two keys. A (or ←) marks the word
- * as known, at once, so leaving keeps every mark; D (or →) leaves it to learn.
- * Z (or Backspace) goes back a word and takes its mark with it; Escape leaves.
+ * as known, D (or →) leaves it to learn, and each is kept at once: leaving
+ * keeps every mark, and the next sorting starts at the first word that has
+ * none. Z (or Backspace) goes back a word and takes its mark with it; Escape
+ * leaves. A list gone through to its end offers another pass over the words
+ * left to learn.
  */
 export function TriageRun({
   chapterId,
@@ -57,20 +54,29 @@ export function TriageRun({
   onDone,
 }: TriageRunProps): ReactNode {
   const { t } = useTranslation();
-  /** The words to go through, as they stood on the way in. */
+  /** The words to learn, as they stood on the way in or at the last pass. */
   const [words, setWords] = useState<BookWord[] | null>(null);
-  /** Whether each word gone through was marked as known, in order. */
+  /** Whether each word gone through this time was marked as known, in order. */
   const [marks, setMarks] = useState<boolean[]>([]);
+  /** The words of the chapter already known when `words` was taken. */
+  const [knownBefore, setKnownBefore] = useState(0);
   const [failure, setFailure] = useState<string | null>(null);
   /** A mark is on its way to Rust: the keys wait for it. */
   const busy = useRef(false);
+
+  /** Starts over from the chapter as Rust holds it. */
+  const take = (found: ChapterWords): void => {
+    setWords(open(found));
+    setKnownBefore(found.words.filter((each) => each.known).length);
+    setMarks([]);
+  };
 
   useEffect(() => {
     let live = true;
     getChapterWords(chapterId)
       .then((found) => {
         if (live) {
-          setWords(found.words.filter((word) => !word.done && !word.known));
+          take(found);
         }
       })
       .catch((error: unknown) => {
@@ -83,14 +89,15 @@ export function TriageRun({
     };
   }, [chapterId]);
 
-  const word = words?.[marks.length];
+  /** The words an earlier sorting left to learn: this one starts after them. */
+  const before = words?.filter((each) => each.sorted).length ?? 0;
+  const queue = words?.filter((each) => !each.sorted);
+  const word = queue?.[marks.length];
 
-  /** Keeps the mark of `target` in Rust, then moves the cards. */
+  /** Has Rust keep a change, one at a time, then moves the cards. */
   const settle = async (
-    target: BookWord,
-    known: boolean,
-    write: boolean,
-    next: boolean[],
+    write: () => Promise<ChapterWords>,
+    move: (found: ChapterWords) => void,
   ): Promise<void> => {
     if (busy.current) {
       return;
@@ -98,10 +105,7 @@ export function TriageRun({
     busy.current = true;
     setFailure(null);
     try {
-      if (write) {
-        await setWordKnown(target.id, known);
-      }
-      setMarks(next);
+      move(await write());
     } catch (error) {
       setFailure(errorMessage(error));
     } finally {
@@ -109,17 +113,37 @@ export function TriageRun({
     }
   };
 
+  /** Keeps or takes back the mark of `target`: known, or left to learn. */
+  const mark = (
+    target: BookWord,
+    known: boolean,
+    on: boolean,
+    next: boolean[],
+  ): void => {
+    void settle(
+      () =>
+        known ? setWordKnown(target.id, on) : setWordSorted(target.id, on),
+      () => {
+        setMarks(next);
+      },
+    );
+  };
+
   const decide = (known: boolean): void => {
     if (word !== undefined) {
-      void settle(word, known, known, [...marks, known]);
+      mark(word, known, true, [...marks, known]);
     }
   };
 
   const undo = (): void => {
-    const last = words?.[marks.length - 1];
+    const last = queue?.[marks.length - 1];
     if (last !== undefined) {
-      void settle(last, false, marks.at(-1) === true, marks.slice(0, -1));
+      mark(last, marks.at(-1) === true, false, marks.slice(0, -1));
     }
+  };
+
+  const again = (): void => {
+    void settle(() => restartSorting(chapterId), take);
   };
 
   useEffect(() => {
@@ -159,17 +183,27 @@ export function TriageRun({
     </Button>
   );
 
+  const failed = failure !== null && (
+    <Notice tone="danger">{t("common.error", { message: failure })}</Notice>
+  );
+
   const body = (): ReactNode => {
     if (words === null) {
       return <SittingWait failure={failure} />;
     }
+    const marked = marks.filter(Boolean).length;
+    const known = knownBefore + marked;
+    const left = before + marks.length - marked;
     if (word === undefined) {
-      const left = marks.filter((known) => !known).length;
       const back = { label: t("books.refresh.back"), onChoose: onDone };
       return (
         <SittingEnd
           title={t("books.triage.summary")}
-          lead={t("books.triage.knew", { count: marks.length - left })}
+          lead={
+            marks.length > 0
+              ? t("books.triage.knew", { count: known })
+              : t("books.triage.finished")
+          }
           rest={
             left > 0
               ? t("books.chapter.wordCount", { count: left })
@@ -181,11 +215,22 @@ export function TriageRun({
               : back
           }
           other={left > 0 ? back : null}
-          notice={marks.length > 0 ? undoButton : null}
+          notice={
+            <div className="flex flex-col items-start gap-3">
+              <div className="flex gap-2">
+                {left > 0 && (
+                  <Button variant="ghost" size="sm" onClick={again}>
+                    {t("books.triage.again")}
+                  </Button>
+                )}
+                {marks.length > 0 && undoButton}
+              </div>
+              {failed}
+            </div>
+          }
         />
       );
     }
-    const known = marks.filter(Boolean).length;
     return (
       <div className="grid h-full place-items-center px-10">
         <div className="flex w-full max-w-lg flex-col items-center gap-8">
@@ -194,7 +239,7 @@ export function TriageRun({
               {t("books.triage.known", { count: known })}
             </Tally>
             <Tally dot="bg-accent-strong">
-              {t("books.triage.toLearn", { count: marks.length - known })}
+              {t("books.triage.toLearn", { count: left })}
             </Tally>
           </div>
           <div
@@ -202,7 +247,7 @@ export function TriageRun({
             className="flex w-full flex-col items-center gap-3 rounded-xl bg-surface px-8 py-12 text-center shadow-card motion-safe:animate-rise"
           >
             <p className="text-sm text-ink-faint">
-              {`${String(marks.length + 1)} / ${String(words.length)}`}
+              {`${String(before + marks.length + 1)} / ${String(words.length)}`}
             </p>
             <h1 className="text-5xl font-semibold tracking-tight wrap-anywhere text-ink">
               {word.lemma}
@@ -239,13 +284,7 @@ export function TriageRun({
             </Button>
           </div>
           {undoButton}
-          <div aria-live="polite">
-            {failure !== null && (
-              <Notice tone="danger">
-                {t("common.error", { message: failure })}
-              </Notice>
-            )}
-          </div>
+          <div aria-live="polite">{failed}</div>
         </div>
       </div>
     );
@@ -255,7 +294,9 @@ export function TriageRun({
     <SittingFrame
       leave={t("books.triage.leave")}
       progress={
-        words === null ? null : { value: marks.length, total: words.length }
+        words === null
+          ? null
+          : { value: before + marks.length, total: words.length }
       }
       onClose={onDone}
     >

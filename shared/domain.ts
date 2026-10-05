@@ -60,6 +60,8 @@ export interface Settings {
   /** Absolute path of the user's own `claude` executable. */
   claudePath: string | null;
   sttModel: string | null;
+  /** Accents and spelling count in what the learner types; off by default. */
+  strictSpelling: boolean;
 }
 
 /** A model the configured provider offers, as it describes it. */
@@ -163,6 +165,8 @@ export interface HomeState {
   suggestedTopics: string[];
   focus: PatternView | null;
   dueReviews: number;
+  /** Learned words the daily recall has to ask today. */
+  dueWords: number;
   streak: Streak;
   activeChallenge: string | null;
   /** Suggested when the same mode was used four sessions running. */
@@ -340,6 +344,8 @@ export interface VocabEntry {
   asked: string | null;
   english: string;
   date: string;
+  /** How strong it is in the daily recall; null for a word it does not ask. */
+  strength: Strength | null;
 }
 
 export type TrendPoint = SessionMetrics & { date: string };
@@ -458,22 +464,49 @@ export const READY = 100;
  */
 export type Depth = "most" | "relevant" | "hardest";
 
+/** What kind of word a chapter's word is, in the sense its sentence gives it. */
+export type PartOfSpeech =
+  | "noun"
+  | "verb"
+  | "phrasalVerb"
+  | "adjective"
+  | "adverb"
+  | "expression"
+  | "other";
+
 /** One word of a prepared chapter. */
 export interface BookWord {
   id: string;
   /** The base form: "run" for "ran". */
   lemma: string;
+  /**
+   * What kind of word it is; null for a word prepared before words were
+   * labelled, or added outside a preparation.
+   */
+  partOfSpeech: PartOfSpeech | null;
   /** Accepted translations in the learner's language, the first one first. */
   translations: string[];
   /** How often it occurs in the chapter. */
   count: number;
   /** Finished in both directions. */
   done: boolean;
+  /** How strong it is in the daily recall; null until it is learned. */
+  strength: Strength | null;
+  /**
+   * The one direction it is finished in while it still owes the other; null
+   * for a done word, and for one finished in neither.
+   */
+  half: Direction | null;
   /**
    * The learner said they know it already: it is not asked, here or in any
    * other chapter, until they take that back.
    */
   known: boolean;
+  /**
+   * The learner, sorting the chapter's list, left it to learn: the next
+   * sorting starts after it, until another pass is asked for.
+   */
+  sorted: boolean;
 }
 
 /** A chapter and its words, most frequent first. */
@@ -502,6 +535,12 @@ export interface ChapterProgress {
 /** Which way a word is asked: English → native, or native → English. */
 export type Direction = "recognition" | "production";
 
+/** The ways a session of practice asks its words in: both, or one alone. */
+export type Ways = "both" | Direction;
+
+/** How strong a learned word is, by how long it has held. */
+export type Strength = "new" | "settling" | "firm";
+
 /** A piece of a sentence from the book; the word being asked is `marked`. */
 export interface SentencePart {
   text: string;
@@ -518,11 +557,99 @@ export interface PracticeItem {
    */
   prompt: string;
   /**
-   * The word's sentence from the book, for a word that needs it. For
-   * `production` its marked pieces have no text: they are the blank the
-   * answer goes in, and the English word is nowhere in the item.
+   * What kind of word it is; null for a word no chapter labelled, or asked
+   * for in a conversation.
+   */
+  partOfSpeech: PartOfSpeech | null;
+  /**
+   * The word's sentence, for a word that needs it to be told from another
+   * sense; any other word is asked on its own, and its sentence is the
+   * first hint (`WordHint`). For `production` its marked pieces have no
+   * text: they are the blank the answer goes in, and the English word is
+   * nowhere in the item.
    */
   context: SentencePart[] | null;
+  /**
+   * The sentence of the word's bank it is asked with, to be sent back with
+   * the answer; null for a word asked as its chapter has it. With one,
+   * `prompt` is the word in the form that sentence has it: as written for
+   * `recognition`, translated for `production`.
+   */
+  sentenceId: string | null;
+}
+
+/** The sentence a word was asked with, shown whole once it is answered. */
+export interface ShownSentence {
+  id: string;
+  /** The sentence in English, the word in its place. */
+  text: string;
+  /** The sentence in the learner's language. */
+  translation: string;
+  /** From the book, not written by Claude. */
+  book: boolean;
+}
+
+/** A hint the learner asked for on the word they are shown: made by code. */
+export interface WordHint {
+  /**
+   * The answer with its first letters in place and a `_` for every other:
+   * how long it is, and how it starts. Null on the first hint to a word
+   * whose sentence was kept back: the sentence is all it gives.
+   */
+  mask: string | null;
+  /**
+   * The sentence the word was asked without: the word marked, or taken out
+   * when it is the answer. It comes with every hint to that word.
+   */
+  context: SentencePart[] | null;
+  /** Asking again gives more: the length, or one more letter. */
+  more: boolean;
+}
+
+/**
+ * What an answer that is another English word for what was shown comes back
+ * with: what tells the word asked for from it.
+ */
+export interface AnotherWord {
+  /** The sentence the word was asked without, and its first letter. */
+  hint: WordHint;
+  /**
+   * The hints that come before this one: the one asked for next comes after
+   * it, and gives one more letter.
+   */
+  asked: number;
+}
+
+/** What an answer given to a word in a sentence adds to its verdict. */
+export interface SentenceVerdict {
+  /**
+   * Nothing was kept: the answer is the word in a form that does not fill
+   * the blank, or another word for what was shown, and the learner has one
+   * more try at it.
+   */
+  again: boolean;
+  /**
+   * That answer was another English word for what was shown: right for what
+   * the learner saw, and not the word asked for.
+   */
+  another: AnotherWord | null;
+  /** Right on that second try. */
+  helped: boolean;
+  /**
+   * The translation in the form the sentence has the word in, when the
+   * answer was right in its base form: it is pointed out.
+   */
+  exact: string | null;
+  /** The sentence the word was asked with, when it was asked with one. */
+  sentence: ShownSentence | null;
+}
+
+/** Event `sentence-progress`: words given their sentences so far. */
+export interface SentenceProgress {
+  /** The chapter whose words they are; null for the words of the recall. */
+  chapterId: string | null;
+  done: number;
+  total: number;
 }
 
 /** How a sitting ended. */
@@ -580,16 +707,32 @@ export interface PracticeOptions {
    * is the one to start with unless the learner picks another.
    */
   sizes: SessionSize[];
+  /** The sizes on offer for a session of one direction alone. */
+  oneWay: OneWay;
+  /**
+   * The ways a session would be an extra review in: none of the open words
+   * owes anything that way, so its sizes count every word of the chapter the
+   * learner has not said they know, done ones included.
+   */
+  extra: Ways[];
 }
 
+/**
+ * The sizes a session of one direction is offered in, by direction: the
+ * words that still owe something that way, or every word to review when
+ * none does. A chapter with no word to ask has the one size of no words.
+ */
+export type OneWay = Record<Direction, SessionSize[]>;
+
 /** The verdict on one answer, and what comes after it. */
-export interface AnswerResult {
+export interface AnswerResult extends SentenceVerdict {
   /** Names this answer, for "I was right" (`dispute_answer`). */
   answerId: number;
   correct: boolean;
   /**
    * What was asked for: the word's accepted translations, the first one
-   * first, or for `production` its English base form.
+   * first; for `production` the forms that fill the blank of its sentence,
+   * or its English base form when it is asked without one.
    */
   accepted: string[];
   step: PracticeStep;
@@ -640,6 +783,190 @@ export interface RefreshAnswer {
   /** The word's accepted translations, the first one first. */
   accepted: string[];
   step: RefreshStep;
+}
+
+/**
+ * Where the daily recall stands: what is due, and how strong the learned
+ * words are.
+ */
+export interface RecallState {
+  /** Words due today. */
+  due: number;
+  /** Learned words by how strong they are: `fresh` ones are new. */
+  fresh: number;
+  settling: number;
+  firm: number;
+}
+
+/** How a run of the recall ended. */
+export interface RecallSummary {
+  /** Words answered right in the run: each comes back later than before. */
+  right: number;
+  /** Words missed in it: each comes back sooner. */
+  missed: number;
+  /** Words still due today, for another run. */
+  left: number;
+}
+
+/**
+ * What a run of the recall shows next: a learned word, or its summary. In
+ * its item a word goes by its key, as `wordId`: it belongs to no chapter.
+ */
+export type RecallStep =
+  | { type: "item"; item: PracticeItem; progress: SittingProgress }
+  | { type: "summary"; summary: RecallSummary; progress: SittingProgress };
+
+/** A run of the recall just started. */
+export interface Recall {
+  id: string;
+  step: RecallStep;
+}
+
+/** The verdict on one answer of the recall, and what comes after it. */
+export interface RecallAnswer extends SentenceVerdict {
+  correct: boolean;
+  /** What was asked for, the first one first. */
+  accepted: string[];
+  step: RecallStep;
+  /** The word keeps slipping: the learner is offered a note of their own. */
+  stubborn: boolean;
+  /** The note they wrote for it before. */
+  note: string | null;
+  /** Names this answer, for calling its sentence bad. */
+  answerId: number;
+}
+
+/** Which way a chapter is translated: into the learner's language, or back. */
+export type TranslationDirection = "toNative" | "toEnglish";
+
+/** How much a mistake weighs: a wrong translation, or a slip of the pen. */
+export type Severity = "error" | "slip";
+
+/** A word a review found the learner did not know, to add to practice. */
+export interface ReviewWord {
+  /** Its base form in English. */
+  english: string;
+  translations: string[];
+  /** The chapter already asks it: there is nothing to add. */
+  inPractice: boolean;
+}
+
+/** One thing a review marks in what the learner wrote. */
+export interface ReviewMark {
+  /** The words that are wrong, as the learner wrote them. */
+  fragment: string;
+  severity: Severity;
+  /** What they should have been. */
+  better: string;
+  /** Why, in the learner's language. */
+  why: string;
+  word: ReviewWord | null;
+}
+
+/**
+ * A piece of a sentence the learner wrote; `mark` says which of the review's
+ * marks it is, counted from 0, when it is one.
+ */
+export interface ReviewPart {
+  text: string;
+  mark: number | null;
+}
+
+/**
+ * The review of a paragraph: what the learner wrote with its mistakes
+ * marked, and what it scores out of 100 by its words and its mistakes.
+ */
+export interface ParagraphReview {
+  score: number;
+  /** One thing done well, in the learner's language. */
+  good: string | null;
+  /** What the learner wrote, a sentence each, cut where the marks are. */
+  sentences: ReviewPart[][];
+  /** In reading order. */
+  marks: ReviewMark[];
+}
+
+/** A mistake that came back in an attempt. */
+export interface Habit {
+  habit: string;
+  advice: string;
+  /** Fragments the learner wrote that show it. */
+  examples: string[];
+}
+
+/** What matters most of a finished attempt, read before its paragraphs. */
+export interface AttemptSummary {
+  points: string[];
+  habits: Habit[];
+}
+
+/** One paragraph of a chapter being translated. */
+export interface TranslationParagraph {
+  /** Its place in the chapter, counted from 0. */
+  index: number;
+  /**
+   * The sentences to translate, in order. Null for a paragraph whose version
+   * in the learner's language is not written yet (`prepare_paragraph`).
+   */
+  source: string[] | null;
+  /** What the learner wrote, a sentence each, from the first on. */
+  written: string[];
+  /** Null until the paragraph is whole and reviewed (`review_paragraph`). */
+  review: ParagraphReview | null;
+  /** The author's sentences: what the paragraph says in English. */
+  english: string[];
+  /**
+   * The same sentences in pieces, the words the learner has learned marked:
+   * they are met again where the book uses them.
+   */
+  learned: SentencePart[][];
+}
+
+/** One attempt at translating a chapter in one direction, as it stands. */
+export interface Translation {
+  attemptId: string;
+  chapterId: string;
+  direction: TranslationDirection;
+  /** It was finished: it is read, and nothing more is written in it. */
+  finished: boolean;
+  /** What its reviewed paragraphs score together; null before any is. */
+  score: number | null;
+  /** Written once it is finished and reviewed (`summarize_attempt`). */
+  summary: AttemptSummary | null;
+  /**
+   * In reading order. Into the learner's language, every paragraph of the
+   * chapter; back into English, those already translated the other way.
+   */
+  paragraphs: TranslationParagraph[];
+  /** The `index` of the paragraph being translated; null when none is left. */
+  current: number | null;
+  /** How many paragraphs the chapter has. */
+  total: number;
+}
+
+/** One attempt in the list of a chapter's attempts. */
+export interface TranslationAttempt {
+  id: string;
+  direction: TranslationDirection;
+  /** When it was started, RFC 3339. */
+  startedAt: string;
+  /** False while it is paused: it can be gone on with. */
+  finished: boolean;
+  /** The paragraphs it has whole, out of the ones open to it. */
+  done: number;
+  total: number;
+}
+
+/** Every attempt at translating a chapter, the latest first. */
+export interface TranslationAttempts {
+  attempts: TranslationAttempt[];
+  /** How many paragraphs the chapter has. */
+  paragraphs: number;
+  /**
+   * How many of them are open back into English: an attempt has them whole
+   * in the learner's language.
+   */
+  back: number;
 }
 
 /**

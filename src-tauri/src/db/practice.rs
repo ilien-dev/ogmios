@@ -7,9 +7,10 @@ use std::collections::HashMap;
 use chrono::{DateTime, Utc};
 use rusqlite::{params, Connection};
 
+use super::words::Used;
 use super::{found, new_id, parse_ts, ts};
 use crate::books::practice::{Answer, Asked, SessionWord};
-use crate::domain::{Direction, SittingSummary};
+use crate::domain::{Direction, PartOfSpeech, SittingSummary, Ways};
 use crate::error::Result;
 
 /// A started sitting.
@@ -23,14 +24,23 @@ pub struct SittingRow {
     pub refresh: bool,
     /// It ran out of words to ask: it is over, and is not gone on with.
     pub finished: bool,
+    /// The ways it asks its words in; both for a pass of the refresh.
+    pub ways: Ways,
+    /// An extra review: its words owe what the answers given in it say,
+    /// whatever they were given before ([`session_words`]).
+    pub extra: bool,
 }
 
 /// What asking a word needs.
 #[derive(Debug, Clone, PartialEq)]
 pub struct WordRow {
     pub id: String,
+    /// What the word is known by in every chapter (`books::vocab::key`).
+    pub key: String,
     pub chapter_id: String,
     pub lemma: String,
+    /// What kind of word it is, when the chapter says.
+    pub part_of_speech: Option<PartOfSpeech>,
     /// Every form the chapter uses, the base form first.
     pub forms: Vec<String>,
     pub sentence: String,
@@ -39,7 +49,8 @@ pub struct WordRow {
     /// chapter was prepared with, then the ones a dispute upheld.
     pub translations: Vec<String>,
     /// The translations the chapter was prepared with: what the word is
-    /// shown as. An answer upheld later is accepted, never shown.
+    /// shown as, the one the learner answers with most first
+    /// (`db::words::Used`). An answer upheld later is accepted, never shown.
     pub shown: Vec<String>,
     /// English answers a dispute upheld, accepted beside the base form and
     /// the forms of the book. They are not forms: nothing marks or blanks
@@ -58,26 +69,64 @@ pub struct AnswerRow {
     pub answer: String,
     pub correct: bool,
     pub disputed: bool,
+    /// The sentence of the word's bank it was given to, if it was.
+    pub sentence_id: Option<String>,
 }
 
-/// Starts a sitting on a chapter; its id. A session of practice then gets
-/// its words ([`fix_words`]).
-pub fn start(conn: &Connection, chapter_id: &str, now: DateTime<Utc>) -> Result<String> {
+/// Starts a sitting on a chapter that asks its words in `ways`; its id. A
+/// session of practice then gets its words ([`fix_words`]).
+pub fn start(
+    conn: &Connection,
+    chapter_id: &str,
+    ways: Ways,
+    now: DateTime<Utc>,
+) -> Result<String> {
     let id = new_id();
     conn.execute(
-        "INSERT INTO practice_sittings (id, chapter_id, started_at) VALUES (?1, ?2, ?3)",
-        params![id, chapter_id, ts(now)],
+        "INSERT INTO practice_sittings (id, chapter_id, started_at, ways)
+         VALUES (?1, ?2, ?3, ?4)",
+        params![id, chapter_id, ts(now), ways],
+    )?;
+    Ok(id)
+}
+
+/// [`start`], for an extra review of the chapter in `ways`.
+pub fn start_extra(
+    conn: &Connection,
+    chapter_id: &str,
+    ways: Ways,
+    now: DateTime<Utc>,
+) -> Result<String> {
+    let id = start(conn, chapter_id, ways, now)?;
+    conn.execute(
+        "UPDATE practice_sittings SET extra = 1 WHERE id = ?1",
+        [&id],
     )?;
     Ok(id)
 }
 
 pub fn sitting(conn: &Connection, id: &str) -> Result<SittingRow> {
-    let (chapter_id, started, refresh, finished): (String, String, bool, bool) = found(
+    let (chapter_id, started, refresh, finished, (ways, extra)): (
+        String,
+        String,
+        bool,
+        bool,
+        (Ways, bool),
+    ) = found(
         conn.query_row(
-            "SELECT chapter_id, started_at, kind = 'refresh', finished_at IS NOT NULL
-             FROM practice_sittings WHERE id = ?1",
+            "SELECT chapter_id, started_at, kind = 'refresh', finished_at IS NOT NULL,
+                    ways, extra
+                 FROM practice_sittings WHERE id = ?1",
             [id],
-            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    (row.get(4)?, row.get(5)?),
+                ))
+            },
         ),
         "sitting",
     )?;
@@ -87,19 +136,22 @@ pub fn sitting(conn: &Connection, id: &str) -> Result<SittingRow> {
         started_at: parse_ts(&started)?,
         refresh,
         finished,
+        ways,
+        extra,
     })
 }
 
 pub fn word(conn: &Connection, id: &str) -> Result<WordRow> {
-    let (chapter_id, lemma, forms, sentence, needs_context): (
+    let (chapter_id, lemma, forms, sentence, needs_context, (key, part_of_speech)): (
         String,
         String,
         String,
         String,
         bool,
+        (String, Option<PartOfSpeech>),
     ) = found(
         conn.query_row(
-            "SELECT chapter_id, lemma, forms, sentence, needs_context
+            "SELECT chapter_id, lemma, forms, sentence, needs_context, key, part_of_speech
                  FROM chapter_words WHERE id = ?1",
             [id],
             |row| {
@@ -109,6 +161,7 @@ pub fn word(conn: &Connection, id: &str) -> Result<WordRow> {
                     row.get(2)?,
                     row.get(3)?,
                     row.get(4)?,
+                    (row.get(5)?, row.get(6)?),
                 ))
             },
         ),
@@ -126,6 +179,7 @@ pub fn word(conn: &Connection, id: &str) -> Result<WordRow> {
         .filter(|(_, extracted)| *extracted)
         .map(|(text, _)| text.clone())
         .collect();
+    let shown = Used::load(conn, Some(&key))?.order(&key, part_of_speech, shown);
     let translations = accepted.into_iter().map(|(text, _)| text).collect();
     let mut stmt =
         conn.prepare("SELECT text FROM word_english WHERE word_id = ?1 ORDER BY rowid")?;
@@ -134,8 +188,10 @@ pub fn word(conn: &Connection, id: &str) -> Result<WordRow> {
         .collect::<rusqlite::Result<_>>()?;
     Ok(WordRow {
         id: id.to_owned(),
+        key,
         chapter_id,
         lemma,
+        part_of_speech,
         forms: serde_json::from_str(&forms)?,
         sentence,
         needs_context,
@@ -150,7 +206,8 @@ pub fn answer(conn: &Connection, seq: i64) -> Result<AnswerRow> {
     found(
         conn.query_row(
             "SELECT word_id, direction, sitting_id, answer, correct,
-                    EXISTS (SELECT 1 FROM answer_disputes d WHERE d.seq = a.seq)
+                    EXISTS (SELECT 1 FROM answer_disputes d WHERE d.seq = a.seq),
+                    sentence_id
              FROM word_answers a WHERE a.seq = ?1",
             [seq],
             |row| {
@@ -162,6 +219,7 @@ pub fn answer(conn: &Connection, seq: i64) -> Result<AnswerRow> {
                     answer: row.get(3)?,
                     correct: row.get(4)?,
                     disputed: row.get(5)?,
+                    sentence_id: row.get(6)?,
                 })
             },
         ),
@@ -193,26 +251,38 @@ pub fn settle(
         [answer.seq],
     )?;
     let store = match answer.direction {
-        Direction::Recognition => {
+        Direction::Recognition => Some(
             "INSERT OR IGNORE INTO word_translations (word_id, text, source)
-             VALUES (?1, ?2, 'dispute')"
-        }
+             VALUES (?1, ?2, 'dispute')",
+        ),
+        // Upheld in a sentence of the bank, it fills that blank: another
+        // sentence has the word in another form, and it would not fit there.
+        Direction::Production if answer.sentence_id.is_some() => None,
         Direction::Production => {
-            "INSERT OR IGNORE INTO word_english (word_id, text) VALUES (?1, ?2)"
+            Some("INSERT OR IGNORE INTO word_english (word_id, text) VALUES (?1, ?2)")
         }
     };
-    conn.execute(store, params![answer.word_id, answer.answer])?;
+    if let Some(store) = store {
+        conn.execute(store, params![answer.word_id, answer.answer])?;
+    }
     sync_done(conn, &answer.word_id, now)
 }
 
+/// Whether the answer `a` was given in the refresh before reading.
+const IN_REFRESH: &str = "EXISTS (SELECT 1 FROM practice_sittings s
+     WHERE s.id = a.sitting_id AND s.kind = 'refresh')";
+
 /// A word's answers, oldest first.
 fn answers(conn: &Connection, word_id: &str) -> Result<Vec<Answer>> {
-    let mut stmt = conn
-        .prepare("SELECT direction, correct FROM word_answers WHERE word_id = ?1 ORDER BY seq")?;
+    let mut stmt = conn.prepare(&format!(
+        "SELECT a.direction, a.correct, {IN_REFRESH} FROM word_answers a
+         WHERE a.word_id = ?1 ORDER BY a.seq"
+    ))?;
     let rows = stmt.query_map([word_id], |row| {
         Ok(Answer {
             direction: row.get(0)?,
             correct: row.get(1)?,
+            refresh: row.get(2)?,
         })
     })?;
     Ok(rows.collect::<rusqlite::Result<_>>()?)
@@ -231,9 +301,15 @@ const OPEN_WORDS: &str = "SELECT w.id FROM chapter_words w
 /// The words `ids` selects for `key`, in its order, each with every answer
 /// it was given, in any sitting, oldest first.
 fn histories(conn: &Connection, ids: &str, key: &str) -> Result<Vec<SessionWord>> {
+    histories_of(conn, ids, "", key)
+}
+
+/// [`histories`], with the answers narrowed further by `only`: SQL that
+/// goes on the condition on `word_answers a`.
+fn histories_of(conn: &Connection, ids: &str, only: &str, key: &str) -> Result<Vec<SessionWord>> {
     let mut stmt = conn.prepare(&format!(
-        "SELECT a.word_id, a.direction, a.correct FROM word_answers a
-         WHERE a.word_id IN ({ids}) ORDER BY a.seq"
+        "SELECT a.word_id, a.direction, a.correct, {IN_REFRESH} FROM word_answers a
+         WHERE a.word_id IN ({ids}){only} ORDER BY a.seq"
     ))?;
     let rows = stmt.query_map([key], |row| {
         Ok((
@@ -241,6 +317,7 @@ fn histories(conn: &Connection, ids: &str, key: &str) -> Result<Vec<SessionWord>
             Answer {
                 direction: row.get(1)?,
                 correct: row.get(2)?,
+                refresh: row.get(3)?,
             },
         ))
     })?;
@@ -281,24 +358,43 @@ fn is_review(conn: &Connection, word_id: &str) -> Result<bool> {
     )?)
 }
 
-/// Fixes the words of a session just started: the chapter's open words,
-/// neither finished nor known, most frequent first; `size` of them, or all.
-pub fn fix_words(
-    conn: &Connection,
-    sitting_id: &str,
-    chapter_id: &str,
-    size: Option<u32>,
-) -> Result<()> {
-    conn.execute(
-        &format!(
-            "INSERT INTO practice_session_words (sitting_id, word_id, rank)
-             SELECT ?2, w.id, ROW_NUMBER() OVER (ORDER BY w.occurrences DESC, w.key)
-             FROM chapter_words w
-             WHERE w.chapter_id = ?1 AND w.done_at IS NULL AND {NOT_KNOWN}
-             ORDER BY w.occurrences DESC, w.key LIMIT ?3"
-        ),
-        params![chapter_id, sitting_id, size.map_or(-1, i64::from)],
+/// A chapter's open words in no order: a new one every time it is read.
+const SHUFFLED_WORDS: &str = "SELECT w.id FROM chapter_words w
+     WHERE w.chapter_id = ?1 AND w.done_at IS NULL
+       AND w.key NOT IN (SELECT key FROM known_words)
+     ORDER BY RANDOM()";
+
+/// Every word of a chapter the learner has not said they know, done or
+/// not, in no order: what an extra review draws from. The chapter is `?1`.
+const SHUFFLED_ALL: &str = "SELECT w.id FROM chapter_words w
+     WHERE w.chapter_id = ?1
+       AND w.key NOT IN (SELECT key FROM known_words)
+     ORDER BY RANDOM()";
+
+/// Fixes the words of a session just started: `size` of the chapter's open
+/// words that have something to ask in the session's ways, or all of them.
+/// Which ones is drawn, and so is the order they are kept in: a session of
+/// ten is not the ten the chapter uses most, every time. An extra review
+/// draws among every word the learner has not said they know.
+pub fn fix_words(conn: &Connection, sitting: &SittingRow, size: Option<u32>) -> Result<()> {
+    let size = size.map_or(usize::MAX, |size| {
+        usize::try_from(size).unwrap_or(usize::MAX)
+    });
+    let from = if sitting.extra {
+        SHUFFLED_ALL
+    } else {
+        SHUFFLED_WORDS
+    };
+    let drawn = histories(conn, from, &sitting.chapter_id)?;
+    let asked = |word: &&SessionWord| sitting.extra || word.is_asked(sitting.ways);
+    let taken = drawn.iter().filter(asked).take(size);
+    let mut stmt = conn.prepare(
+        "INSERT INTO practice_session_words (sitting_id, word_id, rank) VALUES (?1, ?2, ?3)",
     )?;
+    for (rank, word) in taken.enumerate() {
+        let rank = i64::try_from(rank).unwrap_or(i64::MAX);
+        stmt.execute(params![sitting.id, word.word_id, rank])?;
+    }
     Ok(())
 }
 
@@ -307,13 +403,27 @@ pub fn fix_words(
 /// each with all its answers. A word finished in it is among them, with
 /// nothing left to ask. This is the set the session's questions, its end
 /// and its progress are read off.
-pub fn session_words(conn: &Connection, sitting_id: &str) -> Result<Vec<SessionWord>> {
+///
+/// In an extra review each word has the answers given in that session
+/// alone, and none is a review word: it owes two in a row every way the
+/// session asks from its start, and stops being asked by the same rule.
+pub fn session_words(conn: &Connection, sitting: &SittingRow) -> Result<Vec<SessionWord>> {
     let ids = format!(
         "SELECT s.word_id FROM practice_session_words s
          JOIN chapter_words w ON w.id = s.word_id
          WHERE s.sitting_id = ?1 AND {NOT_KNOWN} ORDER BY s.rank"
     );
-    histories(conn, &ids, sitting_id)
+    if !sitting.extra {
+        return histories(conn, &ids, &sitting.id);
+    }
+    let own = histories_of(conn, &ids, " AND a.sitting_id = ?1", &sitting.id)?;
+    Ok(own
+        .into_iter()
+        .map(|word| SessionWord {
+            review: false,
+            ..word
+        })
+        .collect())
 }
 
 /// The answers given in a sitting, oldest first: the order its questions
@@ -354,6 +464,37 @@ pub fn finish(conn: &Connection, id: &str, now: DateTime<Utc>) -> Result<()> {
         params![id, ts(now)],
     )?;
     Ok(())
+}
+
+/// The chapter's open words, neither finished nor known, most frequent
+/// first, each with all its answers: what a session can be started with.
+pub fn open_histories(conn: &Connection, chapter_id: &str) -> Result<Vec<SessionWord>> {
+    histories(conn, OPEN_WORDS, chapter_id)
+}
+
+/// The one direction each word of the chapter is finished in while it still
+/// owes the other, by word (`SessionWord::half`). A word never answered is
+/// finished in neither, and a done word in both: neither is here.
+pub fn halves(conn: &Connection, chapter_id: &str) -> Result<HashMap<String, Direction>> {
+    let answered = "SELECT w.id FROM chapter_words w
+         WHERE w.chapter_id = ?1 AND w.done_at IS NULL
+           AND w.id IN (SELECT word_id FROM word_answers)";
+    let words = histories(conn, answered, chapter_id)?;
+    Ok(words
+        .into_iter()
+        .filter_map(|word| Some((word.half()?, word.word_id)))
+        .map(|(half, word_id)| (word_id, half))
+        .collect())
+}
+
+/// How many words of the chapter an extra review can ask: every one the
+/// learner has not said they know, done or not.
+pub fn reviewable(conn: &Connection, chapter_id: &str) -> Result<u32> {
+    Ok(conn.query_row(
+        &format!("SELECT COUNT(*) FROM chapter_words w WHERE w.chapter_id = ?1 AND {NOT_KNOWN}"),
+        [chapter_id],
+        |row| row.get(0),
+    )?)
 }
 
 /// How many words of the chapter are open: neither finished nor known.
@@ -406,7 +547,7 @@ pub struct Queued {
 /// direction that is open and still owes something.
 #[cfg(test)]
 pub fn queue(conn: &Connection, chapter_id: &str) -> Result<Vec<Queued>> {
-    let words = histories(conn, OPEN_WORDS, chapter_id)?;
+    let words = open_histories(conn, chapter_id)?;
     let open = crate::books::practice::open_questions(&words);
     Ok(open
         .into_iter()
@@ -421,13 +562,17 @@ pub fn queue(conn: &Connection, chapter_id: &str) -> Result<Vec<Queued>> {
 /// Brings `done_at` up to date for every unfinished word of the chapter
 /// that has answers. A word whose answers read as done under the rule of
 /// today, and were given under another, is finished by this: it counts
-/// towards the chapter's readiness and is not taken into a session.
+/// towards the chapter's readiness and is not taken into a session. So is
+/// every word missed in a refresh, done or not: one made up for English →
+/// native alone, as the rule once had it, owes the other way again.
 pub fn sync_chapter(conn: &Connection, chapter_id: &str, now: DateTime<Utc>) -> Result<()> {
-    let mut stmt = conn.prepare(
+    let mut stmt = conn.prepare(&format!(
         "SELECT id FROM chapter_words
-         WHERE chapter_id = ?1 AND done_at IS NULL
-           AND id IN (SELECT word_id FROM word_answers)",
-    )?;
+         WHERE chapter_id = ?1
+           AND (done_at IS NULL AND id IN (SELECT word_id FROM word_answers)
+             OR id IN (SELECT a.word_id FROM word_answers a
+                       WHERE a.correct = 0 AND {IN_REFRESH}))"
+    ))?;
     let words = stmt
         .query_map([chapter_id], |row| row.get::<_, String>(0))?
         .collect::<rusqlite::Result<Vec<_>>>()?;
@@ -499,6 +644,44 @@ pub fn record(
     let seq = conn.last_insert_rowid();
     sync_done(conn, word_id, now)?;
     Ok(seq)
+}
+
+/// Says which sentence of the word's bank an answer was given to: that is
+/// one more time the sentence was shown.
+pub fn tag(conn: &Connection, seq: i64, sentence_id: &str) -> Result<()> {
+    conn.execute(
+        "UPDATE word_answers SET sentence_id = ?2 WHERE seq = ?1",
+        params![seq, sentence_id],
+    )?;
+    Ok(())
+}
+
+/// Takes an answer back as if it had never been given, and with it the end
+/// of its sitting, if it had ended: the word stands where it stood before.
+/// A word this answer finished for the first time is not learned yet.
+pub fn void(conn: &Connection, answer: &AnswerRow, now: DateTime<Utc>) -> Result<()> {
+    conn.execute(
+        "UPDATE chapter_words SET learned_at = NULL
+         WHERE id = ?1
+           AND learned_at >= (SELECT created_at FROM word_answers WHERE seq = ?2)",
+        params![answer.word_id, answer.seq],
+    )?;
+    conn.execute("DELETE FROM word_answers WHERE seq = ?1", [answer.seq])?;
+    conn.execute(
+        "UPDATE practice_sittings SET finished_at = NULL WHERE id = ?1",
+        [&answer.sitting_id],
+    )?;
+    sync_done(conn, &answer.word_id, now)
+}
+
+/// Whether the answer is the last one given in its sitting.
+pub fn is_latest(conn: &Connection, answer: &AnswerRow) -> Result<bool> {
+    let latest: Option<i64> = conn.query_row(
+        "SELECT MAX(seq) FROM word_answers WHERE sitting_id = ?1",
+        [&answer.sitting_id],
+        |row| row.get(0),
+    )?;
+    Ok(latest == Some(answer.seq))
 }
 
 /// Words finished in the session, of the ones it was started with, and words

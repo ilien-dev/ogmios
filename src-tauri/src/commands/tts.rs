@@ -6,12 +6,12 @@ use tauri::{AppHandle, Emitter, Manager};
 
 use super::run;
 use crate::db::profile as repo;
-use crate::domain::{TtsDownload, TtsStatus, Variant};
+use crate::domain::{Pace, TtsDownload, TtsStatus, Variant};
 use crate::error::Result;
 use crate::{AppState, Ctx};
 
 /// The learner's English; American before there is a profile to say.
-fn variant(ctx: Ctx<'_>) -> Result<Variant> {
+pub(super) fn variant(ctx: Ctx<'_>) -> Result<Variant> {
     Ok(repo::get_profile(&*ctx.conn()?)?.map_or(Variant::Us, |profile| profile.variant))
 }
 
@@ -51,7 +51,9 @@ pub async fn tts_configure(app: AppHandle, voice: String, enabled: bool) -> Resu
 #[tauri::command]
 pub async fn tts_speak(app: AppHandle, text: String) -> Result<()> {
     run(app, move |app, ctx| {
-        app.state::<AppState>().tts.speak(&text, variant(ctx)?)
+        app.state::<AppState>()
+            .tts
+            .speak(&text, variant(ctx)?, Pace::Normal)
     })
     .await
 }

@@ -371,6 +371,215 @@ Repaso de cada patrón activo a los 1 → 3 → 7 → 21 días. Un patrón venci
 - aparece como "2 min de práctica pendiente" en inicio (opcional), y
 - se inyecta como estructura objetivo en la siguiente charla.
 
+### 9.4 Repaso de palabras
+
+Las palabras aprendidas vuelven con los días en una sección propia, **Repaso**. Entran las
+terminadas en un capítulo de un libro y las pedidas con "¿Cómo digo…?"; nunca las marcadas como
+"ya la sé". Las que usó el compañero no entran: no tienen traducción con la que preguntarlas.
+
+- **Calendario (código, sin modelo):** cada palabra está en un escalón. Vuelve a los
+  1 → 3 → 7 → 21 → 60 días del último repaso. Un acierto la sube un escalón, un fallo la baja uno.
+- **Una ronda:** hasta 10 palabras vencidas, las más atrasadas, cada una una vez y en orden
+  aleatorio. Se elige inglés → idioma nativo, al revés, o ambos (alterna según el escalón). Las
+  pedidas en una charla solo se preguntan hacia el inglés. Inicio muestra "hoy te tocan N".
+- **Un fallo no reabre el capítulo.** Las respuestas del repaso se guardan aparte de las de la
+  práctica: el capítulo sigue listo para leer.
+- **Uso en conversación:** el compañero recibe hasta 5 palabras aprendidas, las más cercanas a
+  olvidarse, para usarlas donde encajen, sin señalarlas. Al terminar la charla, el código marca
+  como usada cada palabra aprendida que el usuario dijo sin que el compañero la acabara de decir.
+  Un uso vale dos escalones: ningún ejercicio lo sustituye.
+- **Fuerza:** nueva (escalón 0), asentándose (1–3), firme (4 o más: aguantó tres semanas). Se ve
+  en la lista del capítulo, en el vocabulario del progreso y en Repaso.
+- **Palabras que se resisten:** con 3 fallos entre práctica y repaso, la palabra vuelve antes
+  (1 → 2 → 4 → 10 → 30 días) y, al fallarla, el usuario puede escribir su propio truco para
+  recordarla; se le muestra la próxima vez que falle.
+- **Encuentros al traducir:** en el texto en inglés de un capítulo, las palabras aprendidas van
+  subrayadas con un color propio. No al traducir hacia el inglés, donde serían la respuesta.
+
+### 9.5 Frases de cada palabra
+
+En la práctica del capítulo y en Repaso cada palabra se pregunta con una frase del libro; el
+repaso rápido antes de leer no cambia.
+
+- **La frase no se ve de entrada:** se muestra solo la palabra y la etiqueta del tipo de palabra;
+  eso basta para saber qué traducción se pide. La frase es la primera pista (ver «Pista a
+  petición») y sale completa tras responder. Solo las palabras marcadas como ambiguas, que
+  necesitan su frase para distinguir el sentido, la muestran desde el principio.
+
+- **Banco por palabra:** solo frases reales del libro que tienen la palabra una sola vez (las
+  busca el código). Claude no escribe frases nuevas: tardaba minutos por capítulo y aportaba
+  poco. Las palabras pedidas en charlas no tienen libro y se preguntan sin frase.
+- **Una frase, una sola vez:** cada palabra recibe 1 frase, la de su capítulo o, si esa no sirve,
+  otra del libro. No se repone nunca, para no gastar tokens: una palabra que ya recibió frase no
+  se vuelve a pedir, aunque la frase se rechazara o se marcara como mala. Se prepara en segundo
+  plano al abrir el capítulo y al entrar en Repaso, unas 10 palabras por petición, y cada
+  respuesta se guarda al llegar. Una palabra sin frase se pregunta como antes. Los bancos de
+  varias frases guardados antes de este cambio se conservan.
+- **El modelo etiqueta, el código decide:** Claude solo dice qué es la palabra en la forma que
+  tiene en cada frase y traduce la frase. Se guarda si la pista no contiene la palabra en inglés.
+  Después una segunda petición la revisa; solo se usa si la da por buena. Lo rechazado se recuerda
+  para no volver a pedirlo. La pista tiene que significar la palabra por sí sola: «llama» para
+  «wisp» en «a wisp of fire» nombra la frase, no la palabra, y se rechaza. Las frases ya dadas por
+  buenas cuya pista no se parece a ninguna traducción de su palabra pasan otra vez por esa revisión. Las frases que Claude escribió antes de este cambio se conservan.
+- **Gasto:** con una sola frase, la palabra se pregunta siempre con ella. En un banco anterior de
+  varias, cada frase se gasta a las 2 respuestas, acierte o falle: la primera vez sale la del
+  propio capítulo; después, al azar entre las no gastadas; gastadas todas, vuelve la menos vista.
+- **Una forma que niega no es una forma:** «was not fond of» no es una forma de «be fond of»: sus
+  traducciones dirían lo contrario. Vale cuando la palabra ya niega («couldn't help but» para
+  «can't help but»). No se guarda al preparar un capítulo, y las guardadas antes se retiraron con
+  sus frases.
+- **Inglés → nativo:** la palabra en la forma que tiene en la frase; al mostrarse la frase, la
+  palabra va resaltada. Vale la traducción base o la de esa forma; si se escribe la base y la
+  frase la tiene en otra forma, cuenta como acierto y se señala cuál era. «Estaba bien» se juzga
+  sobre esa forma, no sobre la base.
+- **Nativo → inglés:** se pregunta por la traducción ya en la forma de la frase («removió»); al
+  mostrarse la frase, lleva un hueco. Solo vale la forma exacta. La palabra en otra forma conocida (del libro o
+  del banco) no se guarda: aviso ámbar y un segundo intento, que cuenta como acierto con ayuda o
+  como fallo. Una forma que ni el libro ni el banco tienen es un fallo directo.
+- **Otra palabra para lo mismo:** un fallo solo cuenta si lo mostrado decía qué palabra se pedía.
+  Nativo → inglés, otra palabra inglesa que también traduce lo mostrado («ideas» cuando se busca
+  «notions») no se guarda: aviso ámbar «es correcto, pero busco otra palabra», la frase con hueco
+  y la primera letra de la palabra, y un segundo intento como el de la otra forma. Cuáles lo son
+  lo lista la segunda mirada de cada frase, y lo dicen las demás palabras del aprendiz que
+  comparten traducción; vale con frase o sin ella, en la práctica y en el repaso diario. Las
+  frases guardadas antes se etiquetan una vez, en la siguiente pasada que da frases. La lista es
+  de palabras inglesas: las frases cuya lista traía palabras del idioma del aprendiz («hebra»,
+  «jirón» para la pista de «wisp») se etiquetan otra vez.
+- **La traducción preferida va primero:** las traducciones de una palabra se muestran con la que el
+  aprendiz más escribe al acertar inglés → nativo delante (práctica, repaso antes de leer y repaso
+  diario, en cualquier capítulo). Solo se reordenan las que el capítulo trajo al prepararse: una
+  respuesta que no es ninguna de ellas (parecida, o aceptada por «estaba bien») no cuenta ni se
+  lista. Con artículo, en otro número o en otra forma del verbo cuenta para su traducción. Los
+  empates conservan el orden del libro. No se guarda nada: se lee de las respuestas cada vez.
+- **Tras responder:** la frase completa con audio, su traducción y si es del libro o un ejemplo.
+  «Frase mala» la descarta para siempre y deshace esa respuesta; solo sobre la última respuesta
+  de la sesión y no sobre una ya llevada a «Tenía razón».
+- «Tenía razón» se juzga sobre la frase que se mostró.
+- **Pista a petición:** el botón «Pista» o Alt+H desde el campo. La hace el código, sin pedir
+  nada a Claude. La primera muestra la frase: la del banco con la que se pregunta o, si aún no
+  tiene, la de su capítulo (con hueco si la respuesta es la palabra). La segunda, cuántas letras
+  tiene la respuesta. Cada una siguiente da una letra más, nunca la última. Una palabra que ya
+  muestra su frase, o que no tiene ninguna, empieza por la cantidad de letras. Un acierto tras
+  cualquier pista, también la de la frase, se marca en ámbar, como acierto con ayuda; cuenta
+  igual que un acierto limpio para el avance de la palabra. En práctica y en Repaso; no en el
+  repaso rápido antes de leer.
+- **Teclas:** Alt+N desde el campo es «No lo sé». Cada botón muestra su tecla (Alt+N, Alt+H).
+
+### 9.6 Repaso extra de un capítulo
+
+Practicar nunca se niega. Una sesión se elige en ambas direcciones, inglés → idioma nativo o al
+revés, y las tres se ofrecen siempre.
+
+- **Con algo pendiente** en la dirección elegida, la sesión pregunta las palabras que deben algo
+  en ella, como siempre.
+- **Sin nada pendiente**, es un repaso extra: entran todas las palabras del capítulo, terminadas
+  incluidas, menos las marcadas como "ya la sé". La pantalla lo avisa en una línea al elegirla.
+  "Ambas" solo es repaso extra cuando ninguna de las dos direcciones debe nada.
+- **Qué cuenta:** dentro del repaso extra cada palabra pide dos aciertos seguidos por dirección,
+  contados solo con las respuestas de esa sesión. Las respuestas se guardan como las demás: un
+  fallo deja la palabra debiendo esa dirección, y si estaba terminada vuelve a estar abierta.
+- Un capítulo listo para leer conserva el botón «Practicar» junto al repaso rápido, y el resumen
+  de una sesión ofrece «Continuar» aunque no quede nada abierto.
+- **Fallo en el repaso rápido:** la palabra vuelve a la práctica desde cero, debiendo dos aciertos
+  seguidos en las dos direcciones: primero inglés → idioma nativo y, terminada esa, al revés.
+
+### 9.7 Estructuras
+
+Una sección propia, **Estructuras**, para escribir frases con una estructura hasta que salga sola
+en una conversación. No corrige errores del usuario: practica estructuras de un catálogo fijo.
+
+- **Catálogo (código):** 36 estructuras, 12 por nivel (básico, intermedio, avanzado), en
+  `src-tauri/src/structures/`. El menú es una sola pantalla con todas; el filtro de nivel es
+  opcional y arranca en «Todas». El nivel del perfil no limita lo que se ve.
+- **Sesión:** 10, 20, 40 o 60 frases. Con estructuras elegidas practica esas; sin elegir, todas las
+  de la lista. El primer 30 % (mínimo 3) calienta con una sola estructura; el resto recorre todas
+  una y otra vez, cada vuelta en otro orden.
+- **Consigna (código, sin modelo):** estructura y palabra, o estructura y tema; nunca las tres
+  cosas, que juntas no dejan una frase natural que escribir. Con palabra, la frase trata de lo que
+  el usuario quiera; sin palabra, de un tema, que sale de los intereses del perfil y de una lista
+  fija. La palabra, del vocabulario del capítulo abierto por última vez y del aprendido en los
+  libros más cerca de olvidarse, de cualquier categoría (sustantivo, verbo, adjetivo, adverbio,
+  expresión); nunca una marcada como "ya la sé" ni una de categoría «otra». Sin palabras vistas, la
+  consigna va sin palabra. Las palabras pedidas en charlas no entran: no son de ningún libro. Al
+  pasar el cursor, la palabra dice su categoría y sus traducciones, leídas del libro cada vez;
+  lleva el color de su categoría.
+- **La palabra tiene que caber en la estructura (código):** la pasiva y el causativo se construyen
+  sobre un verbo con objeto, así que solo piden verbos y phrasal verbs transitivos; si no hay
+  ninguno, van sin palabra y con tema. El resto de estructuras admite cualquier categoría. Que un
+  verbo lleva objeto lo etiqueta el modelo al preparar el capítulo; a los guardados antes se les
+  pregunta en segundo plano, con las palabras sin categoría, y mientras no se sepa no se piden en
+  esas dos estructuras.
+- **«No encaja»:** junto a la palabra, un botón la quita de esa frase. La frase pasa a pedirse con
+  su tema y sin palabra, y no pierde nada: no cuenta como «falta la palabra».
+- **La forma se esconde:** en el calentamiento la fórmula está a la vista, a la derecha; después
+  hay que pedirla («Ver la forma», Alt+H). Se escribe siempre a la izquierda.
+- **El modelo etiqueta, el código decide:** una petición por frase dice si usa la estructura, si
+  está bien formada, si usa la palabra y si hay un desliz fuera de ella, con una explicación corta y
+  una frase modelo. El veredicto lo pone el código: rojo sin la estructura bien formada o sin
+  respuesta; ámbar si falta la palabra, se miró la forma tras el calentamiento o hay un desliz;
+  verde en otro caso.
+- **Un fallo vuelve una vez**, al final de la sesión, con otro tema y otra palabra.
+- **Pausar y terminar:** bajo la sesión hay siempre dos botones. Una sesión dejada queda en pausa
+  en el menú, para continuarla o terminarla; una sin nada escrito no se guarda. El resumen dice
+  cómo fue cada estructura, la más floja primero, y ofrece siempre otra sesión.
+- **Fuerza y calendario:** se cuentan de las sesiones terminadas. Una estructura con al menos el
+  80 % de sus frases sin fallo sube un escalón y vuelve a los 1 → 3 → 7 → 21 días; si no, baja uno.
+  Nueva (escalón 0), asentándose (1–2), firme (3 o más). Nunca "dominada": eso solo se gana en
+  conversación (§8.2). El análisis de una charla todavía no reconoce estructuras del catálogo, así
+  que usarla hablando no sube su fuerza.
+- **En las charlas:** con enfoque "practicar lo pendiente", la estructura practicada más vencida va
+  al compañero como estructura objetivo, sin nombrarla: una como mucho, y solo si los patrones
+  activos dejan sitio (menos de 3 objetivos).
+- **Estructuras del capítulo:** la primera vez que se abren, el modelo lee hasta 6 trozos del
+  capítulo y etiqueta qué estructuras del catálogo aparecen, con una frase de ejemplo cada una. El
+  código cuenta, ordena y guarda; no se vuelve a leer. Un ejemplo solo se muestra si está en el
+  texto, letra por letra. La sesión practica las 5 más usadas, con las palabras de ese capítulo. El
+  menú muestra las del capítulo abierto por última vez.
+
+### 9.8 Oído
+
+Una sección propia, **Oído**, para entrenar el oído con el libro que se está leyendo. Todo lo
+decide el código: no se le pide nada al modelo y no gasta tokens. Necesita la voz descargada (§12);
+sin ella, la sección solo ofrece descargarla.
+
+- **Menú:** la velocidad que ya se entiende, una barra por velocidad, el capítulo (el abierto por
+  última vez, o el que se elija de cualquier libro) con sus dos caminos, los dictados en pausa y las
+  palabras que más se escapan. La pantalla del capítulo no gana botones.
+- **Tres velocidades**, cada una un nivel: lenta (0,75), normal (1,0) y rápida (1,25). Son síntesis
+  reales del motor, no audio estirado.
+- **Escuchar el capítulo:** la voz lo lee frase a frase, con las mismas frases que se traducen. La
+  que suena va resaltada; un clic en una frase salta a ella, y hay frase anterior y siguiente. Se
+  guarda dónde se iba y se sigue desde ahí; oído hasta el final, vuelve al principio. «Solo oír»
+  oculta el texto. Las palabras aprendidas van subrayadas, como al traducir (§9.4).
+- **Dictado:** hasta 10 frases del capítulo de 6 a 14 palabras, elegidas por código; primero las
+  nunca dictadas. La frase solo se oye: no llega a la pantalla hasta responder. Se escribe a la
+  izquierda y se escucha a la derecha.
+- **Comparación (código):** palabra por palabra contra la frase del libro. No cuentan mayúsculas ni
+  puntuación; una contracción vale por sus palabras («don't» = «do not»), salvo «'s» y «'d», que
+  pueden ser dos cosas. Una palabra de más también es un fallo.
+- **Veredicto:** verde con la frase entera y hasta dos escuchas; ámbar entera pero con ayuda (más
+  de dos escuchas, o bajar la velocidad después de oírla); rojo si falta o sobra una palabra. Tras
+  responder se ve la frase con las palabras falladas marcadas y se puede oír otra vez.
+- **Cambiar de velocidad:** antes de oír la frase es libre en los dos sentidos. Después, bajar es
+  una pista: el acierto sale en ámbar y la frase cuenta para la velocidad más lenta a la que se oyó.
+  Sin oírla, cuenta para la velocidad elegida.
+- **Un fallo vuelve una vez**, al final del dictado.
+- **Pausar y terminar:** bajo el dictado hay siempre dos botones. Uno dejado queda en pausa en el
+  menú; uno sin nada respondido no se guarda.
+- **Sin puntos.** Lo que dice cómo va el usuario es la **velocidad que ya entiende**: la más rápida
+  en la que oyó al menos el 90 % de las palabras en sus últimas 30 frases a esa velocidad (con 10
+  frases como mínimo). Cada velocidad tiene su barra y nunca se mezclan; las que ya son del usuario
+  llevan una marca.
+- **La app propone, el usuario decide:** un dictado con menos del 60 % de las palabras sugiere una
+  velocidad más lenta; las últimas 20 frases entendidas a una velocidad sugieren la siguiente. El
+  resumen deja elegir la velocidad del próximo. El menú ofrece la velocidad por encima de la que ya
+  se entiende.
+- **Refuerzo, aparte de Repaso:** una palabra fallada al oído 3 veces entra en refuerzo. Cada
+  dictado reserva hasta 3 de sus frases para frases de cualquier capítulo del libro que la
+  contienen. Sale al oírla bien 3 veces seguidas; un fallo reinicia la cuenta. Como mucho 5 palabras
+  a la vez, las más falladas. Un fallo al oído nunca entra en Repaso ni reabre un capítulo, y el
+  dictado no hace «dominada» ninguna palabra (§8.2).
+
 ---
 
 ## 10. Métricas por sesión
@@ -432,6 +641,9 @@ las tendencias se muestran separadas por modo. Tendencias sobre ≥5 sesiones.
 - **Solo se lee inglés:** las líneas del compañero en la conversación (nunca las del usuario) y,
   en los libros, la palabra y su frase. Preguntada hacia el inglés, la palabra es la respuesta:
   se lee cuando el veredicto la muestra, no antes.
+- **En Oído (§9.8)** lee un capítulo entero, frase a frase, y las frases de un dictado, a tres
+  velocidades. Mientras suena una frase se sintetiza la siguiente, para que no haya espera entre
+  ellas. Lo ya dicho se recuerda por voz, velocidad y texto.
 - Lectura automática al aparecer, con un botón para oírlo otra vez; se puede dejar solo a
   petición. Cuatro voces, americanas y británicas; la primera sigue la variante del perfil.
 - Reproducción en Rust (`cpal`), frase a frase según se sintetiza. Empezar a grabar la calla.
@@ -499,16 +711,18 @@ Reglas:
 
 ### 14.1 Protocolo sidecar (JSON-lines por stdio)
 
-| Método           | Entrada                                                           | Salida                                 |
-| ---------------- | ----------------------------------------------------------------- | -------------------------------------- |
-| `chat.start`     | perfil, setup, patrones activos, reto                             | `session_ref`, primer mensaje (stream) |
-| `chat.turn`      | `session_ref`, texto del usuario                                  | deltas de texto (stream)               |
-| `help.translate` | texto en L1, contexto                                             | 1–3 opciones en inglés                 |
-| `analyze`        | transcript completo (said/sent), patrones existentes, nivel, meta | JSON `Analysis`                        |
-| `report.compose` | patrones elegidos por Rust, análisis                              | JSON de tarjetas en idioma nativo      |
-| `drill.generate` | patrones, formato                                                 | ítems                                  |
-| `drill.grade`    | ítem, respuesta                                                   | correcto/incorrecto + explicación      |
-| `provider.check` | modo, modelo                                                      | ok / error legible                     |
+| Método            | Entrada                                                           | Salida                                 |
+| ----------------- | ----------------------------------------------------------------- | -------------------------------------- |
+| `chat.start`      | perfil, setup, patrones activos, reto                             | `session_ref`, primer mensaje (stream) |
+| `chat.turn`       | `session_ref`, texto del usuario                                  | deltas de texto (stream)               |
+| `help.translate`  | texto en L1, contexto                                             | 1–3 opciones en inglés                 |
+| `analyze`         | transcript completo (said/sent), patrones existentes, nivel, meta | JSON `Analysis`                        |
+| `report.compose`  | patrones elegidos por Rust, análisis                              | JSON de tarjetas en idioma nativo      |
+| `drill.generate`  | patrones, formato                                                 | ítems                                  |
+| `drill.grade`     | ítem, respuesta                                                   | correcto/incorrecto + explicación      |
+| `provider.check`  | modo, modelo                                                      | ok / error legible                     |
+| `structureGrade`  | estructura, palabra pedida y su categoría, frase del usuario      | etiquetas + explicación + frase modelo |
+| `structureDetect` | catálogo, un trozo de capítulo                                    | estructuras halladas, con un ejemplo   |
 
 ### 14.2 JSON `Analysis` (resumen)
 
@@ -592,6 +806,19 @@ best_sentences(id, session_id, turn_id, text)
 challenges(id, session_id_created, pattern_id, text, target_count, achieved_session_id)
 streak_days(date, sessions, freeze_used)
 settings(key, value)
+
+structure_sittings(id, size, chapter_id, started_at, finished_at)
+structure_items(sitting_id, idx, structure, topic, verb, verb_source, warm, retry_of,
+                answer, peeked, verdict, explanation, better, answered_at)
+chapter_structures(chapter_id, structure, count, example)
+chapter_structure_scans(chapter_id, scanned_at)
+book_chapters(…, opened_at)
+
+listening_places(chapter_id, sentence, updated_at)
+dictation_sittings(id, chapter_id, pace, started_at, finished_at)
+dictation_items(sitting_id, idx, sentence, reinforces, retry_of, listens, first_pace, pace,
+                answer, verdict, right, total, answered_at)
+dictation_words(sitting_id, idx, at, word, heard)
 ```
 
 ---
