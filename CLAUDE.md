@@ -5,13 +5,17 @@
 ```bash
 bun run check        # everything: types, oxlint, prettier, bun test, fmt, clippy, cargo test
 bun test <file>      # one TS test file
-bun run tauri:dev    # desktop app (builds the sidecar first)
+bun run tauri:dev    # desktop app; builds the sidecar once, at launch
 bun run dev          # UI only, on src/lib/ipcMock.ts (?mock=fresh | ready | update)
 ```
 
 Cargo runs from `src-tauri/`. `cargo test -- --ignored commands::` runs the
 whole learner loop against the sidecar's fake provider (`OGMIOS_FAKE=1`).
 `OGMIOS_AGENT_CMD="bun sidecar/main.ts"` makes Rust spawn the sidecar from source.
+
+A running `tauri:dev` keeps the sidecar it launched with: after a change in
+`sidecar/` or `shared/`, relaunch it, and tell the user to, or the app runs
+the old one.
 
 ## Releases
 
@@ -46,6 +50,8 @@ whole learner loop against the sidecar's fake provider (`OGMIOS_FAKE=1`).
 ## Code rules
 
 - Tests first for logic; never finish with a failing or skipped test.
+- Data stored before a change must gain what the change adds: a new field on
+  stored rows ships with its backfill and a test that starts from old rows.
 - Tailwind utilities only; tokens in `src/styles/global.css` `@theme`, never a
   hex or arbitrary value in a component. UI strings go through i18n (en + es).
 - Never disable a lint rule, add a suppression or loosen `.oxlintrc.jsonc`,

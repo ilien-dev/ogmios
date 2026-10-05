@@ -4,7 +4,10 @@ import {
   BookOpen,
   ChartNoAxesColumn,
   Dumbbell,
+  Headphones,
   House,
+  PencilLine,
+  Repeat,
   Settings,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -12,7 +15,15 @@ import { UpdateHint } from "@/features/update/UpdateHint";
 import { cn } from "@/lib/cn";
 import type { Navigate, Route } from "./routes";
 
-type Section = "home" | "practice" | "books" | "progress" | "settings";
+type Section =
+  | "home"
+  | "practice"
+  | "structures"
+  | "listening"
+  | "books"
+  | "recall"
+  | "progress"
+  | "settings";
 
 const ITEMS: Array<{ section: Section; icon: LucideIcon; route: Route }> = [
   { section: "home", icon: House, route: { name: "home" } },
@@ -26,7 +37,10 @@ const ITEMS: Array<{ section: Section; icon: LucideIcon; route: Route }> = [
       autostart: false,
     },
   },
+  { section: "structures", icon: PencilLine, route: { name: "structures" } },
+  { section: "listening", icon: Headphones, route: { name: "listening" } },
   { section: "books", icon: BookOpen, route: { name: "books", bookId: null } },
+  { section: "recall", icon: Repeat, route: { name: "recall" } },
   { section: "progress", icon: ChartNoAxesColumn, route: { name: "progress" } },
   { section: "settings", icon: Settings, route: { name: "settings" } },
 ];
@@ -34,7 +48,10 @@ const ITEMS: Array<{ section: Section; icon: LucideIcon; route: Route }> = [
 function sectionOf(route: Route): Section {
   switch (route.name) {
     case "practice":
+    case "structures":
+    case "listening":
     case "books":
+    case "recall":
     case "progress":
     case "settings":
       return route.name;

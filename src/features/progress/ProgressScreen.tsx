@@ -7,6 +7,7 @@ import { Notice } from "@/components/ui/Notice";
 import { Spinner } from "@/components/ui/Spinner";
 import type { Navigate } from "@/app/routes";
 import { cn } from "@/lib/cn";
+import { StrengthMark } from "@/features/recall/StrengthMark";
 import { errorMessage } from "@/lib/errors";
 import { deleteSession, getProgress } from "@/lib/ipc";
 import { formatDate } from "@/lib/text";
@@ -52,7 +53,12 @@ function Vocabulary({ words }: { words: VocabEntry[] }): ReactNode {
             key={`${word.date}-${word.english}-${word.asked ?? ""}`}
             className="flex items-baseline justify-between gap-4 py-2.5 first:pt-0"
           >
-            <dt className="font-medium text-ink">{word.english}</dt>
+            <dt className="flex items-center gap-2 font-medium text-ink">
+              {word.english}
+              {word.strength !== null && (
+                <StrengthMark strength={word.strength} />
+              )}
+            </dt>
             <dd className="truncate text-sm text-ink-faint">
               {word.asked ?? ""}
             </dd>

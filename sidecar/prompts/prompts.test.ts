@@ -14,6 +14,7 @@ function context(overrides: {
   challenge?: string | null;
   recentOpenings?: string[];
   phrases?: string[];
+  words?: string[];
   previous?: ChatContext["previous"];
 }): ChatContext {
   return {
@@ -42,6 +43,7 @@ function context(overrides: {
     challenge: overrides.challenge ?? null,
     recentOpenings: overrides.recentOpenings ?? [],
     phrases: overrides.phrases ?? [],
+    words: overrides.words ?? [],
     previous: overrides.previous ?? null,
   };
 }
@@ -185,6 +187,20 @@ describe("phrases from real speech", () => {
     expect(withPhrases).toContain("never point one out");
     expect(chatSystemPrompt(context({}))).not.toContain(
       "# Phrases people really use",
+    );
+  });
+});
+
+describe("words the learner has learned", () => {
+  test("are given to the partner only when there are some", () => {
+    const withWords = chatSystemPrompt(
+      context({ words: ["to stir", "hedge"] }),
+    );
+    expect(withWords).toContain("# Words the learner has learned");
+    expect(withWords).toContain('"to stir", "hedge"');
+    expect(withWords).toContain("never point one out");
+    expect(chatSystemPrompt(context({}))).not.toContain(
+      "# Words the learner has learned",
     );
   });
 });

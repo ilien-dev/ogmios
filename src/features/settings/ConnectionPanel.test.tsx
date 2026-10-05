@@ -27,6 +27,7 @@ const CLAUDE_CODE: Settings = {
   effort: null,
   claudePath: "/home/you/.local/bin/claude",
   sttModel: null,
+  strictSpelling: false,
 };
 
 describe("ConnectionPanel", () => {

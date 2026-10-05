@@ -26,6 +26,7 @@ import {
   hasApiKey,
   listProfileFacts,
   saveProfile,
+  saveSettings,
 } from "@/lib/ipc";
 import { NATIVE_LANGUAGES } from "@/lib/languages";
 import { languageName } from "@/lib/text";
@@ -101,6 +102,18 @@ export function SettingsScreen({
     try {
       await saveProfile(merged);
       onProfileChange(merged);
+      setSaved(true);
+    } catch (error) {
+      setFailure(errorMessage(error));
+    }
+  };
+
+  const setStrictSpelling = async (strictSpelling: boolean): Promise<void> => {
+    const next = { ...settings, strictSpelling };
+    setFailure(null);
+    try {
+      await saveSettings(next);
+      onSettingsChange(next);
       setSaved(true);
     } catch (error) {
       setFailure(errorMessage(error));
@@ -271,6 +284,21 @@ export function SettingsScreen({
             choices={(["en", "es"] as const).map((value) => ({
               value,
               label: t(`language.${value}`),
+            }))}
+          />
+        </Section>
+
+        <Section id="settings-spelling" title={t("settings.spelling")}>
+          <ChoiceGroup<"lenient" | "strict">
+            legend={t("spelling.legend")}
+            columns={2}
+            size="sm"
+            value={settings.strictSpelling ? "strict" : "lenient"}
+            onChange={(value) => void setStrictSpelling(value === "strict")}
+            choices={(["lenient", "strict"] as const).map((value) => ({
+              value,
+              label: t(`spelling.${value}`),
+              description: t(`spelling.${value}Body`),
             }))}
           />
         </Section>

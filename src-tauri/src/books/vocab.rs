@@ -6,6 +6,7 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::agent::protocol::VocabItem;
+use crate::domain::PartOfSpeech;
 
 /// The size of one piece sent to the model, in characters: about 700 words,
 /// so that even "most words" for a basic learner fits one answer.
@@ -74,6 +75,11 @@ pub struct Word {
     pub forms: Vec<String>,
     /// The first sentence of the chapter that uses it.
     pub sentence: String,
+    /// What kind of word it is in that sentence; none when no model said.
+    pub part_of_speech: Option<PartOfSpeech>,
+    /// A verb that takes an object in that sentence; none when no model
+    /// said.
+    pub transitive: Option<bool>,
     /// Accepted translations, in the order they were first given.
     pub translations: Vec<String>,
     pub needs_context: bool,
@@ -104,8 +110,13 @@ pub fn tokens(text: &str) -> Vec<String> {
         .flat_map(char::to_lowercase)
         .map(fold)
         .collect();
-    folded
-        .split(|c: char| !c.is_alphanumeric() && c != '\'')
+    split(&folded)
+}
+
+/// A text split into words at anything that is not a letter, a digit or an
+/// apostrophe inside a word.
+pub fn split(text: &str) -> Vec<String> {
+    text.split(|c: char| !c.is_alphanumeric() && c != '\'')
         .map(|word| word.trim_matches('\''))
         .filter(|word| !word.is_empty())
         .map(str::to_owned)
@@ -119,6 +130,22 @@ pub fn key(text: &str) -> String {
     let words = tokens(text);
     let skip = usize::from(words.len() > 1 && LEADING.contains(&words[0].as_str()));
     words[skip..].join(" ")
+}
+
+/// The words that deny what they stand with; so does one ending in "n't".
+const NEGATIONS: [&str; 4] = ["not", "no", "never", "cannot"];
+
+fn negated(text: &str) -> bool {
+    tokens(text)
+        .iter()
+        .any(|word| NEGATIONS.contains(&word.as_str()) || word.ends_with("n't"))
+}
+
+/// Whether `form` denies what `lemma` says: "was not fond of" for "be fond
+/// of". It is not a form of the word: its translations say the opposite.
+/// "couldn't help but" is one of "can't help but", which denies already.
+pub fn negates(form: &str, lemma: &str) -> bool {
+    negated(form) && !negated(lemma)
 }
 
 /// Whether a key names a number: digits, or a word that only counts.
@@ -197,6 +224,14 @@ fn occurrences(form: &[String], chapter: &[String]) -> usize {
         .count()
 }
 
+/// How often a word or expression occurs in a chapter's text; at least once,
+/// for one the chapter is known to have.
+pub fn count_in(lemma: &str, text: &str) -> u32 {
+    u32::try_from(occurrences(&tokens(lemma), &tokens(text)))
+        .unwrap_or(u32::MAX)
+        .max(1)
+}
+
 /// A translation as it is stored, and what makes two of them the same.
 fn clean(translation: &str) -> Option<(String, String)> {
     let text = translation.split_whitespace().collect::<Vec<_>>().join(" ");
@@ -226,6 +261,8 @@ impl Draft {
                 lemma: lemma.clone(),
                 forms: Vec::new(),
                 sentence: item.sentence.trim().to_owned(),
+                part_of_speech: Some(item.part_of_speech),
+                transitive: Some(item.transitive),
                 translations: Vec::new(),
                 needs_context: false,
                 count: 0,
@@ -239,7 +276,7 @@ impl Draft {
 
     fn form(&mut self, form: &str) {
         let run = tokens(form).join(" ");
-        if !run.is_empty() {
+        if !run.is_empty() && !negates(form, &self.word.lemma) {
             push_new(
                 &mut self.word.forms,
                 &mut self.forms,
@@ -317,6 +354,8 @@ mod tests {
             lemma: lemma.into(),
             form: form.into(),
             sentence: format!("A sentence with {form}."),
+            part_of_speech: PartOfSpeech::Verb,
+            transitive: true,
             translations: translations.iter().map(|t| (*t).to_owned()).collect(),
             proper_noun: false,
             needs_context: false,
@@ -338,6 +377,33 @@ mod tests {
         // Alone, "to" and "the" are words like any other.
         assert_eq!(key("to"), "to");
         assert_eq!(key("?!"), "");
+    }
+
+    #[test]
+    fn a_form_that_denies_its_word_is_not_a_form_of_it() {
+        assert!(negates("was not fond of", "be fond of"));
+        assert!(negates("has Not budged", "budge"));
+        assert!(negates("wasn’t fond of", "be fond of"));
+        assert!(negates("never budged", "budge"));
+        // The word denies already.
+        assert!(!negates("couldn’t help but", "can't help but"));
+        assert!(!negates("no longer", "no longer"));
+        // More words than the base form, and the same thing said.
+        assert!(!negates("was very fond of", "be fond of"));
+        assert!(!negates("propped himself up", "prop up"));
+        // Part of another word denies nothing.
+        assert!(!negates("knotted", "knot"));
+
+        let pieces = vec![vec![
+            item("be fond of", "was not fond of", &["ser aficionado a"]),
+            item("be fond of", "was very fond of", &["gustarle mucho"]),
+        ]];
+        let words = merge(&pieces, "He was not fond of it.", &HashSet::new());
+        assert_eq!(words[0].forms, ["be fond of", "was very fond of"]);
+        assert_eq!(
+            words[0].translations,
+            ["ser aficionado a", "gustarle mucho"]
+        );
     }
 
     #[test]
@@ -397,6 +463,9 @@ mod tests {
         alice.proper_noun = true;
         let mut context = item("to give up", "gave up", &["rendirse", "Abandonar"]);
         context.needs_context = true;
+        // Its first sentence is the one kept, and so is what the word is there.
+        let mut noun = item("Peep", "peeps", &["echar un vistazo", " Asomarse "]);
+        noun.part_of_speech = PartOfSpeech::Noun;
         let pieces = vec![
             vec![
                 item("peep", "peeped", &["asomarse"]),
@@ -405,7 +474,7 @@ mod tests {
                 item("give up", "gave up", &["rendirse"]),
             ],
             vec![
-                item("Peep", "peeps", &["echar un vistazo", " Asomarse "]),
+                noun,
                 item("twenty one", "twenty-one", &["veintiuno"]),
                 context,
                 item("blank", "blank", &["", "  "]),
@@ -421,6 +490,7 @@ mod tests {
         assert_eq!(peep.forms, ["peep", "peeped", "peeps"]);
         assert_eq!(peep.translations, ["asomarse", "echar un vistazo"]);
         assert_eq!(peep.sentence, "A sentence with peeped.");
+        assert_eq!(peep.part_of_speech, Some(PartOfSpeech::Verb));
         assert!(!peep.needs_context);
         assert_eq!(give_up.translations, ["rendirse", "Abandonar"]);
         assert!(give_up.needs_context, "flagged in any piece");

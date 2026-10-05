@@ -39,11 +39,14 @@ const SHORT = WORDS.slice(0, 8).map(([english]) => english);
 const LONG = "book-alice-3";
 const LONG_NAME = "IV. The Rabbit Sends in a Little Bill";
 
+/** What fills the blank of a word asked with its sentence: not its base form. */
+const FILLS: Record<string, string> = { tumble: "tumbled" };
+
 /** The right answer to a prompt, whichever way the word is asked. */
 const RIGHT: Record<string, string> = Object.fromEntries(
   WORDS.flatMap(([english, shown, right]) => [
     [english, right],
-    [shown, english],
+    [shown, FILLS[english] ?? english],
   ]),
 );
 
@@ -152,6 +155,9 @@ describe("SittingScreen", () => {
     expect(screen.getByRole("navigation")).toBeInTheDocument();
     await tabTo(user, "Practice");
     await user.keyboard("{Enter}");
+    // Both ways and every word are chosen already: Enter starts.
+    expect(await screen.findByRole("button", { name: "Start" })).toHaveFocus();
+    await user.keyboard("{Enter}");
 
     // The sitting has the whole window, and the keyboard is in the answer.
     const field = await screen.findByLabelText("Your translation");
@@ -230,7 +236,10 @@ describe("SittingScreen", () => {
     expect(
       screen.getByText("Every word of this chapter is done."),
     ).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Continue" })).toBeNull();
+    // "Continue" is an extra review from here: there, and not on Enter.
+    expect(
+      screen.getByRole("button", { name: "Continue" }),
+    ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Done" })).toHaveFocus();
     await user.keyboard("{Enter}");
     expect(
@@ -243,6 +252,7 @@ describe("SittingScreen", () => {
     const user = userEvent.setup();
     render(<Shelf />);
     await user.click(await screen.findByRole("button", { name: "Practice" }));
+    await user.click(await screen.findByRole("button", { name: "Start" }));
     await screen.findByLabelText("Your translation");
 
     // Eight words, four steps each. Announced as a percentage, shown as no
@@ -315,6 +325,7 @@ describe("SittingScreen", () => {
     const user = userEvent.setup();
     render(<Shelf />);
     await user.click(await screen.findByRole("button", { name: "Practice" }));
+    await user.click(await screen.findByRole("button", { name: "Start" }));
     await screen.findByLabelText("Your translation");
     await answer(user, "madriguera", "Right.");
     await answer(user, "rodar", "Right.");
@@ -346,7 +357,9 @@ describe("SittingScreen", () => {
     // No session yet, so nothing to measure.
     expect(screen.queryByRole("progressbar")).toBeNull();
     expect(screen.queryByRole("navigation")).toBeNull();
-    expect(screen.getAllByRole("radio")).toHaveLength(2);
+    // Two sizes, under the three ways a session can ask.
+    expect(screen.getAllByRole("radio")).toHaveLength(5);
+    expect(screen.getByRole("radio", { name: "Both" })).toBeChecked();
     const ten = screen.getByRole("radio", {
       name: /^10 words\s*about 7 min$/u,
     });
@@ -409,17 +422,28 @@ describe("SittingScreen", () => {
     expect(screen.getByText("2 words still open")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Continue" })).toHaveFocus();
 
-    // "Continue" is the next session. Two words are one size: no choice.
+    // "Continue" is the next session. Two words are one size; its ways
+    // are still to choose, and Enter takes both.
+    await user.keyboard("{Enter}");
+    expect(await screen.findByRole("button", { name: "Start" })).toHaveFocus();
+    expect(screen.getAllByRole("radio")).toHaveLength(4);
     await user.keyboard("{Enter}");
     expect(await screen.findByLabelText("Your translation")).toHaveFocus();
-    expect(screen.queryByRole("radio")).toBeNull();
     expect(prompt()).toBe("shelf");
     expect(wordsOf(await playOut(user))).toEqual(["hedge", "shelf"]);
     expect(screen.getByText("2 words done")).toBeInTheDocument();
     expect(
       screen.getByText("Every word of this chapter is done."),
     ).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Continue" })).toBeNull();
+    // With every word done "Continue" is an extra review of them all.
+    expect(screen.getByRole("button", { name: "Done" })).toHaveFocus();
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    await user.click(await screen.findByRole("button", { name: "Start" }));
+    await screen.findByLabelText("Your translation");
+    expect(screen.getByRole("progressbar")).toHaveAttribute(
+      "aria-valuenow",
+      "0",
+    );
   });
 
   test("the size chosen is the size started, and the next session asks again", async () => {
@@ -444,6 +468,7 @@ describe("SittingScreen", () => {
     const user = userEvent.setup();
     render(<Shelf />);
     await user.click(await screen.findByRole("button", { name: "Practice" }));
+    await user.click(await screen.findByRole("button", { name: "Start" }));
     await screen.findByLabelText("Your translation");
     // Every word goes round twice English → native first.
     for (const word of [...SHORT, ...SHORT]) {
@@ -467,14 +492,15 @@ describe("SittingScreen", () => {
     expect(document.querySelector("mark")).toBeNull();
     expect(itemText()).not.toMatch(/tumbl/iu);
 
-    // "I don't know" is one Tab away, and shows the English word.
+    // "I don't know" is one Tab away, and shows the word that fills the
+    // blank: "tumbled", not the base form.
     await user.tab();
     expect(screen.getByRole("button", { name: "I don't know" })).toHaveFocus();
     expect(itemText()).not.toMatch(/tumbl/iu);
     await user.keyboard("{Enter}");
     expect(await screen.findByText("Here it is.")).toBeInTheDocument();
     expect(screen.queryByText("Not quite.")).toBeNull();
-    expect(screen.getByText("Accepted: tumble")).toBeInTheDocument();
+    expect(screen.getByText("Accepted: tumbled")).toBeInTheDocument();
     expect(screen.getByLabelText("Your translation")).toHaveValue("");
     expect(screen.getByRole("button", { name: "Next" })).toHaveFocus();
     await user.keyboard("{Enter}");
@@ -496,17 +522,72 @@ describe("SittingScreen", () => {
     }
 
     // Five words later the missed one is back, ahead of the last word of
-    // the pass. Missing it one way did not send it back the other way, and
-    // the form the book uses is right too.
+    // the pass. Missing it one way did not send it back the other way. The
+    // base form does not fill the blank; the form the sentence uses does.
     expect(prompt()).toBe("caerse, rodar");
-    await answer(user, "to TUMBLED", "Right.");
-    expect(prompt()).toBe("hacer una reverencia, reverencia");
+    await answer(user, "tumble", "Not quite.");
+    expect(screen.queryByText("caerse, rodar")).toBeNull();
+    while (prompt() !== "caerse, rodar") {
+      await answer(user, RIGHT[prompt()] ?? "", "Right.");
+    }
+    await answer(user, "TUMBLED", "Right.");
+  });
+
+  test("a session of one way asks that way alone, and its words are half done", async () => {
+    const user = userEvent.setup();
+    render(<Shelf />);
+    await user.click(await screen.findByRole("button", { name: "Practice" }));
+    await user.click(
+      await screen.findByRole("radio", { name: "Spanish → English" }),
+    );
+    // Three answers a word, not five: the estimate is of that way.
+    expect(
+      screen.getByRole("radio", { name: /^All 8 words\s*about 3 min$/u }),
+    ).toBeChecked();
+    await user.click(screen.getByRole("button", { name: "Start" }));
+    await screen.findByLabelText("Your translation");
+
+    // Asked from the start, without English → native first.
+    expect(screen.getByText("Spanish → English")).toBeInTheDocument();
+    const asked = await playOut(user);
+    expect(asked).toHaveLength(8 * 2);
+    expect(asked.every((shown) => !SHORT.includes(shown))).toBe(true);
+
+    // One way is half a word: none is done, and the list says which half.
+    expect(screen.getByText("0 words done")).toBeInTheDocument();
+    expect(screen.getByText("8 words still open")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Done" }));
+    const halves = await screen.findAllByRole("img", { name: /^Half done/u });
+    expect(halves).toHaveLength(8);
+    expect(halves[0]).toHaveAccessibleName(
+      "Half done: you have it from your language to English. English to your language is still to come.",
+    );
+    expect(screen.queryByRole("img", { name: "Done" })).toBeNull();
+
+    // That way has nothing left to ask: it is offered all the same, as an
+    // extra review of every word, and says so once it is chosen.
+    await user.click(screen.getByRole("button", { name: "Practice" }));
+    await screen.findByRole("button", { name: "Start" });
+    const note =
+      "Nothing is left to do this way: this is an extra review of every word.";
+    expect(screen.queryByText(note)).toBeNull();
+    await user.click(screen.getByRole("radio", { name: "Spanish → English" }));
+    expect(screen.getByText(note)).toBeInTheDocument();
+    expect(
+      screen.getByRole("radio", { name: /^All 8 words\s*about 3 min$/u }),
+    ).toBeChecked();
+    await user.click(screen.getByRole("button", { name: "Start" }));
+    await screen.findByLabelText("Your translation");
+    expect(screen.getByText("Spanish → English")).toBeInTheDocument();
+    expect(await playOut(user)).toHaveLength(8 * 2);
+    expect(screen.getByText("8 words still open")).toBeInTheDocument();
   });
 
   test("not knowing a word English → native is a miss that shows the answer", async () => {
     const user = userEvent.setup();
     render(<Shelf />);
     await user.click(await screen.findByRole("button", { name: "Practice" }));
+    await user.click(await screen.findByRole("button", { name: "Start" }));
     await screen.findByLabelText("Your translation");
 
     await user.click(screen.getByRole("button", { name: "I don't know" }));
@@ -536,6 +617,7 @@ describe("SittingScreen", () => {
     const user = userEvent.setup();
     render(<Shelf />);
     await user.click(await screen.findByRole("button", { name: "Practice" }));
+    await user.click(await screen.findByRole("button", { name: "Start" }));
     await screen.findByLabelText("Your translation");
     expect(prompt()).toBe("rabbit hole");
 
@@ -573,6 +655,11 @@ describe("SittingScreen", () => {
     await i18n.changeLanguage("es");
     render(<Shelf />);
     await user.click(await screen.findByRole("button", { name: "Practicar" }));
+    expect(
+      await screen.findByRole("group", { name: "¿En qué dirección?" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Ambas" })).toBeChecked();
+    await user.click(screen.getByRole("button", { name: "Empezar" }));
 
     expect(await screen.findByLabelText("Tu traducción")).toHaveFocus();
     // How a language's name is cased depends on who names it.

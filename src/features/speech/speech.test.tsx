@@ -25,22 +25,26 @@ const RECOGNITION: PracticeItem = {
   wordId: "w1",
   direction: "recognition",
   prompt: "tumble",
+  partOfSpeech: null,
   context: [
     { text: "She began to ", marked: false },
     { text: "tumble", marked: true },
     { text: " down the hole.", marked: false },
   ],
+  sentenceId: null,
 };
 
 const PRODUCTION: PracticeItem = {
   wordId: "w1",
   direction: "production",
   prompt: "caerse, rodar",
+  partOfSpeech: null,
   context: [
     { text: "She began to ", marked: false },
     { text: "", marked: true },
     { text: " down the hole.", marked: false },
   ],
+  sentenceId: null,
 };
 
 function word(item: PracticeItem, verdict: Checked): React.ReactNode {

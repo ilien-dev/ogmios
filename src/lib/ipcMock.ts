@@ -65,6 +65,7 @@ import {
   resetMockDeleted,
   shownProgress,
 } from "./ipcMockExtras";
+import { mockDueWords } from "./ipcMockRecall";
 
 type Handler = (payload: never) => void;
 
@@ -125,6 +126,7 @@ function freshState(): MockState {
       effort: null,
       claudePath: null,
       sttModel: null,
+      strictSpelling: false,
     },
     apiKey: null,
     facts: FACTS.map((text, i) => ({ id: `fact-${i}`, text })),
@@ -551,6 +553,7 @@ function homeState(): HomeState {
     suggestedTopics: suggestedTopics(state.lastSetup?.topic),
     focus: PATTERNS[0] ?? null,
     dueReviews: 2,
+    dueWords: mockDueWords(),
     streak: { days: 4, freezesLeft: 2, practicedToday: false },
     activeChallenge: pick(
       lang(),
@@ -644,8 +647,6 @@ const commands: Record<string, (args: unknown) => Promise<unknown>> = {
       );
     }),
   self_check: selfCheck,
-  dispute_item: () => after(150, () => null),
-  delete_session_audio: () => after(300, () => null),
   start_drill: startDrill,
   answer_drill: answerDrill,
   get_progress: () => after(200, () => shownProgress(progress(lang()))),

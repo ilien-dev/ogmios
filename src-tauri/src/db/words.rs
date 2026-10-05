@@ -1,16 +1,64 @@
 //! The words of prepared chapters, the pieces of an extraction still under
 //! way, and the words the learner already knows.
 
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use chrono::{DateTime, Utc};
-use rusqlite::{params, Connection};
+use rusqlite::{params, Connection, OptionalExtension};
 
+use super::profile::get_profile;
 use super::{found, new_id, parse_ts, ts};
-use crate::agent::protocol::VocabItem;
+use crate::agent::protocol::{LabelWord, VocabItem};
+use crate::books::practice::{inflects, preferred};
 use crate::books::vocab::Word;
-use crate::domain::{BookWord, Depth, KnownWord};
+use crate::domain::{BookWord, Depth, Direction, KnownWord, PartOfSpeech};
 use crate::error::Result;
+
+/// The right answers the learner gave English → native, by the key of their
+/// word: in practice and the refresh of any chapter, and in the daily
+/// recall. They say which translation of a word the learner uses
+/// (`books::practice::preferred`), and nothing of it is stored: the order
+/// is read off them every time.
+pub struct Used {
+    native: String,
+    answers: HashMap<String, Vec<String>>,
+}
+
+impl Used {
+    /// The answers given to the word of `key`, or to every word.
+    pub fn load(conn: &Connection, key: Option<&str>) -> Result<Self> {
+        let native = get_profile(conn)?
+            .map(|profile| profile.native_lang)
+            .unwrap_or_default();
+        let mut stmt = conn.prepare(
+            "SELECT w.key, a.answer FROM word_answers a
+             JOIN chapter_words w ON w.id = a.word_id
+             WHERE a.correct = 1 AND a.direction = ?2 AND (?1 IS NULL OR w.key = ?1)
+             UNION ALL
+             SELECT e.key, e.answer FROM word_events e
+             WHERE e.kind = 'right' AND e.direction = ?2 AND e.answer IS NOT NULL
+               AND (?1 IS NULL OR e.key = ?1)",
+        )?;
+        let rows = stmt.query_map(params![key, Direction::Recognition], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })?;
+        let mut answers: HashMap<String, Vec<String>> = HashMap::new();
+        for row in rows {
+            let (key, answer) = row?;
+            answers.entry(key).or_default().push(answer);
+        }
+        Ok(Self { native, answers })
+    }
+
+    /// The translations the word of `key` is `shown` as, the one the
+    /// learner answers with most first.
+    pub fn order(&self, key: &str, part: Option<PartOfSpeech>, shown: Vec<String>) -> Vec<String> {
+        match self.answers.get(key) {
+            Some(answers) => preferred(shown, answers, (&self.native, inflects(part))),
+            None => shown,
+        }
+    }
+}
 
 /// The pieces already answered for this chapter at this depth, by index.
 /// Pieces kept for another depth, or cut from a text divided differently,
@@ -79,8 +127,8 @@ pub fn finish(
     let mut insert = conn.prepare(
         "INSERT OR IGNORE INTO chapter_words
            (id, chapter_id, key, lemma, forms, sentence, needs_context, occurrences, depth,
-            created_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+            created_at, part_of_speech, transitive)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
     )?;
     let mut translate =
         conn.prepare("INSERT OR IGNORE INTO word_translations (word_id, text) VALUES (?1, ?2)")?;
@@ -96,7 +144,9 @@ pub fn finish(
             word.needs_context,
             word.count,
             depth,
-            ts(now)
+            ts(now),
+            word.part_of_speech,
+            word.transitive
         ])?;
         if added == 1 {
             for translation in &word.translations {
@@ -112,6 +162,70 @@ pub fn finish(
         "DELETE FROM chapter_chunks WHERE chapter_id = ?1",
         [chapter_id],
     )?;
+    Ok(())
+}
+
+/// The keys of the words the chapter asks: the ones it has that the learner
+/// has not said they know.
+pub fn asked(conn: &Connection, chapter_id: &str) -> Result<HashSet<String>> {
+    let mut stmt = conn.prepare(
+        "SELECT key FROM chapter_words
+         WHERE chapter_id = ?1 AND key NOT IN (SELECT key FROM known_words)",
+    )?;
+    let keys = stmt.query_map([chapter_id], |row| row.get(0))?;
+    Ok(keys.collect::<rusqlite::Result<_>>()?)
+}
+
+/// The chapter's word with this key, if it has it.
+pub fn id_by_key(conn: &Connection, chapter_id: &str, key: &str) -> Result<Option<String>> {
+    Ok(conn
+        .query_row(
+            "SELECT id FROM chapter_words WHERE chapter_id = ?1 AND key = ?2",
+            params![chapter_id, key],
+            |row| row.get(0),
+        )
+        .optional()?)
+}
+
+/// Adds one word to a chapter outside its preparation: one the learner
+/// asked to practise. It goes in at the depth the chapter was prepared at;
+/// a chapter never prepared is from then on prepared at the narrowest
+/// depth, which leaves every wider one on offer. A word the chapter has is
+/// left as it is. Run it inside a transaction.
+pub fn add(conn: &Connection, chapter_id: &str, word: &Word, now: DateTime<Utc>) -> Result<()> {
+    conn.execute(
+        "UPDATE book_chapters SET prepared = COALESCE(prepared, ?2) WHERE id = ?1",
+        params![chapter_id, Depth::Hardest],
+    )?;
+    let id = new_id();
+    let added = conn.execute(
+        "INSERT OR IGNORE INTO chapter_words
+           (id, chapter_id, key, lemma, forms, sentence, needs_context, occurrences, depth,
+            created_at, part_of_speech, transitive)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8,
+                 (SELECT prepared FROM book_chapters WHERE id = ?2), ?9, ?10, ?11)",
+        params![
+            id,
+            chapter_id,
+            word.key,
+            word.lemma,
+            serde_json::to_string(&word.forms)?,
+            word.sentence,
+            word.needs_context,
+            word.count,
+            ts(now),
+            word.part_of_speech,
+            word.transitive
+        ],
+    )?;
+    if added == 1 {
+        for translation in &word.translations {
+            conn.execute(
+                "INSERT OR IGNORE INTO word_translations (word_id, text) VALUES (?1, ?2)",
+                params![id, translation],
+            )?;
+        }
+    }
     Ok(())
 }
 
@@ -145,6 +259,35 @@ pub fn set_known(
     Ok(chapter_id)
 }
 
+/// Keeps that the learner, sorting the chapter's list, left the word to
+/// learn, or takes that back: the next sorting starts after the words that
+/// have it. Returns the word's chapter.
+pub fn set_sorted(
+    conn: &Connection,
+    word_id: &str,
+    sorted: bool,
+    now: DateTime<Utc>,
+) -> Result<String> {
+    let chapter_id = found(
+        conn.query_row(
+            "UPDATE chapter_words SET sorted_at = ?2 WHERE id = ?1 RETURNING chapter_id",
+            params![word_id, sorted.then(|| ts(now))],
+            |row| row.get(0),
+        ),
+        "word",
+    )?;
+    Ok(chapter_id)
+}
+
+/// Has the whole chapter to be sorted again: another pass over its list.
+pub fn unsort(conn: &Connection, chapter_id: &str) -> Result<()> {
+    conn.execute(
+        "UPDATE chapter_words SET sorted_at = NULL WHERE chapter_id = ?1",
+        [chapter_id],
+    )?;
+    Ok(())
+}
+
 /// Takes back that the learner knows the word with this key: it is asked
 /// again wherever a chapter has it. A key that is not known changes nothing.
 pub fn forget(conn: &Connection, key: &str) -> Result<()> {
@@ -152,9 +295,20 @@ pub fn forget(conn: &Connection, key: &str) -> Result<()> {
     Ok(())
 }
 
+/// The translations a chapter's word was prepared with, in that order: an
+/// answer a dispute upheld is accepted in practice and listed nowhere.
+pub fn extracted(conn: &Connection, word_id: &str) -> Result<Vec<String>> {
+    let mut stmt = conn.prepare_cached(
+        "SELECT text FROM word_translations
+         WHERE word_id = ?1 AND source = 'extraction' ORDER BY rowid",
+    )?;
+    let rows = stmt.query_map([word_id], |row| row.get(0))?;
+    Ok(rows.collect::<rusqlite::Result<_>>()?)
+}
+
 /// Every word the learner said they know, the latest first. Its translations
-/// are the ones the first chapter that has it was prepared with; a word whose
-/// books are all gone has none.
+/// are the ones the first chapter that has it was prepared with, the one the
+/// learner answers with most first; a word whose books are all gone has none.
 pub fn known(conn: &Connection) -> Result<Vec<KnownWord>> {
     let mut stmt =
         conn.prepare("SELECT key, lemma FROM known_words ORDER BY created_at DESC, key")?;
@@ -168,15 +322,17 @@ pub fn known(conn: &Connection) -> Result<Vec<KnownWord>> {
         })?
         .collect::<rusqlite::Result<Vec<_>>>()?;
     let mut stmt = conn.prepare(
-        "SELECT text FROM word_translations
-         WHERE source = 'extraction' AND word_id =
-           (SELECT id FROM chapter_words WHERE key = ?1 ORDER BY created_at, id LIMIT 1)
-         ORDER BY rowid",
+        "SELECT id, part_of_speech FROM chapter_words
+         WHERE key = ?1 ORDER BY created_at, id LIMIT 1",
     )?;
+    let used = Used::load(conn, None)?;
     for word in &mut words {
-        word.translations = stmt
-            .query_map([&word.key], |row| row.get(0))?
-            .collect::<rusqlite::Result<_>>()?;
+        let first: Option<(String, Option<PartOfSpeech>)> = stmt
+            .query_row([&word.key], |row| Ok((row.get(0)?, row.get(1)?)))
+            .optional()?;
+        if let Some((id, part)) = first {
+            word.translations = used.order(&word.key, part, extracted(conn, &id)?);
+        }
     }
     Ok(words)
 }
@@ -185,7 +341,7 @@ pub fn known(conn: &Connection) -> Result<Vec<KnownWord>> {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Learned {
     pub lemma: String,
-    /// Its first translation.
+    /// The translation the learner answers with most, or its first.
     pub translation: Option<String>,
     pub done_at: DateTime<Utc>,
 }
@@ -194,9 +350,7 @@ pub struct Learned {
 /// first time it was finished; the earliest first.
 pub fn learned(conn: &Connection) -> Result<Vec<Learned>> {
     let mut stmt = conn.prepare(
-        "SELECT w.lemma, MIN(w.done_at),
-                (SELECT text FROM word_translations t WHERE t.word_id = w.id
-                 ORDER BY t.rowid LIMIT 1)
+        "SELECT w.lemma, MIN(w.done_at), w.id, w.key, w.part_of_speech
          FROM chapter_words w WHERE w.done_at IS NOT NULL
          GROUP BY w.key ORDER BY MIN(w.done_at), w.key",
     )?;
@@ -205,53 +359,107 @@ pub fn learned(conn: &Connection) -> Result<Vec<Learned>> {
             Ok((
                 row.get::<_, String>(0)?,
                 row.get::<_, String>(1)?,
-                row.get::<_, Option<String>>(2)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, String>(3)?,
+                row.get::<_, Option<PartOfSpeech>>(4)?,
             ))
         })?
         .collect::<rusqlite::Result<Vec<_>>>()?;
+    let used = Used::load(conn, None)?;
     rows.into_iter()
-        .map(|(lemma, done_at, translation)| {
+        .map(|(lemma, done_at, id, key, part)| {
+            let shown = used.order(&key, part, extracted(conn, &id)?);
             Ok(Learned {
                 lemma,
-                translation,
+                translation: shown.into_iter().next(),
                 done_at: parse_ts(&done_at)?,
             })
         })
         .collect()
 }
 
-/// The chapter's words, most frequent in it first.
+/// The chapter's words, most frequent in it first, each with the
+/// translations it was prepared with, the one the learner answers with most
+/// first ([`Used`]).
 pub fn list(conn: &Connection, chapter_id: &str) -> Result<Vec<BookWord>> {
     let mut stmt = conn.prepare(
         "SELECT id, lemma, occurrences, done_at IS NOT NULL,
-                key IN (SELECT key FROM known_words)
+                key IN (SELECT key FROM known_words), part_of_speech, key,
+                sorted_at IS NOT NULL
          FROM chapter_words
          WHERE chapter_id = ?1 ORDER BY occurrences DESC, key",
     )?;
-    let mut words = stmt
+    let strengths = super::recall::strengths(conn)?;
+    let words = stmt
         .query_map([chapter_id], |row| {
-            Ok(BookWord {
+            let key: String = row.get(6)?;
+            let word = BookWord {
                 id: row.get(0)?,
                 lemma: row.get(1)?,
+                part_of_speech: row.get(5)?,
                 translations: Vec::new(),
                 count: row.get(2)?,
                 done: row.get(3)?,
+                // A known word is in no recall, so it has none.
+                strength: strengths.get(&key).copied(),
+                half: None,
                 known: row.get(4)?,
-            })
+                sorted: row.get(7)?,
+            };
+            Ok((key, word))
         })?
         .collect::<rusqlite::Result<Vec<_>>>()?;
-    // What the chapter was prepared with: an answer a dispute upheld is
-    // accepted in practice, as the learner typed it, and listed nowhere.
+    let halves = super::practice::halves(conn, chapter_id)?;
+    let used = Used::load(conn, None)?;
+    words
+        .into_iter()
+        .map(|(key, mut word)| {
+            word.half = halves.get(&word.id).copied();
+            word.translations = used.order(&key, word.part_of_speech, extracted(conn, &word.id)?);
+            Ok(word)
+        })
+        .collect()
+}
+
+/// Every word still to be labelled, of any book: its id, its base form and
+/// the sentence it was taken from. One no chapter says the kind of, and a
+/// verb nobody said takes an object or not: each was stored before that
+/// was asked for.
+pub fn unlabelled(conn: &Connection) -> Result<Vec<LabelWord>> {
     let mut stmt = conn.prepare(
-        "SELECT text FROM word_translations
-         WHERE word_id = ?1 AND source = 'extraction' ORDER BY rowid",
+        "SELECT id, lemma, sentence FROM chapter_words
+         WHERE part_of_speech IS NULL
+            OR (part_of_speech IN ('verb', 'phrasalVerb') AND transitive IS NULL)
+         ORDER BY chapter_id, occurrences DESC, key",
     )?;
-    for word in &mut words {
-        word.translations = stmt
-            .query_map([&word.id], |row| row.get(0))?
-            .collect::<rusqlite::Result<_>>()?;
-    }
+    let words = stmt
+        .query_map([], |row| {
+            Ok(LabelWord {
+                id: row.get(0)?,
+                lemma: row.get(1)?,
+                sentence: row.get(2)?,
+            })
+        })?
+        .collect::<rusqlite::Result<_>>()?;
     Ok(words)
+}
+
+/// Says what kind of word a word is and whether it takes an object;
+/// whether any of it was news. What the word has already, it keeps.
+pub fn label(
+    conn: &Connection,
+    id: &str,
+    part_of_speech: PartOfSpeech,
+    transitive: bool,
+) -> Result<bool> {
+    let changed = conn.execute(
+        "UPDATE chapter_words
+         SET part_of_speech = COALESCE(part_of_speech, ?2),
+             transitive = COALESCE(transitive, ?3)
+         WHERE id = ?1 AND (part_of_speech IS NULL OR transitive IS NULL)",
+        params![id, part_of_speech, transitive],
+    )?;
+    Ok(changed == 1)
 }
 
 #[cfg(test)]
@@ -260,6 +468,7 @@ pub mod tests {
     use crate::books::{ParsedBook, ParsedChapter};
     use crate::db::books::{self, NewBook};
     use crate::db::open_in_memory;
+    use crate::domain::{PartOfSpeech, Ways};
 
     /// Stores a book with one chapter per text; their ids in reading order.
     pub fn book(conn: &Connection, id: &str, texts: &[&str]) -> Vec<String> {
@@ -294,6 +503,8 @@ pub mod tests {
             lemma: lemma.into(),
             forms: vec![lemma.into()],
             sentence: format!("A sentence with {lemma}."),
+            part_of_speech: None,
+            transitive: None,
             translations: translations.iter().map(|t| (*t).to_owned()).collect(),
             needs_context: false,
             count,
@@ -327,7 +538,10 @@ pub mod tests {
         let conn = open_in_memory().expect("db");
         let chapters = book(&conn, "b", &["one"]);
         let words = [
-            word("peep", &["asomarse", "echar un vistazo"], 2),
+            Word {
+                part_of_speech: Some(PartOfSpeech::Verb),
+                ..word("peep", &["asomarse", "echar un vistazo"], 2)
+            },
             word("bank", &["orilla"], 5),
             word("ache", &["doler"], 2),
         ];
@@ -336,8 +550,73 @@ pub mod tests {
         let listed = list(&conn, &chapters[0]).expect("list");
         assert_eq!(lemmas(&listed), [("bank", 5), ("ache", 2), ("peep", 2)]);
         assert_eq!(listed[2].translations, ["asomarse", "echar un vistazo"]);
+        assert_eq!(listed[2].part_of_speech, Some(PartOfSpeech::Verb));
+        assert_eq!(listed[0].part_of_speech, None, "a word nobody labelled");
         let chapter = books::get_chapter(&conn, &chapters[0]).expect("chapter");
         assert_eq!(chapter.prepared, Some(Depth::Relevant));
+    }
+
+    #[test]
+    fn the_translation_the_learner_answers_with_most_is_listed_first() {
+        let conn = open_in_memory().expect("db");
+        crate::db::profile::save_profile(&conn, &crate::db::profile::tests::profile())
+            .expect("profile");
+        let chapters = book(&conn, "b", &["one", "two"]);
+        let clue = || [word("clue", &["pista", "indicio"], 1)];
+        finish(&conn, &chapters[0], Depth::Most, &clue(), Utc::now()).expect("finish");
+        finish(&conn, &chapters[1], Depth::Most, &clue(), Utc::now()).expect("finish");
+        let shown = |chapter: &str| list(&conn, chapter).expect("list").remove(0).translations;
+        assert_eq!(shown(&chapters[0]), ["pista", "indicio"], "as prepared");
+
+        // Answers kept before any of this was read off them.
+        let id = list(&conn, &chapters[0]).expect("list").remove(0).id;
+        let sitting = crate::db::practice::start(&conn, &chapters[0], Ways::Both, Utc::now())
+            .expect("sitting");
+        let say = |way: Direction, text: &str, correct: bool| {
+            crate::db::practice::record(&conn, &sitting, (&id, way), (text, correct), Utc::now())
+                .expect("answer");
+        };
+        say(Direction::Recognition, "pista", true);
+        say(Direction::Recognition, "los indicios", true);
+        say(Direction::Recognition, "indicio", true);
+        // None of these says which translation the learner uses.
+        say(Direction::Recognition, "pista", false);
+        say(Direction::Production, "pista", true);
+        say(Direction::Recognition, "señal", true);
+
+        assert_eq!(shown(&chapters[0]), ["indicio", "pista"]);
+        // The word is the same one in every chapter that has it.
+        assert_eq!(shown(&chapters[1]), ["indicio", "pista"]);
+        let row = crate::db::practice::word(&conn, &id).expect("word");
+        assert_eq!(row.shown, ["indicio", "pista"]);
+        assert_eq!(row.translations, ["pista", "indicio"], "all still accepted");
+        mark_done(&conn, &chapters[0], "clue");
+        let learned = learned(&conn).expect("learned");
+        assert_eq!(learned[0].translation.as_deref(), Some("indicio"));
+        set_known(&conn, &id, true, Utc::now()).expect("known");
+        assert_eq!(
+            known(&conn).expect("known")[0].translations,
+            ["indicio", "pista"]
+        );
+        // Nothing was stored: the order is read off the answers.
+        let stored: Vec<String> = extracted(&conn, &id).expect("stored");
+        assert_eq!(stored, ["pista", "indicio"]);
+
+        // The daily recall counts too: its right answers, and no miss.
+        let recalled = |kind: &str, text: &str| {
+            conn.execute(
+                "INSERT INTO word_events (key, kind, direction, answer, created_at)
+                 VALUES ('clue', ?1, 'recognition', ?2, ?3)",
+                params![kind, text, ts(Utc::now())],
+            )
+            .expect("event");
+        };
+        recalled("miss", "pista");
+        recalled("miss", "pista");
+        assert_eq!(shown(&chapters[1]), ["indicio", "pista"]);
+        recalled("right", "pista");
+        recalled("right", "la pista");
+        assert_eq!(shown(&chapters[1]), ["pista", "indicio"]);
     }
 
     #[test]
@@ -497,6 +776,8 @@ pub mod tests {
             lemma: "peep".into(),
             form: "peeped".into(),
             sentence: "She peeped.".into(),
+            part_of_speech: PartOfSpeech::Verb,
+            transitive: false,
             translations: vec!["asomarse".into()],
             proper_noun: false,
             needs_context: true,

@@ -1,4 +1,5 @@
 /** The mock's commands that are kept in files of their own. */
+import { structureCommands } from "./ipcMockStructures";
 import type { Progress } from "@shared/domain";
 import { bookCommands } from "./ipcMockBooks";
 import {
@@ -6,9 +7,13 @@ import {
   mockLearnedWords,
   withMockReadiness,
 } from "./ipcMockChapters";
+import { listeningCommands } from "./ipcMockListening";
 import { practiceCommands } from "./ipcMockPractice";
+import { recallCommands } from "./ipcMockRecall";
 import { refreshCommands } from "./ipcMockRefresh";
+import { sentenceCommands } from "./ipcMockSentences";
 import { speechCommands } from "./ipcMockSpeech";
+import { translateCommands } from "./ipcMockTranslate";
 import { updateCommands } from "./ipcMockUpdate";
 
 type After = <T>(ms: number, value: () => T) => Promise<T>;
@@ -31,6 +36,7 @@ export function shownProgress(progress: Progress): Progress {
     asked: word.translations[0] ?? null,
     english: word.lemma,
     date,
+    strength: word.strength,
   }));
   return {
     ...progress,
@@ -44,6 +50,8 @@ export function extraCommands(
   emit: Emit,
 ): Record<string, (args: unknown) => Promise<unknown>> {
   return {
+    dispute_item: () => after(150, () => null),
+    delete_session_audio: () => after(300, () => null),
     delete_session: (args) =>
       after(200, () => {
         deleted.add((args as { sessionId: string }).sessionId);
@@ -54,6 +62,11 @@ export function extraCommands(
     ...chapterCommands(after, emit),
     ...practiceCommands(after),
     ...refreshCommands(after),
+    ...recallCommands(after),
+    ...sentenceCommands(after),
+    ...translateCommands(after),
+    ...structureCommands(after, emit),
+    ...listeningCommands(after, emit),
     ...speechCommands(after, emit),
   };
 }

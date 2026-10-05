@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { answerWord, knowWord } from "@/lib/ipc";
+import { answerWord, discardSentence, hintWord, knowWord } from "@/lib/ipc";
 import { DisputeNote } from "./DisputeNote";
 import { RefreshRun } from "./RefreshRun";
 import { SittingItem } from "./SittingItem";
@@ -20,16 +20,20 @@ interface WordsProps {
   onDone: () => void;
 }
 
-/** What a sitting shows under its bar: its sizes, its word, its summary. */
+/** What a sitting shows under its bar: its choices, its word, its summary. */
 function Words({ sittings, nativeLang, onDone }: WordsProps): ReactNode {
   const { t } = useTranslation();
-  const { running, failure, sizes, choose, move, dispute, again } = sittings;
+  const { running, failure, options, choose, move, dispute, again } = sittings;
 
   if (running === null) {
-    return sizes === null || failure !== null ? (
+    return options === null || failure !== null ? (
       <SittingWait failure={failure} />
     ) : (
-      <SittingSizes sizes={sizes} onStart={choose} />
+      <SittingSizes
+        options={options}
+        nativeLang={nativeLang}
+        onStart={choose}
+      />
     );
   }
 
@@ -46,6 +50,10 @@ function Words({ sittings, nativeLang, onDone }: WordsProps): ReactNode {
     const { done, open } = step.summary;
     const stop = { label: t("common.done"), onChoose: onDone };
     const more = open > 0;
+    const next = { label: t("books.sitting.continue"), onChoose: again };
+    // With nothing open the next session is an extra review: within reach,
+    // and not what Enter does.
+    const extra = done > 0 ? next : null;
     return (
       <SittingEnd
         title={t("books.sitting.summary")}
@@ -56,10 +64,8 @@ function Words({ sittings, nativeLang, onDone }: WordsProps): ReactNode {
             ? t("books.sitting.open", { count: open })
             : t("books.sitting.allDone")
         }
-        first={
-          more ? { label: t("books.sitting.continue"), onChoose: again } : stop
-        }
-        other={more ? stop : null}
+        first={more ? next : stop}
+        other={more ? stop : extra}
         notice={notice}
       />
     );
@@ -71,7 +77,11 @@ function Words({ sittings, nativeLang, onDone }: WordsProps): ReactNode {
       key={`${sittingId}-${String(running.turn)}`}
       nativeLang={nativeLang}
       item={item}
-      check={(answer) => answerWord(sittingId, item, answer)}
+      check={(answer, second, hinted) =>
+        answerWord(sittingId, item, answer, second, hinted)
+      }
+      hint={(asked) => hintWord(sittingId, item, asked)}
+      bad={(result) => discardSentence(result.answerId)}
       know={() => knowWord(sittingId, item.wordId)}
       dispute={mine === undefined ? null : (running.disputes[mine] ?? null)}
       notice={notice}

@@ -17,7 +17,9 @@ use crate::agent::protocol::{
     Composed, CorrectionInput, EditType, FocusInput, HelpParams, HistoryTurn, KnownPattern,
     Learner, PreviousSession, SelfCheckParams, Target,
 };
+use crate::books::vocab::tokens;
 use crate::db::patterns::{ErrorEvent, PatternRow};
+use crate::db::recall::{self, RecallWord};
 use crate::db::sessions::{self, NewTurn, SessionRow};
 use crate::db::{new_id, patterns, profile as profile_repo};
 use crate::domain::{
@@ -27,8 +29,10 @@ use crate::domain::{
 };
 use crate::error::{Error, Result};
 use crate::memory::is_active;
+use crate::memory::recall::{is_used, CHAT_WORDS};
 use crate::memory::update::{self as memory_update, Pick};
 use crate::metrics::{self, AnalysisCounts, UserTurn};
+use crate::structures::CHAT_ROOM;
 use crate::Ctx;
 
 /// SPEC §6.2: topics are a short prompt, not an essay.
@@ -245,6 +249,7 @@ pub fn home(ctx: Ctx<'_>, now: DateTime<Utc>) -> Result<HomeState> {
         continue_topic: sessions::previous_conversation(&conn, now)?.map(|(_, topic)| topic),
         focus,
         due_reviews: u32::try_from(due).unwrap_or(u32::MAX),
+        due_words: super::recall::due_count(&conn, now)?,
         streak: streak(&sessions::practice_days(&conn)?, local_date(now)),
         active_challenge: sessions::active_challenge(&conn)?.map(|c| c.text),
         rotation_suggestion: rotation_suggestion(&modes),
@@ -281,14 +286,41 @@ fn previous_session(
     }))
 }
 
+/// The learned words a conversation's partner is given: the few that are
+/// due soonest, the ones nearest to slipping away.
+fn partner_words(mut words: Vec<RecallWord>) -> Vec<RecallWord> {
+    words.sort_by(|a, b| (a.standing.due_at, &a.key).cmp(&(b.standing.due_at, &b.key)));
+    words.truncate(CHAT_WORDS);
+    words
+}
+
+/// Keeps as used every learned word the learner said in the conversation
+/// of their own accord (`memory::recall::is_used`). Only a word learned
+/// before the conversation started counts: one asked for in it was not
+/// known yet.
+fn note_uses(conn: &Connection, snap: &Snapshot, now: DateTime<Utc>) -> Result<()> {
+    let turns: Vec<(bool, Vec<String>)> = snap
+        .turns
+        .iter()
+        .map(|turn| (turn.role == Role::User, tokens(&turn.sent_text)))
+        .collect();
+    for word in recall::words(conn)? {
+        if word.learned_at < snap.session.started_at && is_used(&word.forms, &turns) {
+            recall::used(conn, &word.key, &snap.session.id, now)?;
+        }
+    }
+    Ok(())
+}
+
 /// SPEC §8.5: active patterns are targets when the learner chose to practise
 /// them; otherwise only those due for review are slipped in. `started_at` is
-/// the session's own, so its context stays the same on every turn.
+/// the session's own, so its context stays the same on every turn; so are
+/// the learned words, fixed when the session `words_of` started.
 fn chat_context(
     conn: &Connection,
     setup: &SessionSetup,
     profile: &Profile,
-    started_at: DateTime<Utc>,
+    (started_at, words_of): (DateTime<Utc>, Option<&str>),
     now: DateTime<Utc>,
 ) -> Result<ChatContext> {
     let mut targets = Vec::new();
@@ -311,6 +343,10 @@ fn chat_context(
                 },
             });
         }
+    }
+    // A structure practised by writing takes a place the patterns left free.
+    if setup.focus_mode == FocusMode::Pending && targets.len() < CHAT_ROOM {
+        targets.extend(super::structures::target(conn, now)?);
     }
     Ok(ChatContext {
         setup: setup.clone(),
@@ -335,6 +371,10 @@ fn chat_context(
             profile.variant,
             started_at,
         ),
+        words: match words_of {
+            Some(session_id) => recall::session_words(conn, session_id)?,
+            None => Vec::new(),
+        },
         previous: if setup.continue_previous {
             previous_session(conn, started_at)?
         } else {
@@ -388,8 +428,10 @@ pub fn start(ctx: Ctx<'_>, setup: &SessionSetup, on_delta: OnDelta<'_>) -> Resul
     let (session_id, context) = {
         let conn = ctx.conn()?;
         let profile = require_profile(&conn)?;
-        let context = chat_context(&conn, &setup, &profile, now, now)?;
-        (sessions::insert_session(&conn, &setup, now)?, context)
+        let session_id = sessions::insert_session(&conn, &setup, now)?;
+        recall::set_session_words(&conn, &session_id, &partner_words(recall::words(&conn)?))?;
+        let context = chat_context(&conn, &setup, &profile, (now, Some(&session_id)), now)?;
+        (session_id, context)
     };
     let params = ChatParams {
         context,
@@ -458,7 +500,7 @@ pub fn send(
             &conn,
             &session.setup,
             &profile,
-            session.started_at,
+            (session.started_at, Some(session_id)),
             Utc::now(),
         )?;
         let mut history: Vec<HistoryTurn> = turns
@@ -749,6 +791,7 @@ fn remember(
         None => None,
     };
     sessions::mark_practice(&tx, local_date(now))?;
+    note_uses(&tx, snap, now)?;
     let kept: Vec<_> = analysis
         .errors
         .iter()
@@ -1214,6 +1257,56 @@ mod tests {
     use crate::domain::{Cefr, ProviderMode};
     use std::sync::Mutex;
 
+    #[test]
+    fn a_learned_word_goes_to_the_partner_and_counts_once_the_learner_says_it() {
+        use crate::commands::practice::tests::{numbered, t0, Desk};
+
+        let dir = tempfile::tempdir().expect("tempdir");
+        let desk = Desk::new(&dir);
+        let chapter = desk.chapter("b", &numbered(2));
+        desk.play(&chapter, t0());
+        let conn = desk.db.lock().expect("db");
+        let later = t0() + chrono::Duration::days(1);
+        let setup = sessions::tests::setup();
+        let id = sessions::insert_session(&conn, &setup, later).expect("session");
+
+        // The partner's words are fixed when the conversation starts.
+        let given = partner_words(recall::words(&conn).expect("words"));
+        recall::set_session_words(&conn, &id, &given).expect("kept");
+        let profile = crate::db::profile::tests::profile();
+        let context =
+            chat_context(&conn, &setup, &profile, (later, Some(&id)), later).expect("context");
+        assert_eq!(context.words, ["w00", "w01"]);
+
+        sessions::insert_turn(&conn, &assistant_turn(&id, "Tell me about w01."), later)
+            .expect("opening");
+        let user = NewTurn {
+            role: Role::User,
+            ..assistant_turn(&id, "I saw W00 there, and w01 too.")
+        };
+        sessions::insert_turn(&conn, &user, later).expect("turn");
+        let snap = snapshot(&conn, &id).expect("snapshot");
+        note_uses(&conn, &snap, later).expect("uses");
+        note_uses(&conn, &snap, later).expect("uses again");
+        let kept = || -> Vec<String> {
+            conn.prepare("SELECT key FROM word_events WHERE kind = 'used'")
+                .expect("query")
+                .query_map([], |row| row.get(0))
+                .expect("rows")
+                .collect::<rusqlite::Result<_>>()
+                .expect("keys")
+        };
+        // Once, and not the one the partner had just said.
+        assert_eq!(kept(), ["w00"]);
+        // It is two steps up: the other word is now the one nearest to slip.
+        let next = partner_words(recall::words(&conn).expect("words"));
+        assert_eq!(next[0].key, "w01");
+
+        // A conversation that goes takes its uses with it.
+        sessions::delete_session(&conn, &id).expect("deleted");
+        assert_eq!(kept(), Vec::<String>::new());
+    }
+
     /// An analysis applied, then a crash before the report was written.
     fn applied_but_unreported(ctx: Ctx<'_>) -> String {
         let mut conn = ctx.conn().expect("conn");
@@ -1539,7 +1632,7 @@ mod tests {
         }
         let mut setup = sessions::tests::setup();
         let context = |setup: &SessionSetup, started_at| {
-            chat_context(&conn, setup, &profile, started_at, now).expect("context")
+            chat_context(&conn, setup, &profile, (started_at, None), now).expect("context")
         };
         assert_eq!(context(&setup, now).previous, None, "only when asked for");
         setup.continue_previous = true;

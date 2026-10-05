@@ -90,11 +90,17 @@ impl Speaker {
     }
 
     /// Wait until everything queued has been heard, or until `live` says this
-    /// is no longer the thing to hear, then close the output.
-    pub fn finish(self, live: impl Fn() -> bool) {
+    /// is no longer the thing to hear.
+    pub fn drain(&self, live: &impl Fn() -> bool) {
         while live() && self.queue.lock().is_ok_and(|queue| !queue.is_empty()) {
             std::thread::sleep(TICK);
         }
+    }
+
+    /// Wait for the end of what was queued, as `drain` does, then close the
+    /// output.
+    pub fn finish(self, live: impl Fn() -> bool) {
+        self.drain(&live);
         if live() {
             std::thread::sleep(TAIL);
         }

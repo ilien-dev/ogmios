@@ -14,6 +14,7 @@ import { BookDetail } from "./BookDetail";
 import { ChapterScreen } from "./ChapterScreen";
 import { KnownWordsScreen } from "./KnownWordsScreen";
 import { SittingScreen } from "./SittingScreen";
+import { TranslateScreen } from "./TranslateScreen";
 import { TriageRun } from "./TriageRun";
 
 const REFUSALS: readonly BookRefusal[] = ["drm", "unreadable", "scanned"];
@@ -46,6 +47,8 @@ interface BooksScreenProps {
   refresh?: boolean;
   /** That sitting sorts the chapter's words into known and not. */
   triage?: boolean;
+  /** The open chapter is being translated. */
+  translating?: boolean;
   navigate: Navigate;
 }
 
@@ -58,6 +61,7 @@ export function BooksScreen({
   practising = false,
   refresh = false,
   triage = false,
+  translating = false,
   navigate,
 }: BooksScreenProps): ReactNode {
   const { t } = useTranslation();
@@ -181,6 +185,19 @@ export function BooksScreen({
     );
   }
 
+  if (open !== null && chapter !== null && translating) {
+    return (
+      <TranslateScreen
+        key={chapter.id}
+        chapter={chapter}
+        nativeLang={nativeLang}
+        onBack={() => {
+          navigate({ name: "books", bookId: open.id, chapterId: chapter.id });
+        }}
+      />
+    );
+  }
+
   if (open !== null && chapter !== null) {
     return (
       <ChapterScreen
@@ -215,6 +232,21 @@ export function BooksScreen({
             chapterId: chapter.id,
             practising: true,
             refresh: true,
+          });
+        }}
+        onTranslate={() => {
+          navigate({
+            name: "books",
+            bookId: open.id,
+            chapterId: chapter.id,
+            translating: true,
+          });
+        }}
+        onStructures={() => {
+          navigate({
+            name: "structures",
+            chapterId: chapter.id,
+            bookId: open.id,
           });
         }}
       />
