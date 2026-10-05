@@ -33,7 +33,7 @@ jobs:
         env:
           TAG: v${{ steps.version.outputs.version }}
         run: |
-          if gh release view "$TAG" --json isDraft -q .isDraft 2>/dev/null | grep -qx false; then
+          if gh release view "$TAG" --json isDraft -q .isDraft 2>/dev/null | grep -x false >/dev/null; then
             echo "$TAG is already released."
             echo "release=false" >> "$GITHUB_OUTPUT"
             exit 0
@@ -89,8 +89,8 @@ jobs:
         env:
           CONTENTS: src-tauri/target/${{ matrix.target }}/release/bundle/macos/Ogmios.app/Contents
         run: |
-          lipo -archs "$CONTENTS/Frameworks/libparakeet.dylib" | grep -qx arm64
-          nm -gU "$CONTENTS/Frameworks/libparakeet.dylib" | grep -q parakeet_capi_transcribe_pcm_lang
+          lipo -archs "$CONTENTS/Frameworks/libparakeet.dylib" | grep -x arm64 >/dev/null
+          nm -gU "$CONTENTS/Frameworks/libparakeet.dylib" | grep parakeet_capi_transcribe_pcm_lang >/dev/null
           plutil -extract NSMicrophoneUsageDescription raw "$CONTENTS/Info.plist"
       - name: Upload
         shell: bash
