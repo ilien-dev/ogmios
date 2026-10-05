@@ -2,6 +2,7 @@
 //! what is active, and the review schedule. The model labels, this code
 //! decides; everything here is a pure function of the stored events.
 
+pub mod recall;
 pub mod update;
 
 use chrono::{DateTime, Duration, Utc};

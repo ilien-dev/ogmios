@@ -10,6 +10,7 @@ import {
   selfCheckSchema,
 } from "../shared/protocol.ts";
 import type { Outgoing } from "../shared/protocol.ts";
+import { protocolFingerprint } from "./fingerprint.ts";
 
 const MAIN = join(import.meta.dir, "main.ts");
 
@@ -68,6 +69,7 @@ const context = {
   challenge: null,
   recentOpenings: [],
   phrases: [],
+  words: [],
   previous: null,
 };
 
@@ -357,7 +359,10 @@ describe("sidecar errors", () => {
     expect(responseFor(lines, 2)).toMatchObject({
       error: { kind: "invalid", message: expect.stringContaining("API key") },
     });
-    expect(responseFor(lines, 3)).toEqual({ id: 3, result: null });
+    expect(responseFor(lines, 3)).toEqual({
+      id: 3,
+      result: { protocol: protocolFingerprint() },
+    });
     expect(responseFor(lines, 4)).toMatchObject({
       result: { ok: false, message: expect.stringContaining("not found") },
     });

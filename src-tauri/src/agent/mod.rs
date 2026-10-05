@@ -42,6 +42,37 @@ const DRILL_TIMEOUT: Duration = Duration::from_secs(120);
 const VOCAB_TIMEOUT: Duration = Duration::from_secs(300);
 /// A verdict on one answer is two short lines.
 const JUDGE_TIMEOUT: Duration = Duration::from_secs(60);
+/// A whole chapter is read for its brief; a paragraph is a short answer.
+const BRIEF_TIMEOUT: Duration = Duration::from_secs(300);
+const PARAGRAPH_TIMEOUT: Duration = Duration::from_secs(120);
+
+/// What a sidecar built from another `shared/protocol.ts` is refused with.
+/// In development it is the one `tauri:dev` built when it started.
+const STALE_SIDECAR: &str =
+    "The ogmios-agent helper is from another build of Ogmios. Restart the app; in development, restart `bun run tauri:dev`.";
+
+/// 32-bit FNV-1a of the text's bytes, whatever its line endings: the hash
+/// `sidecar/fingerprint.ts` takes.
+fn fingerprint_of(text: &str) -> u32 {
+    text.bytes()
+        .filter(|byte| *byte != b'\r')
+        .fold(2_166_136_261, |hash, byte| {
+            (hash ^ u32::from(byte)).wrapping_mul(16_777_619)
+        })
+}
+
+/// The fingerprint of the protocol this app was built from. A sidecar says
+/// its own when it answers `configure`; the two must agree.
+fn protocol_fingerprint() -> u32 {
+    fingerprint_of(include_str!("../../../shared/protocol.ts"))
+}
+
+/// The fingerprint a sidecar answered `configure` with, if it named one.
+fn built_from(answer: &Value) -> Option<u32> {
+    serde_json::from_value::<protocol::Configured>(answer.clone())
+        .ok()
+        .map(|configured| configured.protocol)
+}
 
 /// A line from the sidecar, as routed to the waiting caller.
 enum Incoming {
@@ -179,6 +210,69 @@ impl Agent {
         self.call("vocabJudge", params, JUDGE_TIMEOUT, &mut |_| {})
     }
 
+    pub fn vocab_label(
+        &self,
+        params: &protocol::VocabLabelParams,
+    ) -> Result<protocol::VocabLabels> {
+        self.call("vocabLabel", params, VOCAB_TIMEOUT, &mut |_| {})
+    }
+
+    pub fn sentence_write(
+        &self,
+        params: &protocol::SentenceWriteParams,
+    ) -> Result<protocol::SentencesWritten> {
+        self.call("sentenceWrite", params, VOCAB_TIMEOUT, &mut |_| {})
+    }
+
+    pub fn sentence_review(
+        &self,
+        params: &protocol::SentenceReviewParams,
+    ) -> Result<protocol::SentenceVerdicts> {
+        self.call("sentenceReview", params, VOCAB_TIMEOUT, &mut |_| {})
+    }
+
+    pub fn chapter_brief(
+        &self,
+        params: &protocol::ChapterBriefParams,
+    ) -> Result<protocol::ChapterBrief> {
+        self.call("chapterBrief", params, BRIEF_TIMEOUT, &mut |_| {})
+    }
+
+    pub fn paragraph_version(
+        &self,
+        params: &protocol::ParagraphVersionParams,
+    ) -> Result<protocol::ParagraphVersion> {
+        self.call("paragraphVersion", params, PARAGRAPH_TIMEOUT, &mut |_| {})
+    }
+
+    pub fn paragraph_review(
+        &self,
+        params: &protocol::ParagraphReviewParams,
+    ) -> Result<protocol::ParagraphReview> {
+        self.call("paragraphReview", params, PARAGRAPH_TIMEOUT, &mut |_| {})
+    }
+
+    pub fn attempt_summary(
+        &self,
+        params: &protocol::AttemptSummaryParams,
+    ) -> Result<protocol::AttemptSummary> {
+        self.call("attemptSummary", params, PARAGRAPH_TIMEOUT, &mut |_| {})
+    }
+
+    pub fn structure_grade(
+        &self,
+        params: &protocol::StructureGradeParams,
+    ) -> Result<protocol::StructureGrade> {
+        self.call("structureGrade", params, JUDGE_TIMEOUT, &mut |_| {})
+    }
+
+    pub fn structure_detect(
+        &self,
+        params: &protocol::StructureDetectParams,
+    ) -> Result<protocol::StructuresFound> {
+        self.call("structureDetect", params, VOCAB_TIMEOUT, &mut |_| {})
+    }
+
     fn call<P: Serialize, R: DeserializeOwned>(
         &self,
         method: &str,
@@ -189,10 +283,18 @@ impl Agent {
         let params = serde_json::to_value(params)?;
         let (configure, request, pending) = self.send(method, params)?;
         if let Some(configure) = configure {
-            if let Err(err) = wait(&configure.rx, CONFIGURE_TIMEOUT, &mut |_| {}) {
-                lock(&pending).remove(&configure.id);
-                lock(&pending).remove(&request.id);
-                return Err(err);
+            match wait(&configure.rx, CONFIGURE_TIMEOUT, &mut |_| {}) {
+                Ok(answer) if built_from(&answer) == Some(protocol_fingerprint()) => {}
+                Ok(_) => {
+                    // Gone, so that the next call asks a fresh one the same.
+                    *lock(&self.process) = None;
+                    return Err(Error::Provider(STALE_SIDECAR.into()));
+                }
+                Err(err) => {
+                    lock(&pending).remove(&configure.id);
+                    lock(&pending).remove(&request.id);
+                    return Err(err);
+                }
             }
         }
         let result = wait(&request.rx, timeout, on_delta);
@@ -416,7 +518,13 @@ mod tests {
     /// A stand-in sidecar written in shell: echoes each request id back with a
     /// fixed result, streaming two deltas first for `chat`.
     fn fake(script: &str) -> Agent {
-        let agent = Agent::new(Some(vec!["sh".into(), "-c".into(), script.into()]));
+        fake_built_from(script, protocol_fingerprint())
+    }
+
+    /// The same, as a sidecar whose protocol has the fingerprint given.
+    fn fake_built_from(script: &str, fingerprint: u32) -> Agent {
+        let script = script.replace("PROTOCOL", &fingerprint.to_string());
+        let agent = Agent::new(Some(vec!["sh".into(), "-c".into(), script]));
         agent.configure(ConfigureParams {
             mode: ProviderMode::ApiKey,
             model: "claude-sonnet-5".into(),
@@ -437,6 +545,8 @@ mod tests {
               printf '{"id":%s,"result":{"text":"Hello","providerRef":null}}\n' "$id" ;;
             *'"method":"check"'*)
               printf '{"id":%s,"error":{"kind":"provider","message":"bad key"}}\n' "$id" ;;
+            *'"method":"configure"'*)
+              printf '{"id":%s,"result":{"protocol":PROTOCOL}}\n' "$id" ;;
             *) printf '{"id":%s,"result":{}}\n' "$id" ;;
           esac
         done
@@ -452,7 +562,7 @@ mod tests {
                 "learner": {"name": null, "nativeLang": "es", "goal": "work", "variant": "us",
                             "interests": [], "facts": [], "cefr": null},
                 "targets": [], "challenge": null, "recentOpenings": [], "phrases": [],
-                "previous": null
+                "words": [], "previous": null
             },
             "history": [], "providerRef": null
         }))
@@ -483,12 +593,45 @@ mod tests {
         let agent = fake(
             r#"for n in 1 2; do IFS= read -r line
                id=$(printf '%s' "$line" | sed 's/.*"id":\([0-9]*\).*/\1/')
-               printf '{"id":%s,"result":{"ok":true,"message":null}}\n' "$id"; done"#,
+               printf '{"id":%s,"result":{"ok":true,"message":null,"protocol":PROTOCOL}}\n' "$id"; done"#,
         );
         assert!(agent.check().expect("first").ok);
         // The first process may not have been reaped yet; one call may fail.
         let second = agent.check().or_else(|_| agent.check()).expect("respawned");
         assert!(second.ok);
+    }
+
+    #[test]
+    fn hashes_the_protocol_as_the_sidecar_does() {
+        // `sidecar/fingerprint.test.ts` asserts the same numbers.
+        assert_eq!(fingerprint_of(""), 2_166_136_261);
+        assert_eq!(fingerprint_of("a"), 3_826_002_220);
+        assert_eq!(fingerprint_of("foobar"), 3_214_735_720);
+        assert_eq!(fingerprint_of("é"), 513_665_217);
+        assert_eq!(fingerprint_of("a\r\nb"), fingerprint_of("a\nb"));
+    }
+
+    #[test]
+    fn refuses_a_sidecar_from_another_build() {
+        let agent = fake_built_from(ECHO, protocol_fingerprint().wrapping_add(1));
+        let err = agent.models().expect_err("a stale sidecar");
+        assert_eq!(err.kind(), "provider");
+        assert_eq!(err.to_string(), STALE_SIDECAR);
+        // The next call asks a fresh process, and is refused the same way.
+        let again = agent.models().expect_err("still stale");
+        assert_eq!(again.to_string(), STALE_SIDECAR);
+    }
+
+    #[test]
+    fn refuses_a_sidecar_that_names_no_build() {
+        // What a sidecar built before the fingerprint answers.
+        let agent = fake(
+            r#"while IFS= read -r line; do
+               id=$(printf '%s' "$line" | sed 's/.*"id":\([0-9]*\).*/\1/')
+               printf '{"id":%s,"result":null}\n' "$id"; done"#,
+        );
+        let err = agent.models().expect_err("an older sidecar");
+        assert_eq!(err.to_string(), STALE_SIDECAR);
     }
 
     #[test]

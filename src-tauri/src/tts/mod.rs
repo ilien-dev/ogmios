@@ -3,8 +3,9 @@
 //! One model, Kokoro, run on the CPU through sherpa-onnx, which is linked in
 //! and keeps its own `unsafe`. [`Speech::speak`] loads it on first use, hands
 //! each sentence to the speakers as soon as it is synthesised, and returns
-//! when the last one has been heard. Speaking again, or [`Speech::stop`],
-//! silences whatever was being said.
+//! when the last one has been heard. [`Speech::read`] does the same for a
+//! whole chapter, a sentence after another, saying which one is being heard.
+//! Speaking again, or [`Speech::stop`], silences whatever was being said.
 //!
 //! On disk, under the app's data directory:
 //!
@@ -24,7 +25,7 @@ use sherpa_onnx::{GenerationConfig, OfflineTts, OfflineTtsConfig};
 
 use self::catalogue::{Catalogue, Voice};
 use self::player::Speaker;
-use crate::domain::{TtsStatus, TtsVoice, Variant};
+use crate::domain::{Pace, TtsStatus, TtsVoice, Variant};
 use crate::error::{Error, Result};
 use crate::stt::fetch;
 
@@ -60,6 +61,7 @@ struct Loaded {
 /// Something already said, ready to be said again at once.
 struct Said {
     voice: String,
+    pace: Pace,
     text: String,
     pcm: Vec<f32>,
     rate: u32,
@@ -148,58 +150,124 @@ impl Speech {
         Ok(())
     }
 
-    /// Say `text` and return once it has been heard, or once something else
-    /// was said over it. Blocking: call it off the main thread.
-    pub fn speak(&self, text: &str, variant: Variant) -> Result<()> {
+    /// Say `text` at `pace` and return once it has been heard, or once
+    /// something else was said over it. Blocking: call it off the main thread.
+    pub fn speak(&self, text: &str, variant: Variant, pace: Pace) -> Result<()> {
         let text = text.trim();
         if text.is_empty() || text.len() > LONGEST {
             return Ok(());
         }
-        let catalogue = catalogue()?;
-        if !fetch::is_downloaded(&self.data_dir, &catalogue.model) {
-            return Err(Error::Stt("the voice is not downloaded yet".into()));
-        }
-        let voice = voice(catalogue, &self.choice(), variant)?;
-
-        let mine = self.turn.fetch_add(1, Ordering::SeqCst) + 1;
-        let turn = Arc::clone(&self.turn);
-        let live = move || turn.load(Ordering::SeqCst) == mine;
+        let voice = self.voice(variant)?;
+        let live = self.take_turn();
 
         let speaker = Speaker::open()?;
         let feed = speaker.feed();
-        if let Some((pcm, rate)) = self.remembered(&voice.id, text) {
+        if let Some((pcm, rate)) = self.remembered(&voice.id, pace, text) {
             feed.push(&pcm, rate);
         } else {
-            // Whoever was talking gives the model up at its next sentence.
-            let mut held = lock(&self.engine)?;
-            if !live() {
-                return Ok(());
-            }
-            let tts = load(&mut held, &self.data_dir, catalogue, voice.variant)?;
-            let rate = u32::try_from(tts.sample_rate())
-                .map_err(|_| Error::Stt("the voice has no sample rate".into()))?;
-            let hearing = live.clone();
-            let said = tts.generate_with_config(
-                text,
-                &GenerationConfig {
-                    sid: voice.speaker,
-                    ..GenerationConfig::default()
-                },
-                Some(move |sentence: &[f32], _progress: f32| {
-                    feed.push(sentence, rate);
-                    hearing()
-                }),
-            );
-            drop(held);
-            // Talked over, whatever came back is not the whole of it.
-            if live() {
-                let audio =
-                    said.ok_or_else(|| Error::Stt("the voice could not say that".into()))?;
-                self.remember(&voice.id, text, audio.samples(), rate);
+            let said = self.synthesise(voice, pace, text, &live, move |sentence, rate| {
+                feed.push(sentence, rate);
+            })?;
+            if let Some((pcm, rate)) = said {
+                self.remember(&voice.id, pace, text, &pcm, rate);
             }
         }
         speaker.finish(live);
         Ok(())
+    }
+
+    /// Read `sentences` aloud from the one at `from`, one after another, and
+    /// return once the last has been heard, or once something else was said
+    /// over them: whether they were heard to the end. `on_sentence` is told
+    /// each one as it starts. The next is made while one is heard, so
+    /// nothing is waited for between them. Blocking.
+    pub fn read(
+        &self,
+        sentences: &[String],
+        from: usize,
+        variant: Variant,
+        pace: Pace,
+        on_sentence: impl Fn(usize),
+    ) -> Result<bool> {
+        let voice = self.voice(variant)?;
+        let live = self.take_turn();
+
+        let speaker = Speaker::open()?;
+        let feed = speaker.feed();
+        for (at, sentence) in sentences.iter().enumerate().skip(from) {
+            let text = sentence.trim();
+            if text.is_empty() || text.len() > LONGEST {
+                continue;
+            }
+            let Some((pcm, rate)) = self.synthesise(voice, pace, text, &live, |_, _| {})? else {
+                return Ok(false);
+            };
+            speaker.drain(&live);
+            if !live() {
+                return Ok(false);
+            }
+            feed.push(&pcm, rate);
+            on_sentence(at);
+        }
+        speaker.finish(live.clone());
+        Ok(live())
+    }
+
+    /// The voice to speak with, once the model is on disk.
+    fn voice(&self, variant: Variant) -> Result<&'static Voice> {
+        let catalogue = catalogue()?;
+        if !fetch::is_downloaded(&self.data_dir, &catalogue.model) {
+            return Err(Error::Stt("the voice is not downloaded yet".into()));
+        }
+        voice(catalogue, &self.choice(), variant)
+    }
+
+    /// Becomes what is being said: whatever was is talked over. What comes
+    /// back says whether this still is.
+    fn take_turn(&self) -> impl Fn() -> bool + Clone + 'static {
+        let mine = self.turn.fetch_add(1, Ordering::SeqCst) + 1;
+        let turn = Arc::clone(&self.turn);
+        move || turn.load(Ordering::SeqCst) == mine
+    }
+
+    /// Makes the audio of `text`, handing each sentence of it to `each` as
+    /// it is made. None when it was talked over on the way.
+    fn synthesise(
+        &self,
+        voice: &Voice,
+        pace: Pace,
+        text: &str,
+        live: &(impl Fn() -> bool + Clone + 'static),
+        mut each: impl FnMut(&[f32], u32) + 'static,
+    ) -> Result<Option<(Vec<f32>, u32)>> {
+        // Whoever was talking gives the model up at its next sentence.
+        let mut held = lock(&self.engine)?;
+        if !live() {
+            return Ok(None);
+        }
+        let tts = load(&mut held, &self.data_dir, catalogue()?, voice.variant)?;
+        let rate = u32::try_from(tts.sample_rate())
+            .map_err(|_| Error::Stt("the voice has no sample rate".into()))?;
+        let hearing = live.clone();
+        let said = tts.generate_with_config(
+            text,
+            &GenerationConfig {
+                sid: voice.speaker,
+                speed: speed(pace),
+                ..GenerationConfig::default()
+            },
+            Some(move |sentence: &[f32], _progress: f32| {
+                each(sentence, rate);
+                hearing()
+            }),
+        );
+        drop(held);
+        // Talked over, whatever came back is not the whole of it.
+        if !live() {
+            return Ok(None);
+        }
+        let audio = said.ok_or_else(|| Error::Stt("the voice could not say that".into()))?;
+        Ok(Some((audio.samples().to_vec(), rate)))
     }
 
     /// Silence whatever is being said. Quiet when nothing is.
@@ -207,21 +275,22 @@ impl Speech {
         self.turn.fetch_add(1, Ordering::SeqCst);
     }
 
-    fn remembered(&self, voice: &str, text: &str) -> Option<(Vec<f32>, u32)> {
+    fn remembered(&self, voice: &str, pace: Pace, text: &str) -> Option<(Vec<f32>, u32)> {
         let recent = self.recent.lock().ok()?;
         recent
             .iter()
-            .find(|said| said.voice == voice && said.text == text)
+            .find(|said| said.voice == voice && said.pace == pace && said.text == text)
             .map(|said| (said.pcm.clone(), said.rate))
     }
 
-    fn remember(&self, voice: &str, text: &str, pcm: &[f32], rate: u32) {
+    fn remember(&self, voice: &str, pace: Pace, text: &str, pcm: &[f32], rate: u32) {
         if let Ok(mut recent) = self.recent.lock() {
             if recent.len() == REMEMBERED {
                 recent.pop_front();
             }
             recent.push_back(Said {
                 voice: voice.to_string(),
+                pace,
                 text: text.to_string(),
                 pcm: pcm.to_vec(),
                 rate,
@@ -238,6 +307,16 @@ impl Speech {
 
     fn choice_path(&self) -> PathBuf {
         self.data_dir.join("tts.json")
+    }
+}
+
+/// How fast the model speaks at each pace: slow enough to tell the words
+/// apart, and fast enough to run them together as people do.
+fn speed(pace: Pace) -> f32 {
+    match pace {
+        Pace::Slow => 0.75,
+        Pace::Normal => 1.0,
+        Pace::Fast => 1.25,
     }
 }
 
@@ -376,12 +455,20 @@ mod tests {
         let speech = Speech::new(dir.path());
         assert_eq!(
             speech
-                .speak("Hello there.", Variant::Us)
+                .speak("Hello there.", Variant::Us, Pace::Normal)
                 .unwrap_err()
                 .kind(),
             "stt"
         );
-        speech.speak("   ", Variant::Us).unwrap();
+        speech.speak("   ", Variant::Us, Pace::Normal).unwrap();
+        let read = speech.read(
+            &["Hello there.".to_owned()],
+            0,
+            Variant::Us,
+            Pace::Slow,
+            |_| {},
+        );
+        assert_eq!(read.unwrap_err().kind(), "stt");
         speech.stop();
     }
 
@@ -390,15 +477,23 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let speech = Speech::new(dir.path());
         for index in 0..=REMEMBERED {
-            speech.remember("af_heart", &format!("line {index}"), &[0.5], 24_000);
+            let line = format!("line {index}");
+            speech.remember("af_heart", Pace::Normal, &line, &[0.5], 24_000);
         }
-        assert!(speech.remembered("af_heart", "line 0").is_none());
+        assert!(speech
+            .remembered("af_heart", Pace::Normal, "line 0")
+            .is_none());
         assert_eq!(
-            speech.remembered("af_heart", "line 1"),
+            speech.remembered("af_heart", Pace::Normal, "line 1"),
             Some((vec![0.5], 24_000))
         );
-        // Another voice says it differently.
-        assert!(speech.remembered("bf_emma", "line 1").is_none());
+        // Another voice says it differently, and so does another pace.
+        assert!(speech
+            .remembered("bf_emma", Pace::Normal, "line 1")
+            .is_none());
+        assert!(speech
+            .remembered("af_heart", Pace::Slow, "line 1")
+            .is_none());
     }
 
     /// End to end: download Kokoro, load it and say a sentence out loud.
@@ -422,6 +517,7 @@ mod tests {
                 .speak(
                     "I read that book last year. Do you read every night?",
                     variant,
+                    Pace::Normal,
                 )
                 .unwrap();
             println!("{variant:?}: {:?}", began.elapsed());
@@ -431,6 +527,7 @@ mod tests {
             .speak(
                 "I read that book last year. Do you read every night?",
                 Variant::Uk,
+                Pace::Fast,
             )
             .unwrap();
         println!("again: {:?}", began.elapsed());

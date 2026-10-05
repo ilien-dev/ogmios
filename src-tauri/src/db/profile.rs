@@ -4,6 +4,7 @@ use chrono::{DateTime, Utc};
 use rusqlite::{params, Connection, OptionalExtension};
 
 use super::{new_id, ts};
+use crate::books::spelling::Spelling;
 use crate::domain::{Effort, Profile, ProfileFact, ProviderMode, Settings};
 use crate::error::Result;
 
@@ -14,6 +15,8 @@ const PROVIDER_MODE: &str = "providerMode";
 const MODEL: &str = "model";
 const EFFORT: &str = "effort";
 const CLAUDE_PATH: &str = "claudePath";
+/// Present when the learner asked for strict spelling.
+const STRICT_SPELLING: &str = "strictSpelling";
 
 pub fn get_profile(conn: &Connection) -> Result<Option<Profile>> {
     let row = conn
@@ -103,6 +106,7 @@ pub fn get_settings(conn: &Connection) -> Result<Settings> {
         claude_path: get_setting(conn, CLAUDE_PATH)?,
         // The speech module owns the selection; commands fill it in.
         stt_model: None,
+        strict_spelling: get_setting(conn, STRICT_SPELLING)?.is_some(),
     })
 }
 
@@ -110,7 +114,14 @@ pub fn save_settings(conn: &Connection, settings: &Settings) -> Result<()> {
     set_setting(conn, PROVIDER_MODE, Some(settings.provider_mode.as_str()))?;
     set_setting(conn, MODEL, Some(&settings.model))?;
     set_setting(conn, EFFORT, settings.effort.map(Effort::as_str))?;
-    set_setting(conn, CLAUDE_PATH, settings.claude_path.as_deref())
+    set_setting(conn, CLAUDE_PATH, settings.claude_path.as_deref())?;
+    let strict = settings.strict_spelling.then_some("1");
+    set_setting(conn, STRICT_SPELLING, strict)
+}
+
+/// How the learner's spelling is read: lenient until they ask for strict.
+pub fn spelling(conn: &Connection) -> Result<Spelling> {
+    Ok(Spelling::of(get_setting(conn, STRICT_SPELLING)?.is_some()))
 }
 
 pub fn list_facts(conn: &Connection) -> Result<Vec<ProfileFact>> {
@@ -187,16 +198,21 @@ pub mod tests {
         assert_eq!(defaults.provider_mode, ProviderMode::ApiKey);
         assert_eq!(defaults.model, DEFAULT_MODEL);
         assert_eq!(defaults.effort, None);
+        assert!(!defaults.strict_spelling);
+        assert_eq!(spelling(&conn).expect("spelling"), Spelling::Lenient);
         let mut settings = Settings {
             provider_mode: ProviderMode::ClaudeCode,
             model: "opus".into(),
             effort: Some(Effort::High),
             claude_path: Some("/usr/bin/claude".into()),
             stt_model: None,
+            strict_spelling: true,
         };
         save_settings(&conn, &settings).expect("save");
         assert_eq!(get_settings(&conn).expect("read"), settings);
+        assert_eq!(spelling(&conn).expect("spelling"), Spelling::Strict);
         settings.effort = None;
+        settings.strict_spelling = false;
         save_settings(&conn, &settings).expect("back to automatic");
         assert_eq!(get_settings(&conn).expect("read"), settings);
     }

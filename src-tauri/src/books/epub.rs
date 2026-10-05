@@ -7,7 +7,7 @@ use std::io::{Cursor, Read};
 use percent_encoding::percent_decode_str;
 use zip::ZipArchive;
 
-use super::xml::{self, Node, Text};
+use super::xml::{self, Node, Styles, Text};
 use super::{is_front_title, refused, ParsedBook, ParsedChapter, DRM, UNREADABLE};
 use crate::error::Result;
 
@@ -273,6 +273,23 @@ fn chapters(package: &Package, texts: &[Text]) -> Vec<ParsedChapter> {
     found
 }
 
+/// What the book's stylesheets display as a block, every one of them read:
+/// which document links which sheet does not change what a class means.
+fn styles(archive: &mut Archive<'_>) -> Styles {
+    let sheets: Vec<String> = archive
+        .file_names()
+        .filter(|name| name.to_ascii_lowercase().ends_with(".css"))
+        .map(str::to_owned)
+        .collect();
+    let mut styles = Styles::default();
+    for sheet in sheets {
+        if let Some(css) = read(archive, &sheet) {
+            styles.add(&css);
+        }
+    }
+    styles
+}
+
 /// Reads an EPUB into its chapters. A protected file and one that cannot be
 /// read are both refused as `invalid`, each saying which.
 pub fn parse(bytes: &[u8]) -> Result<ParsedBook> {
@@ -281,10 +298,13 @@ pub fn parse(bytes: &[u8]) -> Result<ParsedBook> {
         return Err(refused(DRM));
     }
     let package = package(&mut archive).ok_or_else(|| refused(UNREADABLE))?;
+    let styles = styles(&mut archive);
     let texts: Vec<Text> = package
         .spine
         .iter()
-        .map(|path| read(&mut archive, path).map_or_else(Text::default, |page| xml::text(&page)))
+        .map(|path| {
+            read(&mut archive, path).map_or_else(Text::default, |page| xml::text(&page, &styles))
+        })
         .collect();
     let chapters = chapters(&package, &texts);
     if chapters.is_empty() {

@@ -13,7 +13,11 @@
  * orange amber, right only with help or something to watch; `wrong` is red,
  * a miss. `danger` is for destructive actions and failed requests. `known`
  * is the green of one choice: a word the learner already knows, against the
- * gold of one to learn.
+ * gold of one to learn. `noun`, `verb`, `adjective` and `adverb` tell the kinds
+ * of word apart on their tags: blue, violet, teal and pink, hues that say
+ * nothing about an answer. `learned` is indigo, and only ever a line or a
+ * dot: a word the learner has learned, met again in a text, and how strong
+ * it is.
  *
  * The values below are the light theme. Dark is the same token names
  * redefined further down, chosen by the system preference or by
@@ -46,6 +50,15 @@
   --color-wrong-soft: oklch(0.6 0.19 27 / 0.12);
   --color-known: oklch(0.56 0.13 155);
   --color-known-soft: oklch(0.62 0.14 155 / 0.14);
+  --color-noun: oklch(0.5 0.13 245);
+  --color-noun-soft: oklch(0.62 0.13 245 / 0.14);
+  --color-verb: oklch(0.5 0.15 300);
+  --color-verb-soft: oklch(0.62 0.15 300 / 0.14);
+  --color-adjective: oklch(0.48 0.085 200);
+  --color-adjective-soft: oklch(0.62 0.09 200 / 0.16);
+  --color-adverb: oklch(0.52 0.16 345);
+  --color-adverb-soft: oklch(0.64 0.16 345 / 0.13);
+  --color-learned: oklch(0.52 0.16 275);
   --color-scrim: oklch(0.2 0.01 265 / 0.4);
 
   --font-sans:
@@ -74,7 +87,10 @@
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
 
   --animate-rise: rise 420ms var(--ease-out-expo) both;
+  --animate-enter: enter 480ms var(--ease-out-expo) both;
+  --animate-lift: lift 320ms var(--ease-out-expo) both;
   --animate-fade: fade 300ms var(--ease-out-expo) both;
+  --animate-point: point 900ms var(--ease-out-expo) both;
   --animate-caret: caret 1s steps(2, start) infinite;
   --animate-pulse-soft: pulse-soft 1.6s ease-in-out infinite;
 
@@ -88,12 +104,45 @@
       transform: none;
     }
   }
+  /* A paragraph coming in from below, and one leaving upwards. */
+  @keyframes enter {
+    from {
+      opacity: 0;
+      transform: translateY(2.5rem);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes lift {
+    from {
+      opacity: 1;
+      transform: none;
+    }
+    to {
+      opacity: 0;
+      transform: translateY(-2.5rem);
+    }
+  }
   @keyframes fade {
     from {
       opacity: 0;
     }
     to {
       opacity: 1;
+    }
+  }
+  /* What an answer should have been, pointed out: it swells once. */
+  @keyframes point {
+    0% {
+      transform: scale(1);
+    }
+    35% {
+      transform: scale(1.14);
+    }
+    100% {
+      transform: scale(1);
     }
   }
   @keyframes caret {
@@ -143,6 +192,15 @@
     --color-wrong-soft: oklch(0.7 0.17 25 / 0.15);
     --color-known: oklch(0.78 0.14 155);
     --color-known-soft: oklch(0.78 0.14 155 / 0.14);
+    --color-noun: oklch(0.8 0.1 245);
+    --color-noun-soft: oklch(0.8 0.1 245 / 0.15);
+    --color-verb: oklch(0.8 0.11 300);
+    --color-verb-soft: oklch(0.8 0.11 300 / 0.15);
+    --color-adjective: oklch(0.82 0.09 200);
+    --color-adjective-soft: oklch(0.82 0.09 200 / 0.14);
+    --color-adverb: oklch(0.82 0.1 345);
+    --color-adverb-soft: oklch(0.82 0.1 345 / 0.15);
+    --color-learned: oklch(0.78 0.12 275);
     --color-scrim: oklch(0.1 0.01 265 / 0.6);
     --shadow-card:
       0 1px 2px oklch(0 0 0 / 0.3), 0 10px 28px oklch(0 0 0 / 0.22);
@@ -178,6 +236,20 @@
 
   a {
     text-underline-offset: 0.2em;
+  }
+
+  /* Anything that takes a click says so; a disabled control does not. */
+  button:not(:disabled),
+  select:not(:disabled),
+  summary,
+  [role="button"]:not([aria-disabled="true"]),
+  input:is(
+      [type="checkbox"],
+      [type="radio"],
+      [type="range"],
+      [type="file"]
+    ):not(:disabled) {
+    cursor: pointer;
   }
 
   input::placeholder,

@@ -1,15 +1,33 @@
 import type {
   Analysis,
   AnalyzeParams,
+  AttemptSummary,
+  AttemptSummaryParams,
+  ChapterBrief,
+  ChapterBriefParams,
   CheckResult,
   ComposeParams,
   Composed,
   DrillGenerateParams,
   DrillSet,
   ModelsResult,
+  ParagraphReview,
+  ParagraphReviewParams,
+  ParagraphVersion,
+  ParagraphVersionParams,
+  SentenceReviewParams,
+  SentenceVerdicts,
+  SentenceWriteParams,
+  SentencesWritten,
+  StructureDetectParams,
+  StructureGrade,
+  StructureGradeParams,
+  StructuresFound,
   Vocab,
   VocabExtractParams,
   VocabJudgeParams,
+  VocabLabelParams,
+  VocabLabels,
   VocabVerdict,
 } from "../../shared/protocol.ts";
 import { AgentError } from "../errors.ts";
@@ -148,6 +166,8 @@ function fakeVocab(params: VocabExtractParams): Vocab {
           lemma,
           form,
           sentence: sentence.trim(),
+          partOfSpeech: "noun",
+          transitive: false,
           translations: [`${lemma} (${params.nativeLang})`],
           properNoun: form !== lemma,
           needsContext: false,
@@ -171,6 +191,150 @@ function fakeVerdict(params: VocabJudgeParams): VocabVerdict {
   return {
     correct,
     reason: `"${params.answer}" ${verb} "${params.lemma}" (${params.nativeLang}).`,
+  };
+}
+
+/**
+ * Every word a verb that takes an object: not what the fake calls a word it
+ * extracts.
+ */
+function fakeLabels(params: VocabLabelParams): VocabLabels {
+  return {
+    labels: params.words.map((word) => ({
+      id: word.id,
+      partOfSpeech: "verb",
+      transitive: true,
+    })),
+  };
+}
+
+/** What the fake calls a bad sentence when it looks at one. */
+const FAKE_BAD = "clumsy";
+
+/** A hint that is never the English word: only how long the word is. */
+function fakeHint(form: string, lang: string): string {
+  return `palabra de ${String(form.length)} letras (${lang})`;
+}
+
+/** Every sentence of the book glossed. */
+function fakeSentences(params: SentenceWriteParams): SentencesWritten {
+  const lang = params.nativeLang;
+  return {
+    words: params.words.map((word) => ({
+      id: word.id,
+      book: word.book.map((sentence, index) => ({
+        index,
+        hint: fakeHint(word.lemma, lang),
+        translation: `${sentence} (${lang})`,
+      })),
+    })),
+  };
+}
+
+function fakeSentenceReview(params: SentenceReviewParams): SentenceVerdicts {
+  return {
+    verdicts: params.sentences.map((each) => ({
+      id: each.id,
+      good: !each.sentence.includes(FAKE_BAD),
+      also: [],
+    })),
+  };
+}
+
+function fakeBrief(params: ChapterBriefParams): ChapterBrief {
+  const words = params.text.split(/\s+/u).length;
+  return { brief: `A chapter of ${words} words (${params.nativeLang}).` };
+}
+
+/** What the fake puts before a sentence it "translates". */
+export function fakeNative(nativeLang: string, sentence: string): string {
+  return `[${nativeLang}] ${sentence}`;
+}
+
+/** A sentence for each one given, as Rust requires. */
+function fakeVersion(params: ParagraphVersionParams): ParagraphVersion {
+  return {
+    sentences: params.sentences.map((sentence) =>
+      fakeNative(params.nativeLang, sentence),
+    ),
+  };
+}
+
+/**
+ * A note on the first word of every sentence, the first one a slip and the
+ * rest errors, each about a word to practise: Rust is left the placing and
+ * the score, as with a real answer.
+ */
+function fakeReview(params: ParagraphReviewParams): ParagraphReview {
+  return {
+    good: `Every sentence is there (${params.nativeLang}).`,
+    notes: params.sentences.map((line, sentence) => {
+      const [fragment = ""] = line.attempt.split(" ");
+      const [english = ""] = line.english.split(" ");
+      return {
+        sentence,
+        fragment,
+        severity: sentence === 0 ? "slip" : "error",
+        better:
+          params.direction === "toEnglish"
+            ? english
+            : fakeNative(params.nativeLang, english),
+        why: `"${fragment}" is not "${english}".`,
+        word: {
+          english: english.toLowerCase(),
+          translations: [fakeNative(params.nativeLang, english)],
+        },
+      };
+    }),
+  };
+}
+
+/** One point for each severity seen, and one habit over every note. */
+function fakeSummary(params: AttemptSummaryParams): AttemptSummary {
+  const errors = params.notes.filter((note) => note.severity === "error");
+  return {
+    points: [
+      `${String(errors.length)} errors in ${String(params.notes.length)} notes (${params.nativeLang}).`,
+    ],
+    habits: [
+      {
+        habit: `The first word (${params.direction})`,
+        advice: "Read the whole sentence first.",
+        examples: params.notes.map((note) => note.fragment),
+      },
+    ],
+  };
+}
+
+/**
+ * A sentence of three words or more has the structure, well formed; it has
+ * the word when it holds it as given, and a slip when it ends without a
+ * full stop.
+ */
+function fakeGrade(params: StructureGradeParams): StructureGrade {
+  const answer = params.answer.trim();
+  const usesStructure = answer.split(/\s+/u).length >= 3;
+  const word = params.word ?? "";
+  return {
+    usesStructure,
+    wellFormed: usesStructure,
+    usesWord: answer.toLowerCase().includes(word.toLowerCase()),
+    slips: usesStructure && !answer.endsWith("."),
+    explanation: `${params.structure.name}: ${params.structure.form} (${params.nativeLang}).`,
+    better: `A sentence with ${word === "" ? "it" : word} (${params.structure.key}).`,
+  };
+}
+
+/** The first structure in every sentence, the second in the first one. */
+function fakeFound(params: StructureDetectParams): StructuresFound {
+  const sentences = params.text.split(/(?<=[.!?])\s+/u);
+  const [sentence = ""] = sentences;
+  return {
+    found: params.structures.slice(0, 2).map((each, at) => ({
+      key: each.key,
+      count: at === 0 ? sentences.length : 1,
+      sentence,
+    })),
   };
 }
 
@@ -208,6 +372,24 @@ function answerFor(request: StructuredRequest): unknown {
       return fakeVocab(request.params);
     case "vocabJudge":
       return fakeVerdict(request.params);
+    case "vocabLabel":
+      return fakeLabels(request.params);
+    case "sentenceWrite":
+      return fakeSentences(request.params);
+    case "sentenceReview":
+      return fakeSentenceReview(request.params);
+    case "chapterBrief":
+      return fakeBrief(request.params);
+    case "paragraphVersion":
+      return fakeVersion(request.params);
+    case "paragraphReview":
+      return fakeReview(request.params);
+    case "attemptSummary":
+      return fakeSummary(request.params);
+    case "structureGrade":
+      return fakeGrade(request.params);
+    case "structureDetect":
+      return fakeFound(request.params);
     default:
       return null;
   }

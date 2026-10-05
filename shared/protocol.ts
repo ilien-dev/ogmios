@@ -63,8 +63,13 @@ export const configureParams = z.object({
   claudePath: z.string().nullable(),
 });
 export type ConfigureParams = z.infer<typeof configureParams>;
-/** `configure` answers with `null` once the provider is in place. */
-export type ConfigureResult = null;
+/**
+ * `configure` answers once the provider is in place, with the fingerprint of
+ * this file as the sidecar was built from it (`sidecar/fingerprint.ts`).
+ */
+export interface ConfigureResult {
+  protocol: number;
+}
 
 export interface CheckResult {
   ok: boolean;
@@ -120,6 +125,8 @@ export const chatContextSchema = z.object({
   recentOpenings: z.array(z.string()),
   /** Phrases from recorded speech for the partner to use; often empty. */
   phrases: z.array(z.string()),
+  /** Words the learner has learned, for the partner to use where they fit. */
+  words: z.array(z.string()),
   /** The conversation this one continues: its topic and last turns. */
   previous: z
     .object({ topic: z.string(), turns: z.array(historyTurnSchema) })
@@ -400,6 +407,17 @@ export const vocabExtractParams = z.object({
 });
 export type VocabExtractParams = z.infer<typeof vocabExtractParams>;
 
+/** What kind of word an item is, in the sense its sentence gives it. */
+export const partOfSpeechSchema = z.enum([
+  "noun",
+  "verb",
+  "phrasalVerb",
+  "adjective",
+  "adverb",
+  "expression",
+  "other",
+]);
+
 export const vocabItemSchema = z.object({
   /** Base form: "run" for "ran". A phrasal verb or an idiom is one item. */
   lemma: z.string().min(1),
@@ -407,6 +425,10 @@ export const vocabItemSchema = z.object({
   form: z.string().min(1),
   /** The sentence it appears in, copied from the text. */
   sentence: z.string(),
+  /** What kind of word it is in that sentence. */
+  partOfSpeech: partOfSpeechSchema,
+  /** A verb or a phrasal verb that takes an object in that sentence. */
+  transitive: z.boolean(),
   /** Accepted translations for that sense, in the learner's language. */
   translations: z.array(z.string().min(1)).min(1),
   /** A name of a person, place or brand. Rust drops these. */
@@ -426,7 +448,11 @@ export const directionSchema = z.enum(["recognition", "production"]);
 export const vocabJudgeParams = z.object({
   nativeLang: z.string(),
   direction: directionSchema,
-  /** The English base form of the word. */
+  /**
+   * The English word as the learner was asked it: its base form, or, asked
+   * English → native with a sentence of its bank, the form that sentence has
+   * it in.
+   */
   lemma: z.string().min(1),
   /** The sentence of the book the word was taken from. */
   sentence: z.string(),
@@ -434,6 +460,13 @@ export const vocabJudgeParams = z.object({
   translations: z.array(z.string()),
   /** What the learner typed, as they typed it. */
   answer: z.string().min(1),
+  /** The learner asked for accents and spelling to count. */
+  strictSpelling: z.boolean(),
+  /**
+   * What fills the blank the answer was typed into, for a word asked native →
+   * English with a sentence of its bank: only that exact form is right.
+   */
+  blank: z.string().nullable(),
 });
 export type VocabJudgeParams = z.infer<typeof vocabJudgeParams>;
 
@@ -444,3 +477,290 @@ export const vocabVerdictSchema = z.object({
   reason: z.string().min(1),
 });
 export type VocabVerdict = z.infer<typeof vocabVerdictSchema>;
+
+/** Words stored before words were labelled, to be said what kind each is. */
+export const vocabLabelParams = z.object({
+  words: z
+    .array(
+      z.object({
+        /** Names the word in the answer; Rust gives its id. */
+        id: z.string(),
+        /** The English base form. */
+        lemma: z.string(),
+        /** The sentence of the book it was taken from. */
+        sentence: z.string(),
+      }),
+    )
+    .min(1),
+});
+export type VocabLabelParams = z.infer<typeof vocabLabelParams>;
+
+/** The model's labels; a word without one is asked about again. */
+export const vocabLabelsSchema = z.object({
+  labels: z.array(
+    z.object({
+      id: z.string(),
+      partOfSpeech: partOfSpeechSchema,
+      /** A verb or a phrasal verb that takes an object in its sentence. */
+      transitive: z.boolean(),
+    }),
+  ),
+});
+export type VocabLabels = z.infer<typeof vocabLabelsSchema>;
+
+// ── sentences a word is asked with ────────────────────────────────────────
+
+const sentenceWordSchema = z.object({
+  /** Names the word in the answer; Rust gives its key. */
+  id: z.string(),
+  /** The English base form. */
+  lemma: z.string(),
+  partOfSpeech: partOfSpeechSchema.nullable(),
+  /** What it means, in the learner's language. */
+  translations: z.array(z.string()),
+  /** A sentence that fixes the sense the word has in its chapter. */
+  sense: z.string(),
+  /** Sentences of the book that have the word, to be glossed. */
+  book: z.array(z.string()).min(1),
+});
+
+/** No sentence is written: the model glosses those the book has. */
+export const sentenceWriteParams = z.object({
+  nativeLang: z.string(),
+  words: z.array(sentenceWordSchema).min(1),
+});
+export type SentenceWriteParams = z.infer<typeof sentenceWriteParams>;
+
+const bookGlossSchema = z.object({
+  index: z.number().int().min(0),
+  /** The word, in the form the sentence has it, translated. */
+  hint: z.string(),
+  translation: z.string(),
+});
+
+const writtenWordSchema = z.object({
+  id: z.string(),
+  book: z.array(bookGlossSchema),
+});
+
+/** What the model labels; what is kept is decided in `books::sentences`. */
+export const sentencesWrittenSchema = z.object({
+  words: z.array(writtenWordSchema),
+});
+export type SentencesWritten = z.infer<typeof sentencesWrittenSchema>;
+
+const reviewedSentenceSchema = z.object({
+  id: z.string(),
+  lemma: z.string(),
+  meaning: z.array(z.string()),
+  sentence: z.string(),
+  form: z.string(),
+  hint: z.string(),
+  translation: z.string(),
+});
+
+export const sentenceReviewParams = z.object({
+  nativeLang: z.string(),
+  sentences: z.array(reviewedSentenceSchema).min(1),
+});
+export type SentenceReviewParams = z.infer<typeof sentenceReviewParams>;
+
+const sentenceVerdictSchema = z.object({
+  id: z.string(),
+  good: z.boolean(),
+  /** The other English words the hint could be answered with. */
+  also: z.array(z.string()),
+});
+
+/** The model's labels; a sentence without a good one is not used. */
+export const sentenceVerdictsSchema = z.object({
+  verdicts: z.array(sentenceVerdictSchema),
+});
+export type SentenceVerdicts = z.infer<typeof sentenceVerdictsSchema>;
+
+// ── chapter translation ───────────────────────────────────────────────────
+
+/** Which way a chapter is translated: into the learner's language, or back. */
+export const translationDirectionSchema = z.enum(["toNative", "toEnglish"]);
+
+export const chapterBriefParams = z.object({
+  nativeLang: z.string(),
+  /** The chapter, as plain English text. */
+  text: z.string().min(1),
+});
+export type ChapterBriefParams = z.infer<typeof chapterBriefParams>;
+
+export const chapterBriefSchema = z.object({
+  /** What a reviewer of any paragraph needs to know of the chapter. */
+  brief: z.string().min(1),
+});
+export type ChapterBrief = z.infer<typeof chapterBriefSchema>;
+
+export const paragraphVersionParams = z.object({
+  nativeLang: z.string(),
+  brief: z.string(),
+  /** The paragraph, a sentence each, in order. */
+  sentences: z.array(z.string().min(1)).min(1),
+});
+export type ParagraphVersionParams = z.infer<typeof paragraphVersionParams>;
+
+export const paragraphVersionSchema = z.object({
+  /** One per sentence given, in the same order. Rust checks the count. */
+  sentences: z.array(z.string()),
+});
+export type ParagraphVersion = z.infer<typeof paragraphVersionSchema>;
+
+export const paragraphReviewParams = z.object({
+  nativeLang: z.string(),
+  level: levelSchema,
+  direction: translationDirectionSchema,
+  brief: z.string(),
+  /** The paragraph before this one, in English; empty for the first. */
+  previous: z.string(),
+  sentences: z
+    .array(
+      z.object({
+        /** The author's sentence. */
+        english: z.string(),
+        /** What the learner was shown instead, translating back into English. */
+        native: z.string().nullable(),
+        /** What the learner wrote. */
+        attempt: z.string(),
+      }),
+    )
+    .min(1),
+});
+export type ParagraphReviewParams = z.infer<typeof paragraphReviewParams>;
+
+/** How much a note weighs: a wrong translation, or a slip of the pen. */
+export const severitySchema = z.enum(["error", "slip"]);
+
+/** An English word or expression, with its translations for one sense. */
+const noteWordSchema = z.object({
+  english: z.string(),
+  translations: z.array(z.string()),
+});
+
+const reviewNoteSchema = z.object({
+  /** Which sentence, counted from 0. */
+  sentence: z.number().int().min(0),
+  /** The words of the learner's sentence that are wrong, copied exactly. */
+  fragment: z.string(),
+  /** `error`: mistranslated or wrong. `slip`: misspelled, or a small detail. */
+  severity: severitySchema,
+  /** What the fragment should have been, in the language it was written in. */
+  better: z.string(),
+  /** Why, in the learner's language. */
+  why: z.string(),
+  /**
+   * The English word or expression the note is about, when it is about one
+   * the learner did not know: its base form, and its translations in the
+   * learner's language for the sense it has here. Null otherwise.
+   */
+  word: noteWordSchema.nullable(),
+});
+
+export const paragraphReviewSchema = z.object({
+  /** One thing done well, in the learner's language; null when none stands out. */
+  good: z.string().nullable(),
+  /** Rust places each one in the learner's text and scores the paragraph. */
+  notes: z.array(reviewNoteSchema),
+});
+export type ParagraphReview = z.infer<typeof paragraphReviewSchema>;
+
+export const attemptSummaryParams = z.object({
+  nativeLang: z.string(),
+  level: levelSchema,
+  direction: translationDirectionSchema,
+  /** Every note of every paragraph of the attempt, in reading order. */
+  notes: z
+    .array(
+      z.object({
+        fragment: z.string(),
+        severity: severitySchema,
+        better: z.string(),
+        why: z.string(),
+      }),
+    )
+    .min(1),
+});
+export type AttemptSummaryParams = z.infer<typeof attemptSummaryParams>;
+
+/** A mistake that came back: the same kind of error, several times. */
+const habitSchema = z.object({
+  /** What the learner keeps doing, in a few words. */
+  habit: z.string(),
+  /** What to do instead, in one or two lines. */
+  advice: z.string(),
+  /** Fragments the learner wrote that show it, copied from the notes. */
+  examples: z.array(z.string()),
+});
+
+export const attemptSummarySchema = z.object({
+  /** What matters most of the whole attempt, in the learner's language. */
+  points: z.array(z.string()),
+  habits: z.array(habitSchema),
+});
+export type AttemptSummary = z.infer<typeof attemptSummarySchema>;
+
+// ── structures ────────────────────────────────────────────────────────────
+
+/** One structure of the catalogue (`src-tauri/src/structures`), in English. */
+const structureRefSchema = z.object({
+  key: z.string().min(1),
+  name: z.string(),
+  /** How it is built: "have / has + past participle". */
+  form: z.string(),
+  /** What it is used for. */
+  use: z.string(),
+});
+
+export const structureGradeParams = z.object({
+  nativeLang: z.string(),
+  level: levelSchema,
+  variant: z.enum(["us", "uk"]),
+  structure: structureRefSchema,
+  /** The word the learner was asked to use; null when none was. */
+  word: z.string().nullable(),
+  /** What kind of word it is; null when none was asked or nobody said. */
+  partOfSpeech: partOfSpeechSchema.nullable(),
+  /** The sentence as the learner typed it; empty for "I don't know". */
+  answer: z.string(),
+});
+export type StructureGradeParams = z.infer<typeof structureGradeParams>;
+
+/** The model's labels; the verdict is decided in `structures::verdict`. */
+export const structureGradeSchema = z.object({
+  usesStructure: z.boolean(),
+  /** The structure itself is formed correctly. */
+  wellFormed: z.boolean(),
+  usesWord: z.boolean(),
+  /** A mistake outside the structure. */
+  slips: z.boolean(),
+  /** One or two lines, in the learner's language. */
+  explanation: z.string().min(1),
+  /** A right sentence with the structure, close to the learner's. */
+  better: z.string().min(1),
+});
+export type StructureGrade = z.infer<typeof structureGradeSchema>;
+
+export const structureDetectParams = z.object({
+  structures: z.array(structureRefSchema).min(1),
+  /** One piece of a chapter, as plain English text. */
+  text: z.string().min(1),
+});
+export type StructureDetectParams = z.infer<typeof structureDetectParams>;
+
+/** The model's labels; Rust counts them over the chapter and ranks. */
+export const structuresFoundSchema = z.object({
+  found: z.array(
+    z.object({
+      key: z.string(),
+      /** Sentences of the piece that use it. */
+      count: z.number().int().min(1),
+      /** One of them, copied from the text. */
+      sentence: z.string(),
+    }),
+  ),
+});
+export type StructuresFound = z.infer<typeof structuresFoundSchema>;

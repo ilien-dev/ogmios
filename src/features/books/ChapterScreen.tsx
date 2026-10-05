@@ -9,18 +9,23 @@ import type {
   ChapterProgress,
   ChapterRefusal,
   Depth,
+  SentenceProgress,
 } from "@shared/domain";
 import { READY } from "@shared/domain";
 import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
+import { ProgressBar } from "@/components/ui/ProgressBar";
 import { Spinner } from "@/components/ui/Spinner";
 import { cn } from "@/lib/cn";
 import { errorMessage } from "@/lib/errors";
 import {
   getChapterWords,
+  labelWords,
   onChapterProgress,
+  onSentenceProgress,
   prepareChapter,
   setWordKnown,
+  writeSentences,
 } from "@/lib/ipc";
 import { chapterName } from "./chapterName";
 import { WordList } from "./WordList";
@@ -90,6 +95,10 @@ interface ChapterScreenProps {
   onTriage: () => void;
   /** Starts the quick refresh of a chapter that is ready to read. */
   onRefresh: () => void;
+  /** Starts translating the chapter, whatever its words stand at. */
+  onTranslate: () => void;
+  /** Opens the structures the chapter uses most, to practise them. */
+  onStructures: () => void;
 }
 
 /**
@@ -106,6 +115,8 @@ export function ChapterScreen({
   onPractise,
   onTriage,
   onRefresh,
+  onTranslate,
+  onStructures,
 }: ChapterScreenProps): ReactNode {
   const { t } = useTranslation();
   /** Null until read; a chapter not yet prepared has none to read. */
@@ -128,6 +139,44 @@ export function ChapterScreen({
       });
     };
   }, [chapter.id]);
+
+  // The sentence each of its words is asked with is glossed in the
+  // background, once it is prepared and again whenever it is opened: a word
+  // never given one gets it. A failure is quiet: the words are asked as the
+  // chapter has them meanwhile.
+  const [writing, setWriting] = useState<SentenceProgress | null>(null);
+  const { prepared } = chapter;
+  useEffect(() => {
+    if (prepared === null) {
+      return;
+    }
+    const unlisten = onSentenceProgress((heard) => {
+      if (heard.chapterId === chapter.id) {
+        setWriting(heard);
+      }
+    });
+    // Words stored before words were labelled are said what kind they are
+    // first: the list shows it, and the sentences are written knowing it.
+    let live = true;
+    const fill = async (): Promise<void> => {
+      const labelled = await labelWords().catch(() => 0);
+      if (labelled > 0 && live) {
+        // A list that cannot be read again stays as it is.
+        const found = await getChapterWords(chapter.id).catch(() => null);
+        if (found !== null && live) {
+          setWords(found.words);
+        }
+      }
+      await writeSentences(chapter.id);
+    };
+    fill().catch(() => null);
+    return () => {
+      live = false;
+      void unlisten.then((stop) => {
+        stop();
+      });
+    };
+  }, [chapter.id, prepared]);
 
   const stored = chapter.prepared !== null && words === null && !preparing;
   useEffect(() => {
@@ -197,7 +246,7 @@ export function ChapterScreen({
 
   return (
     <main className="h-full overflow-y-auto">
-      <div className="mx-auto flex max-w-2xl flex-col gap-12 px-10 py-16">
+      <div className="mx-auto flex max-w-3xl flex-col gap-12 px-10 py-16">
         <header className="flex flex-col gap-3">
           <Button
             variant="ghost"
@@ -275,13 +324,31 @@ export function ChapterScreen({
 
         {!preparing && chapter.prepared !== null && words !== null && (
           <section className="flex flex-col items-start gap-8">
+            {writing !== null && writing.done < writing.total && (
+              <div className="flex w-full flex-col gap-2">
+                <p className="text-sm text-ink-faint">
+                  {t("books.sentences.writing", {
+                    done: writing.done,
+                    total: writing.total,
+                  })}
+                </p>
+                <ProgressBar
+                  label={t("books.sentences.bar")}
+                  value={writing.done}
+                  total={writing.total}
+                />
+              </div>
+            )}
             {open && (
-              <div className="flex flex-wrap gap-3">
+              <div className="flex w-full flex-wrap gap-3">
                 <Button variant="primary" size="lg" onClick={onPractise}>
                   {t("books.chapter.practise")}
                 </Button>
-                <Button size="lg" onClick={onTriage}>
-                  {t("books.triage.start")}
+                <Button variant="learn" size="lg" onClick={onTranslate}>
+                  {t("books.translate.start")}
+                </Button>
+                <Button variant="learn" size="lg" onClick={onStructures}>
+                  {t("structures.chapter.open")}
                 </Button>
               </div>
             )}
@@ -291,16 +358,30 @@ export function ChapterScreen({
                   <CircleCheck aria-hidden className="size-5" />
                   {t("books.ready")}
                 </p>
-                {refreshable && (
-                  <Button onClick={onRefresh}>
-                    {t("books.refresh.start")}
+                <div className="flex flex-wrap gap-3">
+                  {refreshable && (
+                    <Button onClick={onRefresh}>
+                      {t("books.refresh.start")}
+                    </Button>
+                  )}
+                  {refreshable && (
+                    <Button onClick={onPractise}>
+                      {t("books.chapter.practise")}
+                    </Button>
+                  )}
+                  <Button onClick={onTranslate}>
+                    {t("books.translate.start")}
                   </Button>
-                )}
+                  <Button onClick={onStructures}>
+                    {t("structures.chapter.open")}
+                  </Button>
+                </div>
               </div>
             )}
             <WordList
               words={words}
               onKnown={(word, known) => void setKnown(word, known)}
+              onTriage={open ? onTriage : undefined}
             />
           </section>
         )}
@@ -324,6 +405,12 @@ export function ChapterScreen({
               onChoose={(depth) => void prepare(depth)}
             />
           </section>
+        )}
+
+        {!preparing && words !== null && !open && !ready && (
+          <Button className="self-start" onClick={onTranslate}>
+            {t("books.translate.start")}
+          </Button>
         )}
       </div>
     </main>

@@ -1,11 +1,12 @@
 //! The quick refresh before reading: one pass, English → native, over the
-//! done words of a chapter that is ready to read, most frequent first, each
-//! asked once and checked by code like any other answer.
+//! done words of a chapter that is ready to read, in an order drawn for the
+//! pass, each asked once and checked by code like any other answer.
 //!
 //! The pass keeps no progress of its own. Its answers are answers like those
-//! of practice, so a right one changes nothing and a miss makes the word owe
-//! two in a row in that direction (`books::practice::owed`): the word is back
-//! in the chapter's queue, and the chapter is not ready until it is done again.
+//! of practice, so a right one changes nothing and a miss makes the word start
+//! over, owing two in a row in both directions (`books::practice::owed`): the
+//! word is back in the chapter's queue, and the chapter is not ready until it
+//! is done again.
 //!
 //! Leaving at any moment keeps what was answered. The next refresh goes on
 //! with the same pass: it asks the done words this pass has not asked yet.
@@ -20,21 +21,27 @@ use tauri::AppHandle;
 use super::practice::item;
 use super::profile::require_profile;
 use super::run;
-use crate::books::practice::{accepts, articles, pass_progress, READY};
+use crate::books::practice::{accepts_native, inflects, pass_progress, pick, seed, READY};
 use crate::db::practice::{self, SittingRow};
-use crate::db::{books, refresh};
+use crate::db::{books, profile, refresh};
 use crate::domain::{Direction, Refresh, RefreshAnswer, RefreshStep};
 use crate::error::{Error, Result};
 use crate::Ctx;
 
-/// What the pass shows next: its most frequent word not asked yet, or the
-/// summary when none is left. A pass with none left is finished. Either way
-/// the step says how far the pass is: the words it has asked, out of those
-/// and the ones left, so a pass gone on with has its bar where it was.
+/// What the pass shows next: one of its words not asked yet, or the summary
+/// when none is left. Which one is drawn for the pass and for how far it is
+/// (`books::practice::pick`): no two passes come in the same order, and one
+/// left and gone on with shows the word it was showing. A pass with none
+/// left is finished. Either way the step says how far the pass is: the words
+/// it has asked, out of those and the ones left, so a pass gone on with has
+/// its bar where it was.
 fn step(conn: &Connection, pass: &SittingRow, now: DateTime<Utc>) -> Result<RefreshStep> {
     let left = refresh::left(conn, pass)?;
-    let progress = pass_progress(refresh::asked(conn, pass)?, left.len());
-    let Some(word_id) = left.into_iter().next() else {
+    let asked = refresh::asked(conn, pass)?;
+    let progress = pass_progress(asked, left.len());
+    let turn = usize::try_from(asked).unwrap_or(usize::MAX);
+    let drawn = pick(seed(&pass.id), turn, left.len()).and_then(|at| left.get(at));
+    let Some(word_id) = drawn else {
         refresh::finish(conn, &pass.id, now)?;
         return Ok(RefreshStep::Summary {
             summary: refresh::summary(conn, pass)?,
@@ -42,7 +49,7 @@ fn step(conn: &Connection, pass: &SittingRow, now: DateTime<Utc>) -> Result<Refr
         });
     };
     Ok(RefreshStep::Item {
-        item: item(practice::word(conn, &word_id)?, Direction::Recognition),
+        item: item(practice::word(conn, word_id)?, Direction::Recognition),
         progress,
     })
 }
@@ -88,6 +95,7 @@ pub fn answer(
 ) -> Result<RefreshAnswer> {
     let mut conn = ctx.conn()?;
     let native_lang = require_profile(&conn)?.native_lang;
+    let spelling = profile::spelling(&conn)?;
     let tx = conn.transaction()?;
     let pass = practice::sitting(&tx, sitting_id)?;
     if !pass.refresh {
@@ -97,7 +105,12 @@ pub fn answer(
     if !refresh::left(&tx, &pass)?.contains(&word.id) {
         return Err(Error::Invalid("this word is not being asked".into()));
     }
-    let correct = accepts(answer, &word.translations, articles(&native_lang));
+    let correct = accepts_native(
+        answer,
+        &word.translations,
+        (&native_lang, inflects(word.part_of_speech)),
+        spelling,
+    );
     practice::record(
         &tx,
         &pass.id,
@@ -139,7 +152,7 @@ mod tests {
     use super::*;
     use crate::books::vocab::Word;
     use crate::commands::dispute::dispute;
-    use crate::commands::practice::tests::{ended, numbered, owes, shown, t0, translation, Desk};
+    use crate::commands::practice::tests::{numbered, owes, shown, t0, translation, Desk};
     use crate::commands::practice::{self as sitting, know};
     use crate::db::words;
     use crate::db::words::tests::word;
@@ -190,6 +203,11 @@ mod tests {
         start(desk.ctx(), chapter, t0()).expect("refresh")
     }
 
+    /// The right answer to the word the pass shows.
+    fn good(step: &RefreshStep) -> String {
+        translation(&asked(step).prompt)
+    }
+
     /// Answers the word the pass shows; what comes next.
     fn say(desk: &Desk, pass: &Refresh, step: &RefreshStep, text: &str) -> RefreshAnswer {
         answer(desk.ctx(), &pass.id, &asked(step).word_id, text, t0()).expect("answer")
@@ -221,8 +239,8 @@ mod tests {
         let desk = Desk::new(&dir);
         let bank = Word {
             needs_context: true,
-            forms: vec!["w01".into(), "w01s".into()],
-            sentence: "She sat on the W01s.".into(),
+            forms: vec!["w01".into()],
+            sentence: "She sat on the W01.".into(),
             ..word("w01", &["w01es"], 99)
         };
         let mut list = numbered(4);
@@ -241,7 +259,7 @@ mod tests {
             if item.prompt == "w01" {
                 assert_eq!(
                     shown(item),
-                    [("She sat on the ", false), ("W01s", true), (".", false)],
+                    [("She sat on the ", false), ("W01", true), (".", false)],
                     "a word flagged for context shows its sentence"
                 );
             } else {
@@ -254,7 +272,12 @@ mod tests {
             assert!(result.correct, "{text}");
             step = result.step;
         }
-        assert_eq!(prompts, ["w00", "w01", "w03"], "most frequent first");
+        prompts.sort();
+        assert_eq!(
+            prompts,
+            ["w00", "w01", "w03"],
+            "each once, the known one never"
+        );
         assert_eq!(step, over(3, 0, 3));
 
         // Right answers change nothing: every word is done as it was, and
@@ -268,8 +291,10 @@ mod tests {
         assert_eq!(readiness(&desk, &chapter), Some(READY));
         let queue = practice::queue(&desk.db.lock().expect("db"), &chapter).expect("queue");
         assert_eq!(queue, []);
-        let empty = desk.start(&chapter, t0());
-        assert_eq!(empty.step, ended(0, 0, 0));
+        // Practice has nothing owed to ask: any way is an extra review.
+        let offered =
+            crate::commands::practice::options(desk.ctx(), &chapter, t0()).expect("options");
+        assert_eq!(offered.extra.len(), 3);
         for table in ["patterns", "pattern_events"] {
             let rows = desk.count(&format!("SELECT COUNT(*) FROM {table}"));
             assert_eq!(rows, 0, "book words never touch {table}");
@@ -278,7 +303,7 @@ mod tests {
         // The pass is finished: a later refresh starts over.
         let later = start(desk.ctx(), &chapter, t0() + TimeDelta::days(3)).expect("again");
         assert_ne!(later.id, pass.id);
-        assert_eq!(asked(&later.step).prompt, "w00");
+        assert_eq!(bar(&later.step), (0, 3));
     }
 
     #[test]
@@ -288,24 +313,23 @@ mod tests {
         let chapter = ready(&desk, &numbered(3));
         let pass = begin(&desk, &chapter);
         let first = asked(&pass.step).clone();
-        assert_eq!(first.prompt, "w00");
 
         let miss = say(&desk, &pass, &pass.step, "something else");
         assert!(!miss.correct);
-        assert_eq!(miss.accepted, ["w00es"]);
+        assert_eq!(miss.accepted, [translation(&first.prompt)]);
         assert_eq!(
             owes(&desk, &chapter, &first.word_id),
             [(Direction::Recognition, 2)],
-            "two in a row English → native, and nothing the other way"
+            "two in a row English → native, and the other way after it"
         );
         assert_eq!(done_words(&desk), 2);
         assert_eq!(readiness(&desk, &chapter), Some(66));
 
         // "I don't know" is a miss too; the pass goes on to the end.
+        let second = asked(&miss.step).prompt.clone();
         let unknown = say(&desk, &pass, &miss.step, "  ");
         assert!(!unknown.correct);
-        assert_eq!(asked(&unknown.step).prompt, "w02");
-        let last = say(&desk, &pass, &unknown.step, "w02es");
+        let last = say(&desk, &pass, &unknown.step, &good(&unknown.step));
         assert!(last.correct);
         assert_eq!(last.step, over(1, 2, 3));
         assert_eq!(readiness(&desk, &chapter), Some(33));
@@ -314,14 +338,44 @@ mod tests {
             1
         );
 
-        // The chapter is practised again: only the two missed words, two
-        // answers each, and then it is ready.
+        // The chapter is practised again: only the two missed words, both
+        // ways, two answers each way, and then it is ready.
         let refused = start(desk.ctx(), &chapter, t0()).expect_err("not ready");
         assert_eq!(refused.kind(), "invalid");
-        let (again, summary) = desk.play(&chapter, t0());
-        assert_eq!(again, ["w00", "w01", "w00", "w01"]);
+        let (mut again, summary) = desk.play(&chapter, t0());
+        again.sort();
+        let mut missed = vec![first.prompt; 4];
+        missed.extend(vec![second; 4]);
+        missed.sort();
+        assert_eq!(again, missed);
         assert_eq!(summary, SittingSummary { done: 2, open: 0 });
         assert_eq!(readiness(&desk, &chapter), Some(READY));
+    }
+
+    #[test]
+    fn a_missed_word_left_done_by_the_older_rule_owes_again() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let desk = Desk::new(&dir);
+        let chapter = ready(&desk, &numbered(2));
+        let pass = begin(&desk, &chapter);
+        let missed = asked(&pass.step).word_id.clone();
+        assert!(!say(&desk, &pass, &pass.step, "no").correct);
+        // The older rule took two right answers English → native for done.
+        let conn = desk.db.lock().expect("db");
+        conn.execute(
+            "UPDATE chapter_words SET done_at = '2026-01-01T00:00:00Z'",
+            [],
+        )
+        .expect("done");
+        drop(conn);
+        assert_eq!(done_words(&desk), 2);
+
+        sitting::options(desk.ctx(), &chapter, t0()).expect("options");
+        assert_eq!(done_words(&desk), 1);
+        assert_eq!(
+            owes(&desk, &chapter, &missed),
+            [(Direction::Recognition, 2)]
+        );
     }
 
     #[test]
@@ -333,11 +387,14 @@ mod tests {
 
         // One right, one missed, and the learner leaves on the third word.
         let pass = begin(&desk, &chapter);
-        let right = say(&desk, &pass, &pass.step, "w00es");
-        let miss = say(&desk, &pass, &right.step, "no");
-        assert_eq!(asked(&miss.step).prompt, "w02");
+        let right = say(&desk, &pass, &pass.step, &good(&pass.step));
+        assert!(!say(&desk, &pass, &right.step, "no").correct);
+        let gone = [
+            asked(&pass.step).prompt.clone(),
+            asked(&right.step).prompt.clone(),
+        ];
         assert_eq!(answers(&desk), before + 2, "kept as they were given");
-        let missed = word_id(&desk, "w01");
+        let missed = asked(&right.step).word_id.clone();
         assert_eq!(
             owes(&desk, &chapter, &missed),
             [(Direction::Recognition, 2)]
@@ -359,7 +416,8 @@ mod tests {
                 .expect("answer")
                 .step;
         }
-        assert_eq!(prompts, ["w02", "w03", "w04"]);
+        assert_eq!(prompts.len(), 3);
+        assert!(prompts.iter().all(|prompt| !gone.contains(prompt)));
         // The missed word was done again since: it is not back in practice.
         assert_eq!(step, over(4, 0, 5));
         assert_eq!(
@@ -369,14 +427,17 @@ mod tests {
 
         // A pass whose last words became known has nothing to go on with.
         let third = start(desk.ctx(), &chapter, later).expect("a new pass");
-        say(&desk, &third, &third.step, "w00es");
-        for lemma in ["w01", "w02", "w03", "w04"] {
-            let id = word_id(&desk, lemma);
-            words::set_known(&desk.db.lock().expect("db"), &id, true, later).expect("known");
+        let answered = asked(&third.step).prompt.clone();
+        say(&desk, &third, &third.step, &good(&third.step));
+        for lemma in ["w00", "w01", "w02", "w03", "w04"] {
+            if lemma != answered {
+                let id = word_id(&desk, lemma);
+                words::set_known(&desk.db.lock().expect("db"), &id, true, later).expect("known");
+            }
         }
         let fresh = start(desk.ctx(), &chapter, later).expect("starts over");
         assert_ne!(fresh.id, third.id);
-        assert_eq!(asked(&fresh.step).prompt, "w00");
+        assert_eq!(asked(&fresh.step).prompt, answered);
     }
 
     #[test]
@@ -386,7 +447,7 @@ mod tests {
         let chapter = ready(&desk, &numbered(3));
         let pass = begin(&desk, &chapter);
         assert_eq!(bar(&pass.step), (0, 3));
-        let right = say(&desk, &pass, &pass.step, "w00es");
+        let right = say(&desk, &pass, &pass.step, &good(&pass.step));
         assert_eq!(bar(&right.step), (1, 3));
 
         // Left and gone on with, the bar is where it was.
@@ -399,7 +460,7 @@ mod tests {
         let miss = say(&desk, &pass, &resumed.step, "no");
         assert!(!miss.correct);
         assert_eq!(bar(&miss.step), (2, 3));
-        let last = say(&desk, &pass, &miss.step, "w02es");
+        let last = say(&desk, &pass, &miss.step, &good(&miss.step));
         assert_eq!(last.step, over(2, 1, 3));
         assert_eq!(bar(&last.step), (3, 3));
     }
@@ -423,7 +484,7 @@ mod tests {
 
         let pass = begin(&desk, &chapter);
         let first = asked(&pass.step).clone();
-        let known = word_id(&desk, "w02");
+        let known = word_id(&desk, if first.prompt == "w02" { "w01" } else { "w02" });
         words::set_known(&desk.db.lock().expect("db"), &known, true, t0()).expect("known");
         let refuse = |pass: &str, word: &str| {
             answer(desk.ctx(), pass, word, "x", t0())
@@ -468,6 +529,6 @@ mod tests {
         )
         .expect_err("a refresh");
         assert_eq!(disputed.kind(), "invalid");
-        assert_eq!(asked(&miss.step).prompt, "w01");
+        assert_ne!(asked(&miss.step).prompt, first.prompt);
     }
 }

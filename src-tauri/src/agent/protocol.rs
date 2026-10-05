@@ -18,6 +18,14 @@ pub struct ConfigureParams {
     pub claude_path: Option<String>,
 }
 
+/// What `configure` answers: the fingerprint of the `shared/protocol.ts` the
+/// sidecar was built from.
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Configured {
+    pub protocol: u32,
+}
+
 // ── chat ──────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -51,6 +59,9 @@ pub struct ChatContext {
     /// Phrases from recorded speech for the partner to use; empty when there
     /// is no evidence for this learner's goal, level or variant.
     pub phrases: Vec<String>,
+    /// Words the learner has learned, for the partner to use where they
+    /// fit: meeting them in a conversation is what makes them stay.
+    pub words: Vec<String>,
     /// The conversation this one continues, when the learner asked for that.
     pub previous: Option<PreviousSession>,
 }
@@ -381,6 +392,9 @@ pub struct VocabItem {
     pub lemma: String,
     pub form: String,
     pub sentence: String,
+    pub part_of_speech: crate::domain::PartOfSpeech,
+    /// A verb that takes an object in that sentence.
+    pub transitive: bool,
     pub translations: Vec<String>,
     pub proper_noun: bool,
     pub needs_context: bool,
@@ -398,14 +412,22 @@ pub struct Vocab {
 pub struct VocabJudgeParams {
     pub native_lang: String,
     pub direction: crate::domain::Direction,
-    /// The English base form of the word.
+    /// The English word as the learner was asked it: its base form, or,
+    /// asked English → native with a sentence of its bank, the form that
+    /// sentence has it in.
     pub lemma: String,
-    /// The sentence of the book the word was taken from.
+    ///The sentence of the book the word was taken from.
     pub sentence: String,
     /// The translations accepted so far, in the learner's language.
     pub translations: Vec<String>,
     /// What the learner typed, as they typed it.
     pub answer: String,
+    /// The learner asked for accents and spelling to count.
+    pub strict_spelling: bool,
+    /// What fills the blank the answer was typed into, for a word asked
+    /// native → English with a sentence of its bank: only an answer in that
+    /// exact form is right. None otherwise.
+    pub blank: Option<String>,
 }
 
 /// The model's label; what an upheld answer changes is decided in
@@ -416,4 +438,315 @@ pub struct VocabVerdict {
     pub correct: bool,
     /// One line in the learner's language saying why.
     pub reason: String,
+}
+
+/// One word stored without its kind, to be said what kind it is.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LabelWord {
+    /// Names the word in the answer: its id.
+    pub id: String,
+    /// The English base form.
+    pub lemma: String,
+    /// The sentence of the book it was taken from.
+    pub sentence: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VocabLabelParams {
+    pub words: Vec<LabelWord>,
+}
+
+/// The model's label on one word.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WordLabel {
+    pub id: String,
+    pub part_of_speech: crate::domain::PartOfSpeech,
+    /// A verb that takes an object in its sentence.
+    pub transitive: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VocabLabels {
+    pub labels: Vec<WordLabel>,
+}
+
+// ── sentences a word is asked with ────────────────────────────────────────
+
+/// One word whose sentences of the book are to be glossed.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SentenceWord {
+    /// Names the word in the answer: its key.
+    pub id: String,
+    /// The English base form.
+    pub lemma: String,
+    pub part_of_speech: Option<crate::domain::PartOfSpeech>,
+    /// What it means, in the learner's language.
+    pub translations: Vec<String>,
+    /// A sentence that fixes the sense the word has in its chapter.
+    pub sense: String,
+    /// Sentences of the book that have the word, to be glossed.
+    pub book: Vec<String>,
+}
+
+/// No sentence is written: the model glosses those the book has.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SentenceWriteParams {
+    pub native_lang: String,
+    pub words: Vec<SentenceWord>,
+}
+
+/// What the model says of one sentence of the book.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BookGloss {
+    pub index: u32,
+    /// The word, in the form the sentence has it, translated.
+    pub hint: String,
+    pub translation: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WrittenWord {
+    pub id: String,
+    pub book: Vec<BookGloss>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SentencesWritten {
+    pub words: Vec<WrittenWord>,
+}
+
+/// One sentence put to the second look.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewedSentence {
+    pub id: String,
+    pub lemma: String,
+    pub meaning: Vec<String>,
+    pub sentence: String,
+    pub form: String,
+    pub hint: String,
+    pub translation: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SentenceReviewParams {
+    pub native_lang: String,
+    pub sentences: Vec<ReviewedSentence>,
+}
+
+/// The model's label on one sentence.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SentenceVerdict {
+    pub id: String,
+    pub good: bool,
+    /// The other English words the hint could be answered with.
+    pub also: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SentenceVerdicts {
+    pub verdicts: Vec<SentenceVerdict>,
+}
+
+// ── chapter translation ───────────────────────────────────────────────────
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChapterBriefParams {
+    pub native_lang: String,
+    /// The chapter, as plain English text.
+    pub text: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChapterBrief {
+    /// What a reviewer of any paragraph needs to know of the chapter.
+    pub brief: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ParagraphVersionParams {
+    pub native_lang: String,
+    pub brief: String,
+    /// The paragraph, a sentence each, in order.
+    pub sentences: Vec<String>,
+}
+
+/// Whether it matches the paragraph is checked in `books::translate`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ParagraphVersion {
+    /// One per sentence given, in the same order.
+    pub sentences: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewSentence {
+    /// The author's sentence.
+    pub english: String,
+    /// What the learner was shown instead, translating back into English.
+    pub native: Option<String>,
+    /// What the learner wrote.
+    pub attempt: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ParagraphReviewParams {
+    pub native_lang: String,
+    pub level: Level,
+    pub direction: crate::domain::TranslationDirection,
+    pub brief: String,
+    /// The paragraph before this one, in English; empty for the first.
+    pub previous: String,
+    pub sentences: Vec<ReviewSentence>,
+}
+
+/// The English word a note is about, with its translations for that sense.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NoteWord {
+    pub english: String,
+    pub translations: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ParagraphNote {
+    /// Which sentence, counted from 0.
+    pub sentence: u32,
+    /// The words of the learner's sentence that are wrong, copied exactly.
+    pub fragment: String,
+    pub severity: crate::domain::Severity,
+    /// What the fragment should have been.
+    pub better: String,
+    /// Why, in the learner's language.
+    pub why: String,
+    /// The word to practise, when the note is about one.
+    pub word: Option<NoteWord>,
+}
+
+/// The model's labels; where each note goes in the learner's text and what
+/// the paragraph scores is decided in `books::translate`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ParagraphReview {
+    pub good: Option<String>,
+    pub notes: Vec<ParagraphNote>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SummaryNote {
+    pub fragment: String,
+    pub severity: crate::domain::Severity,
+    pub better: String,
+    pub why: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AttemptSummaryParams {
+    pub native_lang: String,
+    pub level: Level,
+    pub direction: crate::domain::TranslationDirection,
+    /// Every note of every paragraph of the attempt, in reading order.
+    pub notes: Vec<SummaryNote>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SummaryHabit {
+    pub habit: String,
+    pub advice: String,
+    pub examples: Vec<String>,
+}
+
+/// As the model wrote it; how much of it is kept is decided in
+/// `books::translate`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AttemptSummary {
+    pub points: Vec<String>,
+    pub habits: Vec<SummaryHabit>,
+}
+
+// ── structures ────────────────────────────────────────────────────────────
+
+/// One structure of the catalogue, as the model is told it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StructureRef {
+    pub key: String,
+    pub name: String,
+    pub form: String,
+    #[serde(rename = "use")]
+    pub usage: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StructureGradeParams {
+    pub native_lang: String,
+    pub level: Level,
+    pub variant: Variant,
+    pub structure: StructureRef,
+    /// The word the learner was asked to use; none when none was.
+    pub word: Option<String>,
+    /// What kind of word it is; none when none was asked or nobody said.
+    pub part_of_speech: Option<crate::domain::PartOfSpeech>,
+    /// The sentence as the learner typed it; empty when they wrote none.
+    pub answer: String,
+}
+
+/// The model's labels; the verdict is decided in `structures::verdict`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StructureGrade {
+    pub uses_structure: bool,
+    pub well_formed: bool,
+    pub uses_word: bool,
+    pub slips: bool,
+    pub explanation: String,
+    pub better: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StructureDetectParams {
+    pub structures: Vec<StructureRef>,
+    /// One piece of a chapter, as plain English text.
+    pub text: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StructureFound {
+    pub key: String,
+    /// Sentences of the piece that use it.
+    pub count: u32,
+    /// One of them, copied from the text.
+    pub sentence: String,
+}
+
+/// The model's labels; counted over the chapter in `structures::rank`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StructuresFound {
+    pub found: Vec<StructureFound>,
 }

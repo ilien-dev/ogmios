@@ -22,7 +22,7 @@ const RIGHT: Record<string, string> = {
   "rabbit hole": "madriguera",
   madriguera: "rabbit hole",
   tumble: "rodar",
-  "caerse, rodar": "tumble",
+  "caerse, rodar": "tumbled",
   curtsey: "reverencia",
   "hacer una reverencia, reverencia": "curtsey",
   waistcoat: "chaleco",
@@ -55,6 +55,7 @@ async function sit(): Promise<UserEvent> {
   render(
     <SittingScreen chapterId="book-alice-0" nativeLang="es" onClose={mock()} />,
   );
+  await user.click(await screen.findByRole("button", { name: "Start" }));
   await screen.findByLabelText("Your translation");
   expect(prompt()).toBe("rabbit hole");
   return user;
@@ -263,6 +264,7 @@ describe("I was right", () => {
     // The sitting is played out and the next one begun, Claude still asked.
     await playOut(user);
     await user.click(screen.getByRole("button", { name: "Continue" }));
+    await user.click(await screen.findByRole("button", { name: "Start" }));
     await screen.findByLabelText("Your translation");
     expect(prompt()).toBe("shelf");
     await user.keyboard("esta");
@@ -286,8 +288,9 @@ describe("I was right", () => {
     await playOut(user);
 
     // The next sitting takes a moment to start; the verdict does not.
-    setMockLatency(0.5);
     await user.click(screen.getByRole("button", { name: "Continue" }));
+    setMockLatency(0.5);
+    await user.click(await screen.findByRole("button", { name: "Start" }));
     setMockLatency(0);
     release();
     await screen.findByLabelText("Your translation");
@@ -380,6 +383,7 @@ describe("I was right", () => {
         onClose={mock()}
       />,
     );
+    await user.click(await screen.findByRole("button", { name: "Empezar" }));
     await screen.findByLabelText("Tu traducción");
     await say(user, "conejera", "Esta vez no.");
     await user.click(screen.getByRole("button", { name: "Estaba bien" }));

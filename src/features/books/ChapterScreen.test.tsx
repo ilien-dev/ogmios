@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { ReactNode } from "react";
 import { useState } from "react";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { UserEvent } from "@testing-library/user-event";
 import type { Route } from "@/app/routes";
@@ -9,6 +9,7 @@ import { i18n } from "@/lib/i18n/i18n";
 import { setMockLatency } from "@/lib/ipcMock";
 import {
   seedMockReadiness,
+  seedMockUnlabelled,
   setMockChapterRefusal,
 } from "@/lib/ipcMockChapters";
 import { setMockWordKnown } from "@/lib/ipcMockWords";
@@ -96,10 +97,10 @@ describe("ChapterScreen", () => {
     expect(await screen.findByRole("table")).toBeInTheDocument();
     expect(screen.getByText("4 words to learn")).toBeInTheDocument();
     expect(rows()).toEqual([
-      "waistcoatchaleco3",
-      "marmalademermelada2",
-      "peepasomarse, echar un vistazo2",
-      "hedgeseto1",
+      "waistcoatnounchaleco3",
+      "marmaladenounmermelada2",
+      "peepverbasomarse, echar un vistazo2",
+      "hedgenounseto1",
     ]);
     expect(screen.queryByText("Reading the chapter…")).toBeNull();
     // The depths wider than the one taken stay on offer.
@@ -114,7 +115,7 @@ describe("ChapterScreen", () => {
     await openChapter(user, "I. Down the Rabbit-Hole");
 
     expect(await screen.findByText("8 words to learn")).toBeInTheDocument();
-    expect(rows()[0]).toBe("rabbit holemadriguera6");
+    expect(rows()[0]).toBe("rabbit holenounmadriguera6");
     expect(
       screen.getAllByRole("listitem").map((item) => item.textContent),
     ).toEqual([
@@ -124,8 +125,8 @@ describe("ChapterScreen", () => {
     await user.click(screen.getByRole("button", { name: /Most words/u }));
     expect(await screen.findByText("12 words to learn")).toBeInTheDocument();
     expect(rows().slice(0, 2)).toEqual([
-      "rabbit holemadriguera6",
-      "bankorilla, ribera5",
+      "rabbit holenounmadriguera6",
+      "banknounorilla, ribera5",
     ]);
     expect(
       screen.queryByRole("heading", { name: "Want more words?" }),
@@ -141,6 +142,19 @@ describe("ChapterScreen", () => {
     expect(await screen.findByText("12 words to learn")).toBeInTheDocument();
   });
 
+  test("words stored without their kind get it in the background, and the list shows it", async () => {
+    const user = userEvent.setup();
+    seedMockUnlabelled();
+    setMockLatency(0.03);
+    await openChapter(user, "I. Down the Rabbit-Hole");
+
+    expect(await screen.findByText("8 words to learn")).toBeInTheDocument();
+    expect(rows()[0]).toBe("rabbit holemadriguera6");
+    await waitFor(() => {
+      expect(rows()[0]).toBe("rabbit holenounmadriguera6");
+    });
+  });
+
   test("a word the learner knows leaves the list, and can be taken back", async () => {
     const user = userEvent.setup();
     await openChapter(user, "I. Down the Rabbit-Hole");
@@ -152,8 +166,8 @@ describe("ChapterScreen", () => {
     );
     expect(await screen.findByText("7 words to learn")).toBeInTheDocument();
     expect(rows().slice(0, 2)).toEqual([
-      "rabbit holemadriguera6",
-      "curtseyhacer una reverencia, reverencia3",
+      "rabbit holenounmadriguera6",
+      "curtseyverbhacer una reverencia, reverencia3",
     ]);
     // It stays below, folded, with the way back.
     const known = screen.getByText("1 word you already know");
@@ -172,7 +186,7 @@ describe("ChapterScreen", () => {
     await user.click(await screen.findByText("1 word you already know"));
     await user.click(screen.getByRole("button", { name: "Undo: tumble" }));
     expect(await screen.findByText("8 words to learn")).toBeInTheDocument();
-    expect(rows()[1]).toBe("tumblecaerse, rodar4");
+    expect(rows()[1]).toBe("tumbleverbcaerse, rodar4");
     expect(screen.queryByText(/already know/u)).toBeNull();
   });
 
@@ -185,8 +199,16 @@ describe("ChapterScreen", () => {
     // "hedge" is known; the other three are done, and say so.
     expect(screen.queryByText(/to learn/u)).toBeNull();
     expect(screen.getAllByRole("img", { name: "Done" })).toHaveLength(3);
+    expect(screen.getByText("3 learned")).toBeInTheDocument();
+    expect(screen.getByRole("progressbar")).toHaveAttribute(
+      "aria-valuenow",
+      "100",
+    );
     expect(screen.queryByRole("button", { name: /^I know this/u })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Practice" })).toBeNull();
+    // Practice stays within reach: with nothing left, it is an extra review.
+    expect(
+      screen.getByRole("button", { name: "Practice" }),
+    ).toBeInTheDocument();
     // Its done words can be gone over once more before reading.
     expect(screen.getByRole("button", { name: REFRESH })).toBeInTheDocument();
 
@@ -218,6 +240,17 @@ describe("ChapterScreen", () => {
       }),
     );
     expect(await screen.findAllByRole("img", { name: "Done" })).toHaveLength(5);
+    // The bar over the list says how far the chapter's words have come.
+    const open = screen.getAllByRole("button", { name: /^I know this/u });
+    expect(screen.getByText("5 learned")).toBeInTheDocument();
+    expect(
+      screen.getByRole("progressbar", {
+        name: "Words learned in this chapter",
+      }),
+    ).toHaveAttribute(
+      "aria-valuenow",
+      String(Math.floor((5 / (5 + open.length)) * 100)),
+    );
     expect(
       screen.getByRole("button", { name: "Practice" }),
     ).toBeInTheDocument();

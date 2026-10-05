@@ -509,16 +509,37 @@ export function progress(lang: Lang): Progress {
       },
     ],
     vocabulary: [
-      { asked: "plazo de entrega", english: "lead time", date: "2026-09-23" },
-      { asked: "estar agobiado", english: "to be swamped", date: "2026-09-23" },
-      { asked: null, english: "a close call", date: "2026-09-23" },
+      {
+        asked: "plazo de entrega",
+        english: "lead time",
+        date: "2026-09-23",
+        strength: null,
+      },
+      {
+        asked: "estar agobiado",
+        english: "to be swamped",
+        date: "2026-09-23",
+        strength: null,
+      },
+      {
+        asked: null,
+        english: "a close call",
+        date: "2026-09-23",
+        strength: null,
+      },
       {
         asked: "aprovechar",
         english: "to make the most of",
         date: "2026-09-18",
+        strength: null,
       },
-      { asked: "echar de menos", english: "to miss", date: "2026-09-11" },
-      { asked: null, english: "to juggle", date: "2026-09-11" },
+      {
+        asked: "echar de menos",
+        english: "to miss",
+        date: "2026-09-11",
+        strength: null,
+      },
+      { asked: null, english: "to juggle", date: "2026-09-11", strength: null },
     ],
     trend: [
       { ...metrics({ wordsPerTurn: 28, errorsPer100: 5 }), date: "2026-09-02" },
