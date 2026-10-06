@@ -489,35 +489,45 @@ export const vocabVerdictSchema = z.object({
 });
 export type VocabVerdict = z.infer<typeof vocabVerdictSchema>;
 
+/** One word stored before words were labelled. */
+const labelWordSchema = z.object({
+  /** Names the word in the answer; Rust gives its id. */
+  id: z.string(),
+  /** The English word, as it is stored. */
+  lemma: z.string(),
+  /** The sentence of the book it was taken from. */
+  sentence: z.string(),
+  /**
+   * The translations of a verb called by another form than its base form,
+   * to be put in that form; empty for any other word.
+   */
+  translations: z.array(z.string()),
+});
+
 /** Words stored before words were labelled, to be said what kind each is. */
 export const vocabLabelParams = z.object({
-  words: z
-    .array(
-      z.object({
-        /** Names the word in the answer; Rust gives its id. */
-        id: z.string(),
-        /** The English word, as it is stored. */
-        lemma: z.string(),
-        /** The sentence of the book it was taken from. */
-        sentence: z.string(),
-      }),
-    )
-    .min(1),
+  words: z.array(labelWordSchema).min(1),
 });
 export type VocabLabelParams = z.infer<typeof vocabLabelParams>;
 
+/** The model's label on one word. */
+const wordLabelSchema = z.object({
+  id: z.string(),
+  partOfSpeech: partOfSpeechSchema,
+  /** A verb or a phrasal verb that takes an object in its sentence. */
+  transitive: z.boolean(),
+  /** The form a verb has in its sentence; null for any other word. */
+  verbForm: verbFormSchema.nullable(),
+  /**
+   * The translations it was given, each in the form of the word, in the
+   * order they came; empty when none was given.
+   */
+  inForm: z.array(z.string()),
+});
+
 /** The model's labels; a word without one is asked about again. */
 export const vocabLabelsSchema = z.object({
-  labels: z.array(
-    z.object({
-      id: z.string(),
-      partOfSpeech: partOfSpeechSchema,
-      /** A verb or a phrasal verb that takes an object in its sentence. */
-      transitive: z.boolean(),
-      /** The form a verb has in its sentence; null for any other word. */
-      verbForm: verbFormSchema.nullable(),
-    }),
-  ),
+  labels: z.array(wordLabelSchema),
 });
 export type VocabLabels = z.infer<typeof vocabLabelsSchema>;
 

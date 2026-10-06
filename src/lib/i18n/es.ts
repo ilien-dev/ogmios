@@ -578,6 +578,8 @@ export const es: Catalog<typeof en> = {
       accepted: "Se acepta: {{text}}",
       wrongForm:
         "Es la palabra, pero no la forma que pide esta frase. Prueba otra vez.",
+      askedForm:
+        "Es la palabra, pero no en la forma que te pido. Prueba otra vez.",
       baseForm:
         "Es la palabra, pero la pido en su forma base: el infinitivo. Prueba otra vez.",
       otherWord: "Es correcto, pero aquí busco otra palabra. Prueba otra vez.",

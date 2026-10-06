@@ -105,9 +105,10 @@ fn disputable(conn: &Connection, answer_id: i64) -> Result<AnswerRow> {
         if in_sentence {
             forms.extend(sentences::forms(conn, &word.key)?);
         }
-        if (in_sentence || !blanked(&word).is_empty())
-            && accepts_english(&answer.answer, &word.lemma, &forms, spelling)
-        {
+        // So is a verb shown in the form it is called by: that form is
+        // what was asked for.
+        let in_form = in_sentence || !blanked(&word).is_empty() || word.in_form.is_some();
+        if in_form && accepts_english(&answer.answer, &word.lemma, &forms, spelling) {
             return Err(Error::Invalid(
                 "another form of the word does not fill the blank".into(),
             ));

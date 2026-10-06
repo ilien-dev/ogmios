@@ -198,19 +198,25 @@ interface WholeProps {
 /**
  * What says why an answer is none yet: another word for what was shown, the
  * word in a form its sentence does not have, or, asked on its own, in a form
- * that is not its base form.
+ * that is not the one asked for: its base form for a translation, and the
+ * form its translation was shown in for the English word.
  */
 function retryKey(
   other: boolean,
   inSentence: boolean,
+  toEnglish: boolean,
 ):
   | "books.sitting.otherWord"
   | "books.sitting.wrongForm"
+  | "books.sitting.askedForm"
   | "books.sitting.baseForm" {
   if (other) {
     return "books.sitting.otherWord";
   }
-  return inSentence ? "books.sitting.wrongForm" : "books.sitting.baseForm";
+  if (inSentence) {
+    return "books.sitting.wrongForm";
+  }
+  return toEnglish ? "books.sitting.askedForm" : "books.sitting.baseForm";
 }
 
 /**
@@ -522,7 +528,7 @@ export function SittingItem<Result extends Checked>({
         />
         {result === null && again && (
           <VerdictLine tone="partial">
-            {t(retryKey(other, item.sentenceId !== null))}
+            {t(retryKey(other, item.sentenceId !== null, toEnglish))}
           </VerdictLine>
         )}
         {result === null && (

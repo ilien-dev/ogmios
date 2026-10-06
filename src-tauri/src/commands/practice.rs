@@ -365,8 +365,9 @@ pub(super) fn whole(sentence: &Sentence) -> ShownSentence {
 /// word is called, its base form or the form of a verb that is a word of
 /// its own, and the sentence with the word marked; a verb comes with the
 /// form its chapter's sentence has it in. Native → English shows the
-/// translations, and the sentence with the word taken out: nothing of the
-/// item holds the English word. A translation a dispute upheld is accepted,
+/// translations, in the form the word is called by once that was said
+/// (`WordRow::shown_as`), and the sentence with the word taken out: nothing
+/// of the item holds the English word. A translation a dispute upheld is accepted,
 /// not shown: the prompt is the translations the chapter was prepared with.
 pub(super) fn item(word: WordRow, direction: Direction) -> PracticeItem {
     let (prompt, context) = match direction {
@@ -376,7 +377,7 @@ pub(super) fn item(word: WordRow, direction: Direction) -> PracticeItem {
                 .then(|| mark(&word.sentence, &word.forms)),
         ),
         Direction::Production => (
-            word.shown.join(", "),
+            word.shown_as().join(", "),
             word.needs_context
                 .then(|| blank(&word.sentence, &english(&word)))
                 .flatten(),
@@ -408,10 +409,22 @@ pub(super) fn english(word: &WordRow) -> Vec<String> {
     forms
 }
 
+/// The forms a native → English answer can have when the word is asked on
+/// its own. A verb shown in the form it is called by is asked for in that
+/// form, and its base form is none of them: "swear" is not what "jurado"
+/// asks for.
+fn wanted(word: &WordRow) -> Vec<String> {
+    let mut forms = english(word);
+    if word.in_form.is_some() {
+        forms.retain(|form| Some(form) != word.base.as_ref());
+    }
+    forms
+}
+
 /// What a native → English answer has to be when the word is asked with its
 /// sentence blanked: the forms that fill the blank, as the sentence writes
 /// them. "stir" is not the word of "his mind ____." None when the word is
-/// asked on its own: its base form and any form of the book will do.
+/// asked on its own: the forms it is [`wanted`] in will do.
 pub(super) fn blanked(word: &WordRow) -> Vec<String> {
     if word.needs_context {
         fills(&word.sentence, &english(word))
@@ -421,9 +434,11 @@ pub(super) fn blanked(word: &WordRow) -> Vec<String> {
 }
 
 /// Whether `answer` is right for the word asked in a direction, and what
-/// was asked for, the first one first. Native → English, a word asked with
-/// its sentence blanked has to be the form that fills the blank
-/// ([`blanked`]); an answer a dispute upheld is accepted either way.
+/// was asked for, the first one first. English → native that is the
+/// translations as the word is shown by them (`WordRow::shown_as`).
+/// Native → English, a word asked with its sentence blanked has to be the
+/// form that fills the blank ([`blanked`]), and one asked on its own a form
+/// it is [`wanted`] in; an answer a dispute upheld is accepted either way.
 pub(super) fn verdict(
     word: &WordRow,
     direction: Direction,
@@ -431,18 +446,20 @@ pub(super) fn verdict(
     (native_lang, spelling): (&str, Spelling),
 ) -> (bool, Vec<String>) {
     match direction {
-        Direction::Recognition => (
-            accepts_native(
-                answer,
-                &word.translations,
-                (native_lang, inflects(word.part_of_speech)),
-                spelling,
-            ),
-            word.shown.clone(),
-        ),
+        Direction::Recognition => {
+            // What it is shown as is right too, however far from its base
+            // form: "hecho" is not "hacer" with another ending.
+            let said = word.in_form.as_deref().unwrap_or_default();
+            let right = [word.translations.as_slice(), said].concat();
+            let native = (native_lang, inflects(word.part_of_speech));
+            (
+                accepts_native(answer, &right, native, spelling),
+                word.shown_as().to_vec(),
+            )
+        }
         Direction::Production => {
             let blanks = blanked(word);
-            let any = english(word);
+            let any = wanted(word);
             let written = if blanks.is_empty() { &any } else { &blanks };
             let forms = [written.as_slice(), word.english.as_slice()].concat();
             let base = blanks.first().unwrap_or(&word.lemma);
@@ -461,8 +478,12 @@ pub(super) fn verdict(
 /// native, a verb shown in its base form has its translation asked for in
 /// that form: in another, it is no answer yet
 /// (`books::practice::off_base`). One called by another form is right in
-/// any: its translations are kept in their base form. Native → English, an answer that is not the word and is another word the learner
-/// has for what was shown is no miss (`books::sentences::or_other`).
+/// any: its translations are kept in their base form. Native → English,
+/// one called by another form is asked for in that form: its base form, or
+/// a form that does not fill its blank, is the word in the wrong form, and
+/// no answer yet. An answer that is not the word and is another word the
+/// learner has for what was shown is no miss
+/// (`books::sentences::or_other`).
 pub(super) fn plain(
     conn: &Connection,
     word: &WordRow,
@@ -484,6 +505,12 @@ pub(super) fn plain(
         verdict = Verdict::WrongForm;
     }
     if direction == Direction::Production {
+        if !correct
+            && word.base.is_some()
+            && accepts_english(answer, &word.lemma, &english(word), how.1)
+        {
+            verdict = Verdict::WrongForm;
+        }
         let rivals = sentences::rivals(conn, &word.key, &word.shown)?;
         verdict = or_other(verdict, answer, &rivals, how.1);
     }
@@ -513,7 +540,7 @@ pub(super) fn clue(
             (sentence.form.clone(), in_place(sentence, direction))
         }
         (None, Direction::Recognition) => (
-            word.shown.first().cloned().unwrap_or_default(),
+            word.shown_as().first().cloned().unwrap_or_default(),
             Some(mark(&word.sentence, &word.forms)),
         ),
         (None, Direction::Production) => {
@@ -1204,6 +1231,161 @@ pub mod tests {
         );
         assert!(matches!(refused, Err(Error::Invalid(_))));
         assert!(say("forzar", true).correct);
+    }
+
+    #[test]
+    fn a_verb_called_by_another_form_is_shown_and_asked_for_in_that_form() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let desk = Desk::new(&dir);
+        let verb = |lemma: &str, form: VerbForm, translations: &[&str]| Word {
+            part_of_speech: Some(PartOfSpeech::Verb),
+            base: Some("swear".into()),
+            verb_form: Some(form),
+            ..word(lemma, translations, 1)
+        };
+        let list = [
+            Word {
+                needs_context: true,
+                sentence: "Within these walls, sworn into servitude, they lived.".into(),
+                ..verb("sworn", VerbForm::PastParticiple, &["jurar", "prometer"])
+            },
+            verb("swore", VerbForm::Past, &["jurar"]),
+            Word {
+                base: Some("make".into()),
+                ..verb("made", VerbForm::PastParticiple, &["hacer"])
+            },
+        ];
+        let chapter = desk.chapter("b", &list);
+        let conn = desk.db.lock().expect("db");
+        let id = |key: &str| {
+            words::id_by_key(&conn, &chapter, key)
+                .expect("id")
+                .expect("word")
+        };
+        let (participle, past) = (id("sworn"), id("swore"));
+        let row = |id: &str| practice::word(&conn, id).expect("word");
+        let spelling = profile::spelling(&conn).expect("spelling");
+        let say = |id: &str, direction: Direction, text: &str| {
+            let judged = plain(&conn, &row(id), (direction, text), ("es", spelling));
+            let judged = judged.expect("judged");
+            (judged.verdict, judged.accepted)
+        };
+        let (there, back) = (Direction::Recognition, Direction::Production);
+        let prompt = |id: &str| super::item(row(id), back).prompt;
+        let only = |text: &str| vec![text.to_owned()];
+
+        // Until its translations are said in its form, it is shown by its
+        // base form, and on its own its base form is the word.
+        assert_eq!(prompt(&participle), "jurar, prometer");
+        assert_eq!(say(&past, back, "swear").0, Verdict::Right);
+        // Its blank is filled by one form: another is no miss.
+        assert_eq!(say(&participle, back, "swear").0, Verdict::WrongForm);
+
+        let asked = ["jurar".to_owned(), "prometer".to_owned()];
+        // One for each, or nothing is kept.
+        assert!(!words::put_in_form(&conn, &participle, &asked, &only("jurado")).expect("put"));
+        let said = ["jurado".to_owned(), " prometido ".to_owned()];
+        assert!(words::put_in_form(&conn, &participle, &asked, &said).expect("put"));
+        assert!(words::put_in_form(&conn, &past, &only("jurar"), &only("juró")).expect("put"));
+
+        assert_eq!(prompt(&participle), "jurado, prometido");
+        assert_eq!(prompt(&past), "juró");
+        assert_eq!(
+            say(&participle, back, "sworn"),
+            (Verdict::Right, only("sworn"))
+        );
+        assert_eq!(
+            say(&participle, back, "swear"),
+            (Verdict::WrongForm, only("sworn"))
+        );
+        assert_eq!(say(&participle, back, "sword").0, Verdict::Miss);
+        // Asked on its own too: "juró" does not ask for "swear".
+        assert_eq!(say(&past, back, "swore").0, Verdict::Right);
+        assert_eq!(
+            say(&past, back, "to swear"),
+            (Verdict::WrongForm, only("swore"))
+        );
+        // English → native it is right in any form, and shown in its own.
+        assert_eq!(
+            say(&participle, there, "jurar"),
+            (
+                Verdict::Right,
+                vec!["jurado".to_owned(), "prometido".to_owned()]
+            )
+        );
+        let (hint, _) = clue(&row(&participle), None, there);
+        assert_eq!(hint, "jurado");
+        // What is shown as accepted is accepted, however far from its base.
+        assert_eq!(say(&participle, there, "jurado").0, Verdict::Right);
+        let made = id("made");
+        assert!(words::put_in_form(&conn, &made, &only("hacer"), &only("hecho")).expect("put"));
+        assert_eq!(say(&made, there, "hecho"), (Verdict::Right, only("hecho")));
+        assert_eq!(say(&made, there, "hacer").0, Verdict::Right);
+    }
+
+    #[test]
+    fn a_verb_shown_in_its_form_gets_a_second_try_and_its_miss_is_not_disputed() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let desk = Desk::new(&dir);
+        let list = [Word {
+            part_of_speech: Some(PartOfSpeech::Verb),
+            base: Some("swear".into()),
+            verb_form: Some(VerbForm::Past),
+            ..word("swore", &["jurar"], 1)
+        }];
+        let chapter = desk.chapter("b", &list);
+        {
+            let conn = desk.db.lock().expect("db");
+            let id = words::id_by_key(&conn, &chapter, "swore").expect("id");
+            let (asked, said) = (["jurar".to_owned()], ["juró".to_owned()]);
+            assert!(words::put_in_form(&conn, &id.expect("word"), &asked, &said).expect("put"));
+        }
+        let sitting = desk.start(&chapter, t0());
+        // English → native first: its translation is right in any form.
+        let mut step = sitting.step.clone();
+        let asked = loop {
+            let asked = item(&step).clone();
+            if asked.direction == Direction::Production {
+                break asked;
+            }
+            step = desk.answer(&sitting, &asked, "jurar", t0()).step;
+        };
+        assert_eq!(asked.prompt, "juró");
+        let say = |text: &str, second: bool| {
+            let shown = Shown {
+                second,
+                ..Shown::default()
+            };
+            answer_shown(
+                desk.ctx(),
+                &sitting.id,
+                (&asked.word_id, asked.direction),
+                (text, shown),
+                t0(),
+            )
+            .expect("answer")
+        };
+        let answers = desk.count("SELECT COUNT(*) FROM word_answers");
+
+        let first = say("swear", false);
+        assert!(first.again && !first.correct && first.another.is_none());
+        assert_eq!(
+            desk.count("SELECT COUNT(*) FROM word_answers"),
+            answers,
+            "nothing is kept"
+        );
+        // The second time, the form is a miss.
+        let second = say("swear", true);
+        assert!(!second.again && !second.correct);
+        assert_eq!(second.accepted, ["swore"]);
+        // The model would take the form for right: it is not asked.
+        let refused = crate::commands::dispute::dispute(
+            desk.ctx(),
+            second.answer_id,
+            &mut |_| panic!("the model is not asked"),
+            t0(),
+        );
+        assert!(matches!(refused, Err(Error::Invalid(_))));
     }
 
     #[test]
