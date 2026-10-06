@@ -16,7 +16,12 @@ import type {
 import { READY } from "@shared/domain";
 import { findMockChapter } from "./ipcMockBooks";
 import { mockChapterWords, withMockReadiness } from "./ipcMockChapters";
-import { PracticeError, answerMockRefresh, itemOf } from "./ipcMockPractice";
+import {
+  PracticeError,
+  answerMockRefresh,
+  itemOf,
+  small,
+} from "./ipcMockPractice";
 
 interface Pass {
   chapterId: string;
@@ -117,7 +122,7 @@ function answer(
   if (!correct) {
     pass.missed.add(wordId);
   }
-  return { correct, accepted: [...word.translations], step: stepOf(pass) };
+  return { correct, accepted: small(word.translations), step: stepOf(pass) };
 }
 
 function arg(args: unknown, key: string): string {

@@ -382,6 +382,105 @@ pub fn accepts_native(
         })
 }
 
+/// How a verb ends in its infinitive in the learner's language, with its
+/// accent or without.
+const INFINITIVES: [(&str, &[&str]); 1] = [("es", &["ar", "er", "ir", "ír"])];
+
+/// The list a table has for a language; none for one it does not have.
+fn listed(table: &[(&str, &'static [&'static str])], lang: &str) -> &'static [&'static str] {
+    table
+        .iter()
+        .find(|(tag, _)| *tag == lang)
+        .map_or(&[], |(_, list)| list)
+}
+
+/// Whether `text` is in the form a base translation has: one of the `base`
+/// translations as [`accepts`] reads it, or, for a word that `inflects`,
+/// an infinitive, whichever verb it is of and with or without a reflexive
+/// pronoun written onto it. "salvar", "salvarse" and "cerrarse" are;
+/// "salvada" and "se salvó" are another form.
+pub fn is_base(text: &str, base: &[String], native: (&str, bool), spelling: Spelling) -> bool {
+    let articles = articles(native.0);
+    if accepts(text, base, articles, spelling) {
+        return true;
+    }
+    let lang = primary(native.0);
+    let pronouns = listed(&REFLEXIVES, &lang);
+    native.1
+        && normal(text, articles, spelling)
+            .first()
+            .is_some_and(|word| {
+                let verb = pronouns
+                    .iter()
+                    .filter_map(|pronoun| word.strip_suffix(pronoun))
+                    .find(|rest| rest.ends_with('r'))
+                    .unwrap_or(word);
+                listed(&INFINITIVES, &lang)
+                    .iter()
+                    .any(|ending| verb.ends_with(ending))
+            })
+}
+
+/// How a verb ends in its gerund in the learner's language, with the
+/// accent a pronoun written onto it gives it or without.
+const GERUNDS: [(&str, &[&str]); 1] =
+    [("es", &["ando", "iendo", "yendo", "ándo", "iéndo", "yéndo"])];
+
+/// A form of a verb that its ending tells in the learner's language.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Shape {
+    Infinitive,
+    Gerund,
+}
+
+/// Whether a word has one of these endings, with or without a reflexive
+/// pronoun written onto it.
+fn ends_with(word: &str, endings: &[&str], pronouns: &[&str]) -> bool {
+    let ends = |text: &str| endings.iter().any(|ending| text.ends_with(ending));
+    pronouns
+        .iter()
+        .filter_map(|pronoun| word.strip_suffix(pronoun))
+        .any(ends)
+        || ends(word)
+}
+
+/// The form of a verb an answer in the learner's language is in, when its
+/// ending tells: that of its first word, past a leading form of "to be".
+/// "predicando" and "estaba predicando" are a gerund, "predicar" an
+/// infinitive; "predicaba" is neither, and nothing is in a language without
+/// a table.
+pub fn shape(text: &str, lang: &str) -> Option<Shape> {
+    let words = normal(text, articles(lang), Spelling::Strict);
+    let lang = primary(lang);
+    let copulas = listed(&COPULAS, &lang);
+    let led = words.len() > 1 && copulas.contains(&plain(&words[0]).as_str());
+    let word = words.get(usize::from(led))?;
+    let pronouns = listed(&REFLEXIVES, &lang);
+    [
+        (Shape::Gerund, &GERUNDS[..]),
+        (Shape::Infinitive, &INFINITIVES[..]),
+    ]
+    .into_iter()
+    .find(|(_, table)| ends_with(word, listed(table, &lang), pronouns))
+    .map(|(shape, _)| shape)
+}
+
+/// Whether an answer to a verb asked on its own is in another form than the
+/// one asked for: the word is shown in its base form, and so is its
+/// translation to be. "forzado" is not what "force out" asks for; "forzar"
+/// is ([`is_base`]). Only a verb: an adjective is right in either gender and
+/// number. And only in a language whose infinitives are told.
+pub fn off_base(
+    answer: &str,
+    base: &[String],
+    (lang, part): (&str, Option<PartOfSpeech>),
+    spelling: Spelling,
+) -> bool {
+    let verb = matches!(part, Some(PartOfSpeech::Verb | PartOfSpeech::PhrasalVerb));
+    verb && !listed(&INFINITIVES, &primary(lang)).is_empty()
+        && !is_base(answer, base, (lang, true), spelling)
+}
+
 /// The translations a word is `shown` as, the one the learner answers with
 /// most first. Each of their right `answers` English → native counts for the
 /// first translation it is as written ([`accepts`]), or else for the first
@@ -1363,6 +1462,71 @@ mod tests {
         assert!(native("chevaux", &["cheval"], "fr", Spelling::Lenient));
         assert!(native("maisons", &["maison"], "fr", Spelling::Lenient));
         assert!(!native("casas", &["casa"], "ja", Spelling::Lenient));
+    }
+
+    #[test]
+    fn an_infinitive_is_the_form_a_base_translation_has() {
+        let base = vec!["salvar".to_owned(), "orilla".to_owned()];
+        let lenient = Spelling::of(false);
+        let verb = |text: &str| is_base(text, &base, ("es-MX", true), lenient);
+        assert!(verb("Salvar"));
+        assert!(verb("salvarse"));
+        assert!(verb("salvarnos"));
+        // Of another verb too: it is the form that is asked about.
+        assert!(verb("cerrarse"));
+        assert!(verb("darse cuenta"));
+        assert!(verb("reír"));
+        // Another form is another form.
+        assert!(!verb("salvada"));
+        assert!(!verb("se salvó"));
+        assert!(!verb("mejor"));
+        assert!(!verb(""));
+        // A translation as it is listed, whatever kind of word it is.
+        assert!(is_base("la orilla", &base, ("es", false), lenient));
+        // Only a word that inflects, in a language with a table.
+        assert!(!is_base("salvarse", &base, ("es", false), lenient));
+        assert!(!is_base("salvarse", &base, ("fr", true), lenient));
+    }
+
+    #[test]
+    fn the_ending_of_a_verb_tells_its_infinitive_and_its_gerund() {
+        let of = |text: &str| shape(text, "es-MX");
+        assert_eq!(of("Predicando"), Some(Shape::Gerund));
+        assert_eq!(of("haciendo proselitismo"), Some(Shape::Gerund));
+        assert_eq!(of("estaba predicando"), Some(Shape::Gerund));
+        assert_eq!(of("asomándose"), Some(Shape::Gerund));
+        assert_eq!(of("cayendo"), Some(Shape::Gerund));
+        assert_eq!(of("predicar"), Some(Shape::Infinitive));
+        assert_eq!(of("asomarse"), Some(Shape::Infinitive));
+        assert_eq!(of("reír"), Some(Shape::Infinitive));
+        // A form of "to be" alone is the whole answer.
+        assert_eq!(of("estar"), Some(Shape::Infinitive));
+        assert_eq!(of("estar apoyado"), None);
+        assert_eq!(of("predicaba"), None);
+        assert_eq!(of("predicó"), None);
+        assert_eq!(of(""), None);
+        assert_eq!(shape("prêchant", "fr"), None);
+    }
+
+    #[test]
+    fn a_verb_asked_on_its_own_is_answered_in_its_base_form() {
+        let base = vec!["forzar".to_owned(), "esbozar con esfuerzo".to_owned()];
+        let lenient = Spelling::of(false);
+        let off = |answer: &str, part: Option<PartOfSpeech>, lang: &str| {
+            off_base(answer, &base, (lang, part), lenient)
+        };
+        let phrasal = Some(PartOfSpeech::PhrasalVerb);
+        assert!(off("forzado", phrasal, "es-MX"));
+        assert!(off("forzó", Some(PartOfSpeech::Verb), "es"));
+        assert!(off("esbozando con esfuerzo", phrasal, "es"));
+        assert!(!off("forzar", phrasal, "es"));
+        assert!(!off("Forzarse", phrasal, "es"));
+        assert!(!off("esbozar con esfuerzo", phrasal, "es"));
+        // An adjective is right in either gender and number.
+        assert!(!off("forzado", Some(PartOfSpeech::Adjective), "es"));
+        assert!(!off("forzado", None, "es"));
+        // Nothing is asked of a language whose infinitives are not told.
+        assert!(!off("forcé", phrasal, "fr"));
     }
 
     #[test]

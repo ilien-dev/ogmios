@@ -19,17 +19,19 @@ use super::sentences::banked;
 use crate::books::hint::{first_letter, letters, mask, most};
 use crate::books::practice::pick;
 use crate::books::practice::{
-    accepts_english, accepts_native, asked_in, blank, fills, inflects, is_extra, mark, next, pace,
-    progress, progress_over, seed, session_questions, sizes, SIZES,
+    accepts_english, accepts_native, asked_in, blank, fills, inflects, is_extra, mark, next,
+    off_base, pace, progress, progress_over, seed, session_questions, sizes, SIZES,
 };
-use crate::books::sentences::{choose, or_other, production, recognition, Banked, Verdict};
+use crate::books::sentences::{
+    choose, in_form, inflected, or_other, production, recognition, Banked, Verdict,
+};
 use crate::books::spelling::Spelling;
 use crate::db::practice::{self, SittingRow, WordRow};
 use crate::db::sentences::{self, Sentence};
 use crate::db::{books, profile, words};
 use crate::domain::{
     AnotherWord, AnswerResult, Direction, OneWay, PartOfSpeech, PracticeItem, PracticeOptions,
-    PracticeStep, SentencePart, ShownSentence, Sitting, Ways, WordHint,
+    PracticeStep, SentencePart, ShownSentence, Sitting, VerbForm, Ways, WordHint,
 };
 use crate::error::{Error, Result};
 use crate::Ctx;
@@ -107,7 +109,8 @@ pub(super) fn in_place(sentence: &Sentence, direction: Direction) -> Option<Vec<
 /// word as the sentence writes it. Native → English shows what that form is
 /// in the learner's language. The sentence itself is kept back for the
 /// first hint ([`hinted`]): only a word that `needs_context` to be told
-/// from another sense shows it from the start ([`in_place`]).
+/// from another sense shows it from the start ([`in_place`]). A verb comes
+/// with the form it has in the sentence ([`verb_form`]).
 pub(super) fn asked_with(
     (word_id, part_of_speech): (String, Option<PartOfSpeech>),
     sentence: &Sentence,
@@ -115,8 +118,8 @@ pub(super) fn asked_with(
     needs_context: bool,
 ) -> PracticeItem {
     let prompt = match direction {
-        Direction::Recognition => sentence.form.clone(),
-        Direction::Production => sentence.hint.clone(),
+        Direction::Recognition => small(&sentence.form),
+        Direction::Production => small(&sentence.hint),
     };
     PracticeItem {
         word_id,
@@ -127,7 +130,31 @@ pub(super) fn asked_with(
             .then(|| in_place(sentence, direction))
             .flatten(),
         sentence_id: Some(sentence.id.clone()),
+        verb_form: verb_form(part_of_speech, sentence),
     }
+}
+
+/// A word, or what it means, as an exercise shows it: in small letters,
+/// however its book, the model or the learner wrote it. A capital would
+/// tell it from the others before it is read.
+pub(super) fn small(text: &str) -> String {
+    text.to_lowercase()
+}
+
+/// [`small`], for each of what was asked for.
+pub(super) fn all_small(texts: &[String]) -> Vec<String> {
+    texts.iter().map(|text| small(text)).collect()
+}
+
+/// The form a verb has in the sentence it is asked with, as the second
+/// look labelled it. Only a word its chapter calls a verb has one, whatever
+/// the label says.
+fn verb_form(part_of_speech: Option<PartOfSpeech>, sentence: &Sentence) -> Option<VerbForm> {
+    let verb = matches!(
+        part_of_speech,
+        Some(PartOfSpeech::Verb | PartOfSpeech::PhrasalVerb)
+    );
+    sentence.verb_form.filter(|_| verb)
 }
 
 /// The word as a session of practice asks it: with a sentence of its bank,
@@ -208,6 +235,9 @@ pub(super) fn shown_sentence(
 /// What a word means and how it is written, for checking an answer given
 /// to one of its sentences.
 pub(super) struct Meaning<'a> {
+    /// The English base form: what the form of a sentence is another form
+    /// of.
+    pub lemma: &'a str,
     /// Every accepted translation, in its base form.
     pub translations: &'a [String],
     /// The ones it is shown as.
@@ -222,17 +252,25 @@ pub(super) struct Meaning<'a> {
     /// Whether its translations are taken in any form
     /// (`books::practice::inflects`).
     pub inflects: bool,
+    /// Whether its chapter calls it a verb: its translation is held to the
+    /// form of the sentence (`books::sentences::in_form`).
+    pub verb: bool,
 }
 
 impl<'a> Meaning<'a> {
     pub(super) fn of(conn: &Connection, word: &'a WordRow) -> Result<Self> {
         Ok(Self {
+            lemma: word.base.as_deref().unwrap_or(&word.lemma),
             translations: &word.translations,
             shown: &word.shown,
             forms: english(word),
             upheld: &word.english,
             rivals: sentences::rivals(conn, &word.key, &word.shown)?,
             inflects: inflects(word.part_of_speech),
+            verb: matches!(
+                word.part_of_speech,
+                Some(PartOfSpeech::Verb | PartOfSpeech::PhrasalVerb)
+            ),
         })
     }
 }
@@ -259,7 +297,10 @@ impl Judged {
 }
 
 /// Judges an answer given to a word in a sentence of its bank
-/// (`books::sentences`). Native → English, the forms of every sentence of
+/// (`books::sentences`). English → native, what is asked for is the word's
+/// translations in the form the sentence has it in, never its base forms,
+/// and a verb is held to a gerund or an infinitive (`in_form`).
+/// Native → English, the forms of every sentence of
 /// the bank are forms of the word too: any of them is the word, and only
 /// the one of this sentence fills its blank. An answer that is neither, and
 /// is another English word for the hint, as the second look listed them or
@@ -274,22 +315,22 @@ pub(super) fn judged(
 ) -> Result<Judged> {
     Ok(match direction {
         Direction::Recognition => {
+            let hints = [std::slice::from_ref(&sentence.hint), &sentence.hints].concat();
             let verdict = recognition(
                 answer,
-                meaning.translations,
-                Some(&sentence.hint),
+                (meaning.translations, meaning.shown),
+                (&hints, inflected(&sentence.form, meaning.lemma)),
                 ((native_lang, meaning.inflects), spelling),
             );
-            let mut accepted = vec![sentence.hint.clone()];
-            for each in meaning.shown {
-                if !accepted.contains(each) {
-                    accepted.push(each.clone());
-                }
-            }
+            let verdict = if meaning.verb {
+                in_form(verdict, answer, &hints, (native_lang, spelling))
+            } else {
+                verdict
+            };
             Judged {
                 exact: (verdict == Verdict::RightBase).then(|| sentence.hint.clone()),
                 verdict,
-                accepted,
+                accepted: hints,
             }
         }
         Direction::Production => {
@@ -320,8 +361,10 @@ pub(super) fn whole(sentence: &Sentence) -> ShownSentence {
     }
 }
 
-/// The word as it is asked in a direction. English → native shows the base
-/// form, and the sentence with the word marked. Native → English shows the
+/// The word as it is asked in a direction. English → native shows what the
+/// word is called, its base form or the form of a verb that is a word of
+/// its own, and the sentence with the word marked; a verb comes with the
+/// form its chapter's sentence has it in. Native → English shows the
 /// translations, and the sentence with the word taken out: nothing of the
 /// item holds the English word. A translation a dispute upheld is accepted,
 /// not shown: the prompt is the translations the chapter was prepared with.
@@ -342,18 +385,25 @@ pub(super) fn item(word: WordRow, direction: Direction) -> PracticeItem {
     PracticeItem {
         word_id: word.id,
         direction,
-        prompt,
+        prompt: small(&prompt),
         part_of_speech: word.part_of_speech,
         context,
         sentence_id: None,
+        verb_form: word.verb_form,
     }
 }
 
-/// Every way the book writes the word, its base form included.
-fn english(word: &WordRow) -> Vec<String> {
+/// Every way the book writes the word, its base form included: so is the
+/// one of a verb called by another form.
+pub(super) fn english(word: &WordRow) -> Vec<String> {
     let mut forms = word.forms.clone();
-    if !forms.contains(&word.lemma) {
-        forms.push(word.lemma.clone());
+    for form in [Some(&word.lemma), word.base.as_ref()]
+        .into_iter()
+        .flatten()
+    {
+        if !forms.contains(form) {
+            forms.push(form.clone());
+        }
     }
     forms
 }
@@ -392,11 +442,8 @@ pub(super) fn verdict(
         ),
         Direction::Production => {
             let blanks = blanked(word);
-            let written = if blanks.is_empty() {
-                &word.forms
-            } else {
-                &blanks
-            };
+            let any = english(word);
+            let written = if blanks.is_empty() { &any } else { &blanks };
             let forms = [written.as_slice(), word.english.as_slice()].concat();
             let base = blanks.first().unwrap_or(&word.lemma);
             let correct = accepts_english(answer, base, &forms, spelling);
@@ -410,8 +457,11 @@ pub(super) fn verdict(
     }
 }
 
-/// [`verdict`], as an answer given to a sentence is judged. Native →
-/// English, an answer that is not the word and is another word the learner
+/// [`verdict`], as an answer given to a sentence is judged. English →
+/// native, a verb shown in its base form has its translation asked for in
+/// that form: in another, it is no answer yet
+/// (`books::practice::off_base`). One called by another form is right in
+/// any: its translations are kept in their base form. Native → English, an answer that is not the word and is another word the learner
 /// has for what was shown is no miss (`books::sentences::or_other`).
 pub(super) fn plain(
     conn: &Connection,
@@ -425,6 +475,14 @@ pub(super) fn plain(
     } else {
         Verdict::Miss
     };
+    let asked = (how.0, word.part_of_speech);
+    if direction == Direction::Recognition
+        && correct
+        && word.base.is_none()
+        && off_base(answer, &word.translations, asked, how.1)
+    {
+        verdict = Verdict::WrongForm;
+    }
     if direction == Direction::Production {
         let rivals = sentences::rivals(conn, &word.key, &word.shown)?;
         verdict = or_other(verdict, answer, &rivals, how.1);
@@ -504,7 +562,7 @@ pub(super) fn climb(answer: &str, context: Option<Vec<SentencePart>>, asked: usi
             more: true,
         },
         Some(given) => WordHint {
-            mask: Some(mask(answer, given)),
+            mask: Some(mask(&small(answer), given)),
             context,
             more: given < most(answer),
         },
@@ -745,12 +803,12 @@ pub fn answer_shown(
     Ok(AnswerResult {
         answer_id,
         correct,
-        accepted: judged.accepted,
+        accepted: all_small(&judged.accepted),
         step,
         again: false,
         another: None,
         helped: correct && shown.helped(),
-        exact: judged.exact,
+        exact: judged.exact.as_deref().map(small),
         sentence: sentence.as_ref().map(whole),
     })
 }
@@ -1097,6 +1155,55 @@ pub mod tests {
             desk.answer(&sitting, &asked, "Blanco grisáceo.", t0())
                 .correct
         );
+    }
+
+    #[test]
+    fn a_verb_asked_on_its_own_in_another_form_is_no_answer_until_the_second_try() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let desk = Desk::new(&dir);
+        let list = [Word {
+            part_of_speech: Some(PartOfSpeech::PhrasalVerb),
+            ..word("force out", &["forzar"], 1)
+        }];
+        let chapter = desk.chapter("b", &list);
+        let sitting = desk.start(&chapter, t0());
+        let asked = item(&sitting.step).clone();
+        assert_eq!(asked.sentence_id, None);
+        let say = |text: &str, second: bool| {
+            let shown = Shown {
+                second,
+                ..Shown::default()
+            };
+            answer_shown(
+                desk.ctx(),
+                &sitting.id,
+                (&asked.word_id, asked.direction),
+                (text, shown),
+                t0(),
+            )
+            .expect("answer")
+        };
+        let answers = || desk.count("SELECT COUNT(*) FROM word_answers");
+
+        let first = say("forzado", false);
+        assert!(first.again && !first.correct && first.another.is_none());
+        assert_eq!(answers(), 0, "nothing is kept");
+        // Another meaning is a miss at once, whatever its form.
+        assert!(!say("cantado", false).again);
+        assert_eq!(answers(), 1);
+        // The second time, the form is a miss.
+        let second = say("forzado", true);
+        assert!(!second.again && !second.correct);
+        assert_eq!(second.accepted, ["forzar"]);
+        // The model would take the form for right: it is not asked.
+        let refused = crate::commands::dispute::dispute(
+            desk.ctx(),
+            second.answer_id,
+            &mut |_| panic!("the model is not asked"),
+            t0(),
+        );
+        assert!(matches!(refused, Err(Error::Invalid(_))));
+        assert!(say("forzar", true).correct);
     }
 
     #[test]

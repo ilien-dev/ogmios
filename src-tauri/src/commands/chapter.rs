@@ -290,6 +290,7 @@ mod tests {
                     translations: vec![format!("{form}-es")],
                     proper_noun: form.starts_with(char::is_uppercase),
                     needs_context: false,
+                    verb_form: None,
                 })
                 .collect();
             Ok(Vocab { items })

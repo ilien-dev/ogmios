@@ -6,7 +6,7 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::agent::protocol::VocabItem;
-use crate::domain::PartOfSpeech;
+use crate::domain::{PartOfSpeech, VerbForm};
 
 /// The size of one piece sent to the model, in characters: about 700 words,
 /// so that even "most words" for a basic learner fits one answer.
@@ -69,9 +69,16 @@ pub const LEADING: [&str; 4] = ["to", "a", "an", "the"];
 pub struct Word {
     /// What makes two items the same word: see [`key`].
     pub key: String,
-    /// The base form, as the model wrote it.
+    /// What the word is called: the base form, as the model wrote it, or,
+    /// for a verb the text has in another form, that form ([`own_form`]).
     pub lemma: String,
-    /// Every form the chapter uses, the base form first.
+    /// The base form of a verb called by another form; none for any other
+    /// word.
+    pub base: Option<String>,
+    /// The form a verb has in its sentence; none for any other word, and
+    /// when no model said.
+    pub verb_form: Option<VerbForm>,
+    /// Every form the chapter uses, what the word is called first.
     pub forms: Vec<String>,
     /// The first sentence of the chapter that uses it.
     pub sentence: String,
@@ -130,6 +137,26 @@ pub fn key(text: &str) -> String {
     let words = tokens(text);
     let skip = usize::from(words.len() > 1 && LEADING.contains(&words[0].as_str()));
     words[skip..].join(" ")
+}
+
+/// Whether an item is a verb or a phrasal verb.
+fn is_verb(part: PartOfSpeech) -> bool {
+    matches!(part, PartOfSpeech::Verb | PartOfSpeech::PhrasalVerb)
+}
+
+/// The form the text has a verb in, when that form is a word of its own:
+/// "sworn" and "swore" are two words to learn, not two forms of "swear",
+/// and neither is asked as "swear". Only a form that is the verb word for
+/// word: "gave it up" and "was not fond of" stay forms of their base form.
+/// None for a verb the text has in its base form, and for any other word.
+fn own_form(item: &VocabItem) -> Option<String> {
+    let (form, lemma) = (key(&item.form), key(&item.lemma));
+    let words = |text: &str| text.split(' ').count();
+    (is_verb(item.part_of_speech)
+        && form != lemma
+        && words(&form) == words(&lemma)
+        && !negates(&item.form, &item.lemma))
+    .then_some(form)
 }
 
 /// The words that deny what they stand with; so does one ending in "n't".
@@ -253,12 +280,20 @@ struct Draft {
 }
 
 impl Draft {
-    fn new(key: String, item: &VocabItem) -> Self {
-        let lemma = item.lemma.split_whitespace().collect::<Vec<_>>().join(" ");
+    /// The word an item starts: called by `named`, the form of a verb that
+    /// is a word of its own ([`own_form`]), or else by its base form.
+    fn new(key: String, item: &VocabItem, named: Option<String>) -> Self {
+        let base = item.lemma.split_whitespace().collect::<Vec<_>>().join(" ");
+        let (lemma, base) = match named {
+            Some(form) => (form, Some(base)),
+            None => (base, None),
+        };
         let mut draft = Self {
             word: Word {
                 key,
                 lemma: lemma.clone(),
+                base,
+                verb_form: item.verb_form.filter(|_| is_verb(item.part_of_speech)),
                 forms: Vec::new(),
                 sentence: item.sentence.trim().to_owned(),
                 part_of_speech: Some(item.part_of_speech),
@@ -301,7 +336,8 @@ impl Draft {
 }
 
 /// The chapter's words from what the model said about each piece: one word
-/// per key with every translation given for it, without names, numbers,
+/// per key with every translation given for it, each form of a verb a word
+/// of its own ([`own_form`]), without names, numbers,
 /// words that came without a translation and the `excluded` keys (words the
 /// learner already knows or has finished elsewhere). Most frequent in the
 /// chapter first; equally frequent words in alphabetical order.
@@ -309,7 +345,8 @@ pub fn merge(pieces: &[Vec<VocabItem>], text: &str, excluded: &HashSet<String>) 
     let mut order: Vec<String> = Vec::new();
     let mut drafts: HashMap<String, Draft> = HashMap::new();
     for item in pieces.iter().flatten() {
-        let key = key(&item.lemma);
+        let named = own_form(item);
+        let key = key(named.as_deref().unwrap_or(&item.lemma));
         if item.proper_noun || key.is_empty() || is_number(&key) || excluded.contains(&key) {
             continue;
         }
@@ -317,7 +354,7 @@ pub fn merge(pieces: &[Vec<VocabItem>], text: &str, excluded: &HashSet<String>) 
             .entry(key.clone())
             .or_insert_with(|| {
                 order.push(key.clone());
-                Draft::new(key, item)
+                Draft::new(key, item, named)
             })
             .add(item);
     }
@@ -354,11 +391,12 @@ mod tests {
             lemma: lemma.into(),
             form: form.into(),
             sentence: format!("A sentence with {form}."),
-            part_of_speech: PartOfSpeech::Verb,
-            transitive: true,
+            part_of_speech: PartOfSpeech::Noun,
+            transitive: false,
             translations: translations.iter().map(|t| (*t).to_owned()).collect(),
             proper_noun: false,
             needs_context: false,
+            verb_form: None,
         }
     }
 
@@ -465,7 +503,7 @@ mod tests {
         context.needs_context = true;
         // Its first sentence is the one kept, and so is what the word is there.
         let mut noun = item("Peep", "peeps", &["echar un vistazo", " Asomarse "]);
-        noun.part_of_speech = PartOfSpeech::Noun;
+        noun.part_of_speech = PartOfSpeech::Adjective;
         let pieces = vec![
             vec![
                 item("peep", "peeped", &["asomarse"]),
@@ -490,10 +528,76 @@ mod tests {
         assert_eq!(peep.forms, ["peep", "peeped", "peeps"]);
         assert_eq!(peep.translations, ["asomarse", "echar un vistazo"]);
         assert_eq!(peep.sentence, "A sentence with peeped.");
-        assert_eq!(peep.part_of_speech, Some(PartOfSpeech::Verb));
+        assert_eq!(peep.part_of_speech, Some(PartOfSpeech::Noun));
+        assert_eq!((peep.base.as_deref(), peep.verb_form), (None, None));
         assert!(!peep.needs_context);
         assert_eq!(give_up.translations, ["rendirse", "Abandonar"]);
         assert!(give_up.needs_context, "flagged in any piece");
+    }
+
+    fn verb(lemma: &str, form: &str, said: VerbForm, translations: &[&str]) -> VocabItem {
+        VocabItem {
+            part_of_speech: PartOfSpeech::Verb,
+            verb_form: Some(said),
+            ..item(lemma, form, translations)
+        }
+    }
+
+    #[test]
+    fn each_form_of_a_verb_is_a_word_of_its_own_called_by_that_form() {
+        let text = "He swore it. They were sworn in, Sworn to him. I swear! She gave it up.";
+        let split = VocabItem {
+            part_of_speech: PartOfSpeech::PhrasalVerb,
+            ..verb("give up", "gave it up", VerbForm::Past, &["rendirse"])
+        };
+        let pieces = vec![vec![
+            verb("swear", "swore", VerbForm::Past, &["jurar"]),
+            verb("swear", "sworn", VerbForm::PastParticiple, &["jurar"]),
+            verb(
+                "swear",
+                "Sworn",
+                VerbForm::PastParticiple,
+                &["prestar juramento"],
+            ),
+            verb("swear", "swear", VerbForm::Present, &["jurar"]),
+            split,
+        ]];
+        let words = merge(&pieces, text, &HashSet::new());
+        assert_eq!(
+            keys(&words),
+            [("sworn", 2), ("give up", 1), ("swear", 1), ("swore", 1)]
+        );
+        let [participle, phrasal, plain, past] = words.as_slice() else {
+            panic!("four words");
+        };
+        assert_eq!(participle.lemma, "sworn");
+        assert_eq!(participle.base.as_deref(), Some("swear"));
+        assert_eq!(participle.forms, ["sworn"]);
+        assert_eq!(participle.verb_form, Some(VerbForm::PastParticiple));
+        assert_eq!(participle.translations, ["jurar", "prestar juramento"]);
+        assert_eq!(participle.sentence, "A sentence with sworn.");
+        assert_eq!(
+            (past.lemma.as_str(), past.base.as_deref()),
+            ("swore", Some("swear"))
+        );
+        assert_eq!(past.verb_form, Some(VerbForm::Past));
+        // In its base form it is called as before.
+        assert_eq!(
+            (plain.lemma.as_str(), plain.base.as_deref()),
+            ("swear", None)
+        );
+        assert_eq!(plain.verb_form, Some(VerbForm::Present));
+        // Split by its object, the form is not the verb word for word.
+        assert_eq!(phrasal.lemma, "give up");
+        assert_eq!(phrasal.forms, ["give up", "gave it up"]);
+        assert_eq!(phrasal.base, None);
+
+        // Knowing one form leaves the others to learn.
+        let known: HashSet<String> = ["sworn".to_owned()].into();
+        assert_eq!(
+            keys(&merge(&pieces, text, &known)),
+            [("give up", 1), ("swear", 1), ("swore", 1)]
+        );
     }
 
     #[test]

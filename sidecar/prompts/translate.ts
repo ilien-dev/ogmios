@@ -66,6 +66,15 @@ ${params.brief}
 ${numbered(params.sentences)}`;
 }
 
+/** Whether an accent of the learner's language is a matter for a note. */
+function accentRule(params: ParagraphReviewParams, native: string): string {
+  return params.strictSpelling
+    ? `- slip: the ${native} is written wrong though the meaning is there. A misspelling, a missing accent, a typo, a wrong agreement.
+The learner asked for accents to count: a missing or wrong accent or special character (ñ typed as n) is a slip, in a note of its own whose fragment is that one word. Never raise it to an error, and never fold it into a note about something else.`
+    : `- slip: the ${native} is written wrong though the meaning is there. A misspelling, a typo, a wrong agreement.
+The learner did not ask for accents to count: a missing or wrong accent or special character (ñ typed as n) is no mistake. It gets no note, widens no fragment and is never mentioned in a why, though better is still written with every accent.`;
+}
+
 /** What the learner did, and what a note may be about. */
 function reviewTask(params: ParagraphReviewParams, native: string): string {
   return params.direction === "toNative"
@@ -73,14 +82,14 @@ function reviewTask(params: ParagraphReviewParams, native: string): string {
 
 Mark what the learner got wrong in what they wrote:
 - error: the English was not understood. A word taken in a sense it does not have in this chapter, a meaning lost, changed or added, a structure misread (who does what, the tense, a negation, what a pronoun refers to).
-- slip: the ${native} is written wrong though the meaning is there. A misspelling, a missing accent, a typo, a wrong agreement.
-A freer wording that keeps the meaning is not wrong and gets no note.`
+${accentRule(params, native)}
+A freer wording that keeps the meaning is not wrong and gets no note. Neither does a word rendered with any of its natural ${native} translations in this sense, even where you would have chosen another: if you would list what the learner wrote among the translations of the word, it is not an error. Neither does punctuation: a missing opening ¿ or ¡, a comma, a full stop, quotation marks. The learner is here to learn English, not to have their ${native} punctuation corrected.`
     : `The learner read a chapter of a book in English, translated it into ${native}, and is now writing it back in English from a faithful ${native} version, a sentence at a time, without seeing the original. You review one paragraph they have finished.
 
 Mark what the learner got wrong in the English they wrote:
 - error: the wrong word, a wrong collocation or word order, broken grammar, or English that says something else than the ${native} sentence.
 - slip: the right word misspelled, a typo, a capital or an apostrophe missing.
-The author's sentence is one right answer, not the only one: correct English that says the same thing gets no note, even where the author chose other words.`;
+The author's sentence is one right answer, not the only one: correct English that says the same thing gets no note, even where the author chose other words. Neither does punctuation that is no part of a word: a comma, a full stop, quotation marks.`;
 }
 
 /** Reviews one finished paragraph; Rust places the notes and scores it. */
@@ -143,13 +152,15 @@ export function attemptSummarySystemPrompt(
     params.direction === "toNative"
       ? `from English into ${native}`
       : `from ${native} back into English`;
-  return `An adult English learner whose level is ${params.level} (CEFR ${LEVEL_CEFR[params.level]}) and whose language is ${native} has translated part of a chapter of a book ${way}. Each paragraph was reviewed, and you are given every note of those reviews: the fragment the learner wrote, what it should have been, why, and whether it was an error or a slip.
+  return `An adult English learner whose level is ${params.level} (CEFR ${LEVEL_CEFR[params.level]}) and whose language is ${native} has translated part of a chapter of a book ${way}. Each paragraph was reviewed, and you are given the errors those reviews marked: the fragment the learner wrote, what it should have been, and why.
 
-Write the summary the learner reads first, before the detail of each paragraph. It must say what to work on to translate better, not repeat the notes.
+Write the summary the learner reads first, before the detail of each paragraph. It must say what to work on in their English to translate better, not repeat the notes.
+
+The summary is about English: words, senses, structures, tenses, grammar. Never make a point or a habit of how something is written: spelling, accents, typos, capitals or punctuation, an opening ¿ or ¡ included. When that is all the notes show, return no points and no habits.
 
 Answer with:
 - points: the two or three things that matter most across the whole attempt, each one sentence, the most important first. Say what the learner should focus on, concretely.
-- habits: the mistakes that came back, at most three, the most frequent first. A habit is the same kind of mistake made several times: a word mistranslated again and again, a structure always rendered the same wrong way, a spelling vice. A mistake made once is not a habit; return an empty list when nothing came back. For each:
+- habits: the mistakes that came back, at most three, the most frequent first. A habit is the same kind of mistake made several times: a word mistranslated again and again, a structure always rendered the same wrong way, a tense always changed. A mistake made once is not a habit; return an empty list when nothing came back. For each:
   - habit: what the learner keeps doing, in a few words.
   - advice: what to do instead, in one or two short lines.
   - examples: two or three fragments that show it, copied exactly from the notes.

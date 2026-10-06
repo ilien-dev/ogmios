@@ -1,6 +1,7 @@
-//! Saying what kind of word a stored word is, and whether it takes an
-//! object. A chapter is told both of each of its words when it is prepared;
-//! the words stored before either was asked for lack it. They are put to the
+//! Saying what kind of word a stored word is, whether it takes an object
+//! and, of a verb, the form its sentence has it in. A chapter is told all
+//! of it of each of its words when it is prepared; the words stored before
+//! any of it was asked for lack it. They are put to the
 //! model here, with the sentence each was taken from, and what it answers is
 //! kept.
 //!
@@ -49,7 +50,8 @@ pub fn label_all(ctx: Ctx<'_>, model: &mut dyn Model) -> Result<u32> {
         let conn = ctx.conn()?;
         for label in &answer.labels {
             let asked = chunk.iter().any(|word| word.id == label.id);
-            if asked && words::label(&conn, &label.id, label.part_of_speech, label.transitive)? {
+            let kind = (label.part_of_speech, label.transitive);
+            if asked && words::label(&conn, &label.id, kind, label.verb_form)? {
                 labelled = labelled.saturating_add(1);
             }
         }
@@ -79,8 +81,9 @@ mod tests {
     use crate::agent::protocol::WordLabel;
     use crate::books::vocab::Word;
     use crate::commands::practice::tests::{numbered, Desk};
+    use crate::db::practice;
     use crate::db::words::tests::word;
-    use crate::domain::PartOfSpeech;
+    use crate::domain::{PartOfSpeech, VerbForm};
 
     /// A model that calls every word a verb but the ones it is told to skip,
     /// and one more that nobody asked about. It keeps what it was asked.
@@ -102,12 +105,14 @@ mod tests {
                     id: word.id.clone(),
                     part_of_speech: PartOfSpeech::Verb,
                     transitive: true,
+                    verb_form: Some(VerbForm::Past),
                 })
                 .collect();
             labels.push(WordLabel {
                 id: "nobody".into(),
                 part_of_speech: PartOfSpeech::Noun,
                 transitive: false,
+                verb_form: None,
             });
             Ok(VocabLabels { labels })
         }
@@ -165,7 +170,7 @@ mod tests {
     }
 
     #[test]
-    fn a_verb_nobody_said_takes_an_object_is_asked_about_and_keeps_its_kind() {
+    fn a_verb_nobody_said_all_of_is_asked_about_and_keeps_what_it_has() {
         let dir = tempfile::tempdir().expect("tempdir");
         let desk = Desk::new(&dir);
         let list = [
@@ -198,12 +203,22 @@ mod tests {
         };
 
         let mut stub = Stub::default();
-        assert_eq!(label_all(desk.ctx(), &mut stub).expect("label"), 1);
-        // Not the one that says it already, and not a noun.
-        assert_eq!(stub.asked, [["give up"]]);
+        assert_eq!(label_all(desk.ctx(), &mut stub).expect("label"), 2);
+        // Each lacks the form its sentence has it in; not a noun.
+        assert_eq!(stub.asked, [["give up", "trot"]]);
         assert_eq!(transitive("give up"), Some(true));
-        assert_eq!(transitive("trot"), Some(false));
+        assert_eq!(transitive("trot"), Some(false), "what it said stays");
         assert_eq!(transitive("hedge"), None);
+        let forms: Vec<Option<VerbForm>> = words::unlabelled(&desk.db.lock().expect("db"))
+            .expect("unlabelled")
+            .into_iter()
+            .map(|_| None)
+            .collect();
+        assert_eq!(forms, [], "none is left to ask about");
+        let form = |id: &str| practice::word(&desk.db.lock().expect("db"), id).expect("word");
+        let listed = words::list(&desk.db.lock().expect("db"), &chapter).expect("list");
+        assert_eq!(form(&listed[0].id).verb_form, Some(VerbForm::Past));
+        assert_eq!(form(&listed[2].id).verb_form, None, "a noun has none");
         // The model called it a verb: it stays what its chapter said.
         assert_eq!(
             kinds(&desk, &chapter)[0],

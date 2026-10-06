@@ -80,7 +80,9 @@ describe("the quick refresh before reading", () => {
     const field = await screen.findByLabelText("Your translation");
     expect(screen.queryByRole("navigation")).toBeNull();
     expect(field).toHaveFocus();
-    expect(screen.getByText("English → Spanish")).toBeInTheDocument();
+    expect(document.querySelector("[data-way]")?.textContent).toBe(
+      "English → Spanish",
+    );
     expect(
       screen.getByRole("button", { name: "Leave the refresh" }),
     ).toBeInTheDocument();

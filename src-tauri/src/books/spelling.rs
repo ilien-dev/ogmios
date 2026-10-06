@@ -2,7 +2,8 @@
 //! special character go: a missing accent, an ñ typed as n. Strict takes
 //! those too. Either way every letter has to be there, once and in its
 //! place: "abrrir" is not "abrir", and "bearingh" is not "bearings". Case
-//! never counts in a word that is compared; punctuation is no part of one.
+//! never counts in a word that is compared; punctuation is no part of one,
+//! but for the apostrophe inside it.
 
 use crate::books::vocab::{split, tokens};
 
@@ -40,26 +41,21 @@ pub fn words(text: &str, spelling: Spelling) -> Vec<String> {
     }
 }
 
-/// What of a piece of text is not its letters: its punctuation, and which
-/// of its letters are capitals.
-fn frame(piece: &str) -> (Vec<char>, Vec<bool>) {
-    let (letters, marks): (Vec<char>, Vec<char>) = piece.chars().partition(|c| c.is_alphanumeric());
-    (marks, letters.iter().map(|c| c.is_uppercase()).collect())
+/// Which of the letters of a text are capitals.
+fn capitals(text: &str) -> Vec<bool> {
+    text.chars()
+        .filter(|c| c.is_alphanumeric())
+        .map(char::is_uppercase)
+        .collect()
 }
 
-/// Whether `better` only puts back the special characters of `written`: word
-/// for word the same letters under lenient spelling, with the same
-/// punctuation and capitals. A letter, a comma, a full stop or a capital
-/// that changes is more than that.
-pub fn only_respells(written: &str, better: &str) -> bool {
-    let (written, better): (Vec<&str>, Vec<&str>) = (
-        written.split_whitespace().collect(),
-        better.split_whitespace().collect(),
-    );
-    written.len() == better.len()
-        && written.iter().zip(&better).all(|(a, b)| {
-            frame(a) == frame(b) && words(a, Spelling::Lenient) == words(b, Spelling::Lenient)
-        })
+/// Whether `better` only changes of `written` what `spelling` does not read:
+/// its punctuation, an opening ¿ or ¡, a comma, a full stop; and, lenient,
+/// its special characters too. The words and their capitals are the same. A
+/// letter, a capital or an apostrophe inside a word that changes is more
+/// than that.
+pub fn only_respells(written: &str, better: &str, spelling: Spelling) -> bool {
+    capitals(written) == capitals(better) && words(written, spelling) == words(better, spelling)
 }
 
 #[cfg(test)]
@@ -75,17 +71,29 @@ mod tests {
     }
 
     #[test]
-    fn a_respelling_changes_no_punctuation_and_no_capital() {
+    fn a_respelling_changes_no_letter_and_no_capital() {
         for (written, better) in [
             ("conto", "contó"),
             ("conto las grietas;", "contó las grietas;"),
             ("blanco grisaceo", "blanco grisáceo"),
             ("ano", "año"),
+            ("Por que", "¿Por qué"),
         ] {
-            assert!(only_respells(written, better), "{written}");
+            assert!(only_respells(written, better, Lenient), "{written}");
+            assert!(!only_respells(written, better, Strict), "{written}");
         }
+        // Punctuation is read by neither.
         for (written, better) in [
             ("sirenas", "sirenas,"),
+            ("Auch!", "¡Auch!"),
+            ("Un arma?", "¿Un arma?"),
+            ("Esto duele mucho!", "¡Esto duele mucho!"),
+            ("dijo: no", "dijo: «no»"),
+        ] {
+            assert!(only_respells(written, better, Lenient), "{written}");
+            assert!(only_respells(written, better, Strict), "{written}");
+        }
+        for (written, better) in [
             ("el niño", "El niño"),
             ("niño", "chico"),
             ("el niño", "niño"),
@@ -93,8 +101,9 @@ mod tests {
             ("blango", "blanco"),
             ("abrrir", "abrir"),
             ("bearingh", "bearings"),
+            ("Auch!", "¡Ay!"),
         ] {
-            assert!(!only_respells(written, better), "{written}");
+            assert!(!only_respells(written, better, Lenient), "{written}");
         }
     }
 }
