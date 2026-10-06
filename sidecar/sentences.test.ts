@@ -89,6 +89,18 @@ describe("the prompt that glosses a word's sentences", () => {
     expect(prompt).toContain("the word as that translation has it");
   });
 
+  test("asks for the constructions of the language, and a hint copied from the translation", () => {
+    const prompt = sentenceWriteSystemPrompt(write);
+    expect(prompt).toContain("Not its constructions either");
+    expect(prompt).toContain('"Para cuando llegaron" for "By the time');
+    expect(prompt).toContain("copied from it exactly as they are written");
+    expect(prompt).toContain(
+      "even where that is not the form of the English word",
+    );
+    expect(prompt).toContain('never "salvada"');
+    expect(prompt).not.toContain("tense, person and number included");
+  });
+
   test("asks for the word itself, not the phrase it heads", () => {
     const prompt = sentenceWriteSystemPrompt(write);
     expect(prompt).toContain("on its own it means what the word means");
@@ -119,6 +131,10 @@ describe("the prompt that looks at sentences again", () => {
     const prompt = sentenceReviewSystemPrompt(review);
     expect(prompt).toContain("copies English word order");
     expect(prompt).toContain("The hint is the word the translation uses");
+    expect(prompt).toContain("copied as it is written there");
+    expect(prompt).toContain("an English construction");
+    expect(prompt).toContain("need not be the form of the English word");
+    expect(prompt).not.toContain("(tense, person, number)");
   });
 
   test("refuses a hint that names the phrase and not the word", () => {
@@ -131,9 +147,23 @@ describe("the prompt that looks at sentences again", () => {
     const prompt = sentenceReviewSystemPrompt(review);
     expect(prompt).toContain("- also:");
     expect(prompt).toContain("sees only the hint");
+    expect(prompt).toContain("in the form the word has in the sentence");
     expect(prompt).toContain("Never the word itself nor another form of it");
     expect(prompt).toContain("English only, never a Spanish (es) word");
     expect(prompt).toContain('not "nociones"');
+  });
+
+  test("asks for the other translations in the form of the hint, and the form of a verb", () => {
+    const prompt = sentenceReviewSystemPrompt(review);
+    expect(prompt).toContain("- hints:");
+    expect(prompt).toContain("in the exact form the hint has");
+    expect(prompt).toContain('"se retiró", "se alejó" beside the hint');
+    expect(prompt).toContain("never a base form the translation does not have");
+    expect(prompt).toContain("- verbForm:");
+    for (const form of ["base", "present", "past", "pastParticiple", "ing"]) {
+      expect(prompt).toContain(`"${form}"`);
+    }
+    expect(prompt).toContain("null for any other word");
   });
 
   test("gives each sentence with its word, its form, its hint and its translation", () => {
@@ -164,8 +194,8 @@ describe("sentences through the dispatcher", () => {
       await ask("sentenceReview", review),
     );
     expect(verdicts.verdicts).toEqual([
-      { id: "s1", good: true, also: [] },
-      { id: "s2", good: false, also: [] },
+      { id: "s1", good: true, also: [], hints: [], verbForm: null },
+      { id: "s2", good: false, also: [], hints: [], verbForm: null },
     ]);
   });
 

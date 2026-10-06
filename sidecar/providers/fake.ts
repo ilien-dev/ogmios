@@ -171,6 +171,7 @@ function fakeVocab(params: VocabExtractParams): Vocab {
           translations: [`${lemma} (${params.nativeLang})`],
           properNoun: form !== lemma,
           needsContext: false,
+          verbForm: null,
         });
       }
     }
@@ -204,6 +205,7 @@ function fakeLabels(params: VocabLabelParams): VocabLabels {
       id: word.id,
       partOfSpeech: "verb",
       transitive: true,
+      verbForm: "past",
     })),
   };
 }
@@ -222,11 +224,11 @@ function fakeSentences(params: SentenceWriteParams): SentencesWritten {
   return {
     words: params.words.map((word) => ({
       id: word.id,
-      book: word.book.map((sentence, index) => ({
-        index,
-        hint: fakeHint(word.lemma, lang),
-        translation: `${sentence} (${lang})`,
-      })),
+      book: word.book.map((sentence, index) => {
+        const hint = fakeHint(word.lemma, lang);
+        // The hint is words of the translation: Rust keeps no other.
+        return { index, hint, translation: `${hint}: ${sentence}` };
+      }),
     })),
   };
 }
@@ -237,6 +239,8 @@ function fakeSentenceReview(params: SentenceReviewParams): SentenceVerdicts {
       id: each.id,
       good: !each.sentence.includes(FAKE_BAD),
       also: [],
+      hints: [],
+      verbForm: null,
     })),
   };
 }
@@ -261,9 +265,9 @@ function fakeVersion(params: ParagraphVersionParams): ParagraphVersion {
 }
 
 /**
- * A note on the first word of every sentence, the first one a slip and the
- * rest errors, each about a word to practise: Rust is left the placing and
- * the score, as with a real answer.
+ * A note on the first word of every sentence, the first one an error about
+ * a word to practise and the rest slips, which are about none: Rust is left
+ * the placing and the score, as with a real answer.
  */
 function fakeReview(params: ParagraphReviewParams): ParagraphReview {
   return {
@@ -274,16 +278,19 @@ function fakeReview(params: ParagraphReviewParams): ParagraphReview {
       return {
         sentence,
         fragment,
-        severity: sentence === 0 ? "slip" : "error",
+        severity: sentence === 0 ? "error" : "slip",
         better:
           params.direction === "toEnglish"
             ? english
             : fakeNative(params.nativeLang, english),
         why: `"${fragment}" is not "${english}".`,
-        word: {
-          english: english.toLowerCase(),
-          translations: [fakeNative(params.nativeLang, english)],
-        },
+        word:
+          sentence === 0
+            ? {
+                english: english.toLowerCase(),
+                translations: [fakeNative(params.nativeLang, english)],
+              }
+            : null,
       };
     }),
   };

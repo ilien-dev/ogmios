@@ -561,6 +561,7 @@ export const es: Catalog<typeof en> = {
       leave: "Salir de la práctica",
       progress: "Progreso de la sesión",
       direction: "{{from}} → {{to}}",
+      directionFrom: "<from>{{from}}</from> → {{to}}",
       blank: "la palabra que falta",
       answer: "Tu traducción",
       check: "Comprobar",
@@ -577,8 +578,17 @@ export const es: Catalog<typeof en> = {
       accepted: "Se acepta: {{text}}",
       wrongForm:
         "Es la palabra, pero no la forma que pide esta frase. Prueba otra vez.",
+      baseForm:
+        "Es la palabra, pero la pido en su forma base: el infinitivo. Prueba otra vez.",
       otherWord: "Es correcto, pero aquí busco otra palabra. Prueba otra vez.",
       exact: "En esta frase:",
+      verbForm: {
+        base: "forma base",
+        present: "presente",
+        past: "pasado simple",
+        pastParticiple: "participio pasado",
+        ing: "forma -ing",
+      },
       fromBook: "Del libro",
       fromClaude: "Ejemplo",
       badSentence: "Frase mala",

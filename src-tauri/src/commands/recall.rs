@@ -14,8 +14,8 @@ use rusqlite::Connection;
 use tauri::AppHandle;
 
 use super::practice::{
-    another, asked_with, climb, clue, in_place, item, judged, next_sentence, plain, shown_sentence,
-    whole, Judged, Meaning, Shown, Tries,
+    all_small, another, asked_with, climb, clue, in_place, item, judged, next_sentence, plain,
+    shown_sentence, small, whole, Judged, Meaning, Shown, Tries,
 };
 use super::profile::require_profile;
 use super::run;
@@ -43,12 +43,19 @@ fn asks(word: &RecallWord, ways: Ways) -> bool {
     }
 }
 
-/// Which way a run of these `ways` asks the word as it stands.
-fn way(word: &RecallWord, ways: Ways) -> Direction {
-    match word.source {
-        Source::Book { .. } => direction(word.standing.step, ways),
+/// How many words a run has asked: the turn of the one it is asking.
+fn turn(conn: &Connection, run: &RunRow) -> Result<usize> {
+    let (right, missed) = recall::answered(conn, &run.id)?;
+    Ok(usize::try_from(right.saturating_add(missed)).unwrap_or(usize::MAX))
+}
+
+/// Which way a run asks the word on this `turn` of it
+/// (`memory::recall::direction`).
+fn way(conn: &Connection, word: &RecallWord, (ways, turn): (Ways, usize)) -> Result<Direction> {
+    Ok(match word.source {
+        Source::Book { .. } => direction(recall::last_way(conn, &word.key)?, turn, ways),
         Source::Chat { .. } => Direction::Production,
-    }
+    })
 }
 
 /// The learned words due by `now` that a run of these `ways` asks, the most
@@ -105,10 +112,11 @@ fn asked(
         Source::Chat { asked } => PracticeItem {
             word_id: word.key.clone(),
             direction,
-            prompt: asked.clone(),
+            prompt: small(asked),
             part_of_speech: None,
             context: None,
             sentence_id: None,
+            verb_form: None,
         },
     })
 }
@@ -139,7 +147,7 @@ fn step(conn: &Connection, run: &RunRow, now: DateTime<Utc>) -> Result<RecallSte
         });
     };
     Ok(RecallStep::Item {
-        item: asked(conn, word, way(word, run.ways), &run.id)?,
+        item: asked(conn, word, way(conn, word, (run.ways, turn))?, &run.id)?,
         progress: pass_progress(answered, room),
     })
 }
@@ -201,12 +209,14 @@ fn check(
         (Source::Chat { asked }, Some(sentence)) => {
             let shown = std::slice::from_ref(asked);
             let meaning = Meaning {
+                lemma: &word.english,
                 translations: shown,
                 shown,
                 forms: word.forms.clone(),
                 upheld: &[],
                 rivals: sentences::rivals(conn, &word.key, shown)?,
                 inflects: false,
+                verb: false,
             };
             judged(conn, &meaning, sentence, (direction, answer), how)
         }
@@ -280,7 +290,7 @@ pub fn answer_shown(
         .find(|word| word.key == key)
         .filter(|_| !run.finished)
         .ok_or_else(|| Error::Invalid("this word is not being asked".into()))?;
-    let direction = way(&word, run.ways);
+    let direction = way(&tx, &word, (run.ways, turn(&tx, &run)?))?;
     let sentence = shown_sentence(&tx, key, shown)?;
     let judged = check(
         &tx,
@@ -327,7 +337,7 @@ pub fn answer_shown(
     tx.commit()?;
     Ok(RecallAnswer {
         correct,
-        accepted: judged.accepted,
+        accepted: all_small(&judged.accepted),
         step,
         stubborn,
         note,
@@ -335,7 +345,7 @@ pub fn answer_shown(
         again: false,
         another: None,
         helped: correct && shown.helped(),
-        exact: judged.exact,
+        exact: judged.exact.as_deref().map(small),
         sentence: sentence.as_ref().map(whole),
     })
 }
@@ -361,7 +371,7 @@ pub fn hint(
         ..Shown::default()
     };
     let sentence = shown_sentence(&conn, key, shown)?;
-    let direction = way(&word, run.ways);
+    let direction = way(&conn, &word, (run.ways, turn(&conn, &run)?))?;
     let (answer, context) = clue_of(&conn, &word, sentence.as_ref(), direction)?;
     Ok(climb(&answer, context, asked))
 }
@@ -573,12 +583,13 @@ mod tests {
         learned(&desk, "b", 2);
         let run = start(desk.ctx(), Ways::Both, days(1)).expect("start");
         assert_eq!(bar(&run.step), (0, 2));
-        // Just learned: asked English → native first.
+        // Never asked: the first of the run from English, the next to it.
         assert_eq!(shown(&run.step).direction, Direction::Recognition);
         let hit = shown(&run.step).word_id.clone();
         let first = reply(&desk, &run, &run.step, true, days(1));
         assert_eq!(first.accepted, [translation(&hit)]);
         assert_eq!(bar(&first.step), (1, 2));
+        assert_eq!(shown(&first.step).direction, Direction::Production);
         let last = reply(&desk, &run, &first.step, false, days(1));
         assert_eq!(
             last.step,
@@ -649,9 +660,32 @@ mod tests {
             ["w00"]
         );
 
+        // And back again, however it stands.
+        let run = start(desk.ctx(), Ways::Both, days(30)).expect("start");
+        assert_eq!(shown(&run.step).direction, Direction::Recognition);
+
         // A run of one way keeps to it.
         let run = start(desk.ctx(), Ways::Production, days(30)).expect("start");
         assert_eq!(shown(&run.step).direction, Direction::Production);
+    }
+
+    #[test]
+    fn a_word_missed_from_one_side_comes_back_from_the_other() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let desk = Desk::new(&dir);
+        learned(&desk, "b", 1);
+        let run = start(desk.ctx(), Ways::Both, days(1)).expect("start");
+        assert_eq!(shown(&run.step).direction, Direction::Recognition);
+        reply(&desk, &run, &run.step, false, days(1));
+
+        // Still new, and now asked for its English.
+        let run = start(desk.ctx(), Ways::Both, days(2)).expect("start");
+        assert_eq!(shown(&run.step).direction, Direction::Production);
+        // The hint and the answer go the way it was shown.
+        let clue = hint(desk.ctx(), &run.id, "w00", (None, 1), days(2)).expect("hint");
+        let mask = clue.mask.expect("mask");
+        assert_eq!(mask.chars().count(), "w00".len(), "{mask}");
+        assert!(reply(&desk, &run, &run.step, true, days(2)).correct);
     }
 
     #[test]
@@ -721,7 +755,8 @@ mod tests {
                 note: None,
             };
             for item in [
-                asked(Some("relajarse"), "to wind down"),
+                // Written with capitals: it is asked in small letters.
+                asked(Some("Relajarse"), "To wind down"),
                 // The partner's word has nothing to ask it by.
                 asked(None, "to unwind"),
                 // A book taught this one: it is asked as the book's word.

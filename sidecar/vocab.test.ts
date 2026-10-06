@@ -43,6 +43,7 @@ const item = {
   translations: ["echar un vistazo", "asomarse"],
   properNoun: false,
   needsContext: false,
+  verbForm: "pastParticiple",
 };
 
 /** One request through the dispatcher on the fake provider; its answer. */
@@ -93,6 +94,8 @@ describe("vocabulary extraction prompt", () => {
     expect(prompt).toContain("A phrasal verb, an idiom");
     expect(prompt).toContain("partOfSpeech: what the item is in that sentence");
     expect(prompt).toContain("transitive: true when the item is a verb");
+    expect(prompt).toContain("verbForm: when the word is a verb");
+    expect(prompt).toContain("A verb is listed once for each form");
   });
 
   test("fences the book text as material, not instructions", () => {
@@ -190,6 +193,7 @@ describe("the fake provider's vocabulary", () => {
         translations: ["wonderland (es)"],
         properNoun: true,
         needsContext: false,
+        verbForm: null,
       },
       {
         lemma: "strange",
@@ -200,6 +204,7 @@ describe("the fake provider's vocabulary", () => {
         translations: ["strange (es)"],
         properNoun: false,
         needsContext: false,
+        verbForm: null,
       },
     ]);
   });
@@ -343,6 +348,7 @@ describe("labelling words stored without their kind", () => {
     for (const label of [
       "partOfSpeech: what the item is in that sentence",
       "transitive: true when the item is a verb",
+      "verbForm: when the word is a verb or a phrasal verb",
     ]) {
       expect(system).toContain(label);
       expect(vocabExtractSystemPrompt(params)).toContain(label);
@@ -358,8 +364,8 @@ describe("labelling words stored without their kind", () => {
     expect(vocabLabelParams.safeParse(unlabelled).success).toBe(true);
     const labels = vocabLabelsSchema.parse(await ask("vocabLabel", unlabelled));
     expect(labels.labels).toEqual([
-      { id: "w1", partOfSpeech: "verb", transitive: true },
-      { id: "w2", partOfSpeech: "verb", transitive: true },
+      { id: "w1", partOfSpeech: "verb", transitive: true, verbForm: "past" },
+      { id: "w2", partOfSpeech: "verb", transitive: true, verbForm: "past" },
     ]);
     expect(await ask("vocabLabel", { words: [] })).toMatchObject({
       error: { kind: "invalid" },

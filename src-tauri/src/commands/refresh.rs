@@ -18,7 +18,7 @@ use chrono::{DateTime, Utc};
 use rusqlite::Connection;
 use tauri::AppHandle;
 
-use super::practice::item;
+use super::practice::{all_small, item};
 use super::profile::require_profile;
 use super::run;
 use crate::books::practice::{accepts_native, inflects, pass_progress, pick, seed, READY};
@@ -122,7 +122,7 @@ pub fn answer(
     tx.commit()?;
     Ok(RefreshAnswer {
         correct,
-        accepted: word.shown,
+        accepted: all_small(&word.shown),
         step,
     })
 }

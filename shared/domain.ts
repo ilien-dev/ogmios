@@ -474,10 +474,13 @@ export type PartOfSpeech =
   | "expression"
   | "other";
 
+/** The form a verb has in the sentence it is asked with. */
+export type VerbForm = "base" | "present" | "past" | "pastParticiple" | "ing";
+
 /** One word of a prepared chapter. */
 export interface BookWord {
   id: string;
-  /** The base form: "run" for "ran". */
+  /** What the word is called: its base form, or a form of a verb. */
   lemma: string;
   /**
    * What kind of word it is; null for a word prepared before words were
@@ -519,7 +522,7 @@ export interface ChapterWords {
 export interface KnownWord {
   /** What the word is known by, in every chapter of every book. */
   key: string;
-  /** The base form: "run" for "ran". */
+  /** What the word is called: its base form, or a form of a verb. */
   lemma: string;
   /** Its translations in a chapter that has it; none once its books are gone. */
   translations: string[];
@@ -576,6 +579,11 @@ export interface PracticeItem {
    * `recognition`, translated for `production`.
    */
   sentenceId: string | null;
+  /**
+   * The form a verb has in that sentence; null for any other word, for one
+   * asked as its chapter has it, and until the sentence is labelled.
+   */
+  verbForm: VerbForm | null;
 }
 
 /** The sentence a word was asked with, shown whole once it is answered. */

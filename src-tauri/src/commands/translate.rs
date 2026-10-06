@@ -37,7 +37,7 @@ use crate::agent::protocol::{
 use crate::books::practice::mark;
 use crate::books::segment::{headed, paragraphs, sentences};
 use crate::books::translate::{
-    fits, overall, shown, summarised, words as count_words, BRIEF_CHARS, SENTENCE_CHARS,
+    fits, overall, shown, summarised, sums_up, words as count_words, BRIEF_CHARS, SENTENCE_CHARS,
     SUMMARY_NOTES,
 };
 use crate::books::vocab::{self, Word};
@@ -143,9 +143,16 @@ fn translation(conn: &Connection, attempt: &AttemptRow, chapter: &Open) -> Resul
             continue;
         }
         let written = written.get(&index).cloned().unwrap_or_default();
-        let review = reviews
-            .get(&index)
-            .map(|review| shown(review, &written, &|key| asked.contains(key), spelling));
+        let native = (!back).then_some(chapter.native_lang.as_str());
+        let review = reviews.get(&index).map(|review| {
+            shown(
+                review,
+                &written,
+                &|key| asked.contains(key),
+                spelling,
+                native,
+            )
+        });
         if let Some(review) = &review {
             scored.push((
                 review.score,
@@ -417,9 +424,10 @@ pub fn review(
     model: &mut dyn Model,
     now: DateTime<Utc>,
 ) -> Result<Translation> {
-    let (attempt, chapter, lines, previous) = {
+    let (attempt, chapter, lines, previous, spelling) = {
         let conn = ctx.conn()?;
         let (attempt, chapter, state) = stand(&conn, attempt_id)?;
+        let spelling = profile::spelling(&conn)?;
         let being = paragraph(&state, index)?;
         if being.review.is_some() {
             return Ok(state);
@@ -446,7 +454,7 @@ pub fn review(
             .and_then(|before| chapter.english.get(before))
             .map(|sentences| sentences.join(" "))
             .unwrap_or_default();
-        (attempt, chapter, lines, previous)
+        (attempt, chapter, lines, previous, spelling)
     };
     let brief = brief(ctx, &attempt.chapter_id, &chapter.native_lang, model, now)?;
     let written = model.review(&ParagraphReviewParams {
@@ -454,6 +462,7 @@ pub fn review(
         native_lang: chapter.native_lang.clone(),
         level: chapter.level,
         direction: attempt.direction,
+        strict_spelling: spelling.is_strict(),
         previous,
         sentences: lines,
     })?;
@@ -462,9 +471,9 @@ pub fn review(
     translation(&conn, &attempt, &chapter)
 }
 
-/// Sums a finished attempt up from the notes of its reviews, if it has no
-/// summary yet. One without a note has nothing to sum up, and the model is
-/// not asked.
+/// Sums a finished attempt up from the errors its reviews marked, if it has
+/// no summary yet: a slip is no matter for a summary. One without an error
+/// has nothing to sum up, and the model is not asked.
 pub fn summarize(
     ctx: Ctx<'_>,
     attempt_id: &str,
@@ -485,6 +494,7 @@ pub fn summarize(
             .iter()
             .filter_map(|paragraph| paragraph.review.as_ref())
             .flat_map(|review| &review.marks)
+            .filter(|mark| sums_up(mark))
             .take(SUMMARY_NOTES)
             .map(|mark| SummaryNote {
                 fragment: mark.fragment.clone(),
@@ -544,6 +554,8 @@ pub fn practise(
             &Word {
                 key,
                 lemma: word.english.clone(),
+                base: None,
+                verb_form: None,
                 forms: vec![word.english.clone()],
                 sentence: being.english.join(" "),
                 part_of_speech: None,
@@ -977,6 +989,7 @@ mod tests {
                 native_lang: profile.native_lang.clone(),
                 level: profile.level,
                 direction: ToNative,
+                strict_spelling: false,
                 brief: "A boy waits for his trial.".into(),
                 previous: String::new(),
                 sentences: vec![
@@ -1024,8 +1037,12 @@ mod tests {
         let desk = Desk::new(&dir);
         let id = chapter(&desk);
         let attempt = begin(&desk, &id, ToNative);
+        let slip = ParagraphNote {
+            severity: Severity::Slip,
+            ..note(1, "0.1", None)
+        };
         let mut model = Stub {
-            notes: vec![note(0, "toNative", None)],
+            notes: vec![note(0, "toNative", None), slip.clone()],
             ..Stub::default()
         };
         let sum = |model: &mut Stub, attempt: &Translation| {
@@ -1070,6 +1087,17 @@ mod tests {
                 habits: vec![]
             })
         );
+        assert_eq!(model.summaries.len(), 1);
+
+        // Neither is a slip: the model is not asked about one.
+        let slipped = begin(&desk, &id, ToNative);
+        fill(&desk, &slipped, 0, 3);
+        model.notes = vec![slip];
+        let marked = review(desk.ctx(), &slipped.attempt_id, 0, &mut model, t0()).expect("review");
+        let marks = marked.paragraphs[0].review.as_ref().map(|r| r.marks.len());
+        assert_eq!(marks, Some(1));
+        close(desk.ctx(), &slipped.attempt_id, true, t0()).expect("finished");
+        assert_eq!(sum(&mut model, &slipped).expect("summary").summary, empty);
         assert_eq!(model.summaries.len(), 1);
     }
 
