@@ -577,6 +577,8 @@ export const en = {
       accepted: "Accepted: {{text}}",
       wrongForm:
         "That's the word, but not the form this sentence needs. Try once more.",
+      askedForm:
+        "That's the word, but not in the form I'm asking for. Try once more.",
       baseForm:
         "That's the word, but I'm after its base form: the infinitive. Try once more.",
       otherWord:

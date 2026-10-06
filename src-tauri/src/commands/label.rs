@@ -1,7 +1,9 @@
 //! Saying what kind of word a stored word is, whether it takes an object
 //! and, of a verb, the form its sentence has it in. A chapter is told all
 //! of it of each of its words when it is prepared; the words stored before
-//! any of it was asked for lack it. They are put to the
+//! any of it was asked for lack it. A verb called by another form than its
+//! base form is said its translations in that form here too, and only
+//! here: "jurado" for "sworn", stored as "jurar". They are put to the
 //! model here, with the sentence each was taken from, and what it answers is
 //! kept.
 //!
@@ -49,9 +51,13 @@ pub fn label_all(ctx: Ctx<'_>, model: &mut dyn Model) -> Result<u32> {
         })?;
         let conn = ctx.conn()?;
         for label in &answer.labels {
-            let asked = chunk.iter().any(|word| word.id == label.id);
+            let Some(asked) = chunk.iter().find(|word| word.id == label.id) else {
+                continue;
+            };
             let kind = (label.part_of_speech, label.transitive);
-            if asked && words::label(&conn, &label.id, kind, label.verb_form)? {
+            let kind = words::label(&conn, &label.id, kind, label.verb_form)?;
+            let form = words::put_in_form(&conn, &label.id, &asked.translations, &label.in_form)?;
+            if kind || form {
                 labelled = labelled.saturating_add(1);
             }
         }
@@ -106,6 +112,7 @@ mod tests {
                     part_of_speech: PartOfSpeech::Verb,
                     transitive: true,
                     verb_form: Some(VerbForm::Past),
+                    in_form: word.translations.iter().map(|t| format!("{t}do")).collect(),
                 })
                 .collect();
             labels.push(WordLabel {
@@ -113,6 +120,7 @@ mod tests {
                 part_of_speech: PartOfSpeech::Noun,
                 transitive: false,
                 verb_form: None,
+                in_form: Vec::new(),
             });
             Ok(VocabLabels { labels })
         }
@@ -226,6 +234,53 @@ mod tests {
         );
         let mut stub = Stub::default();
         assert_eq!(label_all(desk.ctx(), &mut stub).expect("label"), 0);
+    }
+
+    #[test]
+    fn a_verb_called_by_another_form_is_said_its_translations_in_that_form() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let desk = Desk::new(&dir);
+        let list = [
+            // As stored before it was asked for: all of it but that.
+            Word {
+                part_of_speech: Some(PartOfSpeech::Verb),
+                transitive: Some(true),
+                verb_form: Some(VerbForm::PastParticiple),
+                base: Some("swear".into()),
+                ..word("sworn", &["jurar", "prometer"], 2)
+            },
+            Word {
+                part_of_speech: Some(PartOfSpeech::Verb),
+                transitive: Some(true),
+                verb_form: Some(VerbForm::Base),
+                ..word("peep", &["asomarse"], 1)
+            },
+        ];
+        let chapter = desk.chapter("b", &list);
+        let rows = || {
+            let conn = desk.db.lock().expect("db");
+            let listed = words::list(&conn, &chapter).expect("list");
+            let row = |at: usize| practice::word(&conn, &listed[at].id).expect("word");
+            (row(0), row(1))
+        };
+        assert_eq!(rows().0.shown_as(), ["jurar", "prometer"]);
+        let waiting = words::unlabelled(&desk.db.lock().expect("db")).expect("unlabelled");
+        assert_eq!(waiting.len(), 1, "one in its base form has nothing to say");
+        assert_eq!(waiting[0].translations, ["jurar", "prometer"]);
+
+        let mut stub = Stub::default();
+        assert_eq!(label_all(desk.ctx(), &mut stub).expect("label"), 1);
+        assert_eq!(stub.asked, [["sworn"]]);
+        let (sworn, peep) = rows();
+        assert_eq!(sworn.shown_as(), ["jurardo", "prometerdo"]);
+        assert_eq!(sworn.shown, ["jurar", "prometer"], "it is checked by these");
+        assert_eq!(peep.in_form, None);
+        assert_eq!(peep.shown_as(), ["asomarse"]);
+        // What it had, it keeps.
+        assert_eq!(sworn.verb_form, Some(VerbForm::PastParticiple));
+        let mut stub = Stub::default();
+        assert_eq!(label_all(desk.ctx(), &mut stub).expect("label"), 0);
+        assert_eq!(stub.asked, Vec::<Vec<String>>::new());
     }
 
     #[test]

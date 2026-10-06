@@ -58,7 +58,8 @@ ${params.text}
 
 /**
  * Says what kind of word each word is, whether it takes an object and the
- * form a verb has, for words stored without one of the three.
+ * form a verb has, for words stored without one of the three, and puts the
+ * translations a word comes with in the form of the word.
  */
 export function vocabLabelSystemPrompt(): string {
   return `An adult English learner is learning the vocabulary of a book before reading it. You are given words and expressions of that book, each with the sentence it was taken from. Say what kind of word each one is in its sentence, whether it takes an object there, and the form a verb has there.
@@ -68,6 +69,7 @@ For each word:
 - ${PART_OF_SPEECH_RULE}
 - ${TRANSITIVE_RULE}
 - ${VERB_FORM_RULE}
+- inForm: when the word comes with translations, those translations, one for each and in the same order, each put in the form the word has: the learner sees them and has to type the word in that form, so "jurado" for "jurar" when the word is "sworn", "juró" for "swore", "jurando" for "swearing", "jura" for "swears". A participle is given on its own, masculine singular, without an auxiliary; a past or a present takes the person its sentence gives it. Written in the language the translations are in, never in English. Empty when the word comes without translations.
 
 Answer with one label per word.`;
 }
@@ -79,6 +81,9 @@ export function vocabLabelUserPrompt(params: VocabLabelParams): string {
       `<word id="${word.id}">`,
       `  <lemma>${word.lemma}</lemma>`,
       `  <sentence>${word.sentence}</sentence>`,
+      ...(word.translations.length > 0
+        ? [`  <translations>${word.translations.join(" | ")}</translations>`]
+        : []),
       `</word>`,
     ].join("\n"),
   );

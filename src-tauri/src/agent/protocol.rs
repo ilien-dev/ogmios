@@ -454,6 +454,10 @@ pub struct LabelWord {
     pub lemma: String,
     /// The sentence of the book it was taken from.
     pub sentence: String,
+    /// The translations of a verb called by another form than its base
+    /// form, to be put in that form; empty for a word that has them so, and
+    /// for any other word.
+    pub translations: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -472,6 +476,9 @@ pub struct WordLabel {
     pub transitive: bool,
     /// The form a verb has in its sentence; none for any other word.
     pub verb_form: Option<crate::domain::VerbForm>,
+    /// The translations it was given, each in the form of the word, in the
+    /// order they came; empty when none was given.
+    pub in_form: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

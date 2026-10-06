@@ -428,25 +428,63 @@ pub fn list(conn: &Connection, chapter_id: &str) -> Result<Vec<BookWord>> {
 /// Every word still to be labelled, of any book: its id, what it is called
 /// and the sentence it was taken from. One no chapter says the kind of, and
 /// a verb nobody said takes an object or not, or the form of: each was
-/// stored before that was asked for.
+/// stored before that was asked for. So was a verb called by another form
+/// than its base form with a translation nobody put in that form: it comes
+/// with those translations.
 pub fn unlabelled(conn: &Connection) -> Result<Vec<LabelWord>> {
     let mut stmt = conn.prepare(
         "SELECT id, lemma, sentence FROM chapter_words
          WHERE part_of_speech IS NULL
             OR (part_of_speech IN ('verb', 'phrasalVerb')
                 AND (transitive IS NULL OR verb_form IS NULL))
+            OR (base IS NOT NULL AND EXISTS (
+                  SELECT 1 FROM word_translations t
+                  WHERE t.word_id = chapter_words.id
+                    AND t.source = 'extraction' AND t.in_form IS NULL))
          ORDER BY chapter_id, occurrences DESC, key",
     )?;
-    let words = stmt
+    let mut words = stmt
         .query_map([], |row| {
             Ok(LabelWord {
                 id: row.get(0)?,
                 lemma: row.get(1)?,
                 sentence: row.get(2)?,
+                translations: Vec::new(),
             })
         })?
-        .collect::<rusqlite::Result<_>>()?;
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    let mut stmt = conn.prepare(
+        "SELECT t.text FROM word_translations t
+         JOIN chapter_words w ON w.id = t.word_id
+         WHERE w.id = ?1 AND w.base IS NOT NULL
+           AND t.source = 'extraction' AND t.in_form IS NULL
+         ORDER BY t.rowid",
+    )?;
+    for word in &mut words {
+        let rows = stmt.query_map([&word.id], |row| row.get(0))?;
+        word.translations = rows.collect::<rusqlite::Result<_>>()?;
+    }
     Ok(words)
+}
+
+/// Keeps the translations of a word in the form it is called by: `said`,
+/// one for each of the `asked` ones, in that order; whether any was news.
+/// An answer that is not one for each says nothing: the word is asked about
+/// again. What a translation has already, it keeps.
+pub fn put_in_form(conn: &Connection, id: &str, asked: &[String], said: &[String]) -> Result<bool> {
+    let said: Vec<&str> = said.iter().map(|each| each.trim()).collect();
+    if asked.len() != said.len() || said.iter().any(|each| each.is_empty()) {
+        return Ok(false);
+    }
+    let mut stmt = conn.prepare(
+        "UPDATE word_translations SET in_form = ?3
+         WHERE word_id = ?1 AND text = ?2 AND source = 'extraction' AND in_form IS NULL",
+    )?;
+    let mut changed = 0;
+    for (text, in_form) in asked.iter().zip(said) {
+        changed += stmt.execute(params![id, text, in_form])?;
+    }
+    Ok(changed > 0)
 }
 
 /// Says what kind of word a word is, whether it takes an object and, of

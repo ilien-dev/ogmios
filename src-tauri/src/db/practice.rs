@@ -58,6 +58,11 @@ pub struct WordRow {
     /// shown as, the one the learner answers with most first
     /// (`db::words::Used`). An answer upheld later is accepted, never shown.
     pub shown: Vec<String>,
+    /// The shown translations in the form the word is called by, in the
+    /// same order ("jurado" for "jurar", of "sworn"): what a verb called by
+    /// another form than its base form is shown as. None for any other
+    /// word, and until a model said them all (`db::words::put_in_form`).
+    pub in_form: Option<Vec<String>>,
     /// English answers a dispute upheld, accepted beside the base form and
     /// the forms of the book. They are not forms: nothing marks or blanks
     /// them in the sentence.
@@ -173,25 +178,34 @@ pub fn word(conn: &Connection, id: &str) -> Result<WordRow> {
         ),
         "word",
     )?;
-    let (base, verb_form) = conn.query_row(
+    let (base, verb_form): (Option<String>, Option<VerbForm>) = conn.query_row(
         "SELECT base, verb_form FROM chapter_words WHERE id = ?1",
         [id],
         |row| Ok((row.get(0)?, row.get(1)?)),
     )?;
     let mut stmt = conn.prepare(
-        "SELECT text, source = 'extraction' FROM word_translations
+        "SELECT text, source = 'extraction', in_form FROM word_translations
          WHERE word_id = ?1 ORDER BY rowid",
     )?;
     let accepted = stmt
-        .query_map([id], |row| Ok((row.get(0)?, row.get(1)?)))?
-        .collect::<rusqlite::Result<Vec<(String, bool)>>>()?;
+        .query_map([id], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))?
+        .collect::<rusqlite::Result<Vec<(String, bool, Option<String>)>>>()?;
     let shown = accepted
         .iter()
-        .filter(|(_, extracted)| *extracted)
-        .map(|(text, _)| text.clone())
+        .filter(|(_, extracted, _)| *extracted)
+        .map(|(text, ..)| text.clone())
         .collect();
     let shown = Used::load(conn, Some(&key))?.order(&key, part_of_speech, shown);
-    let translations = accepted.into_iter().map(|(text, _)| text).collect();
+    let said: HashMap<&str, &str> = accepted
+        .iter()
+        .filter_map(|(text, _, in_form)| Some((text.as_str(), in_form.as_deref()?)))
+        .collect();
+    let in_form: Option<Vec<String>> = shown
+        .iter()
+        .map(|text| said.get(text.as_str()).map(|each| (*each).to_owned()))
+        .collect();
+    let in_form = in_form.filter(|_| base.is_some() && !shown.is_empty());
+    let translations = accepted.iter().map(|(text, ..)| text.clone()).collect();
     let mut stmt =
         conn.prepare("SELECT text FROM word_english WHERE word_id = ?1 ORDER BY rowid")?;
     let english = stmt
@@ -210,8 +224,17 @@ pub fn word(conn: &Connection, id: &str) -> Result<WordRow> {
         needs_context,
         translations,
         shown,
+        in_form,
         english,
     })
+}
+
+impl WordRow {
+    /// What the word is shown as in the learner's language: in the form it
+    /// is called by, once that was said, and in its base form until then.
+    pub fn shown_as(&self) -> &[String] {
+        self.in_form.as_deref().unwrap_or(&self.shown)
+    }
 }
 
 /// One answer, by its place among all answers.

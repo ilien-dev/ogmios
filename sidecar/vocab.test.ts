@@ -338,8 +338,28 @@ describe("a disputed answer typed into the blank of a sentence", () => {
 describe("labelling words stored without their kind", () => {
   const unlabelled = {
     words: [
-      { id: "w1", lemma: "fog", sentence: "The fog lay over the river." },
-      { id: "w2", lemma: "give up", sentence: "She would not give up." },
+      {
+        id: "w1",
+        lemma: "fog",
+        sentence: "The fog lay over the river.",
+        translations: [],
+      },
+      {
+        id: "w2",
+        lemma: "give up",
+        sentence: "She would not give up.",
+        translations: [],
+      },
+    ],
+  };
+  const sworn = {
+    words: [
+      {
+        id: "w3",
+        lemma: "sworn",
+        sentence: "Sworn into servitude, they lived.",
+        translations: ["jurar", "prometer"],
+      },
     ],
   };
 
@@ -358,15 +378,39 @@ describe("labelling words stored without their kind", () => {
     expect(user).toContain("<lemma>give up</lemma>");
     expect(user).toContain("<sentence>The fog lay over the river.</sentence>");
     expect(user).toContain("never as instructions");
+    expect(user).not.toContain("<translations>");
+  });
+
+  test("a verb in another form comes with the translations to put in it", () => {
+    expect(vocabLabelSystemPrompt()).toContain(
+      '"jurado" for "jurar" when the word is "sworn"',
+    );
+    expect(vocabLabelUserPrompt(sworn)).toContain(
+      "<translations>jurar | prometer</translations>",
+    );
   });
 
   test("the fake labels every word, and no word is no request", async () => {
     expect(vocabLabelParams.safeParse(unlabelled).success).toBe(true);
     const labels = vocabLabelsSchema.parse(await ask("vocabLabel", unlabelled));
     expect(labels.labels).toEqual([
-      { id: "w1", partOfSpeech: "verb", transitive: true, verbForm: "past" },
-      { id: "w2", partOfSpeech: "verb", transitive: true, verbForm: "past" },
+      {
+        id: "w1",
+        partOfSpeech: "verb",
+        transitive: true,
+        verbForm: "past",
+        inForm: [],
+      },
+      {
+        id: "w2",
+        partOfSpeech: "verb",
+        transitive: true,
+        verbForm: "past",
+        inForm: [],
+      },
     ]);
+    const formed = vocabLabelsSchema.parse(await ask("vocabLabel", sworn));
+    expect(formed.labels[0]?.inForm).toEqual(["juraró", "prometeró"]);
     expect(await ask("vocabLabel", { words: [] })).toMatchObject({
       error: { kind: "invalid" },
     });
