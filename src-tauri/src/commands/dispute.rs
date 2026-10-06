@@ -8,11 +8,13 @@ use chrono::{DateTime, Utc};
 use rusqlite::Connection;
 use tauri::AppHandle;
 
-use super::practice::{blanked, step};
+use super::practice::{blanked, english, judged, step, Meaning};
 use super::profile::{agent, require_profile};
 use super::run;
 use crate::agent::protocol::{VocabJudgeParams, VocabVerdict};
-use crate::books::practice::accepts_english;
+use crate::books::practice::{
+    accepts, accepts_english, accepts_native, articles, inflects, off_base,
+};
 use crate::books::sentences::{or_other, Verdict};
 use crate::db::practice::{self, AnswerRow};
 use crate::db::{profile, sentences};
@@ -29,7 +31,11 @@ use crate::Ctx;
 /// right, is not asked to say otherwise. Nor is another English word for
 /// what was shown: the learner was told it is not the word asked for, and
 /// the model, which takes a word that means the same for right, would make
-/// it one.
+/// it one. Nor, English → native, is a base translation given to a word
+/// asked in a sentence: it was a miss only because the sentence has the
+/// word in another form, and the model would take it for right. Nor a
+/// translation of a verb asked on its own, in another form than its base
+/// form: upheld, it would be accepted as it is from then on.
 fn disputable(conn: &Connection, answer_id: i64) -> Result<AnswerRow> {
     let answer = practice::answer(conn, answer_id)?;
     if practice::sitting(conn, &answer.sitting_id)?.refresh {
@@ -45,13 +51,57 @@ fn disputable(conn: &Connection, answer_id: i64) -> Result<AnswerRow> {
             "this answer is not a miss to dispute".into(),
         ));
     }
+    if answer.direction == Direction::Recognition && answer.sentence_id.is_some() {
+        let word = practice::word(conn, &answer.word_id)?;
+        let native_lang = require_profile(conn)?.native_lang;
+        let spelling = profile::spelling(conn)?;
+        if accepts(
+            &answer.answer,
+            &word.shown,
+            articles(&native_lang),
+            spelling,
+        ) {
+            return Err(Error::Invalid(
+                "the base translation is not the form the sentence has".into(),
+            ));
+        }
+        let id = answer.sentence_id.as_deref().unwrap_or_default();
+        if let Some(sentence) = sentences::usable(conn, id)? {
+            let judged = judged(
+                conn,
+                &Meaning::of(conn, &word)?,
+                &sentence,
+                (answer.direction, &answer.answer),
+                (&native_lang, spelling),
+            )?;
+            if judged.verdict == Verdict::WrongForm {
+                return Err(Error::Invalid(
+                    "another form of the word is not the form the sentence has".into(),
+                ));
+            }
+        }
+    }
+    if answer.direction == Direction::Recognition && answer.sentence_id.is_none() {
+        let word = practice::word(conn, &answer.word_id)?;
+        let native_lang = require_profile(conn)?.native_lang;
+        let spelling = profile::spelling(conn)?;
+        let native = (native_lang.as_str(), inflects(word.part_of_speech));
+        let asked = (native_lang.as_str(), word.part_of_speech);
+        if accepts_native(&answer.answer, &word.translations, native, spelling)
+            && off_base(&answer.answer, &word.translations, asked, spelling)
+        {
+            return Err(Error::Invalid(
+                "another form of the translation is not its base form".into(),
+            ));
+        }
+    }
     if answer.direction == Direction::Production {
         let word = practice::word(conn, &answer.word_id)?;
         let spelling = profile::spelling(conn)?;
         // Asked with a sentence of its bank the word is always blanked, and
         // the forms its other sentences have it in are forms of it too.
         let in_sentence = answer.sentence_id.is_some();
-        let mut forms = word.forms.clone();
+        let mut forms = english(&word);
         if in_sentence {
             forms.extend(sentences::forms(conn, &word.key)?);
         }
@@ -210,6 +260,7 @@ mod tests {
             part_of_speech: None,
             context: None,
             sentence_id: None,
+            verb_form: None,
         }
     }
 

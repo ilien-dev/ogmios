@@ -10,7 +10,7 @@ use rusqlite::{params, Connection};
 use super::words::Used;
 use super::{found, new_id, parse_ts, ts};
 use crate::books::practice::{Answer, Asked, SessionWord};
-use crate::domain::{Direction, PartOfSpeech, SittingSummary, Ways};
+use crate::domain::{Direction, PartOfSpeech, SittingSummary, VerbForm, Ways};
 use crate::error::Result;
 
 /// A started sitting.
@@ -38,10 +38,16 @@ pub struct WordRow {
     /// What the word is known by in every chapter (`books::vocab::key`).
     pub key: String,
     pub chapter_id: String,
+    /// What the word is called: its base form, or the form of a verb that
+    /// is a word of its own (`books::vocab::Word`).
     pub lemma: String,
+    /// The base form of a verb called by another form.
+    pub base: Option<String>,
     /// What kind of word it is, when the chapter says.
     pub part_of_speech: Option<PartOfSpeech>,
-    /// Every form the chapter uses, the base form first.
+    /// The form a verb has in the sentence of its chapter, when one said.
+    pub verb_form: Option<VerbForm>,
+    /// Every form the chapter uses, what the word is called first.
     pub forms: Vec<String>,
     pub sentence: String,
     pub needs_context: bool,
@@ -167,6 +173,11 @@ pub fn word(conn: &Connection, id: &str) -> Result<WordRow> {
         ),
         "word",
     )?;
+    let (base, verb_form) = conn.query_row(
+        "SELECT base, verb_form FROM chapter_words WHERE id = ?1",
+        [id],
+        |row| Ok((row.get(0)?, row.get(1)?)),
+    )?;
     let mut stmt = conn.prepare(
         "SELECT text, source = 'extraction' FROM word_translations
          WHERE word_id = ?1 ORDER BY rowid",
@@ -191,7 +202,9 @@ pub fn word(conn: &Connection, id: &str) -> Result<WordRow> {
         key,
         chapter_id,
         lemma,
+        base,
         part_of_speech,
+        verb_form,
         forms: serde_json::from_str(&forms)?,
         sentence,
         needs_context,

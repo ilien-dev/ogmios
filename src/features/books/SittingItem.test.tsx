@@ -25,6 +25,7 @@ const BLANKED: PracticeItem = {
     { text: " the soup.", marked: false },
   ],
   sentenceId: "s1",
+  verbForm: "past",
 };
 
 /** The same word shown in its sentence, to be translated. */
@@ -164,6 +165,53 @@ describe("a hint on a word", () => {
     expect(held.sent).toEqual([["remover", true]]);
     // Once answered the hint is gone: the verdict says it all.
     expect(screen.queryByText("r______")).not.toBeInTheDocument();
+    cleanup();
+  });
+
+  test("a verb asked on its own in another form is asked for in its base form, and its sentence stays hidden", async () => {
+    const user = userEvent.setup();
+    const asked: number[] = [];
+    render(
+      <SittingItem
+        nativeLang="es"
+        item={BARE}
+        check={(_answer, second) =>
+          Promise.resolve(
+            second
+              ? { ...PLAIN, correct: true, accepted: ["remover"], step: "next" }
+              : {
+                  ...PLAIN,
+                  correct: false,
+                  accepted: [],
+                  step: null,
+                  again: true,
+                },
+          )
+        }
+        hint={(count) => {
+          asked.push(count);
+          return Promise.resolve(SENTENCE_ONLY);
+        }}
+        know={null}
+        dispute={null}
+        notice={null}
+        onDispute={null}
+        onNext={() => null}
+      />,
+    );
+    const field = screen.getByLabelText("Your translation");
+    await user.type(field, "removido{Enter}");
+    expect(
+      await screen.findByText(
+        "That's the word, but I'm after its base form: the infinitive. Try once more.",
+      ),
+    ).toBeInTheDocument();
+    // The sentence has the word in another form: it would point the wrong way.
+    expect(asked).toEqual([]);
+    expect(document.querySelector("mark")).toBeNull();
+    await user.clear(field);
+    await user.type(field, "remover{Enter}");
+    expect(await screen.findByText("Right.")).toBeInTheDocument();
     cleanup();
   });
 
@@ -376,23 +424,102 @@ describe("a word asked with a sentence of its bank", () => {
     cleanup();
   });
 
-  test("a base translation is right, and the form of the sentence is pointed out", async () => {
+  test("another form of the translation is right, and the form of the sentence is pointed out", async () => {
     const user = userEvent.setup();
     stage(SHOWN, () => ({
       ...PLAIN,
       correct: true,
-      accepted: ["removió", "remover"],
+      accepted: ["removió", "agitó"],
       step: "next",
       exact: "removió",
       sentence: { ...SENTENCE, book: true },
     }));
-    await user.keyboard("remover{Enter}");
+    await user.keyboard("removía{Enter}");
     expect(await screen.findByText("Right.")).toBeInTheDocument();
+    // Every translation shows, the ones the learner did not give too.
+    expect(screen.getByText("Accepted: removió, agitó")).toBeInTheDocument();
     expect(screen.getByText("In this sentence:")).toBeInTheDocument();
     expect(document.querySelector("[data-exact]")?.textContent).toBe("removió");
     expect(screen.getByText("From the book")).toBeInTheDocument();
     // Nowhere to call it bad from: this screen does not offer it.
     expect(screen.queryByRole("button", { name: "Bad sentence" })).toBeNull();
+  });
+
+  test("the base translation of a word in another form gets one more try", async () => {
+    const user = userEvent.setup();
+    const held = stage({ ...SHOWN, context: null }, (_, second) =>
+      second
+        ? { ...PLAIN, correct: true, accepted: ["removió"], step: "next" }
+        : { correct: false, accepted: [], step: null, again: true },
+    );
+    await user.keyboard("remover{Enter}");
+    expect(
+      await screen.findByText(/not the form this sentence needs/u),
+    ).toBeInTheDocument();
+    await user.clear(screen.getByLabelText("Your translation"));
+    await user.keyboard("removió{Enter}");
+    expect(await screen.findByText(/Right/u)).toBeInTheDocument();
+    expect(held.sent).toEqual([
+      ["remover", false],
+      ["removió", true],
+    ]);
+  });
+
+  test("a miss shows the translations in the form of the sentence, and no base form", async () => {
+    const user = userEvent.setup();
+    stage(SHOWN, () => ({
+      ...PLAIN,
+      correct: false,
+      accepted: ["removió", "agitó"],
+      step: "next",
+    }));
+    await user.keyboard("mezcla{Enter}");
+    expect(
+      await screen.findByText("Accepted: removió, agitó"),
+    ).toBeInTheDocument();
+  });
+
+  test("a verb asked in a sentence says the form it has there", () => {
+    const never = (): Checked => ({ correct: false, accepted: [], step: null });
+    const form = (item: PracticeItem): string | null => {
+      stage(item, never);
+      const text =
+        document.querySelector("[data-verb-form]")?.textContent ?? null;
+      cleanup();
+      return text;
+    };
+    expect(form(SHOWN)).toBe("past simple");
+    expect(form(BLANKED)).toBe("past simple");
+    expect(form({ ...SHOWN, verbForm: "pastParticiple" })).toBe(
+      "past participle",
+    );
+    // No verb, or a sentence nobody labelled yet: no tag.
+    expect(form({ ...SHOWN, verbForm: null })).toBeNull();
+  });
+
+  test("the language the word is asked in stands out in its way", () => {
+    const never = (): Checked => ({ correct: false, accepted: [], step: null });
+    const way = (item: PracticeItem): Array<string | null> => {
+      stage(item, never);
+      const whole = document.querySelector("[data-way]");
+      const texts = [
+        whole?.querySelector("[data-from]")?.textContent ?? null,
+        whole?.textContent ?? null,
+      ];
+      cleanup();
+      return texts;
+    };
+    expect(way(SHOWN)).toEqual(["English", "English → Spanish"]);
+    expect(way(BLANKED)).toEqual(["Spanish", "Spanish → English"]);
+  });
+
+  test("the tags of the word sit on its row, under the way it is asked", () => {
+    stage(SHOWN, () => ({ correct: false, accepted: [], step: null }));
+    const row = screen.getByRole("heading", { level: 1 }).parentElement;
+    expect(row?.querySelector("[data-part-of-speech]")).not.toBeNull();
+    expect(row?.querySelector("[data-verb-form]")).not.toBeNull();
+    expect(row?.querySelector("[data-way]")).toBeNull();
+    cleanup();
   });
 
   test("the word says what kind of word it is, whichever way it is asked", () => {

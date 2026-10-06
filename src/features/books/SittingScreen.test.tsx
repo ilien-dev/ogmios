@@ -100,6 +100,11 @@ function prompt(): string {
   return screen.getByRole("heading", { level: 1 }).textContent;
 }
 
+/** The way the item is asked: "English → Spanish", or the other way. */
+function way(): string {
+  return document.querySelector("[data-way]")?.textContent ?? "";
+}
+
 /** Everything the item shows: the word, its sentence, the form, the verdict. */
 function itemText(): string {
   return (
@@ -166,7 +171,7 @@ describe("SittingScreen", () => {
     expect(screen.queryByText(CHAPTER)).toBeNull();
     expect(field).toHaveFocus();
     expect(prompt()).toBe("rabbit hole");
-    expect(screen.getByText("English → Spanish")).toBeInTheDocument();
+    expect(way()).toBe("English → Spanish");
     expect(document.querySelector("mark")).toBeNull();
 
     // Enter on nothing checks nothing.
@@ -177,7 +182,8 @@ describe("SittingScreen", () => {
     // Case, accents and a leading article do not count.
     await user.keyboard(" La Madriguéra{Enter}");
     expect(await screen.findByText("Right.")).toBeInTheDocument();
-    expect(screen.queryByText(/Accepted/u)).toBeNull();
+    // A right answer shows what is accepted too.
+    expect(screen.getByText("Accepted: madriguera")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Check" })).toBeNull();
     expect(screen.queryByRole("button", { name: "I don't know" })).toBeNull();
     await user.keyboard("{Enter}");
@@ -347,7 +353,7 @@ describe("SittingScreen", () => {
     await tabTo(user, "Practice");
     await user.keyboard("{Enter}");
 
-    // Every word is chosen already, and "Start" has the keyboard.
+    // The smallest size is chosen already, and "Start" has the keyboard.
     expect(
       await screen.findByRole("heading", {
         level: 1,
@@ -366,12 +372,15 @@ describe("SittingScreen", () => {
     const all = screen.getByRole("radio", {
       name: /^All 12 words\s*about 8 min$/u,
     });
-    expect(all).toBeChecked();
+    expect(ten).toBeChecked();
+    expect(all).not.toBeChecked();
     expect(screen.getByRole("button", { name: "Start" })).toHaveFocus();
 
     // The sizes are one Shift+Tab and an arrow away; Enter starts.
     await user.tab({ shift: true });
-    expect(all).toHaveFocus();
+    expect(ten).toHaveFocus();
+    await user.keyboard("{ArrowDown}");
+    expect(all).toBeChecked();
     await user.keyboard("{ArrowUp}");
     expect(ten).toBeChecked();
     await user.keyboard("{Enter}");
@@ -453,15 +462,15 @@ describe("SittingScreen", () => {
     await user.click(await screen.findByRole("button", { name: "Practice" }));
     await screen.findByRole("radio", { name: /^10 words/u });
 
-    // Enter alone is every word: twelve of them, forty-eight answers.
+    // Enter alone is the smallest size: ten words, forty answers.
     await user.keyboard("{Enter}");
     await screen.findByLabelText("Your translation");
     await user.click(screen.getByRole("button", { name: "I know this" }));
     await screen.findByRole("heading", { level: 1, name: "bank" });
     const asked = await playOut(user);
-    expect(asked).toHaveLength(11 * 4);
-    expect(wordsOf(asked)).toHaveLength(11);
-    expect(screen.getByText("11 words done")).toBeInTheDocument();
+    expect(asked).toHaveLength(9 * 4);
+    expect(wordsOf(asked)).toHaveLength(9);
+    expect(screen.getByText("9 words done")).toBeInTheDocument();
   });
 
   test("a native → English item blanks the word and never shows it before the answer", async () => {
@@ -478,7 +487,7 @@ describe("SittingScreen", () => {
 
     // A word that was right twice in a row now comes the other way.
     expect(prompt()).toBe("madriguera");
-    expect(screen.getByText("Spanish → English")).toBeInTheDocument();
+    expect(way()).toBe("Spanish → English");
     expect(itemText()).not.toMatch(/rabbit|hole/iu);
     await answer(user, "The Rabbit-Hole.", "Right.");
 
@@ -548,7 +557,7 @@ describe("SittingScreen", () => {
     await screen.findByLabelText("Your translation");
 
     // Asked from the start, without English → native first.
-    expect(screen.getByText("Spanish → English")).toBeInTheDocument();
+    expect(way()).toBe("Spanish → English");
     const asked = await playOut(user);
     expect(asked).toHaveLength(8 * 2);
     expect(asked.every((shown) => !SHORT.includes(shown))).toBe(true);
@@ -578,7 +587,7 @@ describe("SittingScreen", () => {
     ).toBeChecked();
     await user.click(screen.getByRole("button", { name: "Start" }));
     await screen.findByLabelText("Your translation");
-    expect(screen.getByText("Spanish → English")).toBeInTheDocument();
+    expect(way()).toBe("Spanish → English");
     expect(await playOut(user)).toHaveLength(8 * 2);
     expect(screen.getByText("8 words still open")).toBeInTheDocument();
   });
@@ -663,7 +672,7 @@ describe("SittingScreen", () => {
 
     expect(await screen.findByLabelText("Tu traducción")).toHaveFocus();
     // How a language's name is cased depends on who names it.
-    expect(screen.getByText(/^inglés → español$/iu)).toBeInTheDocument();
+    expect(way()).toMatch(/^inglés → español$/iu);
     expect(
       screen.getByRole("button", { name: "Salir de la práctica" }),
     ).toBeInTheDocument();
@@ -682,7 +691,7 @@ describe("SittingScreen", () => {
     while (
       screen.queryByRole("heading", { name: "Hasta aquí por ahora" }) === null
     ) {
-      if (!backwards && screen.queryByText(/^español → inglés$/iu) !== null) {
+      if (!backwards && /^español → inglés$/iu.test(way())) {
         backwards = true;
         // The first word to be right twice in a row: the first not missed.
         expect(prompt()).toBe("chaleco");
@@ -713,10 +722,10 @@ describe("SittingScreen", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByRole("radio", { name: /^Las 12 palabras\s*unos 8 min$/u }),
-    ).toBeChecked();
-    await user.click(
+    ).not.toBeChecked();
+    expect(
       screen.getByRole("radio", { name: /^10 palabras\s*unos 7 min$/u }),
-    );
+    ).toBeChecked();
     await user.click(screen.getByRole("button", { name: "Empezar" }));
     expect(await screen.findByLabelText("Tu traducción")).toHaveFocus();
 

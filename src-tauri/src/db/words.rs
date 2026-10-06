@@ -11,7 +11,7 @@ use super::{found, new_id, parse_ts, ts};
 use crate::agent::protocol::{LabelWord, VocabItem};
 use crate::books::practice::{inflects, preferred};
 use crate::books::vocab::Word;
-use crate::domain::{BookWord, Depth, Direction, KnownWord, PartOfSpeech};
+use crate::domain::{BookWord, Depth, Direction, KnownWord, PartOfSpeech, VerbForm};
 use crate::error::Result;
 
 /// The right answers the learner gave English → native, by the key of their
@@ -127,8 +127,8 @@ pub fn finish(
     let mut insert = conn.prepare(
         "INSERT OR IGNORE INTO chapter_words
            (id, chapter_id, key, lemma, forms, sentence, needs_context, occurrences, depth,
-            created_at, part_of_speech, transitive)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+            created_at, part_of_speech, transitive, base, verb_form)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
     )?;
     let mut translate =
         conn.prepare("INSERT OR IGNORE INTO word_translations (word_id, text) VALUES (?1, ?2)")?;
@@ -146,7 +146,9 @@ pub fn finish(
             depth,
             ts(now),
             word.part_of_speech,
-            word.transitive
+            word.transitive,
+            word.base,
+            word.verb_form
         ])?;
         if added == 1 {
             for translation in &word.translations {
@@ -201,9 +203,9 @@ pub fn add(conn: &Connection, chapter_id: &str, word: &Word, now: DateTime<Utc>)
     let added = conn.execute(
         "INSERT OR IGNORE INTO chapter_words
            (id, chapter_id, key, lemma, forms, sentence, needs_context, occurrences, depth,
-            created_at, part_of_speech, transitive)
+            created_at, part_of_speech, transitive, base, verb_form)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8,
-                 (SELECT prepared FROM book_chapters WHERE id = ?2), ?9, ?10, ?11)",
+                 (SELECT prepared FROM book_chapters WHERE id = ?2), ?9, ?10, ?11, ?12, ?13)",
         params![
             id,
             chapter_id,
@@ -215,7 +217,9 @@ pub fn add(conn: &Connection, chapter_id: &str, word: &Word, now: DateTime<Utc>)
             word.count,
             ts(now),
             word.part_of_speech,
-            word.transitive
+            word.transitive,
+            word.base,
+            word.verb_form
         ],
     )?;
     if added == 1 {
@@ -421,15 +425,16 @@ pub fn list(conn: &Connection, chapter_id: &str) -> Result<Vec<BookWord>> {
         .collect()
 }
 
-/// Every word still to be labelled, of any book: its id, its base form and
-/// the sentence it was taken from. One no chapter says the kind of, and a
-/// verb nobody said takes an object or not: each was stored before that
-/// was asked for.
+/// Every word still to be labelled, of any book: its id, what it is called
+/// and the sentence it was taken from. One no chapter says the kind of, and
+/// a verb nobody said takes an object or not, or the form of: each was
+/// stored before that was asked for.
 pub fn unlabelled(conn: &Connection) -> Result<Vec<LabelWord>> {
     let mut stmt = conn.prepare(
         "SELECT id, lemma, sentence FROM chapter_words
          WHERE part_of_speech IS NULL
-            OR (part_of_speech IN ('verb', 'phrasalVerb') AND transitive IS NULL)
+            OR (part_of_speech IN ('verb', 'phrasalVerb')
+                AND (transitive IS NULL OR verb_form IS NULL))
          ORDER BY chapter_id, occurrences DESC, key",
     )?;
     let words = stmt
@@ -444,20 +449,28 @@ pub fn unlabelled(conn: &Connection) -> Result<Vec<LabelWord>> {
     Ok(words)
 }
 
-/// Says what kind of word a word is and whether it takes an object;
-/// whether any of it was news. What the word has already, it keeps.
+/// Says what kind of word a word is, whether it takes an object and, of
+/// one its chapter calls a verb, the form its sentence has it in; whether
+/// any of it was news. What the word has already, it keeps.
 pub fn label(
     conn: &Connection,
     id: &str,
-    part_of_speech: PartOfSpeech,
-    transitive: bool,
+    (part_of_speech, transitive): (PartOfSpeech, bool),
+    verb_form: Option<VerbForm>,
 ) -> Result<bool> {
     let changed = conn.execute(
         "UPDATE chapter_words
-         SET part_of_speech = COALESCE(part_of_speech, ?2),
+         SET verb_form = CASE
+               WHEN COALESCE(part_of_speech, ?2) IN ('verb', 'phrasalVerb')
+               THEN COALESCE(verb_form, ?4)
+             END,
+             part_of_speech = COALESCE(part_of_speech, ?2),
              transitive = COALESCE(transitive, ?3)
-         WHERE id = ?1 AND (part_of_speech IS NULL OR transitive IS NULL)",
-        params![id, part_of_speech, transitive],
+         WHERE id = ?1
+           AND (part_of_speech IS NULL OR transitive IS NULL
+             OR (part_of_speech IN ('verb', 'phrasalVerb')
+               AND verb_form IS NULL AND ?4 IS NOT NULL))",
+        params![id, part_of_speech, transitive, verb_form],
     )?;
     Ok(changed == 1)
 }
@@ -501,6 +514,8 @@ pub mod tests {
         Word {
             key: crate::books::vocab::key(lemma),
             lemma: lemma.into(),
+            base: None,
+            verb_form: None,
             forms: vec![lemma.into()],
             sentence: format!("A sentence with {lemma}."),
             part_of_speech: None,
@@ -781,7 +796,16 @@ pub mod tests {
             translations: vec!["asomarse".into()],
             proper_noun: false,
             needs_context: true,
+            verb_form: Some(VerbForm::Past),
         };
+        // A piece answered before the form of a verb was asked for.
+        let before: VocabItem = serde_json::from_str(
+            r#"{"lemma":"peep","form":"peeped","sentence":"She peeped.","partOfSpeech":"verb",
+                "transitive":false,"translations":["asomarse"],"properNoun":false,
+                "needsContext":true}"#,
+        )
+        .expect("an old piece");
+        assert_eq!(before.verb_form, None);
         store_chunk(
             &conn,
             chapter,

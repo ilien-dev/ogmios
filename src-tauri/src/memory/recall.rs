@@ -116,14 +116,22 @@ pub fn strength(step: u32) -> Strength {
     }
 }
 
-/// Which way a word on this step is asked in a run of these `ways`: the one
-/// way of a run of one, and by turns in a run of both, so that a word is
-/// not always met from the same side.
-pub fn direction(step: u32, ways: Ways) -> Direction {
-    match ways {
-        Ways::Recognition => Direction::Recognition,
-        Ways::Both if step.is_multiple_of(2) => Direction::Recognition,
-        Ways::Production | Ways::Both => Direction::Production,
+/// Which way a word is asked in a run of these `ways`: the one way of a run
+/// of one, and by turns in a run of both. A word comes from the other side
+/// than it was `last` asked from, right or missed; one never asked goes by
+/// the `turn` of the run it is asked on, so that a run of new words has
+/// both sides in it.
+pub fn direction(last: Option<Direction>, turn: usize, ways: Ways) -> Direction {
+    let from_english = match (ways, last) {
+        (Ways::Recognition, _) => true,
+        (Ways::Production, _) => false,
+        (Ways::Both, Some(last)) => last == Direction::Production,
+        (Ways::Both, None) => turn.is_multiple_of(2),
+    };
+    if from_english {
+        Direction::Recognition
+    } else {
+        Direction::Production
     }
 }
 
@@ -246,11 +254,33 @@ mod tests {
 
     #[test]
     fn a_run_of_both_ways_asks_a_word_by_turns() {
-        assert_eq!(direction(0, Ways::Both), Direction::Recognition);
-        assert_eq!(direction(1, Ways::Both), Direction::Production);
-        assert_eq!(direction(2, Ways::Both), Direction::Recognition);
-        assert_eq!(direction(1, Ways::Recognition), Direction::Recognition);
-        assert_eq!(direction(0, Ways::Production), Direction::Production);
+        let (there, back) = (Direction::Recognition, Direction::Production);
+        // From the other side than the last time, whatever the turn.
+        assert_eq!(direction(Some(there), 0, Ways::Both), back);
+        assert_eq!(direction(Some(back), 1, Ways::Both), there);
+        assert_eq!(direction(Some(back), 0, Ways::Recognition), there);
+        assert_eq!(direction(Some(there), 1, Ways::Production), back);
+    }
+
+    #[test]
+    fn a_run_of_both_ways_asks_its_new_words_from_both_sides() {
+        let sides: Vec<Direction> = (0..4)
+            .map(|turn| direction(None, turn, Ways::Both))
+            .collect();
+        assert_eq!(
+            sides,
+            [
+                Direction::Recognition,
+                Direction::Production,
+                Direction::Recognition,
+                Direction::Production
+            ]
+        );
+        assert_eq!(
+            direction(None, 1, Ways::Recognition),
+            Direction::Recognition
+        );
+        assert_eq!(direction(None, 0, Ways::Production), Direction::Production);
     }
 
     fn talk(turns: &[(bool, &str)]) -> Vec<(bool, Vec<String>)> {

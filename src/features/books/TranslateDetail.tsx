@@ -35,10 +35,15 @@ interface SummaryProps {
 export function Summary({ translation, failure }: SummaryProps): ReactNode {
   const { t } = useTranslation();
   const { score, summary } = translation;
+  // A summary is written from the errors alone: one left empty by slips
+  // still has marks below it.
   const clean =
     summary !== null &&
     summary.points.length === 0 &&
-    summary.habits.length === 0;
+    summary.habits.length === 0 &&
+    translation.paragraphs.every(
+      (paragraph) => (paragraph.review?.marks.length ?? 0) === 0,
+    );
   return (
     <section className="flex flex-col gap-6 rounded-lg border border-line bg-surface p-6">
       {score !== null && (

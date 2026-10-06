@@ -25,6 +25,7 @@ import {
   hintOf,
   isRight,
   itemOf,
+  small,
 } from "./ipcMockPractice";
 import {
   addMockWordMiss,
@@ -51,12 +52,15 @@ let runs: Map<string, Run> = new Map();
 /** The words answered right: they are not due again. */
 let held: Set<string> = new Set();
 let notes: Map<string, string> = new Map();
+/** The way each word was last asked. */
+let sides: Map<string, Direction> = new Map();
 
 /** Forgets every run, every answer and every note. */
 export function resetMockRecall(): void {
   runs = new Map();
   held = new Set();
   notes = new Map();
+  sides = new Map();
 }
 
 /** The learned words the learner has not said they know. */
@@ -79,12 +83,19 @@ export function mockDueWords(): number {
   return due().length;
 }
 
-/** A run of both ways asks a word by turns, by the step it is on. */
-function way(word: BookWord, ways: Ways): Direction {
-  if (ways !== "both") {
-    return ways;
+/**
+ * A run of both ways asks a word from the other side than the last time,
+ * and one never asked by the turn of the run it is asked on.
+ */
+function way(word: BookWord, run: Run): Direction {
+  if (run.ways !== "both") {
+    return run.ways;
   }
-  return mockWordStep(word.lemma) % 2 === 0 ? "recognition" : "production";
+  const last = sides.get(word.lemma);
+  if (last !== undefined) {
+    return last === "recognition" ? "production" : "recognition";
+  }
+  return (run.right + run.missed) % 2 === 0 ? "recognition" : "production";
 }
 
 function stepOf(run: Run): RecallStep {
@@ -102,7 +113,7 @@ function stepOf(run: Run): RecallStep {
   return {
     type: "item",
     // In the recall a word goes by its key: it is of no chapter.
-    item: { ...itemOf(word, way(word, run.ways)), wordId: word.lemma },
+    item: { ...itemOf(word, way(word, run)), wordId: word.lemma },
     progress: { value: answered, total: answered + room },
   };
 }
@@ -142,7 +153,7 @@ function asked(sittingId: string, key: string): [Run, BookWord] {
 /** The hint to a word a run is asking. */
 function hint(sittingId: string, key: string, letters: number): WordHint {
   const [run, word] = asked(sittingId, key);
-  return hintOf(word, way(word, run.ways), letters);
+  return hintOf(word, way(word, run), letters);
 }
 
 /**
@@ -156,10 +167,11 @@ function answer(
   hinted = false,
 ): RecallAnswer {
   const [run, word] = asked(sittingId, key);
-  const direction = way(word, run.ways);
+  const direction = way(word, run);
   const correct = isRight(word, direction, text);
   const step = mockWordStep(key);
   run.asked.add(key);
+  sides.set(key, direction);
   if (correct) {
     held.add(key);
     run.right += 1;
@@ -171,8 +183,9 @@ function answer(
   }
   return {
     correct,
-    accepted:
-      direction === "recognition" ? [...word.translations] : [word.lemma],
+    accepted: small(
+      direction === "recognition" ? word.translations : [word.lemma],
+    ),
     step: stepOf(run),
     stubborn: mockWordMisses(key) >= STUBBORN_MISSES,
     note: notes.get(key) ?? null,

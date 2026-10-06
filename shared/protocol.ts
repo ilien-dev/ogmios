@@ -418,6 +418,15 @@ export const partOfSpeechSchema = z.enum([
   "other",
 ]);
 
+/** The form a verb has in the sentence it is asked with. */
+export const verbFormSchema = z.enum([
+  "base",
+  "present",
+  "past",
+  "pastParticiple",
+  "ing",
+]);
+
 export const vocabItemSchema = z.object({
   /** Base form: "run" for "ran". A phrasal verb or an idiom is one item. */
   lemma: z.string().min(1),
@@ -435,6 +444,8 @@ export const vocabItemSchema = z.object({
   properNoun: z.boolean(),
   /** The word cannot be translated well without its sentence. */
   needsContext: z.boolean(),
+  /** The form a verb has in that sentence; null for any other word. */
+  verbForm: verbFormSchema.nullable(),
 });
 export type VocabItem = z.infer<typeof vocabItemSchema>;
 
@@ -485,7 +496,7 @@ export const vocabLabelParams = z.object({
       z.object({
         /** Names the word in the answer; Rust gives its id. */
         id: z.string(),
-        /** The English base form. */
+        /** The English word, as it is stored. */
         lemma: z.string(),
         /** The sentence of the book it was taken from. */
         sentence: z.string(),
@@ -503,6 +514,8 @@ export const vocabLabelsSchema = z.object({
       partOfSpeech: partOfSpeechSchema,
       /** A verb or a phrasal verb that takes an object in its sentence. */
       transitive: z.boolean(),
+      /** The form a verb has in its sentence; null for any other word. */
+      verbForm: verbFormSchema.nullable(),
     }),
   ),
 });
@@ -533,7 +546,7 @@ export type SentenceWriteParams = z.infer<typeof sentenceWriteParams>;
 
 const bookGlossSchema = z.object({
   index: z.number().int().min(0),
-  /** The word, in the form the sentence has it, translated. */
+  /** The words of `translation` that stand for the word, copied from it. */
   hint: z.string(),
   translation: z.string(),
 });
@@ -570,6 +583,10 @@ const sentenceVerdictSchema = z.object({
   good: z.boolean(),
   /** The other English words the hint could be answered with. */
   also: z.array(z.string()),
+  /** The word's other translations, in the form the hint has. */
+  hints: z.array(z.string()),
+  /** The form a verb has in the sentence; null for any other word. */
+  verbForm: verbFormSchema.nullable(),
 });
 
 /** The model's labels; a sentence without a good one is not used. */
@@ -614,6 +631,8 @@ export const paragraphReviewParams = z.object({
   nativeLang: z.string(),
   level: levelSchema,
   direction: translationDirectionSchema,
+  /** The learner asked for accents and spelling to count. */
+  strictSpelling: z.boolean(),
   brief: z.string(),
   /** The paragraph before this one, in English; empty for the first. */
   previous: z.string(),

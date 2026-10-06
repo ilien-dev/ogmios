@@ -32,6 +32,7 @@ const RECOGNITION: PracticeItem = {
     { text: " down the hole.", marked: false },
   ],
   sentenceId: null,
+  verbForm: null,
 };
 
 const PRODUCTION: PracticeItem = {
@@ -45,6 +46,7 @@ const PRODUCTION: PracticeItem = {
     { text: " down the hole.", marked: false },
   ],
   sentenceId: null,
+  verbForm: null,
 };
 
 function word(item: PracticeItem, verdict: Checked): React.ReactNode {

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode, SyntheticEvent } from "react";
-import { useTranslation } from "react-i18next";
+import { Trans, useTranslation } from "react-i18next";
 import { ArrowRight } from "lucide-react";
 import type {
   AnotherWord,
@@ -22,6 +22,7 @@ import { DisputeNote } from "./DisputeNote";
 import { PartOfSpeechTag } from "./PartOfSpeechTag";
 import type { DisputeState } from "./sittingRun";
 import { Key } from "./TriageRun";
+import { VerbFormTag } from "./VerbFormTag";
 
 /** Each piece with a key of its own: where it starts, and what it is. */
 function placed(
@@ -132,9 +133,8 @@ function Verdict({ result, unknown, heard }: VerdictProps): ReactNode {
     <div className="flex flex-col gap-2">
       <VerdictLine tone={tone}>
         {result.correct ? t("books.sitting.right") : miss}
-        {result.correct && heard !== null && <SpeakButton text={heard} />}
       </VerdictLine>
-      {!result.correct && (
+      {result.accepted.length > 0 && (
         <p className="text-ink">
           {t("books.sitting.accepted", { text: result.accepted.join(", ") })}
           {heard !== null && <SpeakButton text={heard} className="ml-1" />}
@@ -193,6 +193,24 @@ interface WholeProps {
   /** Calls the sentence bad; null where that is not offered. */
   onBad: (() => void) | null;
   busy: boolean;
+}
+
+/**
+ * What says why an answer is none yet: another word for what was shown, the
+ * word in a form its sentence does not have, or, asked on its own, in a form
+ * that is not its base form.
+ */
+function retryKey(
+  other: boolean,
+  inSentence: boolean,
+):
+  | "books.sitting.otherWord"
+  | "books.sitting.wrongForm"
+  | "books.sitting.baseForm" {
+  if (other) {
+    return "books.sitting.otherWord";
+  }
+  return inSentence ? "books.sitting.wrongForm" : "books.sitting.baseForm";
 }
 
 /**
@@ -269,14 +287,16 @@ interface SittingItemProps<Result extends Checked> {
 /**
  * One word of a sitting, asked one way: type its translation, Enter to
  * check it, Enter again to go on. "I don't know" shows the answer instead.
- * The verdict shows at once, with what is accepted on a miss. "I know this"
+ * The verdict shows at once, with what is accepted, right or not: the ones
+ * the learner did not give stay in sight. "I know this"
  * takes the word out of practice for good, with no answer and no verdict.
  * After a typed miss, "I was right" asks Claude; going on does not wait for
  * its answer. The refresh before reading asks its words with this same form,
  * without those two: its words are done, and its misses stand.
  *
  * Both keys show on their buttons: Alt+N from the field is "I don't know".
- * The word is asked on its own, with the kind of word it is: only one that
+ * The word is asked on its own, with the kind of word it is, and for a verb
+ * asked in a sentence the form it has there: only one that
  * needs its sentence to be told from another sense shows it from the
  * start. "Hint", or Alt+H from the field, helps without giving the word
  * away: first the sentence the word came without, then how long the answer
@@ -362,7 +382,12 @@ export function SittingItem<Result extends Checked>({
             setClue(told.hint);
             setHints(told.asked + 1);
           }
-        } else if (hint !== null && hints === 0 && item.context === null) {
+        } else if (
+          hint !== null &&
+          hints === 0 &&
+          item.context === null &&
+          item.sentenceId !== null
+        ) {
           // The form is the sentence's: asked without it, it shows now.
           setClue(await hint(0));
           setHints(1);
@@ -437,20 +462,27 @@ export function SittingItem<Result extends Checked>({
   return (
     <section className="mx-auto flex max-w-2xl flex-col gap-8 px-10 pt-10 pb-12 motion-safe:animate-rise">
       <div className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <p className="text-sm font-medium text-ink-faint capitalize">
-            {t("books.sitting.direction", {
+        <p data-way className="text-sm font-medium text-ink-faint capitalize">
+          <Trans
+            i18nKey="books.sitting.directionFrom"
+            values={{
               from: toEnglish ? native : english,
               to: toEnglish ? english : native,
-            })}
-          </p>
+            }}
+            components={{
+              from: <span data-from className="font-bold text-accent-text" />,
+            }}
+          />
+        </p>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <h1 className="text-display font-semibold text-balance text-ink">
+            {item.prompt}
+            {!toEnglish && <SpeakButton text={item.prompt} className="ml-2" />}
+          </h1>
           {/* Shift+Tab from the answer still lands on leaving the practice. */}
           <PartOfSpeechTag kind={item.partOfSpeech} offTabPath />
+          <VerbFormTag form={item.verbForm} />
         </div>
-        <h1 className="text-display font-semibold text-balance text-ink">
-          {item.prompt}
-          {!toEnglish && <SpeakButton text={item.prompt} className="ml-2" />}
-        </h1>
         {item.context !== null && (
           <Context parts={item.context} blanked={toEnglish} />
         )}
@@ -490,7 +522,7 @@ export function SittingItem<Result extends Checked>({
         />
         {result === null && again && (
           <VerdictLine tone="partial">
-            {t(other ? "books.sitting.otherWord" : "books.sitting.wrongForm")}
+            {t(retryKey(other, item.sentenceId !== null))}
           </VerdictLine>
         )}
         {result === null && (

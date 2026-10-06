@@ -93,6 +93,12 @@ function wordsOf(sizes: readonly SessionSize[]): number {
   return sizes.at(-1)?.words ?? 0;
 }
 
+/** The size chosen until the learner picks one: the smallest on offer. */
+function smallest(sizes: readonly SessionSize[]): string {
+  const size = sizes.at(0)?.size ?? null;
+  return size === null ? ALL : String(size);
+}
+
 /** Whether there is anything to choose before a session starts. */
 export function hasChoice(options: PracticeOptions): boolean {
   const { sizes, oneWay } = options;
@@ -114,7 +120,7 @@ interface SittingSizesProps {
 
 /**
  * Which way the session asks and how many words it takes, each size with
- * about how long it lasts. Both ways and every open word are chosen already
+ * about how long it lasts. Both ways and the smallest size are chosen already
  * and "Start" holds the keyboard, so Enter alone begins; the choices are one
  * Shift+Tab and the arrows away. A way with nothing left to ask is offered
  * all the same, as an extra review of every word, and says so once chosen;
@@ -127,7 +133,7 @@ export function SittingSizes({
 }: SittingSizesProps): ReactNode {
   const { t, i18n } = useTranslation();
   const [ways, setWays] = useState<Ways>("both");
-  const [chosen, setChosen] = useState(ALL);
+  const [chosen, setChosen] = useState(() => smallest(options.sizes));
   const primary = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -176,9 +182,9 @@ export function SittingSizes({
               }))}
               value={ways}
               onChange={(next) => {
-                // A size the other way does not have falls back to all.
+                // A size the other way may not have: back to its smallest.
                 setWays(next);
-                setChosen(ALL);
+                setChosen(smallest(offered[next]));
               }}
             />
             {options.extra.includes(ways) && (

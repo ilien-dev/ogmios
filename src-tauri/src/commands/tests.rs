@@ -709,7 +709,7 @@ fn a_ready_chapter_is_translated_there_and_back_through_the_sidecar() {
     let first = &review.marks[0];
     assert_eq!(
         (first.fragment.as_str(), first.severity),
-        ("una", crate::domain::Severity::Slip)
+        ("una", crate::domain::Severity::Error)
     );
     assert_eq!(review.sentences[0][0].mark, Some(0));
     assert!(review.score < 100);

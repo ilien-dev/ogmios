@@ -398,6 +398,10 @@ pub struct VocabItem {
     pub translations: Vec<String>,
     pub proper_noun: bool,
     pub needs_context: bool,
+    /// The form a verb has in that sentence; none for any other word, and
+    /// for a piece answered before this was asked for.
+    #[serde(default)]
+    pub verb_form: Option<crate::domain::VerbForm>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -446,7 +450,7 @@ pub struct VocabVerdict {
 pub struct LabelWord {
     /// Names the word in the answer: its id.
     pub id: String,
-    /// The English base form.
+    /// The English word, as it is stored.
     pub lemma: String,
     /// The sentence of the book it was taken from.
     pub sentence: String,
@@ -466,6 +470,8 @@ pub struct WordLabel {
     pub part_of_speech: crate::domain::PartOfSpeech,
     /// A verb that takes an object in its sentence.
     pub transitive: bool,
+    /// The form a verb has in its sentence; none for any other word.
+    pub verb_form: Option<crate::domain::VerbForm>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -506,7 +512,7 @@ pub struct SentenceWriteParams {
 #[serde(rename_all = "camelCase")]
 pub struct BookGloss {
     pub index: u32,
-    /// The word, in the form the sentence has it, translated.
+    /// The words of `translation` that stand for the word, copied from it.
     pub hint: String,
     pub translation: String,
 }
@@ -552,6 +558,10 @@ pub struct SentenceVerdict {
     pub good: bool,
     /// The other English words the hint could be answered with.
     pub also: Vec<String>,
+    /// The word's other translations, in the form the hint has.
+    pub hints: Vec<String>,
+    /// The form a verb has in the sentence; none for any other word.
+    pub verb_form: Option<crate::domain::VerbForm>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -611,6 +621,8 @@ pub struct ParagraphReviewParams {
     pub native_lang: String,
     pub level: Level,
     pub direction: crate::domain::TranslationDirection,
+    /// The learner asked for accents and spelling to count.
+    pub strict_spelling: bool,
     pub brief: String,
     /// The paragraph before this one, in English; empty for the first.
     pub previous: String,
