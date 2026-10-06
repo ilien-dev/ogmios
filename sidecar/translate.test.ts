@@ -49,6 +49,7 @@ const there: ParagraphReviewParams = {
   nativeLang: "es",
   level: "intermediate",
   direction: "toNative",
+  strictSpelling: false,
   brief: version.brief,
   previous: "He had not slept in three days.",
   sentences: [
@@ -139,15 +140,32 @@ describe("paragraph review prompt", () => {
     expect(system).toContain("intermediate (CEFR B1–B2)");
     expect(system).toContain("error: the English was not understood");
     expect(system).toContain("slip: the Spanish (es) is written wrong");
+    expect(system).toContain("Neither does punctuation: a missing opening ¿");
     expect(system).toContain("copied exactly as the learner typed them");
     expect(system).toContain("should have been, in Spanish (es)");
     expect(system).toContain("Write everything the learner reads");
+  });
+
+  test("an accent is a note only when the learner asked for spelling to count", () => {
+    const lenient = paragraphReviewSystemPrompt(there);
+    expect(lenient).toContain("did not ask for accents to count");
+    expect(lenient).not.toContain("a missing accent, a typo");
+    const strict = paragraphReviewSystemPrompt({
+      ...there,
+      strictSpelling: true,
+    });
+    expect(strict).toContain("asked for accents to count");
+    expect(strict).toContain("a note of its own");
+    expect(strict).not.toContain("did not ask");
+    // English has none to miss.
+    expect(paragraphReviewSystemPrompt(back)).not.toContain("accents to count");
   });
 
   test("back into English it judges the English, and the author is one answer", () => {
     const system = paragraphReviewSystemPrompt(back);
     expect(system).toContain("wrong in the English they wrote");
     expect(system).toContain("one right answer, not the only one");
+    expect(system).toContain("punctuation that is no part of a word");
     expect(system).toContain("should have been, in English");
     expect(system).not.toContain("was not understood");
   });
@@ -187,14 +205,15 @@ describe("chapter translation through the dispatcher", () => {
     expect(
       review.notes.map((note) => [note.sentence, note.fragment, note.severity]),
     ).toEqual([
-      [0, "El", "slip"],
-      [1, "Todos", "error"],
+      [0, "El", "error"],
+      [1, "Todos", "slip"],
     ]);
     expect(review.notes[0]?.better).toBe(fakeNative("es", "The"));
-    expect(review.notes[1]?.word).toEqual({
-      english: "everyone",
-      translations: [fakeNative("es", "Everyone")],
+    expect(review.notes[0]?.word).toEqual({
+      english: "the",
+      translations: [fakeNative("es", "The")],
     });
+    expect(review.notes[1]?.word).toBeNull();
     const returned = paragraphReviewSchema.parse(
       await ask("paragraphReview", back),
     );
@@ -211,6 +230,8 @@ describe("chapter translation through the dispatcher", () => {
     const system = attemptSummarySystemPrompt(summarised);
     expect(system).toContain("from English into Spanish (es)");
     expect(system).toContain("A mistake made once is not a habit");
+    expect(system).toContain("Never make a point or a habit of how something");
+    expect(system).not.toContain("spelling vice");
     expect(
       attemptSummarySystemPrompt({ ...summarised, direction: "toEnglish" }),
     ).toContain("from Spanish (es) back into English");

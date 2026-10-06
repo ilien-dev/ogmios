@@ -4,6 +4,7 @@
 //! is kept and whether a version fits its paragraph is decided here.
 
 use crate::agent::protocol;
+use crate::books::practice::{accepts, accepts_native, articles};
 use crate::books::spelling::{only_respells, Spelling};
 use crate::books::vocab::key;
 use crate::domain::{
@@ -56,8 +57,12 @@ fn place(sentence: &str, fragment: &str, placed: &[(usize, usize, usize)]) -> Op
 }
 
 /// The word a note asks to practise, if it names one with a translation.
+/// A slip names none: the meaning was there, and so the word was known.
 fn word(note: &protocol::ParagraphNote, practised: &dyn Fn(&str) -> bool) -> Option<ReviewWord> {
-    let named = note.word.as_ref()?;
+    let named = note
+        .word
+        .as_ref()
+        .filter(|_| note.severity == Severity::Error)?;
     let english = tidy(&named.english).to_lowercase();
     let mut translations: Vec<String> = Vec::new();
     for translation in named.translations.iter().map(|each| tidy(each)) {
@@ -75,12 +80,64 @@ fn word(note: &protocol::ParagraphNote, practised: &dyn Fn(&str) -> bool) -> Opt
     })
 }
 
-/// Whether a note is only about how a word is spelled, and spelling is not
+/// Whether a note is about no word: only about punctuation, which never
+/// counts, or a slip only about how a word is spelled when spelling is not
 /// asked to count.
 fn is_forgiven(note: &protocol::ParagraphNote, spelling: Spelling) -> bool {
-    spelling == Spelling::Lenient
-        && note.severity == Severity::Slip
-        && only_respells(note.fragment.trim(), note.better.trim())
+    let (written, better) = (note.fragment.trim(), note.better.trim());
+    only_respells(written, better, Spelling::Strict)
+        || (note.severity == Severity::Slip && only_respells(written, better, spelling))
+}
+
+/// What the learner wrote of a translation a note gives its own word.
+enum Own<'a> {
+    /// That translation as it is written.
+    Right,
+    /// That translation, but for an accent or an ñ.
+    Respelt(&'a str),
+}
+
+/// What a note has against a translation it gives its own word, where the
+/// learner wrote in the language `native`: the model calls wrong what it
+/// lists as right, and asks for another word. Nothing when the fragment is
+/// none of those translations, or when the note asks for that same word in
+/// another form: an agreement is a mistake of its own.
+fn own_translation<'a>(note: &'a protocol::ParagraphNote, native: Option<&str>) -> Option<Own<'a>> {
+    let (lang, named) = (native?, note.word.as_ref()?);
+    let written = note.fragment.trim();
+    let exact = |spelling| {
+        named.translations.iter().find(|each| {
+            accepts(
+                written,
+                std::slice::from_ref(*each),
+                articles(lang),
+                spelling,
+            )
+        })
+    };
+    let (as_written, respelt) = (exact(Spelling::Strict), exact(Spelling::Lenient));
+    let translation = as_written.or(respelt)?;
+    let same_word = accepts_native(
+        &note.better,
+        std::slice::from_ref(translation),
+        (lang, true),
+        Spelling::Lenient,
+    );
+    match as_written {
+        _ if same_word => None,
+        Some(_) => Some(Own::Right),
+        None => Some(Own::Respelt(translation)),
+    }
+}
+
+/// Whether a note against a translation of its own word is dropped: always,
+/// but for a missing accent when spelling is asked to count.
+fn is_own_word(note: &protocol::ParagraphNote, native: Option<&str>, spelling: Spelling) -> bool {
+    match own_translation(note, native) {
+        Some(Own::Right) => true,
+        Some(Own::Respelt(_)) => !spelling.is_strict(),
+        None => false,
+    }
 }
 
 /// What a mark takes off a paragraph, in half words: an error counts every
@@ -116,15 +173,20 @@ pub fn overall(paragraphs: &[(u32, u32)]) -> Option<u32> {
 /// The review of a paragraph as the learner sees it: what they wrote, cut
 /// where the notes fall, and its score. A note is kept when its fragment is
 /// in the sentence it names, word for word, clear of the notes before it,
-/// and it says why; the others are dropped. Under lenient spelling so is a
-/// slip that only respells its fragment: an accent, a typo. One that changes
-/// a comma, a full stop or a capital stays. `practised` says whether the
-/// chapter already asks a word, by its key.
+/// and it says why; the others are dropped. So is a note that only changes
+/// the punctuation of its fragment: an opening ¿ or ¡, a comma, a full
+/// stop. Under lenient spelling so is a slip that only respells it: an
+/// accent, an ñ. One that changes a letter or a capital stays. `practised`
+/// says whether the chapter already asks a word, by its key. `native` is
+/// the learner's language when that is what they wrote in: there a note
+/// against a translation it gives its own word is dropped too, or is a slip
+/// of that translation when only its accent is missing and spelling counts.
 pub fn shown(
     review: &protocol::ParagraphReview,
     written: &[String],
     practised: &dyn Fn(&str) -> bool,
     spelling: Spelling,
+    native: Option<&str>,
 ) -> ParagraphReview {
     let mut marks: Vec<ReviewMark> = Vec::new();
     let mut sentences = Vec::new();
@@ -137,6 +199,7 @@ pub fn shown(
                 || fragment.is_empty()
                 || note.why.trim().is_empty()
                 || is_forgiven(note, spelling)
+                || is_own_word(note, native, spelling)
             {
                 continue;
             }
@@ -159,12 +222,20 @@ pub fn shown(
                 text: sentence[start..end].to_owned(),
                 mark: Some(count(marks.len())),
             });
+            // Kept though its word is right: only the accent is wrong.
+            let respelt = match own_translation(note, native) {
+                Some(Own::Respelt(translation)) => Some(translation),
+                Some(Own::Right) | None => None,
+            };
             marks.push(ReviewMark {
                 fragment: sentence[start..end].to_owned(),
-                severity: note.severity,
-                better: tidy(&note.better),
+                severity: respelt.map_or(note.severity, |_| Severity::Slip),
+                better: tidy(respelt.unwrap_or(&note.better)),
                 why: tidy(&note.why),
-                word: word(note, practised),
+                word: match respelt {
+                    Some(_) => None,
+                    None => word(note, practised),
+                },
             });
             from = end;
         }
@@ -195,6 +266,12 @@ fn kept(lines: &[String]) -> Vec<String> {
         .filter(|line| !line.is_empty())
         .take(SUMMARY_ITEMS)
         .collect()
+}
+
+/// Whether a mark is one a summary is written from: an error. A summary is
+/// about the English, and a slip is about how something was written.
+pub fn sums_up(mark: &ReviewMark) -> bool {
+    mark.severity == Severity::Error
 }
 
 /// The summary as the learner sees it: its first points and habits, and no
@@ -270,7 +347,7 @@ mod tests {
                 note(0, "las sirenas", Severity::Slip),
             ],
         };
-        let seen = shown(&review, &written(), &unasked, Spelling::Strict);
+        let seen = shown(&review, &written(), &unasked, Spelling::Strict, None);
         assert_eq!(seen.good.as_deref(), Some("Buen ritmo."));
         assert_eq!(
             seen.sentences.iter().map(|s| drawn(s)).collect::<Vec<_>>(),
@@ -309,7 +386,7 @@ mod tests {
             good: Some(" ".into()),
             notes: vec![silent],
         };
-        let seen = shown(&review, &written(), &unasked, Spelling::Strict);
+        let seen = shown(&review, &written(), &unasked, Spelling::Strict, None);
         assert_eq!((seen.score, seen.good, seen.marks.len()), (100, None, 0));
         assert_eq!(drawn(&seen.sentences[0]), written()[0]);
     }
@@ -324,8 +401,8 @@ mod tests {
             good: None,
             notes: vec![
                 slip("conto", "contó"),
-                // A missing comma is not spelling, and neither is an error.
-                slip("quieto", "quieto,"),
+                // A capital is not spelling, and neither is an error.
+                slip("quieto", "Quieto"),
                 ParagraphNote {
                     better: "miro".into(),
                     ..note(1, "miró", Severity::Error)
@@ -333,7 +410,7 @@ mod tests {
             ],
         };
         let fragments = |spelling| -> Vec<String> {
-            shown(&review, &written(), &unasked, spelling)
+            shown(&review, &written(), &unasked, spelling, None)
                 .marks
                 .into_iter()
                 .map(|mark| mark.fragment)
@@ -341,8 +418,128 @@ mod tests {
         };
         assert_eq!(fragments(Spelling::Lenient), ["quieto", "miró"]);
         assert_eq!(fragments(Spelling::Strict), ["quieto", "conto", "miró"]);
-        let score = |spelling| shown(&review, &written(), &unasked, spelling).score;
+        let score = |spelling| shown(&review, &written(), &unasked, spelling, None).score;
         assert!(score(Spelling::Lenient) > score(Spelling::Strict));
+    }
+
+    #[test]
+    fn a_note_only_about_punctuation_is_dropped_whatever_the_spelling() {
+        let written = vec!["Auch!".to_owned(), "Por que duele mucho?".to_owned()];
+        let signs = |sentence, fragment: &str, better: &str, severity| ParagraphNote {
+            better: better.into(),
+            ..note(sentence, fragment, severity)
+        };
+        let review = protocol::ParagraphReview {
+            good: None,
+            notes: vec![
+                signs(0, "Auch!", "¡Auch!", Severity::Slip),
+                signs(1, "mucho?", "mucho.", Severity::Error),
+                // The accent is spelling: it counts when the learner asks.
+                signs(1, "Por que", "¿Por qué", Severity::Slip),
+            ],
+        };
+        let seen = |spelling| shown(&review, &written, &unasked, spelling, None);
+        let lenient = seen(Spelling::Lenient);
+        assert_eq!((lenient.score, lenient.marks.len()), (100, 0));
+        let strict = seen(Spelling::Strict);
+        assert_eq!(strict.marks.len(), 1);
+        assert_eq!(strict.marks[0].fragment, "Por que");
+    }
+
+    #[test]
+    fn a_note_against_a_translation_it_gives_its_own_word_is_no_error() {
+        let written = vec![
+            "Siseo! Imagenes surgiendo espontaneamente entre reganos y nociones aleatorio."
+                .to_owned(),
+        ];
+        let about = |fragment: &str, better: &str, translations: &[&str]| ParagraphNote {
+            better: better.into(),
+            word: Some(NoteWord {
+                english: "unbidden".into(),
+                translations: translations.iter().map(|t| (*t).to_owned()).collect(),
+            }),
+            ..note(0, fragment, Severity::Error)
+        };
+        let review = protocol::ParagraphReview {
+            good: None,
+            notes: vec![
+                // The translation, but for its capital and a sign.
+                about("Siseo!", "¡Ssss!", &["¡Ssss!", "siseo"]),
+                // The translation, but for its accent.
+                about(
+                    "espontaneamente",
+                    "sin ser llamadas",
+                    &["sin ser invitado", "espontáneamente"],
+                ),
+                about("reganos", "quejas", &["regaños", "quejas constantes"]),
+                // The translation, asked in another form: an agreement.
+                about("aleatorio", "aleatorias", &["aleatorio", "al azar"]),
+                // No translation of its word: the note stands.
+                about("Imagenes", "Nociones", &["noción"]),
+            ],
+        };
+        let seen = |spelling, native| {
+            shown(&review, &written, &unasked, spelling, native)
+                .marks
+                .into_iter()
+                .map(|mark| {
+                    (
+                        mark.fragment,
+                        mark.severity,
+                        mark.better,
+                        mark.word.is_some(),
+                    )
+                })
+                .collect::<Vec<_>>()
+        };
+        let stands = |fragment: &str, better: &str| {
+            (
+                fragment.to_owned(),
+                Severity::Error,
+                better.to_owned(),
+                true,
+            )
+        };
+        assert_eq!(
+            seen(Spelling::Lenient, Some("es-MX")),
+            [
+                stands("Imagenes", "Nociones"),
+                stands("aleatorio", "aleatorias"),
+            ]
+        );
+        // Strict, the accent is a slip of that translation, and no word to learn.
+        let slip = |fragment: &str, better: &str| {
+            (
+                fragment.to_owned(),
+                Severity::Slip,
+                better.to_owned(),
+                false,
+            )
+        };
+        assert_eq!(
+            seen(Spelling::Strict, Some("es")),
+            [
+                stands("Imagenes", "Nociones"),
+                slip("espontaneamente", "espontáneamente"),
+                slip("reganos", "regaños"),
+                stands("aleatorio", "aleatorias"),
+            ]
+        );
+        // Written in English, a fragment is no translation of anything.
+        assert_eq!(seen(Spelling::Lenient, None).len(), 5);
+    }
+
+    #[test]
+    fn a_summary_is_written_from_the_errors_and_no_slip() {
+        let mark = |severity| ReviewMark {
+            fragment: "juicio".into(),
+            severity,
+            better: "prueba".into(),
+            why: "porque sí".into(),
+            word: None,
+        };
+        assert!(sums_up(&mark(Severity::Error)));
+        assert!(!sums_up(&mark(Severity::Slip)));
     }
 
     #[test]
@@ -382,7 +579,7 @@ mod tests {
                 good: None,
                 notes: vec![note],
             };
-            shown(&review, &written(), practised, Spelling::Strict).marks[0]
+            shown(&review, &written(), practised, Spelling::Strict, None).marks[0]
                 .word
                 .clone()
         };
@@ -402,6 +599,12 @@ mod tests {
         assert_eq!(asked.map(|word| word.in_practice), Some(true));
         assert_eq!(ask(about("stray", &[" "]), &unasked), None);
         assert_eq!(ask(about(" ", &["vagar"]), &unasked), None);
+        // A slip is about how a word was written, not about knowing it.
+        let slip = ParagraphNote {
+            severity: Severity::Slip,
+            ..about("refuse", &["rehusarse"])
+        };
+        assert_eq!(ask(slip, &unasked), None);
     }
 
     #[test]

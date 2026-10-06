@@ -9,7 +9,7 @@ use rusqlite::{params, Connection, OptionalExtension, Row};
 use super::practice::NOT_KNOWN;
 use super::{new_id, ts};
 use crate::books::vocab;
-use crate::domain::PartOfSpeech;
+use crate::domain::{PartOfSpeech, VerbForm};
 use crate::error::Result;
 
 /// One sentence of a word's bank.
@@ -32,19 +32,29 @@ pub struct Sentence {
     /// The other English words its hint could be answered with, as the
     /// second look listed them; none while it has not been labelled.
     pub also: Vec<String>,
+    /// The word's other translations in the form the hint has, as the
+    /// second look listed them; none while it has not been labelled.
+    pub hints: Vec<String>,
+    /// The form a verb has in the sentence; none for any other word, and
+    /// while it has not been labelled.
+    pub verb_form: Option<VerbForm>,
 }
 
 const SENTENCE: &str = "SELECT s.id, s.key, s.source = 'book', s.sentence, s.form, s.hint,
             s.translation,
             (SELECT COUNT(*) FROM word_answers a WHERE a.sentence_id = s.id)
               + (SELECT COUNT(*) FROM word_events e WHERE e.sentence_id = s.id),
-            COALESCE(s.also, '[]')
+            COALESCE(s.also, '[]'), COALESCE(s.hints, '[]'), s.verb_form
      FROM word_sentences s";
 
+/// A list kept as a JSON array in the column `at`.
+fn list(row: &Row<'_>, at: usize) -> rusqlite::Result<Vec<String>> {
+    let json: String = row.get(at)?;
+    serde_json::from_str(&json)
+        .map_err(|error| rusqlite::Error::FromSqlConversionFailure(at, Type::Text, error.into()))
+}
+
 fn sentence(row: &Row<'_>) -> rusqlite::Result<Sentence> {
-    let also: String = row.get(8)?;
-    let also = serde_json::from_str(&also)
-        .map_err(|error| rusqlite::Error::FromSqlConversionFailure(8, Type::Text, error.into()))?;
     Ok(Sentence {
         id: row.get(0)?,
         key: row.get(1)?,
@@ -54,7 +64,9 @@ fn sentence(row: &Row<'_>) -> rusqlite::Result<Sentence> {
         hint: row.get(5)?,
         translation: row.get(6)?,
         shows: row.get(7)?,
-        also,
+        also: list(row, 8)?,
+        hints: list(row, 9)?,
+        verb_form: row.get(10)?,
     })
 }
 
@@ -179,32 +191,71 @@ pub fn unreviewed(conn: &Connection) -> Result<Vec<Sentence>> {
     Ok(rows.collect::<rusqlite::Result<_>>()?)
 }
 
-/// A sentence was looked at: a good one can be asked with from now on.
-/// `also` is the other English words its hint could be answered with.
-pub fn review(conn: &Connection, id: &str, good: bool, also: &[String]) -> Result<()> {
-    conn.execute(
-        "UPDATE word_sentences SET reviewed = 1, discarded = ?2, also = ?3 WHERE id = ?1",
-        params![id, !good, serde_json::to_string(also)?],
-    )?;
-    Ok(())
+/// What the second look says of a sentence beside whether it is good.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Labels {
+    /// The other English words its hint could be answered with.
+    pub also: Vec<String>,
+    /// The word's other translations, in the form the hint has.
+    pub hints: Vec<String>,
+    /// The form a verb has in it.
+    pub verb_form: Option<VerbForm>,
 }
 
-/// The sentences asked with that were looked at before the other English
-/// words for their hint were asked for, the oldest first.
+/// A sentence was looked at: a good one can be asked with from now on.
+pub fn review(conn: &Connection, id: &str, good: bool, labels: &Labels) -> Result<()> {
+    conn.execute(
+        "UPDATE word_sentences SET reviewed = 1, discarded = ?2, also = NULL WHERE id = ?1",
+        params![id, !good],
+    )?;
+    label(conn, id, labels)
+}
+
+/// The sentences asked with that were looked at before one of its labels
+/// was asked for, the oldest first: the other English words for their hint,
+/// or the word's other translations in the form of the hint.
 pub fn unlabelled(conn: &Connection) -> Result<Vec<Sentence>> {
     let mut stmt = conn.prepare(&format!(
-        "{SENTENCE} WHERE s.reviewed AND NOT s.discarded AND s.also IS NULL
+        "{SENTENCE} WHERE s.reviewed AND NOT s.discarded
+           AND (s.also IS NULL OR s.hints IS NULL)
          ORDER BY s.created_at, s.rowid"
     ))?;
     let rows = stmt.query_map([], sentence)?;
     Ok(rows.collect::<rusqlite::Result<_>>()?)
 }
 
-/// The other English words the hint of a sentence could be answered with.
-pub fn label(conn: &Connection, id: &str, also: &[String]) -> Result<()> {
+/// What the second look says of a sentence ([`Labels`]). The other English
+/// words it already has are kept: a sentence labelled again for something
+/// else does not lose them to a look that says nothing of it.
+pub fn label(conn: &Connection, id: &str, labels: &Labels) -> Result<()> {
     conn.execute(
-        "UPDATE word_sentences SET also = ?2 WHERE id = ?1",
-        params![id, serde_json::to_string(also)?],
+        "UPDATE word_sentences SET also = COALESCE(also, ?2), hints = ?3, verb_form = ?4
+         WHERE id = ?1",
+        params![
+            id,
+            serde_json::to_string(&labels.also)?,
+            serde_json::to_string(&labels.hints)?,
+            labels.verb_form
+        ],
+    )?;
+    Ok(())
+}
+
+/// A sentence is glossed again, and looked at again: it keeps its place in
+/// the bank and the answers given to it, with what it is now said to be.
+pub fn regloss(conn: &Connection, sentence: &Sentence, labels: &Labels) -> Result<()> {
+    conn.execute(
+        "UPDATE word_sentences
+         SET hint = ?2, translation = ?3, also = ?4, hints = ?5, verb_form = ?6
+         WHERE id = ?1",
+        params![
+            sentence.id,
+            sentence.hint,
+            sentence.translation,
+            serde_json::to_string(&labels.also)?,
+            serde_json::to_string(&labels.hints)?,
+            labels.verb_form
+        ],
     )?;
     Ok(())
 }

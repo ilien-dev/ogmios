@@ -112,6 +112,27 @@ describe("the daily recall", () => {
     expect(screen.queryByRole("button", { name: "Start" })).toBeNull();
   });
 
+  test("a run of both ways asks its new words from both sides", async () => {
+    seedMockReadiness();
+    const user = userEvent.setup();
+    render(<Section />);
+    await user.click(await screen.findByRole("radio", { name: "Both" }));
+    await user.click(screen.getByRole("button", { name: "Start" }));
+    await screen.findByLabelText("Your translation");
+
+    // The first from English, the next towards it.
+    const first = prompt();
+    await user.keyboard(`${RIGHT[first] ?? ""}{Enter}`);
+    expect(await screen.findByText("Right.")).toBeInTheDocument();
+    await user.keyboard("{Enter}");
+    await screen.findByLabelText("Your translation");
+    const [english] = Object.entries(RIGHT).find(
+      ([, spanish]) => spanish === prompt(),
+    ) ?? [""];
+    await user.keyboard(`${english}{Enter}`);
+    expect(await screen.findByText("Right.")).toBeInTheDocument();
+  });
+
   test("a word that keeps slipping offers the learner a note of their own", async () => {
     const user = await begin();
     const word = prompt();

@@ -48,6 +48,8 @@ const MIGRATIONS: &[&str] = &[
     include_str!("rivals.sql"),
     include_str!("sorted.sql"),
     include_str!("listening.sql"),
+    include_str!("forms.sql"),
+    include_str!("verbs.sql"),
 ];
 
 pub fn open(path: &Path) -> Result<Connection> {
@@ -293,15 +295,18 @@ mod tests {
             .map(|word| word.lemma)
             .collect();
         assert_eq!(waiting, ["adorn", "glen"]);
-        assert!(words::label(&conn, "w1", crate::domain::PartOfSpeech::Noun, true).expect("label"));
-        let stored: (String, bool) = conn
+        let noun = (crate::domain::PartOfSpeech::Noun, true);
+        let past = Some(crate::domain::VerbForm::Past);
+        assert!(words::label(&conn, "w1", noun, past).expect("label"));
+        let stored: (String, bool, String) = conn
             .query_row(
-                "SELECT part_of_speech, transitive FROM chapter_words WHERE id = 'w1'",
+                "SELECT part_of_speech, transitive, verb_form FROM chapter_words WHERE id = 'w1'",
                 [],
-                |row| Ok((row.get(0)?, row.get(1)?)),
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
             .expect("word");
-        assert_eq!(stored, ("verb".to_owned(), true), "its kind stays");
+        let kept = ("verb".to_owned(), true, "past".to_owned());
+        assert_eq!(stored, kept, "its kind stays");
         assert_eq!(words::unlabelled(&conn).expect("unlabelled").len(), 1);
     }
 
@@ -410,7 +415,11 @@ mod tests {
             ["waiting"]
         );
 
-        sentences::label(&conn, "used", &["ideas".to_owned()]).expect("label");
+        let labels = sentences::Labels {
+            also: vec!["ideas".to_owned()],
+            ..sentences::Labels::default()
+        };
+        sentences::label(&conn, "used", &labels).expect("label");
         assert_eq!(
             sentences::bank(&conn, "notion").expect("bank")[0].also,
             ["ideas"]
@@ -461,7 +470,7 @@ mod tests {
         // A word with no translation kept has nothing to go by.
         assert_eq!(ids(sentences::bank(&conn, "peep").expect("bank")), ["lone"]);
 
-        sentences::review(&conn, "fire", false, &[]).expect("review");
+        sentences::review(&conn, "fire", false, &sentences::Labels::default()).expect("review");
         assert_eq!(ids(sentences::bank(&conn, "wisp").expect("bank")), ["fog"]);
         assert_eq!(sentences::unreviewed(&conn).expect("list").len(), 0);
     }
@@ -505,25 +514,189 @@ mod tests {
         .expect("rows");
 
         migrate(&conn).expect("migrate");
-        let ids = |list: Vec<sentences::Sentence>| -> Vec<String> {
-            list.into_iter().map(|each| each.id).collect()
+        // The ones asked with that have no list any more: a later migration
+        // leaves every one to be labelled for something else.
+        let listless = || -> Vec<String> {
+            let mut stmt = conn
+                .prepare(
+                    "SELECT id FROM word_sentences
+                     WHERE reviewed AND NOT discarded AND also IS NULL ORDER BY created_at",
+                )
+                .expect("query");
+            let rows = stmt.query_map([], |row| row.get(0)).expect("rows");
+            rows.collect::<rusqlite::Result<_>>().expect("ids")
         };
         // Only the ones asked with whose list is not English.
-        assert_eq!(
-            ids(sentences::unlabelled(&conn).expect("list")),
-            ["meaning", "letter", "hint"]
-        );
+        assert_eq!(listless(), ["meaning", "letter", "hint"]);
         // They are asked with meanwhile, with no rival known.
         let bank = sentences::bank(&conn, "wisp").expect("bank");
         assert_eq!(bank.len(), 5);
         assert_eq!(bank[0].also, ["curl", "puff"]);
         assert_eq!(bank[2].also, Vec::<String>::new());
 
-        sentences::label(&conn, "meaning", &["strand".to_owned()]).expect("label");
-        assert_eq!(
-            ids(sentences::unlabelled(&conn).expect("list")),
-            ["letter", "hint"]
-        );
+        let labels = sentences::Labels {
+            also: vec!["strand".to_owned()],
+            ..sentences::Labels::default()
+        };
+        sentences::label(&conn, "meaning", &labels).expect("label");
+        assert_eq!(listless(), ["letter", "hint"]);
+    }
+
+    #[test]
+    fn migration_twenty_six_leaves_the_sentences_kept_before_to_be_given_their_forms() {
+        let conn = Connection::open_in_memory().expect("open");
+        for sql in &MIGRATIONS[..25] {
+            conn.execute_batch(sql).expect("migration");
+        }
+        conn.pragma_update(None, "user_version", 25)
+            .expect("version");
+        conn.execute_batch(
+            r#"INSERT INTO word_sentences
+               (id, key, source, sentence, form, hint, translation, reviewed, discarded,
+                also, created_at)
+             VALUES ('used', 'recede', 'book', 'The darkness receded.', 'receded',
+                     'retrocedió', 'La oscuridad retrocedió.', 1, 0, '["withdrew"]',
+                     '2026-01-01'),
+                    ('bad', 'recede', 'book', 'It receded.', 'receded', 'retrocedió',
+                     'Retrocedió.', 1, 1, '[]', '2026-01-02'),
+                    ('waiting', 'peep', 'book', 'Do not peep.', 'peep', 'mires',
+                     'No mires.', 0, 0, NULL, '2026-01-03');"#,
+        )
+        .expect("rows");
+
+        migrate(&conn).expect("migrate");
+        // It is asked with as before: its hint alone, and no form known yet.
+        let bank = sentences::bank(&conn, "recede").expect("bank");
+        assert_eq!(bank.len(), 1);
+        assert_eq!(bank[0].also, ["withdrew"]);
+        assert_eq!(bank[0].hints, Vec::<String>::new());
+        assert_eq!(bank[0].verb_form, None);
+        // Only one that is asked with is left to be labelled: the one
+        // waiting is labelled when it is looked at.
+        let ids = |list: Vec<sentences::Sentence>| -> Vec<String> {
+            list.into_iter().map(|each| each.id).collect()
+        };
+        assert_eq!(ids(sentences::unlabelled(&conn).expect("list")), ["used"]);
+
+        let labels = sentences::Labels {
+            also: vec!["withdrew".to_owned()],
+            hints: vec!["se retiró".to_owned(), "se alejó".to_owned()],
+            verb_form: Some(crate::domain::VerbForm::Past),
+        };
+        sentences::label(&conn, "used", &labels).expect("label");
+        let bank = sentences::bank(&conn, "recede").expect("bank");
+        assert_eq!(bank[0].hints, ["se retiró", "se alejó"]);
+        assert_eq!(bank[0].verb_form, Some(crate::domain::VerbForm::Past));
+        assert_eq!(sentences::unlabelled(&conn).expect("list").len(), 0);
+    }
+
+    #[test]
+    fn migration_twenty_seven_calls_each_verb_by_the_form_its_sentence_has() {
+        let conn = Connection::open_in_memory().expect("open");
+        for sql in &MIGRATIONS[..26] {
+            conn.execute_batch(sql).expect("migration");
+        }
+        conn.pragma_update(None, "user_version", 26)
+            .expect("version");
+        conn.execute_batch(
+            r#"INSERT INTO books VALUES ('b', 'Alice', NULL, 'epub', 'h', 'f', '2026-01-01');
+             INSERT INTO book_chapters (id, book_id, idx, title, words, text)
+               VALUES ('c', 'b', 0, 'I', 2, 'text'), ('d', 'b', 1, 'II', 2, 'text');
+             INSERT INTO chapter_words
+               (id, chapter_id, key, lemma, forms, sentence, occurrences, depth, created_at,
+                part_of_speech, learned_at)
+             VALUES ('sworn', 'c', 'swear', 'swear', '["swear","sworn"]',
+                     'Within these walls, sworn into servitude, they lived.', 1, 'most',
+                     '2026-01-01', 'verb', '2026-01-05T10:00:00.000Z'),
+                    ('swore', 'd', 'swear', 'swear', '["swear","Swore","sworn"]',
+                     '“Swore it,” he said.', 1, 'most', '2026-01-02', 'verb', '2026-01-06T10:00:00.000Z'),
+                    ('receded', 'c', 'recede', 'recede', '["recede","receded"]',
+                     'The darkness receded.', 1, 'most', '2026-01-01', 'verb', NULL),
+                    ('peep', 'c', 'peep', 'peep', '["peep"]', 'Do not peep.', 1, 'most',
+                     '2026-01-01', 'verb', NULL),
+                    ('eat', 'c', 'eat', 'eat', '["eat","ate"]', 'He hated to eat late.', 1,
+                     'most', '2026-01-01', 'verb', NULL),
+                    ('give', 'c', 'give up', 'give up', '["give up","gave it up"]',
+                     'She gave it up.', 1, 'most', '2026-01-01', 'phrasalVerb', NULL),
+                    ('child', 'c', 'child', 'child', '["child","children"]',
+                     'The children ran.', 1, 'most', '2026-01-01', 'noun', NULL),
+                    ('lie', 'c', 'lie', 'lie', '["lie","lay"]', 'He lay there.', 1, 'most',
+                     '2026-01-01', 'verb', NULL),
+                    ('lay', 'c', 'lay', 'lay', '["lay"]', 'A lay preacher.', 1, 'most',
+                     '2026-01-01', 'adjective', NULL);
+             INSERT INTO word_sentences
+               (id, key, source, sentence, form, hint, translation, reviewed, discarded,
+                verb_form, created_at)
+             VALUES ('s1', 'swear', 'book', 'sworn into servitude, they lived.', 'sworn',
+                     'juramentados', 'Juramentados, vivían.', 1, 1, 'pastParticiple',
+                     '2026-01-01'),
+                    ('s2', 'swear', 'book', 'He swore it.', 'swore', 'juró', 'Lo juró.', 1, 0,
+                     'past', '2026-01-02'),
+                    ('s3', 'swear', 'model', 'One refused.', '', '', '', 1, 1, NULL,
+                     '2026-01-03');
+             INSERT INTO word_events (key, kind, direction, answer, created_at)
+               VALUES ('swear', 'right', 'recognition', 'jurar', '2026-01-07T10:00:00.000Z');
+             INSERT INTO word_notes VALUES ('swear', 'like an oath', '2026-01-07T10:00:00.000Z');
+             INSERT INTO known_words VALUES ('recede', 'recede', '2026-01-03');
+             UPDATE chapter_words SET transitive = 1;"#,
+        )
+        .expect("rows");
+
+        migrate(&conn).expect("migrate");
+        let word = |id: &str| practice::word(&conn, id).expect("word");
+        let named = |id: &str| {
+            let word = word(id);
+            assert_eq!(word.key, crate::books::vocab::key(&word.lemma), "{id}");
+            (word.lemma, word.base, word.forms)
+        };
+        let moved = |lemma: &str, base: &str, form: &str| {
+            (
+                lemma.to_owned(),
+                Some(base.to_owned()),
+                vec![form.to_owned()],
+            )
+        };
+        assert_eq!(named("sworn"), moved("sworn", "swear", "sworn"));
+        assert_eq!(named("swore"), moved("swore", "swear", "Swore"));
+        assert_eq!(named("receded"), moved("receded", "recede", "receded"));
+        // In its base form, a piece of another word, split by its object,
+        // no verb, or a word its chapter has already: each as it was.
+        for id in ["peep", "eat", "give", "child", "lie", "lay"] {
+            let (lemma, base, _) = named(id);
+            assert_eq!((word(id).key, base), (lemma, None), "{id}");
+        }
+        assert_eq!(word("give").forms, ["give up", "gave it up"]);
+
+        // The form its sentence was said to have, where one was looked at.
+        let form = crate::domain::VerbForm::PastParticiple;
+        assert_eq!(word("sworn").verb_form, Some(form));
+        assert_eq!(word("swore").verb_form, None);
+        let waiting: Vec<String> = words::unlabelled(&conn)
+            .expect("unlabelled")
+            .into_iter()
+            .map(|word| word.id)
+            .collect();
+        assert!(waiting.contains(&"swore".to_owned()));
+        assert!(!waiting.contains(&"sworn".to_owned()));
+
+        // Its sentences go with their form, and its past with the word the
+        // recall asked it by.
+        let keys = |table: &str| -> Vec<String> {
+            let mut stmt = conn
+                .prepare(&format!("SELECT key FROM {table} ORDER BY rowid"))
+                .expect("keys");
+            let rows = stmt.query_map([], |row| row.get(0)).expect("rows");
+            rows.collect::<rusqlite::Result<_>>().expect("key")
+        };
+        assert_eq!(keys("word_sentences"), ["sworn", "swore", "swear"]);
+        assert_eq!(sentences::bank(&conn, "swore").expect("bank").len(), 1);
+        assert_eq!(keys("word_events"), ["sworn"]);
+        assert_eq!(keys("word_notes"), ["sworn"]);
+        assert_eq!(keys("known_words"), ["recede", "receded"]);
+        assert!(words::list(&conn, "c")
+            .expect("list")
+            .iter()
+            .any(|word| word.lemma == "receded" && word.known));
     }
 
     #[test]

@@ -54,6 +54,14 @@ wire_enum!(PartOfSpeech {
     Expression => "expression",
     Other => "other",
 });
+// The form a verb has in the sentence it is asked with.
+wire_enum!(VerbForm {
+    Base => "base",
+    Present => "present",
+    Past => "past",
+    PastParticiple => "pastParticiple",
+    Ing => "ing",
+});
 // Which way a word is asked: English → native, or native → English.
 wire_enum!(Direction { Recognition => "recognition", Production => "production" });
 // The ways a session of practice asks its words in: both, or one alone.
@@ -600,7 +608,7 @@ pub struct Chapter {
 #[serde(rename_all = "camelCase")]
 pub struct BookWord {
     pub id: String,
-    /// The base form: "run" for "ran".
+    /// What the word is called: its base form, or a form of a verb.
     pub lemma: String,
     /// What kind of word it is; none for a word prepared before words were
     /// labelled, or added outside a preparation.
@@ -638,7 +646,7 @@ pub struct ChapterWords {
 pub struct KnownWord {
     /// What the word is known by, in every chapter of every book.
     pub key: String,
-    /// The base form: "run" for "ran".
+    /// What the word is called: its base form, or a form of a verb.
     pub lemma: String,
     /// Its translations in a chapter that has it; none once its books are gone.
     pub translations: Vec<String>,
@@ -694,6 +702,9 @@ pub struct PracticeItem {
     /// one, `prompt` is the word in the form that sentence has it: as
     /// written for `recognition`, translated for `production`.
     pub sentence_id: Option<String>,
+    /// The form a verb has in that sentence; none for any other word, for
+    /// one asked as its chapter has it, and until the sentence is labelled.
+    pub verb_form: Option<VerbForm>,
 }
 
 /// The sentence a word was asked with, shown whole once it is answered.

@@ -560,6 +560,7 @@ export const en = {
       leave: "Leave practice",
       progress: "Session progress",
       direction: "{{from}} → {{to}}",
+      directionFrom: "<from>{{from}}</from> → {{to}}",
       blank: "the missing word",
       answer: "Your translation",
       check: "Check",
@@ -576,9 +577,18 @@ export const en = {
       accepted: "Accepted: {{text}}",
       wrongForm:
         "That's the word, but not the form this sentence needs. Try once more.",
+      baseForm:
+        "That's the word, but I'm after its base form: the infinitive. Try once more.",
       otherWord:
         "That's right, but I'm after another word here. Try once more.",
       exact: "In this sentence:",
+      verbForm: {
+        base: "base form",
+        present: "present",
+        past: "past simple",
+        pastParticiple: "past participle",
+        ing: "-ing form",
+      },
       fromBook: "From the book",
       fromClaude: "Example",
       badSentence: "Bad sentence",

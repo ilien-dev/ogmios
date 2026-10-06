@@ -210,6 +210,11 @@ export const PLAIN = {
   sentence: null,
 };
 
+/** A word as an exercise shows it: `commands::practice::small`. */
+export function small(texts: readonly string[]): string[] {
+  return texts.map((text) => text.toLowerCase());
+}
+
 /**
  * A hint to the word asked this way: `books::hint::mask` in small. The mock
  * keeps no sentence back: a word shows its own from the start or has none,
@@ -223,7 +228,7 @@ export function hintOf(
   const whole =
     (direction === "recognition" ? word.translations[0] : english(word)[0]) ??
     word.lemma;
-  const chars = Array.from(whole);
+  const chars = Array.from(whole.toLowerCase());
   const isLetter = (char: string): boolean => /[\p{L}\p{N}]/u.test(char);
   const most = Math.max(chars.filter(isLetter).length - 1, 0);
   const shown = Math.min(letters, most);
@@ -365,21 +370,23 @@ export function itemOf(word: BookWord, direction: Direction): PracticeItem {
     return {
       wordId: word.id,
       direction,
-      prompt: word.lemma,
+      prompt: word.lemma.toLowerCase(),
       partOfSpeech: word.partOfSpeech,
       context,
       sentenceId: null,
+      verbForm: null,
     };
   }
   return {
     wordId: word.id,
     direction,
-    prompt: word.translations.join(", "),
+    prompt: small(word.translations).join(", "),
     partOfSpeech: word.partOfSpeech,
     context:
       context?.map((part) => (part.marked ? { ...part, text: "" } : part)) ??
       null,
     sentenceId: null,
+    verbForm: null,
   };
 }
 
@@ -587,8 +594,9 @@ function answer(
   return {
     answerId: given.length,
     correct,
-    accepted:
-      direction === "recognition" ? [...word.translations] : english(word),
+    accepted: small(
+      direction === "recognition" ? word.translations : english(word),
+    ),
     step: stepOf(sittingId),
     ...PLAIN,
     helped: correct && hinted,

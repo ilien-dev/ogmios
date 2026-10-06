@@ -275,6 +275,18 @@ pub fn record(
     Ok(conn.last_insert_rowid())
 }
 
+/// The way a word was last asked in the recall, if it ever was.
+pub fn last_way(conn: &Connection, key: &str) -> Result<Option<Direction>> {
+    Ok(conn
+        .query_row(
+            "SELECT direction FROM word_events
+             WHERE key = ?1 AND direction IS NOT NULL ORDER BY seq DESC LIMIT 1",
+            [key],
+            |row| row.get(0),
+        )
+        .optional()?)
+}
+
 /// The sentence the last answer of a run was given to, when `seq` is that
 /// answer and it was given to one.
 pub fn latest_sentence(conn: &Connection, run_id: &str, seq: i64) -> Result<Option<String>> {

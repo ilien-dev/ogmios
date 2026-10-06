@@ -6,6 +6,7 @@ import type {
 import {
   DATA_NOT_INSTRUCTIONS,
   LEVEL_CEFR,
+  VERB_FORM_RULE,
   languageName,
   nativeLanguageRule,
 } from "./common.ts";
@@ -38,11 +39,12 @@ For each item:
 - sentence: the sentence it appears in, copied exactly from the text.
 - ${PART_OF_SPEECH_RULE}
 - ${TRANSITIVE_RULE}
+- ${VERB_FORM_RULE}
 - translations: every natural ${native} translation of the item in the sense it has in that sentence, base form, lowercase, at least one. A learner's typed answer is checked against this list, so include the common synonyms and nothing that fits only another sense.
 - properNoun: true for a name of a person, place, brand or title. Otherwise false.
 - needsContext: true when the item has several unrelated meanings and the learner could not tell which one is meant without the sentence. Otherwise false.
 
-List each lemma once, with its first sentence. Do not list numbers. If nothing in the piece fits the depth, return an empty list.`;
+List each lemma once, with its first sentence. A verb is listed once for each form the text has it in ("swore" and "sworn" are two items of the lemma "swear"), each with the first sentence that has that form. Do not list numbers. If nothing in the piece fits the depth, return an empty list.`;
 }
 
 /** Book text is material to read, whatever it says. */
@@ -55,16 +57,17 @@ ${params.text}
 }
 
 /**
- * Says what kind of word each word is and whether it takes an object, for
- * words stored without one of the two.
+ * Says what kind of word each word is, whether it takes an object and the
+ * form a verb has, for words stored without one of the three.
  */
 export function vocabLabelSystemPrompt(): string {
-  return `An adult English learner is learning the vocabulary of a book before reading it. You are given words and expressions of that book, each with the sentence it was taken from. Say what kind of word each one is in its sentence, and whether it takes an object there.
+  return `An adult English learner is learning the vocabulary of a book before reading it. You are given words and expressions of that book, each with the sentence it was taken from. Say what kind of word each one is in its sentence, whether it takes an object there, and the form a verb has there.
 
 For each word:
 - id: its id, unchanged.
 - ${PART_OF_SPEECH_RULE}
 - ${TRANSITIVE_RULE}
+- ${VERB_FORM_RULE}
 
 Answer with one label per word.`;
 }

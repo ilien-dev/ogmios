@@ -28,6 +28,7 @@ function item(
       partOfSpeech: null,
       context: null,
       sentenceId: null,
+      verbForm: null,
     },
     progress,
   };

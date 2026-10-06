@@ -134,7 +134,8 @@ interface PastRowProps {
 /**
  * A paragraph just translated, still in sight above the one being written.
  * Its review is quick: on the left its score beside what the learner wrote,
- * red on what was wrong and amber on a slip. The detail waits for the end
+ * red on what was wrong and amber on a slip; until it has one, what stands
+ * in for it sits under the text. The detail waits for the end
  * of the attempt, so that nothing here asks to be read.
  */
 export function PastRow({
@@ -144,6 +145,15 @@ export function PastRow({
   away,
   ref,
 }: PastRowProps): ReactNode {
+  // Only a score fits beside the text: what stands in for it goes under it.
+  const reviewed = paragraph.review !== null;
+  const state = (
+    <ReviewState
+      review={paragraph.review}
+      failure={failure}
+      onReviewAgain={onReviewAgain}
+    />
+  );
   return (
     <li
       ref={ref}
@@ -151,16 +161,13 @@ export function PastRow({
       className={cn(ROW, away)}
     >
       <div className="flex min-w-0 items-start gap-4">
-        <div className="w-16 shrink-0">
-          <ReviewState
-            review={paragraph.review}
-            failure={failure}
-            onReviewAgain={onReviewAgain}
-          />
+        <div className="w-16 shrink-0">{reviewed && state}</div>
+        <div className="flex min-w-0 flex-col gap-2">
+          <p className={`${PROSE} text-ink-soft`}>
+            <Marked written={paragraph.written} review={paragraph.review} />
+          </p>
+          {!reviewed && state}
         </div>
-        <p className={`${PROSE} min-w-0 text-ink-soft`}>
-          <Marked written={paragraph.written} review={paragraph.review} />
-        </p>
       </div>
       <p className={`${PROSE} min-w-0 text-ink-faint`}>
         {(paragraph.source ?? []).join(" ")}

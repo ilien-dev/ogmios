@@ -6,13 +6,19 @@
 //! translates the sentence.
 //!
 //! The model labels, this code decides. A sentence is kept only if its hint
-//! does not give the word away (`books::sentences`), and it is used only
-//! once a second request has looked at it and called it good. What is
+//! does not give the word away and is words of its translation
+//! (`books::sentences`), and it is used only once a second request has
+//! looked at it and called it good. A sentence kept before a hint had to be
+//! words of its translation, whose hint is not, is glossed once more
+//! ([`renew`]). What is
 //! refused either way stays, so that it is not asked about again. That
 //! second look also lists the other English words a learner shown the hint
 //! could type: an answer that is one of them is no miss
-//! (`books::sentences::or_other`). A sentence looked at before they were
-//! asked for is put to it once more, for that list alone.
+//! (`books::sentences::or_other`). And it lists the word's other
+//! translations in the form the hint has, and labels the form of a verb: a
+//! word asked in a sentence is answered in the form it has there. A
+//! sentence looked at before any of these was asked for is put to it once
+//! more, for the labels alone.
 //!
 //! It runs in the background, a few words a request, each answer stored as
 //! it arrives: stopped at any point, the next run goes on from there. The
@@ -29,13 +35,15 @@ use tauri::{AppHandle, Emitter};
 use super::profile::{agent, require_profile};
 use super::run;
 use crate::agent::protocol::{
-    ReviewedSentence, SentenceReviewParams, SentenceVerdict, SentenceVerdicts, SentenceWord,
-    SentenceWriteParams, SentencesWritten, WrittenWord,
+    BookGloss, ReviewedSentence, SentenceReviewParams, SentenceVerdict, SentenceVerdicts,
+    SentenceWord, SentenceWriteParams, SentencesWritten, WrittenWord,
 };
 use crate::books::segment::{paragraphs, sentences as cut};
-use crate::books::sentences::{found, hint_fits, Banked, GIVEN, WORDS_PER_CALL};
+use crate::books::sentences::{
+    found, hint_fits, in_translation, other_hints, Banked, GIVEN, WORDS_PER_CALL,
+};
 use crate::db::recall::{self, Source};
-use crate::db::sentences::{self as bank, NewSentence, Sentence};
+use crate::db::sentences::{self as bank, Labels, NewSentence, Sentence};
 use crate::db::{practice, translate};
 use crate::domain::{PartOfSpeech, SentenceProgress};
 use crate::error::Result;
@@ -176,15 +184,9 @@ struct Asked {
     params: SentenceWord,
 }
 
-/// What the word is asked about: the sentence of its book it is given.
-/// None when the book has none that can ask it: nothing is asked for that
-/// word.
-fn ask(word: Wanted, book: &[(String, String)]) -> Option<Asked> {
-    let from_book = in_book(&word, book);
-    if from_book.is_empty() {
-        return None;
-    }
-    Some(Asked {
+/// The word asked about these sentences of its book.
+fn asked_about(word: Wanted, from_book: Vec<(String, String)>) -> Asked {
+    Asked {
         params: SentenceWord {
             id: word.key.clone(),
             lemma: word.lemma.clone(),
@@ -198,7 +200,24 @@ fn ask(word: Wanted, book: &[(String, String)]) -> Option<Asked> {
         },
         book: from_book,
         word,
-    })
+    }
+}
+
+/// What the word is asked about: the sentence of its book it is given.
+/// None when the book has none that can ask it: nothing is asked for that
+/// word.
+fn ask(word: Wanted, book: &[(String, String)]) -> Option<Asked> {
+    let from_book = in_book(&word, book);
+    (!from_book.is_empty()).then(|| asked_about(word, from_book))
+}
+
+/// What the model said of a sentence, as it can be kept: the hint and the
+/// translation. None when the hint gives the word away, or is not words of
+/// the translation: the word would be asked by something its sentence does
+/// not say.
+fn gloss<'a>(said: &'a BookGloss, form: &str) -> Option<(&'a str, &'a str)> {
+    let (hint, translation) = (said.hint.trim(), said.translation.trim());
+    (hint_fits(hint, form) && in_translation(hint, translation)).then_some((hint, translation))
 }
 
 /// Keeps what the model answered for one word: each sentence whose gloss
@@ -211,8 +230,7 @@ fn keep(conn: &Connection, asked: &Asked, answer: &WrittenWord, now: DateTime<Ut
         let Some((sentence, form)) = asked.book.get(at) else {
             continue;
         };
-        let (hint, translation) = (gloss.hint.trim(), gloss.translation.trim());
-        if hint_fits(hint, form) && !translation.is_empty() {
+        if let Some((hint, translation)) = self::gloss(gloss, form) {
             let new = NewSentence {
                 key,
                 book: true,
@@ -267,16 +285,24 @@ fn labels(
         .collect())
 }
 
-/// The other English words a label lists, as they are kept: none for a
-/// sentence the model said nothing of.
-fn also(label: Option<&SentenceVerdict>) -> Vec<String> {
-    label
-        .map(|label| label.also.as_slice())
-        .unwrap_or_default()
-        .iter()
-        .map(|each| each.trim().to_owned())
-        .filter(|each| !each.is_empty())
-        .collect()
+/// What a label says of a sentence, as it is kept: the other English words
+/// it lists, the word's other translations in the form of the hint
+/// (`books::sentences::other_hints`), and the form of the verb. Nothing for
+/// a sentence the model said nothing of. `base` is the word's translations
+/// in their base form.
+fn kept(label: Option<&SentenceVerdict>, sentence: &Sentence, base: &[String]) -> Labels {
+    let Some(label) = label else {
+        return Labels::default();
+    };
+    let also = label.also.iter();
+    Labels {
+        also: also
+            .map(|each| each.trim().to_owned())
+            .filter(|each| !each.is_empty())
+            .collect(),
+        hints: other_hints(&label.hints, (&sentence.hint, &sentence.form), base),
+        verb_form: label.verb_form,
+    }
 }
 
 /// Puts every sentence waiting to be looked at to the model, a few at a
@@ -290,22 +316,106 @@ fn look(ctx: Ctx<'_>, model: &mut dyn Model, native_lang: &str) -> Result<()> {
         for each in chunk {
             let label = labels.get(&each.id);
             let good = label.is_some_and(|label| label.good);
-            bank::review(&conn, &each.id, good, &also(label))?;
+            let (_, base) = bank::meaning(&conn, &each.key)?;
+            bank::review(&conn, &each.id, good, &kept(label, each, &base))?;
         }
     }
     Ok(())
 }
 
-/// Puts the sentences looked at before the other English words for their
-/// hint were asked for to the model, for those alone: whether they are good
-/// was settled, and one the model says nothing of has none.
+/// Puts the sentences looked at before one of their labels was asked for
+/// (`db::sentences::unlabelled`) to the model, for the labels alone:
+/// whether they are good was settled, and one the model says nothing of has
+/// none.
 fn label(ctx: Ctx<'_>, model: &mut dyn Model, native_lang: &str) -> Result<()> {
     let unlabelled = bank::unlabelled(&*ctx.conn()?)?;
     for chunk in unlabelled.chunks(REVIEWED_PER_CALL) {
         let labels = labels(ctx, model, native_lang, chunk)?;
         let conn = ctx.conn()?;
         for each in chunk {
-            bank::label(&conn, &each.id, &also(labels.get(&each.id)))?;
+            let (_, base) = bank::meaning(&conn, &each.key)?;
+            bank::label(&conn, &each.id, &kept(labels.get(&each.id), each, &base))?;
+        }
+    }
+    Ok(())
+}
+
+/// A word with the sentences it is asked with whose hint is not words of
+/// their translation: kept before a hint had to be.
+struct Outdated {
+    asked: Asked,
+    sentences: Vec<Sentence>,
+}
+
+/// The sentences of a word's bank to be glossed again, if any.
+fn outdated(conn: &Connection, word: Wanted) -> Result<Option<Outdated>> {
+    let sentences: Vec<Sentence> = bank::bank(conn, &word.key)?
+        .into_iter()
+        .filter(|each| !in_translation(&each.hint, &each.translation))
+        .collect();
+    if sentences.is_empty() {
+        return Ok(None);
+    }
+    let book = sentences
+        .iter()
+        .map(|each| (each.text.clone(), each.form.clone()))
+        .collect();
+    Ok(Some(Outdated {
+        asked: asked_about(word, book),
+        sentences,
+    }))
+}
+
+/// Glosses these sentences once more, and has the new gloss looked at
+/// before anything is kept: until then they are asked with as they were.
+/// One glossed well and called good keeps its place in the bank and its
+/// answers, with its new hint and translation; any other is not asked with
+/// again, so none is glossed twice.
+fn renew(ctx: Ctx<'_>, model: &mut dyn Model, native_lang: &str, batch: &[Outdated]) -> Result<()> {
+    let written = model.write(&SentenceWriteParams {
+        native_lang: native_lang.to_owned(),
+        words: batch.iter().map(|each| each.asked.params.clone()).collect(),
+    })?;
+    let mut glossed: Vec<Sentence> = Vec::new();
+    let mut refused: Vec<&str> = Vec::new();
+    for each in batch {
+        let answer = written
+            .words
+            .iter()
+            .find(|word| word.id == each.asked.word.key);
+        for (at, old) in each.sentences.iter().enumerate() {
+            let new = answer
+                .and_then(|answer| {
+                    let said = |gloss: &&BookGloss| usize::try_from(gloss.index) == Ok(at);
+                    answer.book.iter().find(said)
+                })
+                .and_then(|said| gloss(said, &old.form));
+            match new {
+                Some((hint, translation)) => glossed.push(Sentence {
+                    hint: hint.to_owned(),
+                    translation: translation.to_owned(),
+                    ..old.clone()
+                }),
+                None => refused.push(&old.id),
+            }
+        }
+    }
+    let labels = if glossed.is_empty() {
+        HashMap::new()
+    } else {
+        labels(ctx, model, native_lang, &glossed)?
+    };
+    let conn = ctx.conn()?;
+    for id in refused {
+        bank::discard(&conn, id)?;
+    }
+    for each in &glossed {
+        let label = labels.get(&each.id);
+        if label.is_some_and(|label| label.good) {
+            let (_, base) = bank::meaning(&conn, &each.key)?;
+            bank::regloss(&conn, each, &kept(label, each, &base))?;
+        } else {
+            bank::discard(&conn, &each.id)?;
         }
     }
     Ok(())
@@ -315,8 +425,9 @@ fn label(ctx: Ctx<'_>, model: &mut dyn Model, native_lang: &str) -> Result<()> {
 /// their book; how many words that was. `progress` hears how many are done
 /// out of how many. Sentences left waiting by a run that was cut short are
 /// looked at first, so nothing is asked twice. The sentences kept before
-/// their rivals were listed are labelled last ([`label`]): the words that
-/// have no sentence yet do not wait for them.
+/// their rivals were listed are labelled last ([`label`]), after those
+/// whose hint their translation does not have are glossed again
+/// ([`renew`]): the words that have no sentence yet do not wait for them.
 pub fn top_up(
     ctx: Ctx<'_>,
     scope: Scope<'_>,
@@ -327,6 +438,7 @@ pub fn top_up(
     look(ctx, model, &profile.native_lang)?;
 
     let mut asked: Vec<Asked> = Vec::new();
+    let mut stale: Vec<Outdated> = Vec::new();
     {
         let conn = ctx.conn()?;
         // By the chapter they are from: the words of one book share its text.
@@ -337,6 +449,7 @@ pub fn top_up(
                 continue;
             };
             if bank::given(&conn, &word.key)? {
+                stale.extend(outdated(&conn, word)?);
                 continue;
             }
             match groups.iter_mut().find(|(held, _)| *held == chapter) {
@@ -384,6 +497,9 @@ pub fn top_up(
         done += batch.len();
         progress(count(done), total);
     }
+    for batch in stale.chunks(WORDS_PER_CALL) {
+        renew(ctx, model, &profile.native_lang, batch)?;
+    }
     label(ctx, model, &profile.native_lang)?;
     Ok(total)
 }
@@ -419,11 +535,10 @@ pub mod tests {
     use std::cell::RefCell;
 
     use super::*;
-    use crate::agent::protocol::BookGloss;
     use crate::commands::practice::tests::{numbered, t0, Desk};
     use crate::db::sessions;
     use crate::db::words;
-    use crate::domain::VocabItem;
+    use crate::domain::{VerbForm, VocabItem};
     use crate::error::Error;
 
     /// A model that glosses every sentence of the book; the second look
@@ -441,9 +556,19 @@ pub mod tests {
         format!("{lemma}ó")
     }
 
+    /// The translation the stub gives a sentence: it has the hint.
+    pub fn translation(lemma: &str, index: usize) -> String {
+        format!("{} libro {index}", hint(lemma))
+    }
+
     /// The other English word the stub lists for the hint of a form.
     pub fn rival(form: &str) -> String {
         format!("{form}ish")
+    }
+
+    /// The other translation the stub lists in the form of a hint.
+    pub fn other_hint(hint: &str) -> String {
+        format!("se {hint}")
     }
 
     impl Model for Stub {
@@ -458,7 +583,7 @@ pub mod tests {
                         .map(|index| BookGloss {
                             index: u32::try_from(index).expect("small"),
                             hint: hint(&word.lemma),
-                            translation: format!("libro {index}"),
+                            translation: translation(&word.lemma, index),
                         })
                         .collect(),
                 })
@@ -480,6 +605,14 @@ pub mod tests {
                         id: each.id.clone(),
                         good: !each.sentence.contains("clumsy"),
                         also: vec![format!(" {} ", rival(&each.form)), "  ".into()],
+                        hints: vec![
+                            format!(" {} ", other_hint(&each.hint)),
+                            each.hint.clone(),
+                            each.form.clone(),
+                            // A base form is no form of the sentence.
+                            each.meaning.first().cloned().unwrap_or_default(),
+                        ],
+                        verb_form: Some(VerbForm::Past),
                     })
                     .collect(),
             })
@@ -520,12 +653,12 @@ pub mod tests {
                 sentence,
                 form,
                 hint: &hint(key),
-                translation: &format!("libro {}", at + 1),
+                translation: &translation(key, at + 1),
             };
             bank::add(&conn, &new, Utc::now()).expect("add");
         }
         for waiting in bank::unreviewed(&conn).expect("waiting") {
-            bank::review(&conn, &waiting.id, true, &[]).expect("review");
+            bank::review(&conn, &waiting.id, true, &Labels::default()).expect("review");
         }
     }
 
@@ -566,7 +699,7 @@ pub mod tests {
                 own.hint.as_str(),
                 own.translation.as_str()
             ),
-            ("w00", "w00ó", "libro 0")
+            ("w00", "w00ó", "w00ó libro 0")
         );
         assert_eq!(own.also, ["w00ish"], "as the second look listed them");
 
@@ -634,6 +767,23 @@ pub mod tests {
         let bank = bank::bank(&desk.db.lock().expect("db"), "peep").expect("bank");
         let also: Vec<&[String]> = bank.iter().map(|each| each.also.as_slice()).collect();
         assert_eq!(also, [["peepish"], ["peepish"]]);
+
+        // Nor one looked at before the translations in the form of the
+        // hint were asked for: it is labelled once more, for those.
+        desk.db
+            .lock()
+            .expect("db")
+            .execute("UPDATE word_sentences SET hints = NULL", [])
+            .expect("old rows");
+        let stub = stock(&desk, &chapter);
+        assert_eq!((stub.writes.len(), stub.reviews), (0, 1));
+        let bank = bank::bank(&desk.db.lock().expect("db"), "peep").expect("bank");
+        for each in &bank {
+            assert_eq!(each.hints, ["se peepó"]);
+            assert_eq!(each.verb_form, Some(VerbForm::Past));
+            assert_eq!(each.also, ["peepish"], "listed again, the same");
+        }
+        assert_eq!(bank.len(), 2);
         // Whether it is good was settled: the clumsy one is still asked with.
         assert_eq!(bank.len(), 2);
 
@@ -679,6 +829,133 @@ pub mod tests {
         // The sentence is remembered: the word is not asked about again.
         let stub = stock(&desk, &chapter);
         assert_eq!(stub.writes.len(), 0);
+    }
+
+    #[test]
+    fn a_hint_its_translation_does_not_have_is_refused_like_one_that_gives_the_word_away() {
+        struct Apart;
+        impl Model for Apart {
+            fn write(&mut self, params: &SentenceWriteParams) -> Result<SentencesWritten> {
+                let mut written = Stub::default().write(params)?;
+                for gloss in written.words.iter_mut().flat_map(|word| &mut word.book) {
+                    // The form of the English word, not of the translation.
+                    gloss.hint = "salvada".into();
+                    gloss.translation = "Demasiado ancha para salvarse.".into();
+                }
+                Ok(written)
+            }
+
+            fn review(&mut self, _: &SentenceReviewParams) -> Result<SentenceVerdicts> {
+                panic!("nothing is kept to be looked at")
+            }
+        }
+
+        let dir = tempfile::tempdir().expect("tempdir");
+        let desk = Desk::new(&dir);
+        let chapter = desk.chapter("b", &numbered(1));
+        top_up(desk.ctx(), Scope::Chapter(&chapter), &mut Apart, &|_, _| {}).expect("top up");
+        assert_eq!(texts(&desk, "w00"), Vec::<String>::new());
+        assert_eq!(stock(&desk, &chapter).writes.len(), 0);
+    }
+
+    /// A sentence as it was kept before a hint had to be words of its
+    /// translation: the hint in the form of the English word.
+    fn kept_apart(desk: &Desk, sentence: &str) -> Sentence {
+        let conn = desk.db.lock().expect("db");
+        let new = NewSentence {
+            key: "peep",
+            book: true,
+            sentence,
+            form: "peeped",
+            hint: "asomada",
+            translation: "Demasiado alto para asomarse.",
+        };
+        bank::add(&conn, &new, Utc::now()).expect("add");
+        let waiting = bank::unreviewed(&conn).expect("waiting").remove(0);
+        let labels = Labels {
+            also: vec!["peered".into()],
+            hints: vec!["mirada".into()],
+            verb_form: Some(VerbForm::PastParticiple),
+        };
+        bank::review(&conn, &waiting.id, true, &labels).expect("review");
+        waiting
+    }
+
+    #[test]
+    fn a_sentence_kept_with_a_hint_its_translation_does_not_have_is_glossed_again() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let desk = Desk::new(&dir);
+        let chapter = chapter_of(&desk, "He peeped at it.", &[peep()]);
+        let old = kept_apart(&desk, "He peeped at it.");
+        let shown = Shown {
+            sentence_id: Some(&old.id),
+            ..Shown::default()
+        };
+        let sitting = desk.start(&chapter, t0());
+        let asked = item(&sitting.step).clone();
+        assert_eq!(asked.sentence_id.as_deref(), Some(old.id.as_str()));
+        let asked_for = (asked.word_id.as_str(), asked.direction);
+        answer_shown(desk.ctx(), &sitting.id, asked_for, ("nope", shown), t0()).expect("answer");
+
+        let stub = stock(&desk, &chapter);
+        assert_eq!((stub.writes.len(), stub.reviews), (1, 1));
+        assert_eq!(stub.writes[0].words[0].book, ["He peeped at it."]);
+        // The same sentence, with the answer given to it, and what it is
+        // now said to be.
+        let [new] = bank::bank(&desk.db.lock().expect("db"), "peep")
+            .expect("bank")
+            .try_into()
+            .expect("one sentence");
+        assert_eq!((&new.id, new.shows), (&old.id, 1));
+        assert_eq!(
+            (new.hint.as_str(), new.translation.as_str()),
+            ("peepó", "peepó libro 0")
+        );
+        assert_eq!(new.also, ["peepedish"]);
+        assert_eq!(new.hints, ["se peepó"]);
+        assert_eq!(new.verb_form, Some(VerbForm::Past));
+
+        // Once: its hint is words of its translation now.
+        let again = stock(&desk, &chapter);
+        assert_eq!((again.writes.len(), again.reviews), (0, 0));
+    }
+
+    #[test]
+    fn one_that_cannot_be_glossed_well_is_not_asked_with_again_nor_glossed_twice() {
+        struct Stubborn(Stub);
+        impl Model for Stubborn {
+            fn write(&mut self, params: &SentenceWriteParams) -> Result<SentencesWritten> {
+                let mut written = self.0.write(params)?;
+                for gloss in written.words.iter_mut().flat_map(|word| &mut word.book) {
+                    gloss.hint = "asomada".into();
+                }
+                Ok(written)
+            }
+
+            fn review(&mut self, _: &SentenceReviewParams) -> Result<SentenceVerdicts> {
+                panic!("nothing new to look at")
+            }
+        }
+
+        let dir = tempfile::tempdir().expect("tempdir");
+        let desk = Desk::new(&dir);
+        let chapter = chapter_of(&desk, "He peeped at it.", &[peep()]);
+        kept_apart(&desk, "He peeped at it.");
+        let mut model = Stubborn(Stub::default());
+        top_up(desk.ctx(), Scope::Chapter(&chapter), &mut model, &|_, _| {}).expect("top up");
+        assert_eq!(model.0.writes.len(), 1);
+        assert_eq!(texts(&desk, "peep"), Vec::<String>::new());
+        assert_eq!(stock(&desk, &chapter).writes.len(), 0);
+
+        // Nor one the second look calls bad.
+        let dir = tempfile::tempdir().expect("tempdir");
+        let desk = Desk::new(&dir);
+        let chapter = chapter_of(&desk, "A clumsy peeped one.", &[peep()]);
+        kept_apart(&desk, "A clumsy peeped one.");
+        let stub = stock(&desk, &chapter);
+        assert_eq!((stub.writes.len(), stub.reviews), (1, 1));
+        assert_eq!(texts(&desk, "peep"), Vec::<String>::new());
+        assert_eq!(stock(&desk, &chapter).writes.len(), 0);
     }
 
     #[test]
@@ -879,22 +1156,29 @@ pub mod tests {
             .collect();
         assert_eq!(marked, [("She ", false), ("peeped", true), (" in.", false)]);
 
-        // The base translation is right, and the form of the sentence is
-        // pointed out; the sentence comes back whole, with where it is from.
-        let result = say(&desk, &sitting, &first, ("asomarse", false));
-        assert!(result.correct);
-        assert_eq!(result.exact.as_deref(), Some("peepó"));
-        assert_eq!(result.accepted, ["peepó", "asomarse"]);
+        // The base translation says nothing of the form the sentence has
+        // the word in: nothing kept, one more try.
+        let before = answers(&desk);
+        let again = say(&desk, &sitting, &first, ("asomarse", false));
+        assert!(again.again && !again.correct);
+        assert_eq!(answers(&desk), before);
+        assert_eq!(item(&again.step), &first, "the same question");
+
+        // In the form of the sentence it is right, on the second try; the
+        // sentence comes back whole, with where it is from.
+        let result = say(&desk, &sitting, &first, ("peepó", true));
+        assert!(result.correct && result.helped);
+        assert_eq!(result.exact, None);
         let whole = result.sentence.expect("shown whole");
         assert_eq!(
             (whole.text.as_str(), whole.translation.as_str(), whole.book),
-            ("She peeped in.", "libro 0", true)
+            ("She peeped in.", "peepó libro 0", true)
         );
 
-        // In the form of the sentence there is nothing to point out.
+        // At once, there is nothing to point out and no help in it.
         let second = item(&result.step).clone();
         let result = say(&desk, &sitting, &second, ("peepó", false));
-        assert!(result.correct);
+        assert!(result.correct && !result.helped);
         assert_eq!(result.exact, None);
 
         // Native → English: the hint, and the sentence with a blank once
@@ -942,7 +1226,7 @@ pub mod tests {
         let mut step = sitting.step.clone();
         for _ in 0..2 {
             let asked = item(&step).clone();
-            step = say(&desk, &sitting, &asked, ("asomarse", false)).step;
+            step = say(&desk, &sitting, &asked, ("peepó", false)).step;
         }
         let asked = item(&step).clone();
         let sentence = sentence_of(&desk, &asked);
@@ -987,11 +1271,180 @@ pub mod tests {
         assert_eq!(plain.sentence_id, None);
         assert_eq!(plain.part_of_speech, Some(PartOfSpeech::Verb));
 
-        // With a sentence of its bank it is the same kind of word.
+        assert_eq!(plain.verb_form, None);
+
+        // With a sentence of its bank it is the same kind of word, in the
+        // form the second look says it has there.
         stock(&desk, &chapter);
         let banked = item(&desk.start(&chapter, t0()).step).clone();
         assert!(banked.sentence_id.is_some());
         assert_eq!(banked.part_of_speech, Some(PartOfSpeech::Verb));
+        assert_eq!(banked.verb_form, Some(VerbForm::Past));
+    }
+
+    /// "peeped", a word of its own: the form its chapter has "peep" in.
+    fn peeped() -> Word {
+        Word {
+            key: "peeped".into(),
+            lemma: "peeped".into(),
+            base: Some("peep".into()),
+            verb_form: Some(VerbForm::Past),
+            part_of_speech: Some(PartOfSpeech::Verb),
+            translations: vec!["forzar".into()],
+            ..peep()
+        }
+    }
+
+    /// The word as it is asked native → English, once `right` was given
+    /// to it English → native as often as the session asked.
+    fn asked_back(
+        desk: &Desk,
+        sitting: &Sitting,
+        mut step: PracticeStep,
+        right: &dyn Fn(&PracticeItem) -> String,
+    ) -> PracticeItem {
+        while item(&step).direction == Direction::Recognition {
+            let asked = item(&step).clone();
+            let said = say(desk, sitting, &asked, (&right(&asked), true));
+            assert!(said.correct);
+            step = said.step;
+        }
+        item(&step).clone()
+    }
+
+    #[test]
+    fn a_form_of_a_verb_that_is_a_word_of_its_own_is_asked_as_that_form() {
+        // With no sentence of its bank it is the form its chapter has, said
+        // to be that form, and its translation is right in any form.
+        let dir = tempfile::tempdir().expect("tempdir");
+        let desk = Desk::new(&dir);
+        let chapter = chapter_of(&desk, "She peeped in.", &[peeped()]);
+        let sitting = desk.start(&chapter, t0());
+        let asked = item(&sitting.step).clone();
+        assert_eq!(asked.direction, Direction::Recognition);
+        assert_eq!(asked.prompt, "peeped");
+        assert_eq!(asked.sentence_id, None);
+        assert_eq!(asked.verb_form, Some(VerbForm::Past));
+        let right = say(&desk, &sitting, &asked, ("forzado", false));
+        assert!(right.correct && !right.again);
+        // Asked for in English on its own, its base form is the word too.
+        let back = asked_back(&desk, &sitting, right.step, &|_| "forzado".to_owned());
+        assert_eq!(back.verb_form, Some(VerbForm::Past));
+        assert!(say(&desk, &sitting, &back, ("peep", false)).correct);
+
+        // With one, its base translation is still not the form it has there.
+        let dir = tempfile::tempdir().expect("tempdir");
+        let desk = Desk::new(&dir);
+        let chapter = chapter_of(&desk, "She peeped in.", &[peeped()]);
+        stock(&desk, &chapter);
+        let sitting = desk.start(&chapter, t0());
+        let asked = item(&sitting.step).clone();
+        assert_eq!(asked.prompt, "peeped");
+        assert!(asked.sentence_id.is_some());
+        assert!(say(&desk, &sitting, &asked, ("forzar", false)).again);
+        // And its base form is the word, in a form that does not fill the
+        // blank: no other word, and no miss.
+        let hint = |asked: &PracticeItem| sentence_of(&desk, asked).hint;
+        let back = asked_back(&desk, &sitting, sitting.step.clone(), &hint);
+        let before = answers(&desk);
+        let told = say(&desk, &sitting, &back, ("peep", false));
+        assert!(told.again && told.another.is_none());
+        assert_eq!(answers(&desk), before);
+        // The model would take it for right: it is not asked.
+        let missed = say(&desk, &sitting, &back, ("peep", true));
+        assert!(!missed.correct && !missed.again);
+        let refused = dispute(
+            desk.ctx(),
+            missed.answer_id,
+            &mut |_| panic!("the model is not asked"),
+            t0(),
+        );
+        assert!(matches!(refused, Err(Error::Invalid(_))));
+    }
+
+    #[test]
+    fn a_base_translation_missed_for_its_form_is_never_upheld() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let desk = Desk::new(&dir);
+        let sitting = peeping(&desk);
+        let asked = item(&sitting.step).clone();
+        assert!(say(&desk, &sitting, &asked, ("asomarse", false)).again);
+        let missed = say(&desk, &sitting, &asked, ("Asomarse", true));
+        assert!(!missed.correct && !missed.again);
+        assert_eq!(missed.accepted, ["peepó", "se peepó"]);
+        // The model would take the base form for right: it is not asked.
+        let refused = dispute(
+            desk.ctx(),
+            missed.answer_id,
+            &mut |_| panic!("the model is not asked"),
+            t0(),
+        );
+        assert!(matches!(refused, Err(Error::Invalid(_))));
+    }
+
+    #[test]
+    fn a_verb_in_another_form_than_the_gerund_of_its_sentence_is_no_answer_and_never_upheld() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let desk = Desk::new(&dir);
+        let verb = Word {
+            part_of_speech: Some(PartOfSpeech::Verb),
+            ..peep()
+        };
+        let chapter = chapter_of(&desk, "She peeped in.", &[verb]);
+        stock(&desk, &chapter);
+        desk.db
+            .lock()
+            .expect("db")
+            .execute(
+                "UPDATE word_sentences SET hint = 'peepando', hints = NULL",
+                [],
+            )
+            .expect("a gerund");
+        let sitting = desk.start(&chapter, t0());
+        let asked = item(&sitting.step).clone();
+        assert_eq!(asked.direction, Direction::Recognition);
+
+        assert!(say(&desk, &sitting, &asked, ("peepaba", false)).again);
+        assert_eq!(answers(&desk), 0);
+        let missed = say(&desk, &sitting, &asked, ("peepaba", true));
+        assert!(!missed.correct && !missed.again);
+        assert_eq!(missed.accepted, ["peepando"]);
+        let refused = dispute(
+            desk.ctx(),
+            missed.answer_id,
+            &mut |_| panic!("the model is not asked"),
+            t0(),
+        );
+        assert!(matches!(refused, Err(Error::Invalid(_))));
+        assert!(say(&desk, &sitting, &asked, ("Peepando", true)).correct);
+    }
+
+    #[test]
+    fn only_a_word_its_chapter_calls_a_verb_has_a_form() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let desk = Desk::new(&dir);
+        // The second look labels a form, and the chapter says no verb.
+        let chapter = desk.chapter("b", &[peep()]);
+        stock(&desk, &chapter);
+        let banked = item(&desk.start(&chapter, t0()).step).clone();
+        assert!(banked.sentence_id.is_some());
+        assert_eq!(banked.verb_form, None);
+    }
+
+    #[test]
+    fn what_is_asked_for_is_the_translations_in_the_form_of_the_sentence_and_no_base_form() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let desk = Desk::new(&dir);
+        let sitting = peeping(&desk);
+        let asked = item(&sitting.step).clone();
+        let sentence = sentence_of(&desk, &asked);
+        // What the stub listed, without the hint itself or the word.
+        assert_eq!(sentence.hints, ["se peepó"]);
+        // Any of them is right, with nothing to point out.
+        let right = say(&desk, &sitting, &asked, ("Se peepó.", false));
+        assert!(right.correct && !right.again);
+        assert_eq!(right.exact, None);
+        assert_eq!(right.accepted, ["peepó", "se peepó"]);
     }
 
     #[test]
@@ -1094,7 +1547,7 @@ pub mod tests {
         assert_eq!(given.mask.as_deref(), Some("p____"));
         for _ in 0..2 {
             let asked = item(&step).clone();
-            step = say(&desk, &sitting, &asked, ("asomarse", false)).step;
+            step = say(&desk, &sitting, &asked, ("peepó", false)).step;
         }
         // Native -> English: the form that fills the blank.
         let asked = item(&step).clone();
@@ -1107,6 +1560,61 @@ pub mod tests {
         )
         .expect("hint");
         assert_eq!(given.mask, Some("_".repeat(sentence.form.len())));
+    }
+
+    #[test]
+    fn a_word_and_what_it_means_are_shown_in_small_letters() {
+        use crate::commands::practice::hint;
+        let dir = tempfile::tempdir().expect("tempdir");
+        let desk = Desk::new(&dir);
+        let text = "Peeped in, she had.";
+        let chapter = chapter_of(&desk, text, &[peep()]);
+        {
+            let conn = desk.db.lock().expect("db");
+            let new = NewSentence {
+                key: "peep",
+                book: true,
+                sentence: text,
+                form: "Peeped",
+                hint: "Asomó",
+                translation: "Asomó, eso hizo.",
+            };
+            bank::add(&conn, &new, Utc::now()).expect("add");
+            for waiting in bank::unreviewed(&conn).expect("waiting") {
+                bank::review(&conn, &waiting.id, true, &Labels::default()).expect("review");
+            }
+        }
+        let sitting = desk.start(&chapter, t0());
+        let letter = |asked: &PracticeItem| {
+            hint(
+                desk.ctx(),
+                &sitting.id,
+                (&asked.word_id, asked.direction),
+                (asked.sentence_id.as_deref(), 2),
+            )
+            .expect("hint")
+            .mask
+        };
+
+        // English → native: the form that opens its sentence, and its hint.
+        let mut asked = item(&sitting.step).clone();
+        assert_eq!(
+            (asked.direction, asked.prompt.as_str()),
+            (Direction::Recognition, "peeped")
+        );
+        assert_eq!(letter(&asked).as_deref(), Some("a____"));
+        while asked.direction == Direction::Recognition {
+            let told = say(&desk, &sitting, &asked, ("Asomó", false));
+            assert!(told.correct);
+            assert_eq!(told.accepted, ["asomó"]);
+            asked = item(&told.step).clone();
+        }
+
+        // Native → English: what it means, and the word a miss shows.
+        assert_eq!(asked.prompt, "asomó");
+        assert_eq!(letter(&asked).as_deref(), Some("p_____"));
+        let missed = say(&desk, &sitting, &asked, ("nope", false));
+        assert_eq!(missed.accepted, ["peeped"]);
     }
 
     #[test]
@@ -1157,8 +1665,8 @@ pub mod tests {
         assert!(discard(desk.ctx(), missed.answer_id, t0()).is_err());
 
         // Only the last answer of a session can be taken back.
-        let one = say(&desk, &sitting, &next, ("asomarse", false));
-        let two = say(&desk, &sitting, item(&one.step), ("asomarse", false));
+        let one = say(&desk, &sitting, &next, ("peepó", false));
+        let two = say(&desk, &sitting, item(&one.step), ("peepó", false));
         assert!(matches!(
             discard(desk.ctx(), one.answer_id, t0()),
             Err(Error::Invalid(_))
@@ -1206,7 +1714,7 @@ pub mod tests {
         let mut step = sitting.step.clone();
         while let PracticeStep::Item { item: asked, .. } = step.clone() {
             let right = match asked.direction {
-                Direction::Recognition => "asomarse".to_owned(),
+                Direction::Recognition => "peepó".to_owned(),
                 Direction::Production => sentence_of(&desk, &asked).form,
             };
             step = say(&desk, &sitting, &asked, (&right, false)).step;
@@ -1272,7 +1780,7 @@ pub mod tests {
         let mut step = sitting.step.clone();
         for _ in 0..2 {
             let asked = item(&step).clone();
-            step = say(&desk, &sitting, &asked, ("asomarse", false)).step;
+            step = say(&desk, &sitting, &asked, ("peepó", false)).step;
         }
 
         // The word in the wrong form, twice: a miss that is not to stand by,
@@ -1341,7 +1849,7 @@ pub mod tests {
         let mut step = sitting.step.clone();
         for _ in 0..2 {
             let asked = item(&step).clone();
-            step = say(&desk, &sitting, &asked, ("asomarse", false)).step;
+            step = say(&desk, &sitting, &asked, ("peepó", false)).step;
         }
         let asked = item(&step).clone();
         assert_eq!(
@@ -1460,7 +1968,7 @@ pub mod tests {
         let mut step = sitting.step.clone();
         while let PracticeStep::Item { item: asked, .. } = step.clone() {
             let right = match asked.direction {
-                Direction::Recognition => "asomarse".to_owned(),
+                Direction::Recognition => "peepó".to_owned(),
                 Direction::Production => sentence_of(&desk, &asked).form,
             };
             step = say(&desk, &sitting, &asked, (&right, false)).step;
