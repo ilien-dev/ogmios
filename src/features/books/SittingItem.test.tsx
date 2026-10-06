@@ -215,6 +215,51 @@ describe("a hint on a word", () => {
     cleanup();
   });
 
+  test("a verb shown in its form and answered in another is asked for in that form", async () => {
+    const user = userEvent.setup();
+    render(
+      <SittingItem
+        nativeLang="es"
+        item={{
+          ...BARE,
+          direction: "production",
+          prompt: "jurado",
+          verbForm: "pastParticiple",
+        }}
+        check={(_answer, second) =>
+          Promise.resolve(
+            second
+              ? { ...PLAIN, correct: true, accepted: ["sworn"], step: "next" }
+              : {
+                  ...PLAIN,
+                  correct: false,
+                  accepted: [],
+                  step: null,
+                  again: true,
+                },
+          )
+        }
+        know={null}
+        dispute={null}
+        notice={null}
+        onDispute={null}
+        onNext={() => null}
+      />,
+    );
+    expect(screen.getByText("past participle")).toBeInTheDocument();
+    const field = screen.getByLabelText("Your translation");
+    await user.type(field, "swear{Enter}");
+    expect(
+      await screen.findByText(
+        "That's the word, but not in the form I'm asking for. Try once more.",
+      ),
+    ).toBeInTheDocument();
+    await user.clear(field);
+    await user.type(field, "sworn{Enter}");
+    expect(await screen.findByText("Right.")).toBeInTheDocument();
+    cleanup();
+  });
+
   test("Alt+N from the field says the word is not known, and both keys show on their buttons", async () => {
     const user = userEvent.setup();
     const held = hinted();

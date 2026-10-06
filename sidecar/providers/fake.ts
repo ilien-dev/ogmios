@@ -197,7 +197,8 @@ function fakeVerdict(params: VocabJudgeParams): VocabVerdict {
 
 /**
  * Every word a verb that takes an object: not what the fake calls a word it
- * extracts.
+ * extracts. A translation in the form of the word is the translation and
+ * "ó".
  */
 function fakeLabels(params: VocabLabelParams): VocabLabels {
   return {
@@ -206,6 +207,7 @@ function fakeLabels(params: VocabLabelParams): VocabLabels {
       partOfSpeech: "verb",
       transitive: true,
       verbForm: "past",
+      inForm: word.translations.map((each) => `${each}ó`),
     })),
   };
 }

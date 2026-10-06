@@ -50,6 +50,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("listening.sql"),
     include_str!("forms.sql"),
     include_str!("verbs.sql"),
+    include_str!("inform.sql"),
 ];
 
 pub fn open(path: &Path) -> Result<Connection> {
@@ -588,6 +589,50 @@ mod tests {
         assert_eq!(bank[0].hints, ["se retiró", "se alejó"]);
         assert_eq!(bank[0].verb_form, Some(crate::domain::VerbForm::Past));
         assert_eq!(sentences::unlabelled(&conn).expect("list").len(), 0);
+    }
+
+    #[test]
+    fn migration_twenty_eight_leaves_a_verb_in_another_form_to_be_said_in_it() {
+        let conn = Connection::open_in_memory().expect("open");
+        for sql in &MIGRATIONS[..27] {
+            conn.execute_batch(sql).expect("migration");
+        }
+        conn.pragma_update(None, "user_version", 27)
+            .expect("version");
+        conn.execute_batch(
+            r#"INSERT INTO books VALUES ('b', 'Alice', NULL, 'epub', 'h', 'f', '2026-01-01');
+             INSERT INTO book_chapters (id, book_id, idx, title, words, text)
+               VALUES ('c', 'b', 0, 'I', 2, 'text');
+             INSERT INTO chapter_words
+               (id, chapter_id, key, lemma, forms, sentence, occurrences, depth, created_at,
+                part_of_speech, transitive, base, verb_form)
+             VALUES ('sworn', 'c', 'sworn', 'sworn', '["sworn"]',
+                     'Within these walls, sworn into servitude, they lived.', 1, 'most',
+                     '2026-01-01', 'verb', 0, 'swear', 'pastParticiple'),
+                    ('peep', 'c', 'peep', 'peep', '["peep"]', 'Do not peep.', 1, 'most',
+                     '2026-01-01', 'verb', 0, NULL, 'base');
+             INSERT INTO word_translations (word_id, text, source)
+               VALUES ('sworn', 'jurar', 'extraction'), ('sworn', 'prometido', 'dispute'),
+                      ('peep', 'asomarse', 'extraction');"#,
+        )
+        .expect("rows");
+
+        migrate(&conn).expect("migrate");
+        let word = |id: &str| practice::word(&conn, id).expect("word");
+        // Shown by its base form until a model says it in its own.
+        assert_eq!((word("sworn").in_form, word("peep").in_form), (None, None));
+        assert_eq!(word("sworn").shown_as(), ["jurar"]);
+        let waiting = words::unlabelled(&conn).expect("unlabelled");
+        assert_eq!(waiting.len(), 1, "only the verb in another form");
+        assert_eq!(waiting[0].id, "sworn");
+        // What a dispute upheld is accepted, never shown: it is not asked.
+        assert_eq!(waiting[0].translations, ["jurar"]);
+
+        let said = ["jurado".to_owned()];
+        assert!(words::put_in_form(&conn, "sworn", &waiting[0].translations, &said).expect("put"));
+        assert_eq!(word("sworn").shown_as(), ["jurado"]);
+        assert_eq!(word("sworn").translations, ["jurar", "prometido"]);
+        assert_eq!(words::unlabelled(&conn).expect("unlabelled").len(), 0);
     }
 
     #[test]
