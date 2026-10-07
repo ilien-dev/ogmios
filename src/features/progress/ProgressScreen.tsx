@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { Progress, VocabEntry } from "@shared/domain";
+import { BackLink } from "@/components/ui/BackLink";
 import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
 import { Spinner } from "@/components/ui/Spinner";
@@ -129,9 +130,17 @@ export function ProgressScreen({
   return (
     <main className="h-full overflow-y-auto">
       <div className="mx-auto flex max-w-4xl flex-col gap-16 px-10 pt-16 pb-20">
-        <h1 className="text-display font-semibold text-ink">
-          {t("progress.title")}
-        </h1>
+        <header className="flex flex-col gap-3">
+          <BackLink
+            label={t("nav.conversation")}
+            onClick={() => {
+              navigate({ name: "home" });
+            }}
+          />
+          <h1 className="text-display font-semibold text-ink">
+            {t("progress.title")}
+          </h1>
+        </header>
 
         <div className="grid grid-cols-5 gap-12">
           <Section

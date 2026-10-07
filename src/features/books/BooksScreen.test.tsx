@@ -1,10 +1,9 @@
-import { describe, expect, mock, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { Route } from "@/app/routes";
-import { Sidebar } from "@/app/Sidebar";
 import { i18n } from "@/lib/i18n/i18n";
 import { clearMockBooks, setMockBookPick } from "@/lib/ipcMockBooks";
 import { seedMockReadiness } from "@/lib/ipcMockChapters";
@@ -13,21 +12,44 @@ import { useMockBackend } from "@/test/mockBackend";
 import { BooksScreen } from "./BooksScreen";
 
 /** The screen with the one piece of the app it needs: the current route. */
-function Shelf(): ReactNode {
-  const [route, setRoute] = useState<Route>({ name: "books", bookId: null });
+function Section({ from }: { from: Route }): ReactNode {
+  const [route, setRoute] = useState<Route>(from);
+  if (route.name !== "books") {
+    return <p>{`Left for ${route.name}`}</p>;
+  }
   return (
     <BooksScreen
       nativeLang="es"
-      bookId={route.name === "books" ? route.bookId : null}
-      chapterId={route.name === "books" ? (route.chapterId ?? null) : null}
-      known={route.name === "books" && route.known === true}
+      bookId={route.bookId}
+      chapterId={route.chapterId ?? null}
+      shelf={route.shelf === true}
+      known={route.known === true}
       navigate={setRoute}
     />
   );
 }
 
+/** The section opened on its shelf. */
+function Shelf(): ReactNode {
+  return <Section from={{ name: "books", bookId: null, shelf: true }} />;
+}
+
 describe("BooksScreen", () => {
   useMockBackend();
+
+  test("opens on the section's own screen, and the shelf leads back to it", async () => {
+    const user = userEvent.setup();
+    render(<Section from={{ name: "books", bookId: null }} />);
+
+    await user.click(await screen.findByRole("button", { name: "Change" }));
+    expect(
+      await screen.findByRole("heading", { name: "Books" }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Book" }));
+    expect(
+      await screen.findByRole("region", { name: "Current chapter" }),
+    ).toBeInTheDocument();
+  });
 
   test("an empty shelf says so, and that chapter text goes to Claude", async () => {
     clearMockBooks();
@@ -154,11 +176,11 @@ describe("BooksScreen", () => {
       ),
     ).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Todos los libros" }));
+    await user.click(screen.getByRole("button", { name: "Libro" }));
     expect(
-      await screen.findByRole("heading", { name: "Libros" }),
+      await screen.findByRole("heading", { name: "Libro" }),
     ).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /ya sabes/u })).toBeNull();
+    expect(screen.queryByText(/ya sabes/u)).toBeNull();
   });
 
   test("adding a book opens it; the same file again is the same book", async () => {
@@ -331,22 +353,5 @@ describe("BooksScreen", () => {
         "No books yet. Add an EPUB or a PDF to see its chapters.",
       ),
     ).toBeInTheDocument();
-  });
-});
-
-describe("Sidebar", () => {
-  useMockBackend();
-
-  test.each([
-    ["en", "Books"],
-    ["es", "Libros"],
-  ])("has a Books entry (%s)", async (language, label) => {
-    const user = userEvent.setup();
-    const navigate = mock();
-    await i18n.changeLanguage(language);
-    render(<Sidebar route={{ name: "home" }} navigate={navigate} />);
-
-    await user.click(screen.getByRole("button", { name: label }));
-    expect(navigate).toHaveBeenCalledWith({ name: "books", bookId: null });
   });
 });

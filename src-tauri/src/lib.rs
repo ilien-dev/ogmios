@@ -172,6 +172,7 @@ fn with_commands(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::W
         commands::tts::tts_stop,
         commands::update::app_version,
         commands::update::check_update,
+        commands::update::download_update,
         commands::update::install_update,
     ])
 }
@@ -182,6 +183,7 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
+        .manage(commands::update::Downloaded::default())
         .setup(setup);
     with_commands(builder)
         .run(tauri::generate_context!())

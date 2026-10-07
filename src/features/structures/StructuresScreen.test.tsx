@@ -10,8 +10,11 @@ import { useMockBackend } from "@/test/mockBackend";
 import { StructuresScreen } from "./StructuresScreen";
 
 /** The structures section, as the app holds it. */
-function Section(): ReactNode {
-  const [route, setRoute] = useState<Route>({ name: "structures" });
+function Section({ hub = false }: { hub?: boolean }): ReactNode {
+  const [route, setRoute] = useState<Route>({
+    name: "structures",
+    catalog: !hub,
+  });
   if (route.name !== "structures") {
     return <p>{`Left for ${route.name}`}</p>;
   }
@@ -20,6 +23,7 @@ function Section(): ReactNode {
       {showsNav(route) && <nav aria-label="Sections" />}
       <StructuresScreen
         running={route.running ?? null}
+        catalog={route.catalog === true}
         chapterId={route.chapterId ?? null}
         bookId={route.bookId ?? null}
         navigate={setRoute}
@@ -43,7 +47,7 @@ function asked(): string {
 async function open(): Promise<UserEvent> {
   const user = userEvent.setup();
   render(<Section />);
-  await screen.findByRole("heading", { name: "Structures" });
+  await screen.findByRole("heading", { name: "Free session" });
   return user;
 }
 
@@ -68,6 +72,68 @@ async function next(user: UserEvent): Promise<void> {
   await user.click(screen.getByRole("button", { name: /^Next/ }));
   await screen.findByLabelText("Your sentence, in English");
 }
+
+describe("the structures section", () => {
+  useMockBackend();
+
+  test("opens on a card for any structure and one for the chapter's", async () => {
+    const user = userEvent.setup();
+    render(<Section hub />);
+
+    const free = await screen.findByRole("button", { name: /^Free session/ });
+    expect(free.textContent).toContain("36 structures · 0 firm");
+    expect(
+      screen.getByRole("button", { name: /^From the chapter/ }).textContent,
+    ).toContain("Alice's Adventures in Wonderland · I. Down the Rabbit-Hole");
+    expect(screen.queryByRole("button", { name: /^Paused/ })).toBeNull();
+
+    await user.click(free);
+    await screen.findByRole("heading", { name: "Free session" });
+    await user.click(screen.getByRole("button", { name: "Structures" }));
+    await screen.findByRole("button", { name: /^Free session/ });
+  });
+
+  test("the chapter's card opens the structures of the chapter", async () => {
+    const user = userEvent.setup();
+    render(<Section hub />);
+
+    await user.click(
+      await screen.findByRole("button", { name: /^From the chapter/ }),
+    );
+    await screen.findByRole("heading", { name: "Chapter structures" });
+  });
+
+  test("with no book on the shelf there is no card for a chapter", async () => {
+    const { clearMockBooks } = await import("@/lib/ipcMockBooks");
+    clearMockBooks();
+    render(<Section hub />);
+
+    await screen.findByRole("button", { name: /^Free session/ });
+    expect(
+      screen.queryByRole("button", { name: /^From the chapter/ }),
+    ).toBeNull();
+  });
+
+  test("with several sessions paused, the card opens the menu that lists them", async () => {
+    const user = await begin();
+    await write(user, "I can peep now.");
+    await user.click(screen.getByRole("button", { name: "Pause" }));
+    await user.click(
+      await screen.findByRole("button", { name: /^Free session/ }),
+    );
+    await user.click(screen.getByRole("button", { name: /^Can \/ can't/ }));
+    await user.click(screen.getByRole("button", { name: "Start" }));
+    await screen.findByLabelText("Your sentence, in English");
+    await write(user, "I can't peep now.");
+    await user.click(screen.getByRole("button", { name: "Pause" }));
+
+    const card = await screen.findByRole("button", { name: /^Paused/ });
+    expect(card.textContent).toContain("2 sessions");
+    await user.click(card);
+    await screen.findByRole("heading", { name: "Paused" });
+    expect(screen.getAllByRole("button", { name: "Continue" })).toHaveLength(2);
+  });
+});
 
 describe("the structures menu", () => {
   useMockBackend();
@@ -269,19 +335,22 @@ describe("a session of structures", () => {
     await screen.findByText("Not yet");
   });
 
-  test("paused, it waits in the menu to be gone on with or finished", async () => {
+  test("paused, it waits on a card to be gone on with, and in the menu to be finished", async () => {
     const user = await begin();
     await write(user, "I can peep now.");
     await user.click(screen.getByRole("button", { name: "Pause" }));
-    await screen.findByRole("heading", { name: "Paused" });
-    expect(screen.getByText("1 of 10 sentences")).toBeDefined();
+    const card = await screen.findByRole("button", { name: /^Paused/ });
+    expect(card.textContent).toContain("1 of 10 sentences");
     expect(screen.getByRole("navigation")).toBeDefined();
 
-    await user.click(screen.getByRole("button", { name: "Continue" }));
+    await user.click(card);
     await screen.findByLabelText("Your sentence, in English");
     expect(screen.getByText("2 of 10")).toBeDefined();
 
     await user.click(screen.getByRole("button", { name: "Pause" }));
+    await user.click(
+      await screen.findByRole("button", { name: /^Free session/ }),
+    );
     await screen.findByRole("heading", { name: "Paused" });
     await user.click(screen.getByRole("button", { name: "Finish" }));
     await screen.findByText("None picked: the 36 listed, mixed");
@@ -355,7 +424,9 @@ describe("the structures of a chapter", () => {
     expect(screen.getByText("1 of 20")).toBeDefined();
 
     await user.click(screen.getByRole("button", { name: "Pause" }));
-    await screen.findByRole("heading", { name: "Structures" });
+    await user.click(
+      await screen.findByRole("button", { name: /^Free session/ }),
+    );
     // Read already: the card lists them and goes straight to practising.
     expect(
       screen.getByRole("button", { name: "Practise the chapter's" }),
