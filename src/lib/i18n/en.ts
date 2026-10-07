@@ -258,8 +258,11 @@ export const en = {
     anotherTopic: "Another topic",
     customize: "Customize",
     focus: "You're working on: {{pattern}}",
-    due: "A two-minute practice is waiting",
-    practise: "Practise",
+    drillsText: "Practise the mistakes from your conversations.",
+    drillsDue_one: "{{count}} pattern due",
+    drillsDue_other: "{{count}} patterns due",
+    progressText:
+      "Your level, your minutes each week and your past conversations.",
     dueWords_one: "{{count}} word to review today",
     dueWords_other: "{{count}} words to review today",
     review: "Review",
@@ -427,7 +430,7 @@ export const en = {
     },
   },
   drills: {
-    title: "Practice",
+    title: "2-minute drills",
     intro: "Short rounds on what you're working on. About two minutes each.",
     startDue: "Start today's practice",
     dueCount_one: "{{count}} pattern is due for review",

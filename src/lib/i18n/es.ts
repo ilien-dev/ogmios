@@ -258,8 +258,10 @@ export const es: Catalog<typeof en> = {
     anotherTopic: "Otro tema",
     customize: "Personalizar",
     focus: "Estás trabajando: {{pattern}}",
-    due: "Tienes 2 min de práctica pendiente",
-    practise: "Practicar",
+    drillsText: "Practica los errores que salieron en tus charlas.",
+    drillsDue_one: "{{count}} patrón pendiente",
+    drillsDue_other: "{{count}} patrones pendientes",
+    progressText: "Tu nivel, tus minutos por semana y tus charlas anteriores.",
     dueWords_one: "Hoy te toca repasar {{count}} palabra",
     dueWords_other: "Hoy te toca repasar {{count}} palabras",
     review: "Repasar",
@@ -426,7 +428,7 @@ export const es: Catalog<typeof en> = {
     },
   },
   drills: {
-    title: "Práctica",
+    title: "Ejercicios de 2 min",
     intro:
       "Rondas cortas sobre lo que estás trabajando. Unos dos minutos cada una.",
     startDue: "Empezar la práctica de hoy",

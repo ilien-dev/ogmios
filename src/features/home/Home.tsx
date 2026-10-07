@@ -5,9 +5,7 @@ import {
   ArrowRight,
   Crosshair,
   Flag,
-  Flame,
   History,
-  RefreshCw,
   Repeat,
   Shuffle,
   SlidersHorizontal,
@@ -16,6 +14,7 @@ import {
 } from "lucide-react";
 import type { HomeState, SessionSetup } from "@shared/domain";
 import { Button } from "@/components/ui/Button";
+import { HubCard, HubGrid } from "@/components/ui/HubCard";
 import { Notice } from "@/components/ui/Notice";
 import { Spinner } from "@/components/ui/Spinner";
 import type { Navigate } from "@/app/routes";
@@ -44,7 +43,10 @@ function quickSetup(home: HomeState, topic: string): SessionSetup {
   return { ...last, topic };
 }
 
-/** §6.1: one big button with a topic already chosen, and a few quiet lines. */
+/**
+ * §6.1: one big button with a topic already chosen, the cards of what else
+ * belongs to conversation, and a few quiet lines.
+ */
 export function Home({ navigate }: HomeProps): ReactNode {
   const { t } = useTranslation();
   const [home, setHome] = useState<HomeState | null>(null);
@@ -168,28 +170,49 @@ export function Home({ navigate }: HomeProps): ReactNode {
           </div>
         </section>
 
+        <div className="mt-14">
+          <HubGrid>
+            <HubCard
+              title={t("drills.title")}
+              text={t("home.drillsText")}
+              status={
+                home.dueReviews > 0
+                  ? t("home.drillsDue", { count: home.dueReviews })
+                  : undefined
+              }
+              due
+              onClick={() => {
+                navigate({
+                  name: "practice",
+                  patternId: null,
+                  format: null,
+                  autostart: false,
+                });
+              }}
+            />
+            <HubCard
+              title={t("progress.title")}
+              text={t("home.progressText")}
+              status={
+                streak.days === 0
+                  ? t("home.streakNone")
+                  : `${t("home.streak", { count: streak.days })} · ${
+                      streak.practicedToday
+                        ? t("home.today")
+                        : t("home.freezes", { count: streak.freezesLeft })
+                    }`
+              }
+              onClick={() => {
+                navigate({ name: "progress" });
+              }}
+            />
+          </HubGrid>
+        </div>
+
         <ul className="mt-auto flex flex-col border-t border-line pt-6">
           {home.focus !== null && (
             <HomeLine icon={Crosshair}>
               {t("home.focus", { pattern: home.focus.description })}
-            </HomeLine>
-          )}
-          {home.dueReviews > 0 && (
-            <HomeLine
-              icon={RefreshCw}
-              action={{
-                label: t("home.practise"),
-                onClick: () => {
-                  navigate({
-                    name: "practice",
-                    patternId: null,
-                    format: null,
-                    autostart: true,
-                  });
-                },
-              }}
-            >
-              {t("home.due")}
             </HomeLine>
           )}
           {home.dueWords > 0 && (
@@ -205,15 +228,6 @@ export function Home({ navigate }: HomeProps): ReactNode {
               {t("home.dueWords", { count: home.dueWords })}
             </HomeLine>
           )}
-          <HomeLine icon={Flame}>
-            {streak.days === 0
-              ? t("home.streakNone")
-              : `${t("home.streak", { count: streak.days })} · ${
-                  streak.practicedToday
-                    ? t("home.today")
-                    : t("home.freezes", { count: streak.freezesLeft })
-                }`}
-          </HomeLine>
           {home.activeChallenge !== null && (
             <HomeLine icon={Flag}>
               {t("home.challenge", { text: home.activeChallenge })}
