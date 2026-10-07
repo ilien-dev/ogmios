@@ -54,7 +54,10 @@ pub fn insert_book(conn: &Connection, book: &NewBook<'_>, now: DateTime<Utc>) ->
     Ok(())
 }
 
-/// The book already made from a file with this hash, if any.
+/// A book the learner has not deleted (`archive_book`).
+const SHELVED: &str = "id NOT IN (SELECT book_id FROM archived_books)";
+
+/// The book already made from a file with this hash, if any, deleted or not.
 pub fn id_by_hash(conn: &Connection, hash: &str) -> Result<Option<String>> {
     Ok(conn
         .query_row("SELECT id FROM books WHERE hash = ?1", [hash], |row| {
@@ -120,10 +123,11 @@ pub fn rename_chapter(conn: &Connection, id: &str, title: &str) -> Result<Chapte
     get_chapter(conn, id)
 }
 
+/// A book on the shelf; a deleted one is not found.
 pub fn get_book(conn: &Connection, id: &str) -> Result<Book> {
     let (title, author) = found(
         conn.query_row(
-            "SELECT title, author FROM books WHERE id = ?1",
+            &format!("SELECT title, author FROM books WHERE id = ?1 AND {SHELVED}"),
             [id],
             |row| Ok((row.get(0)?, row.get(1)?)),
         ),
@@ -137,16 +141,18 @@ pub fn get_book(conn: &Connection, id: &str) -> Result<Book> {
     })
 }
 
-/// Every book, newest first.
+/// Every book on the shelf, newest first.
 pub fn list_books(conn: &Connection) -> Result<Vec<Book>> {
-    let mut stmt = conn.prepare("SELECT id FROM books ORDER BY created_at DESC, id")?;
+    let mut stmt = conn.prepare(&format!(
+        "SELECT id FROM books WHERE {SHELVED} ORDER BY created_at DESC, id"
+    ))?;
     let ids = stmt
         .query_map([], |row| row.get::<_, String>(0))?
         .collect::<rusqlite::Result<Vec<_>>>()?;
     ids.iter().map(|id| get_book(conn, id)).collect()
 }
 
-/// The name of the book's copy under `<data_dir>/books/`.
+/// The name of the book's copy under `<data_dir>/books/`, deleted or not.
 pub fn file_name(conn: &Connection, id: &str) -> Result<String> {
     found(
         conn.query_row("SELECT file_name FROM books WHERE id = ?1", [id], |row| {
@@ -156,10 +162,32 @@ pub fn file_name(conn: &Connection, id: &str) -> Result<String> {
     )
 }
 
-/// Removes the book; its chapters and everything under them go with it.
-pub fn delete_book(conn: &Connection, id: &str) -> Result<()> {
-    conn.execute("DELETE FROM books WHERE id = ?1", [id])?;
+/// Takes the book off the shelf. Its rows stay, so what was learned in it
+/// still counts everywhere; the practice left half way in it by ear or on
+/// structures belongs to no chapter any more, as if the chapter were gone.
+/// Run it inside a transaction.
+pub fn archive_book(conn: &Connection, id: &str, now: DateTime<Utc>) -> Result<()> {
+    for sittings in ["dictation_sittings", "structure_sittings"] {
+        conn.execute(
+            &format!(
+                "UPDATE {sittings} SET chapter_id = NULL
+                 WHERE chapter_id IN (SELECT id FROM book_chapters WHERE book_id = ?1)"
+            ),
+            [id],
+        )?;
+    }
+    conn.execute(
+        "INSERT OR IGNORE INTO archived_books (book_id, archived_at) VALUES (?1, ?2)",
+        params![id, ts(now)],
+    )?;
     Ok(())
+}
+
+/// Puts a deleted book back on the shelf, as it was left; whether it had
+/// been deleted.
+pub fn restore_book(conn: &Connection, id: &str) -> Result<bool> {
+    let restored = conn.execute("DELETE FROM archived_books WHERE book_id = ?1", [id])?;
+    Ok(restored > 0)
 }
 
 #[cfg(test)]
@@ -186,7 +214,7 @@ mod tests {
     }
 
     #[test]
-    fn a_book_round_trips_and_deleting_it_takes_its_chapters() {
+    fn a_book_round_trips_and_deleting_it_takes_it_off_the_shelf() {
         let conn = open_in_memory().expect("db");
         let parsed = parsed();
         let book = NewBook {
@@ -225,13 +253,77 @@ mod tests {
         let again = get_book(&conn, "b").expect("read");
         assert_eq!(again.chapters, [first.clone(), renamed.clone()]);
 
-        delete_book(&conn, "b").expect("delete");
+        // Deleted, it is on no shelf, and its chapters are kept.
+        archive_book(&conn, "b", Utc::now()).expect("delete");
         assert!(matches!(get_book(&conn, "b"), Err(Error::NotFound(_))));
-        let gone = rename_chapter(&conn, &renamed.id, "One");
-        assert!(matches!(gone, Err(Error::NotFound(_))));
+        assert_eq!(list_books(&conn).expect("list"), Vec::new());
+        assert_eq!(id_by_hash(&conn, "h").expect("hash"), Some("b".into()));
         let left: i64 = conn
             .query_row("SELECT COUNT(*) FROM book_chapters", [], |row| row.get(0))
             .expect("count");
-        assert_eq!(left, 0);
+        assert_eq!(left, 2);
+
+        assert!(restore_book(&conn, "b").expect("restore"));
+        assert!(!restore_book(&conn, "b").expect("again"));
+        assert_eq!(get_book(&conn, "b").expect("read"), again);
+    }
+
+    #[test]
+    fn a_deleted_book_keeps_what_was_learned_in_it() {
+        use crate::db::words::tests::{book, word};
+        use crate::db::{practice, recall, structures, words};
+
+        let conn = open_in_memory().expect("db");
+        let gone = book(&conn, "gone", &["one"]);
+        let kept = book(&conn, "kept", &["one"]);
+        let list = [word("peep", &["asomarse"], 2), word("bank", &["orilla"], 1)];
+        for chapter in [&gone[0], &kept[0]] {
+            words::finish(&conn, chapter, Depth::Most, &list, Utc::now()).expect("words");
+        }
+        conn.execute(
+            "UPDATE chapter_words
+             SET done_at = '2026-03-01T10:00:00.000Z', learned_at = '2026-03-01T10:00:00.000Z'
+             WHERE chapter_id = ?1 AND key = 'peep'",
+            [&gone[0]],
+        )
+        .expect("learned");
+        conn.execute(
+            "INSERT INTO structure_sittings (id, size, chapter_id, started_at)
+             VALUES ('s', 5, ?1, '2026-03-01T10:00:00.000Z')",
+            [&gone[0]],
+        )
+        .expect("sitting");
+        structures::mark_opened(&conn, &gone[0], Utc::now()).expect("opened");
+
+        archive_book(&conn, "gone", Utc::now()).expect("delete");
+
+        // The word finished in it is still learned: asked in the recall, a
+        // review word in the other book, with its translation, never
+        // extracted again.
+        let asked: Vec<String> = recall::words(&conn)
+            .expect("recall")
+            .into_iter()
+            .map(|word| word.key)
+            .collect();
+        assert_eq!(asked, ["peep"]);
+        let open = practice::open_histories(&conn, &kept[0]).expect("open");
+        let review: Vec<bool> = open.iter().map(|word| word.review).collect();
+        assert_eq!(review, [true, false]);
+        let learned = words::learned(&conn).expect("learned");
+        assert_eq!(learned[0].translation.as_deref(), Some("asomarse"));
+        let excluded = words::excluded(&conn, &kept[0]).expect("excluded");
+        assert!(excluded.contains("peep"));
+
+        // What was left half way in it is nowhere: its chapter is not the
+        // one being read, its sitting is of no chapter, and no model is
+        // asked about the word nobody finished.
+        assert_eq!(structures::current_chapter(&conn).expect("current"), None);
+        let of: Option<String> = conn
+            .query_row("SELECT chapter_id FROM structure_sittings", [], |row| {
+                row.get(0)
+            })
+            .expect("sitting");
+        assert_eq!(of, None);
+        assert_eq!(words::unlabelled(&conn).expect("unlabelled").len(), 3);
     }
 }

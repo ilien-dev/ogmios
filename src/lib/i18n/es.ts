@@ -502,7 +502,8 @@ export const es: Catalog<typeof en> = {
     renameLabel: "Nombre del capítulo",
     missing: "Este libro ya no está aquí.",
     delete: "Eliminar libro",
-    deleteConfirm: "¿Eliminar este libro, sus capítulos y tu progreso en él?",
+    deleteConfirm:
+      "¿Eliminar este libro y sus capítulos? Las palabras que aprendiste en él se conservan.",
     deleteYes: "Eliminar",
     known: {
       title: "Palabras que ya sabes",
