@@ -878,7 +878,8 @@ básico no reciben frases: no hay grabaciones abiertas que las respalden.
     archivo, pero sus filas se quedan: las palabras aprendidas en él siguen aprendidas (repaso
     diario, palabras de repaso en los otros libros, nunca se extraen otra vez) y lo pendiente no
     se ofrece en ningún sitio. Añadir el mismo archivo otra vez lo devuelve como estaba, sin
-    analizar nada de nuevo.
+    analizar nada de nuevo; solo los dictados y ejercicios de estructuras que quedaron en pausa
+    dejan de ser de su capítulo.
   - **Estructuras** (§9.7).
   - Conversación y Libro dicen en el menú cuánto hay pendiente hoy.
 - **Tailwind CSS** para todo el diseño; tokens de color, espaciado y tipografía definidos en el tema
