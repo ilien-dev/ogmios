@@ -25,7 +25,7 @@ const RIGHT: Record<string, string> = {
 function Section(): ReactNode {
   const [route, setRoute] = useState<Route>({ name: "recall" });
   if (route.name !== "recall") {
-    return null;
+    return <p>{`Left for ${route.name}`}</p>;
   }
   return (
     <>
@@ -60,6 +60,14 @@ async function start(user: UserEvent): Promise<void> {
 
 describe("the daily recall", () => {
   useMockBackend();
+
+  test("leads back to the book section it is opened from", async () => {
+    const user = userEvent.setup();
+    render(<Section />);
+
+    await user.click(await screen.findByRole("button", { name: "Book" }));
+    expect(screen.getByText("Left for books")).toBeInTheDocument();
+  });
 
   test("with nothing learned it says where its words come from", async () => {
     render(<Section />);

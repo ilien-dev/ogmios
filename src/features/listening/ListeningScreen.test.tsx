@@ -83,6 +83,13 @@ async function next(user: UserEvent): Promise<void> {
 
 describe("listening", () => {
   useMockBackend();
+
+  test("leads back to the book section it is opened from", async () => {
+    const user = await open();
+
+    await user.click(screen.getByRole("button", { name: "Book" }));
+    expect(screen.getByText("Left for books")).toBeInTheDocument();
+  });
   beforeEach(() => {
     resetMockSpeech(true);
   });

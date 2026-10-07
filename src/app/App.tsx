@@ -15,14 +15,17 @@ import { RecallScreen } from "@/features/recall/RecallScreen";
 import { ReportScreen } from "@/features/report/ReportScreen";
 import { SettingsScreen } from "@/features/settings/SettingsScreen";
 import { SpeechProvider } from "@/features/speech/speech";
+import { UpdateCard } from "@/features/update/UpdateCard";
+import { UpdateProvider } from "@/features/update/update";
 import { Setup } from "@/features/setup/Setup";
 import { StructuresScreen } from "@/features/structures/StructuresScreen";
 import { errorMessage } from "@/lib/errors";
 import { setUiLang } from "@/lib/i18n/i18n";
-import { getProfile, getSettings } from "@/lib/ipc";
+import { getProfile, getSettings, homeState } from "@/lib/ipc";
 import { useTheme } from "@/lib/theme";
 import type { Route } from "./routes";
 import { showsNav } from "./routes";
+import type { Section } from "./Sidebar";
 import { Sidebar } from "./Sidebar";
 
 type Boot =
@@ -35,6 +38,8 @@ export function App(): ReactNode {
   const [boot, setBoot] = useState<Boot>({ state: "loading" });
   const [route, setRoute] = useState<Route>({ name: "home" });
   const [theme, setTheme] = useTheme();
+  const [counts, setCounts] = useState<Partial<Record<Section, number>>>({});
+  const onboarded = boot.state === "ready" && boot.profile?.onboarded === true;
 
   useEffect(() => {
     let live = true;
@@ -56,6 +61,26 @@ export function App(): ReactNode {
       live = false;
     };
   }, []);
+
+  // What is due changes behind every screen that takes the window: read it
+  // again each time the menu comes back.
+  useEffect(() => {
+    if (!onboarded || !showsNav(route)) {
+      return;
+    }
+    let live = true;
+    homeState()
+      .then((home) => {
+        if (live) {
+          setCounts({ conversation: home.dueReviews, book: home.dueWords });
+        }
+      })
+      // Without it the menu still works: it only says nothing of today.
+      .catch(() => null);
+    return () => {
+      live = false;
+    };
+  }, [onboarded, route]);
 
   if (boot.state === "loading") {
     return (
@@ -140,6 +165,7 @@ export function App(): ReactNode {
             nativeLang={profile.nativeLang}
             bookId={route.bookId}
             chapterId={route.chapterId ?? null}
+            shelf={route.shelf === true}
             known={route.known === true}
             practising={route.practising === true}
             refresh={route.refresh === true}
@@ -160,6 +186,7 @@ export function App(): ReactNode {
         return (
           <StructuresScreen
             running={route.running ?? null}
+            catalog={route.catalog === true}
             chapterId={route.chapterId ?? null}
             bookId={route.bookId ?? null}
             navigate={setRoute}
@@ -194,10 +221,17 @@ export function App(): ReactNode {
 
   return (
     <SpeechProvider>
-      <div className="flex h-full">
-        {showsNav(route) && <Sidebar route={route} navigate={setRoute} />}
-        <div className="min-w-0 flex-1">{screen}</div>
-      </div>
+      <UpdateProvider>
+        <div className="flex h-full">
+          {showsNav(route) && (
+            <Sidebar route={route} navigate={setRoute} counts={counts} />
+          )}
+          <div className="relative min-w-0 flex-1">
+            {screen}
+            {showsNav(route) && <UpdateCard />}
+          </div>
+        </div>
+      </UpdateProvider>
     </SpeechProvider>
   );
 }
