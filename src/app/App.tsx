@@ -163,6 +163,7 @@ export function App(): ReactNode {
             nativeLang={profile.nativeLang}
             bookId={route.bookId}
             chapterId={route.chapterId ?? null}
+            shelf={route.shelf === true}
             known={route.known === true}
             practising={route.practising === true}
             refresh={route.refresh === true}

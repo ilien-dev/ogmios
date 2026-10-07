@@ -459,6 +459,25 @@ export const es: Catalog<typeof en> = {
     home: "Volver al inicio",
     close: "Terminar práctica",
   },
+  bookHub: {
+    current: "Capítulo actual",
+    change: "Cambiar",
+    vocabularyTitle: "Vocabulario",
+    vocabularyText:
+      "Las palabras del capítulo, hasta que esté listo para leer.",
+    unprepared: "Sin preparar",
+    translateTitle: "Traducir el capítulo",
+    translateText: "Frase a frase, con las palabras aprendidas marcadas.",
+    recallTitle: "Repaso diario",
+    recallText: "Las palabras aprendidas vuelven con los días.",
+    listeningText: "Escucha el capítulo o haz un dictado con sus frases.",
+    structures: "Estructuras de este capítulo",
+    openStructures: "Ver sus estructuras",
+    openKnown: "Verlas",
+    empty:
+      "Abre un capítulo de un libro para aprender sus palabras, traducirlo y escucharlo.",
+    toShelf: "Ir a tus libros",
+  },
   books: {
     title: "Libros",
     intro:
