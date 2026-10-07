@@ -11,6 +11,7 @@ import type {
   PaceStanding,
 } from "@shared/listening";
 import type { Navigate } from "@/app/routes";
+import { BackLink } from "@/components/ui/BackLink";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
@@ -341,6 +342,12 @@ export function ListeningMenu({
     <main className="h-full overflow-y-auto">
       <div className="mx-auto flex max-w-3xl flex-col gap-12 px-10 py-16">
         <header className="flex flex-col gap-3">
+          <BackLink
+            label={t("nav.book")}
+            onClick={() => {
+              navigate({ name: "books", bookId: null });
+            }}
+          />
           <h1 className="text-display font-semibold text-ink">
             {t("listening.title")}
           </h1>
@@ -382,7 +389,7 @@ export function ListeningMenu({
                 <Notice>{t("listening.noBook")}</Notice>
                 <Button
                   onClick={() => {
-                    navigate({ name: "books", bookId: null });
+                    navigate({ name: "books", bookId: null, shelf: true });
                   }}
                 >
                   {t("listening.toBooks")}

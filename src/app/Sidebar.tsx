@@ -1,73 +1,100 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  BookOpen,
-  ChartNoAxesColumn,
-  Dumbbell,
-  Headphones,
-  House,
-  PencilLine,
-  Repeat,
-  Settings,
-} from "lucide-react";
+import { BookOpen, MessageCircle, PencilLine, Settings } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { UpdateHint } from "@/features/update/UpdateHint";
 import { cn } from "@/lib/cn";
 import type { Navigate, Route } from "./routes";
 
-type Section =
-  | "home"
-  | "practice"
-  | "structures"
-  | "listening"
-  | "books"
-  | "recall"
-  | "progress"
-  | "settings";
+/** The three things the app is for, and its settings. */
+export type Section = "conversation" | "book" | "structures" | "settings";
 
-const ITEMS: Array<{ section: Section; icon: LucideIcon; route: Route }> = [
-  { section: "home", icon: House, route: { name: "home" } },
-  {
-    section: "practice",
-    icon: Dumbbell,
-    route: {
-      name: "practice",
-      patternId: null,
-      format: null,
-      autostart: false,
-    },
-  },
+interface Item {
+  section: Section;
+  icon: LucideIcon;
+  route: Route;
+}
+
+const ITEMS: Item[] = [
+  { section: "conversation", icon: MessageCircle, route: { name: "home" } },
+  { section: "book", icon: BookOpen, route: { name: "books", bookId: null } },
   { section: "structures", icon: PencilLine, route: { name: "structures" } },
-  { section: "listening", icon: Headphones, route: { name: "listening" } },
-  { section: "books", icon: BookOpen, route: { name: "books", bookId: null } },
-  { section: "recall", icon: Repeat, route: { name: "recall" } },
-  { section: "progress", icon: ChartNoAxesColumn, route: { name: "progress" } },
-  { section: "settings", icon: Settings, route: { name: "settings" } },
 ];
 
-function sectionOf(route: Route): Section {
+const SETTINGS: Item = {
+  section: "settings",
+  icon: Settings,
+  route: { name: "settings" },
+};
+
+/** The section a screen belongs to: the one its way back leads to. */
+export function sectionOf(route: Route): Section {
   switch (route.name) {
-    case "practice":
-    case "structures":
-    case "listening":
     case "books":
     case "recall":
-    case "progress":
+    case "listening":
+      return "book";
+    case "structures":
     case "settings":
       return route.name;
-    case "report":
-      return "progress";
     default:
-      return "home";
+      return "conversation";
   }
+}
+
+interface EntryProps {
+  item: Item;
+  current: boolean;
+  /** What is due today in the section; nothing is said of none. */
+  due: number;
+  navigate: Navigate;
+}
+
+function Entry({ item, current, due, navigate }: EntryProps): ReactNode {
+  const { t } = useTranslation();
+  const { section, icon: Icon, route } = item;
+  return (
+    <button
+      type="button"
+      aria-current={current ? "page" : undefined}
+      onClick={() => {
+        navigate(route);
+      }}
+      className={cn(
+        "flex h-10 w-full items-center gap-3 rounded-md px-3 text-sm transition-colors duration-150",
+        current
+          ? "bg-raised font-medium text-ink"
+          : "text-ink-soft hover:bg-raised hover:text-ink",
+      )}
+    >
+      <Icon
+        aria-hidden
+        className={cn(
+          "size-4",
+          current ? "text-accent-text" : "text-ink-faint",
+        )}
+      />
+      {t(`nav.${section}`)}
+      {due > 0 && (
+        <span
+          aria-label={t("nav.due", { count: due })}
+          className="ml-auto text-xs font-medium text-accent-text"
+        >
+          {due}
+        </span>
+      )}
+    </button>
+  );
 }
 
 interface SidebarProps {
   route: Route;
   navigate: Navigate;
+  /** What is due today, by section. */
+  counts: Partial<Record<Section, number>>;
 }
 
-export function Sidebar({ route, navigate }: SidebarProps): ReactNode {
+export function Sidebar({ route, navigate, counts }: SidebarProps): ReactNode {
   const { t } = useTranslation();
   const current = sectionOf(route);
   return (
@@ -80,35 +107,25 @@ export function Sidebar({ route, navigate }: SidebarProps): ReactNode {
         {t("app.name")}
       </p>
       <ul className="flex flex-col gap-1">
-        {ITEMS.map(({ section, icon: Icon, route: target }) => (
-          <li key={section}>
-            <button
-              type="button"
-              aria-current={current === section ? "page" : undefined}
-              onClick={() => {
-                navigate(target);
-              }}
-              className={cn(
-                "flex h-10 w-full items-center gap-3 rounded-md px-3 text-sm transition-colors duration-150",
-                current === section
-                  ? "bg-raised font-medium text-ink"
-                  : "text-ink-soft hover:bg-raised hover:text-ink",
-              )}
-            >
-              <Icon
-                aria-hidden
-                className={cn(
-                  "size-4",
-                  current === section ? "text-accent-text" : "text-ink-faint",
-                )}
-              />
-              {t(`nav.${section}`)}
-            </button>
+        {ITEMS.map((item) => (
+          <li key={item.section}>
+            <Entry
+              item={item}
+              current={current === item.section}
+              due={counts[item.section] ?? 0}
+              navigate={navigate}
+            />
           </li>
         ))}
       </ul>
-      <div className="mt-auto">
+      <div className="mt-auto flex flex-col gap-3">
         <UpdateHint />
+        <Entry
+          item={SETTINGS}
+          current={current === "settings"}
+          due={0}
+          navigate={navigate}
+        />
       </div>
     </nav>
   );
