@@ -51,6 +51,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("forms.sql"),
     include_str!("verbs.sql"),
     include_str!("inform.sql"),
+    include_str!("archive.sql"),
 ];
 
 pub fn open(path: &Path) -> Result<Connection> {
@@ -589,6 +590,27 @@ mod tests {
         assert_eq!(bank[0].hints, ["se retiró", "se alejó"]);
         assert_eq!(bank[0].verb_form, Some(crate::domain::VerbForm::Past));
         assert_eq!(sentences::unlabelled(&conn).expect("list").len(), 0);
+    }
+
+    #[test]
+    fn migration_twenty_nine_leaves_every_book_on_the_shelf() {
+        let conn = Connection::open_in_memory().expect("open");
+        for sql in &MIGRATIONS[..28] {
+            conn.execute_batch(sql).expect("migration");
+        }
+        conn.pragma_update(None, "user_version", 28)
+            .expect("version");
+        conn.execute_batch(
+            "INSERT INTO books VALUES ('b', 'Alice', NULL, 'epub', 'h', 'f', '2026-01-01');
+             INSERT INTO book_chapters (id, book_id, idx, title, words, text)
+               VALUES ('c', 'b', 0, 'I', 2, 'text');",
+        )
+        .expect("rows");
+
+        migrate(&conn).expect("migrate");
+        let shelf = books::list_books(&conn).expect("list");
+        let ids: Vec<&str> = shelf.iter().map(|book| book.id.as_str()).collect();
+        assert_eq!(ids, ["b"]);
     }
 
     #[test]
