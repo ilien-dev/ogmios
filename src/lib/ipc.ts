@@ -55,6 +55,7 @@ import type {
   TtsDownload,
   TtsStatus,
   TurnReply,
+  UpdateDownload,
   UpdateInfo,
 } from "@shared/domain";
 import type {
@@ -88,6 +89,7 @@ interface Events {
   "stt-partial": SttPartial;
   "stt-download": SttDownload;
   "tts-download": TtsDownload;
+  "update-download": UpdateDownload;
 }
 
 function inTauri(): boolean {
@@ -669,5 +671,10 @@ export const appVersion = (): Promise<string> => call("app_version");
 /** The newer release, or null when this one is the latest. */
 export const checkUpdate = (): Promise<UpdateInfo | null> =>
   call("check_update");
-/** Installs the newer release and restarts into it. */
+/** Downloads the newer release, reporting `update-download` on its way. */
+export const downloadUpdate = (): Promise<void> => call("download_update");
+export const onUpdateDownload = (
+  h: (d: UpdateDownload) => void,
+): Promise<Unlisten> => on("update-download", h);
+/** Installs the downloaded release and restarts into it. */
 export const installUpdate = (): Promise<void> => call("install_update");

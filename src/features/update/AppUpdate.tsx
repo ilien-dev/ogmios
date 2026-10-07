@@ -1,53 +1,15 @@
-import { useCallback, useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Download, RefreshCw } from "lucide-react";
+import { Download, RefreshCw, RotateCw } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Spinner } from "@/components/ui/Spinner";
-import { errorMessage } from "@/lib/errors";
-import { appVersion, checkUpdate, installUpdate } from "@/lib/ipc";
-
-type State =
-  | { kind: "checking" }
-  | { kind: "current" }
-  | { kind: "available"; version: string }
-  | { kind: "installing" }
-  | { kind: "failed"; message: string };
+import { UpdateProgress } from "./UpdateProgress";
+import { useUpdate } from "./update";
 
 /** The running version, and the newer release when there is one. */
 export function AppUpdate(): ReactNode {
   const { t } = useTranslation();
-  const [version, setVersion] = useState<string | null>(null);
-  const [state, setState] = useState<State>({ kind: "checking" });
-
-  const check = useCallback(async (): Promise<void> => {
-    setState({ kind: "checking" });
-    try {
-      const update = await checkUpdate();
-      setState(
-        update === null
-          ? { kind: "current" }
-          : { kind: "available", version: update.version },
-      );
-    } catch (error) {
-      setState({ kind: "failed", message: errorMessage(error) });
-    }
-  }, []);
-
-  useEffect(() => {
-    void appVersion().then(setVersion);
-    void check();
-  }, [check]);
-
-  const install = async (): Promise<void> => {
-    setState({ kind: "installing" });
-    try {
-      await installUpdate();
-      setState({ kind: "current" });
-    } catch (error) {
-      setState({ kind: "failed", message: errorMessage(error) });
-    }
-  };
+  const { version, state, check, download, restart } = useUpdate();
 
   return (
     <div className="flex flex-col gap-4">
@@ -74,28 +36,56 @@ export function AppUpdate(): ReactNode {
         )}
         {state.kind === "current" && <p>{t("update.current")}</p>}
         {state.kind === "failed" && (
-          <p>{t("update.failed", { message: state.message })}</p>
+          <p>
+            {state.version === null
+              ? t("update.failed", { message: state.message })
+              : `${t("update.downloadFailed")}: ${state.message}`}
+          </p>
         )}
         {state.kind === "available" && (
+          <p className="text-ink">
+            {t("update.available", { version: state.version })}
+          </p>
+        )}
+        {state.kind === "downloading" && (
+          <div className="flex w-72 flex-col gap-2">
+            <p className="text-ink">
+              {t("update.downloading", { version: state.version })}
+            </p>
+            <UpdateProgress progress={state.progress} />
+          </div>
+        )}
+        {state.kind === "ready" && (
           <>
             <p className="text-ink">
-              {t("update.available", { version: state.version })}
+              {t("update.ready", { version: state.version })}
             </p>
             <Button
               variant="primary"
-              icon={<Download aria-hidden className="size-4" />}
-              onClick={() => void install()}
+              icon={<RotateCw aria-hidden className="size-4" />}
+              onClick={restart}
             >
-              {t("update.install")}
+              {t("update.restart")}
             </Button>
           </>
         )}
-        {(state.kind === "current" || state.kind === "failed") && (
+        {(state.kind === "available" ||
+          (state.kind === "failed" && state.version !== null)) && (
+          <Button
+            variant="primary"
+            icon={<Download aria-hidden className="size-4" />}
+            onClick={download}
+          >
+            {t(state.kind === "failed" ? "update.retry" : "update.install")}
+          </Button>
+        )}
+        {(state.kind === "current" ||
+          (state.kind === "failed" && state.version === null)) && (
           <Button
             variant="ghost"
             size="sm"
             icon={<RefreshCw aria-hidden className="size-4" />}
-            onClick={() => void check()}
+            onClick={check}
           >
             {t("update.check")}
           </Button>

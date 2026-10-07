@@ -429,6 +429,12 @@ export interface UpdateInfo {
   notes: string | null;
 }
 
+/** Event name: `update-download`. `total` is null when the server does not say. */
+export interface UpdateDownload {
+  received: number;
+  total: number | null;
+}
+
 /** An uploaded book and its chapters in reading order. */
 export interface Book {
   id: string;

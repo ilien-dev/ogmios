@@ -576,6 +576,14 @@ pub struct UpdateInfo {
     pub notes: Option<String>,
 }
 
+/// Event `update-download`. `total` is absent when the server does not say.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateDownload {
+    pub received: u64,
+    pub total: Option<u64>,
+}
+
 /// An uploaded book and its chapters in reading order. Chapter text stays in
 /// Rust until the chapter is translated (`Translation`).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
