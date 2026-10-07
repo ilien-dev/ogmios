@@ -184,6 +184,7 @@ export function App(): ReactNode {
         return (
           <StructuresScreen
             running={route.running ?? null}
+            catalog={route.catalog === true}
             chapterId={route.chapterId ?? null}
             bookId={route.bookId ?? null}
             navigate={setRoute}

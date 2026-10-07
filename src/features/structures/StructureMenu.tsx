@@ -11,6 +11,7 @@ import type {
 } from "@shared/structures";
 import type { Navigate } from "@/app/routes";
 import { Button } from "@/components/ui/Button";
+import { BackLink } from "@/components/ui/BackLink";
 import { Chip } from "@/components/ui/Chip";
 import { Notice } from "@/components/ui/Notice";
 import { Spinner } from "@/components/ui/Spinner";
@@ -288,10 +289,18 @@ export function StructureMenu({ navigate }: StructureMenuProps): ReactNode {
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto flex max-w-3xl flex-col gap-10 px-10 py-16">
           <header className="flex flex-col gap-3">
+            <BackLink
+              label={t("structures.title")}
+              onClick={() => {
+                navigate({ name: "structures" });
+              }}
+            />
             <h1 className="text-display font-semibold text-ink">
-              {t("structures.title")}
+              {t("structures.hub.freeTitle")}
             </h1>
-            <p className="text-lead text-ink-soft">{t("structures.intro")}</p>
+            <p className="text-lead text-ink-soft">
+              {t("structures.hub.freeText")}
+            </p>
           </header>
           {failure !== null && (
             <Notice tone="danger">
