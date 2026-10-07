@@ -28,14 +28,11 @@ export const es: Catalog<typeof en> = {
   },
   nav: {
     label: "Principal",
-    home: "Inicio",
-    progress: "Progreso",
-    practice: "Práctica",
-    books: "Libros",
-    recall: "Repaso",
+    conversation: "Conversación",
+    book: "Libro",
     structures: "Estructuras",
-    listening: "Oído",
     settings: "Ajustes",
+    due: "{{count}} pendientes hoy",
   },
   level: {
     basic: "Básico",
