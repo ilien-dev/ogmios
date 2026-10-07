@@ -271,11 +271,13 @@ pub fn mark_opened(conn: &Connection, chapter_id: &str, now: DateTime<Utc>) -> R
     Ok(())
 }
 
-/// The chapter opened last; none before any was.
+/// The chapter opened last, of the books not deleted; none before any was.
 pub fn current_chapter(conn: &Connection) -> Result<Option<String>> {
     Ok(conn
         .query_row(
-            "SELECT id FROM book_chapters WHERE opened_at IS NOT NULL
+            "SELECT id FROM book_chapters
+             WHERE opened_at IS NOT NULL
+               AND book_id NOT IN (SELECT book_id FROM archived_books)
              ORDER BY opened_at DESC, rowid DESC LIMIT 1",
             [],
             |row| row.get(0),

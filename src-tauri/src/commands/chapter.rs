@@ -558,7 +558,7 @@ mod tests {
         let later = run(&desk, &stub, &first[1], Depth::Most).expect("later chapter");
         assert_eq!(later, named(&[("peep", 1), ("tir", 1)]));
 
-        books::delete_book(&desk.db.lock().expect("db"), "b").expect("delete");
+        books::archive_book(&desk.db.lock().expect("db"), "b", Utc::now()).expect("delete");
         let kept: String = desk
             .db
             .lock()

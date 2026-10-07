@@ -211,6 +211,7 @@ export function bookCommands(
         return renamed === undefined ? undefined : sent(renamed);
       }),
     delete_book: (args) =>
+      // Off the shelf; the same file added again puts it back.
       after(200, () => {
         const id = text(args, "id");
         books = books.filter((candidate) => candidate.id !== id);
