@@ -21,6 +21,8 @@ export type Route =
       name: "books";
       bookId: string | null;
       chapterId?: string;
+      /** Instead of the section's own screen: the shelf, every book on it. */
+      shelf?: boolean;
       /** Instead of the shelf: every word the learner already knows. */
       known?: boolean;
       /** A sitting on that chapter is running. */
@@ -41,6 +43,8 @@ export type Route =
       name: "structures";
       /** The session on the screen, by its id. */
       running?: string;
+      /** Instead of the section's own screen: every structure, to pick from. */
+      catalog?: boolean;
       /** Instead of the menu: the structures of that chapter. */
       chapterId?: string;
       /** The book that chapter was opened from: where "back" returns. */

@@ -30,14 +30,11 @@ export const en = {
   },
   nav: {
     label: "Main",
-    home: "Home",
-    progress: "Progress",
-    practice: "Practice",
-    books: "Books",
-    recall: "Review",
+    conversation: "Conversation",
+    book: "Book",
     structures: "Structures",
-    listening: "Listening",
     settings: "Settings",
+    due: "{{count}} due today",
   },
   level: {
     basic: "Basic",

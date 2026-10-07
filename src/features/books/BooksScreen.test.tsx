@@ -1,10 +1,9 @@
-import { describe, expect, mock, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { Route } from "@/app/routes";
-import { Sidebar } from "@/app/Sidebar";
 import { i18n } from "@/lib/i18n/i18n";
 import { clearMockBooks, setMockBookPick } from "@/lib/ipcMockBooks";
 import { seedMockReadiness } from "@/lib/ipcMockChapters";
@@ -331,22 +330,5 @@ describe("BooksScreen", () => {
         "No books yet. Add an EPUB or a PDF to see its chapters.",
       ),
     ).toBeInTheDocument();
-  });
-});
-
-describe("Sidebar", () => {
-  useMockBackend();
-
-  test.each([
-    ["en", "Books"],
-    ["es", "Libros"],
-  ])("has a Books entry (%s)", async (language, label) => {
-    const user = userEvent.setup();
-    const navigate = mock();
-    await i18n.changeLanguage(language);
-    render(<Sidebar route={{ name: "home" }} navigate={navigate} />);
-
-    await user.click(screen.getByRole("button", { name: label }));
-    expect(navigate).toHaveBeenCalledWith({ name: "books", bookId: null });
   });
 });
