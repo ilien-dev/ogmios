@@ -105,19 +105,10 @@ capítulo ni la línea de estructuras. La pantalla dice qué falta y ofrece un b
 
 ### Datos
 
-Un comando nuevo de solo lectura, `book_hub`, sin modelo:
-
-```ts
-interface BookHub {
-  /** El capítulo abierto por última vez y su libro; null si no hay ninguno. */
-  current: { bookId: string; bookTitle: string; chapter: Chapter } | null;
-  dueWords: number;
-  knownWords: number;
-}
-```
-
-Se define en `shared/domain.ts` y `domain.rs`, se expone en `ipc.ts` y se refleja en `ipcMock.ts`.
-No añade ni cambia nada guardado: no hay migración ni backfill.
+No hace falta ningún comando nuevo; la pantalla compone cuatro lecturas que ya existen, ninguna
+con modelo: `structuresState` (su `chapter` es el capítulo actual), `listBooks` (el libro que lo
+contiene, para tener su `bookId`), `recallState` (`due`) y `listKnownWords` (cuántas hay). Nada
+guardado cambia: no hay migración ni backfill, y Rust no se toca.
 
 ## Estructuras (`StructuresScreen.tsx`)
 
@@ -158,7 +149,6 @@ Primero las pruebas, como pide `CLAUDE.md`:
 - `BookHub`: con capítulo actual (cuatro tarjetas y sus destinos) y sin él (estado vacío).
 - `StructuresScreen`: pantalla principal con y sin capítulo, con cero, una y varias en pausa.
 - `BooksScreen`, `ListeningMenu`: los destinos que cambiaron a `shelf: true`.
-- Rust: `book_hub` con y sin capítulo abierto.
 
 ## Fuera de alcance
 
