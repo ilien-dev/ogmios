@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { ChevronRight, Plus } from "lucide-react";
 import type { Book, BookRefusal, Chapter } from "@shared/domain";
 import { READY } from "@shared/domain";
+import { BackLink } from "@/components/ui/BackLink";
 import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
 import { Spinner } from "@/components/ui/Spinner";
@@ -11,6 +12,7 @@ import type { Navigate } from "@/app/routes";
 import { errorMessage } from "@/lib/errors";
 import { importBook, listBooks, listKnownWords, pickBookFile } from "@/lib/ipc";
 import { BookDetail } from "./BookDetail";
+import { BookHub } from "./BookHub";
 import { ChapterScreen } from "./ChapterScreen";
 import { KnownWordsScreen } from "./KnownWordsScreen";
 import { SittingScreen } from "./SittingScreen";
@@ -35,10 +37,12 @@ function withChapter(book: Book, changed: Chapter): Book {
 interface BooksScreenProps {
   /** The learner's first language: the other half of every word asked. */
   nativeLang: string;
-  /** The open book; null shows the shelf. */
+  /** The open book; null shows the section's own screen, or the shelf. */
   bookId: string | null;
   /** The open chapter of that book; null shows the book. */
   chapterId: string | null;
+  /** With no book open: the shelf, instead of the section's own screen. */
+  shelf?: boolean;
   /** Instead of the shelf: every word the learner already knows. */
   known?: boolean;
   /** A sitting on the open chapter is running. */
@@ -52,11 +56,15 @@ interface BooksScreenProps {
   navigate: Navigate;
 }
 
-/** The shelf: uploaded books, and the way to add one. */
+/**
+ * The book section: its own screen, the shelf of uploaded books with the way
+ * to add one, and every screen of a book and of its chapters.
+ */
 export function BooksScreen({
   nativeLang,
   bookId,
   chapterId,
+  shelf = false,
   known = false,
   practising = false,
   refresh = false,
@@ -93,6 +101,9 @@ export function BooksScreen({
   }, [bookId, chapterId, known, practising]);
 
   const showShelf = (): void => {
+    navigate({ name: "books", bookId: null, shelf: true });
+  };
+  const showHub = (): void => {
     navigate({ name: "books", bookId: null });
   };
 
@@ -124,7 +135,10 @@ export function BooksScreen({
   };
 
   if (known) {
-    return <KnownWordsScreen onBack={showShelf} />;
+    return <KnownWordsScreen onBack={showHub} />;
+  }
+  if (bookId === null && !shelf) {
+    return <BookHub navigate={navigate} />;
   }
 
   if (books === null) {
@@ -275,6 +289,7 @@ export function BooksScreen({
     <main className="h-full overflow-y-auto">
       <div className="mx-auto flex max-w-2xl flex-col gap-12 px-10 py-16">
         <header className="flex flex-col gap-3">
+          <BackLink label={t("nav.book")} onClick={showHub} />
           <h1 className="text-display font-semibold text-ink">
             {t("books.title")}
           </h1>
