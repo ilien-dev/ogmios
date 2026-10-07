@@ -257,7 +257,8 @@ function restore(): void {
       localStorage.removeItem(STORAGE_KEY);
       return;
     }
-    if (mode === "ready") {
+    // A release on offer shows next to the sidebar, so past the onboarding.
+    if (mode === "ready" || mode === "update") {
       resetMock(true);
       return;
     }

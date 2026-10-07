@@ -108,11 +108,7 @@ export function Sidebar({ route, navigate }: SidebarProps): ReactNode {
         ))}
       </ul>
       <div className="mt-auto">
-        <UpdateHint
-          onOpen={() => {
-            navigate({ name: "settings" });
-          }}
-        />
+        <UpdateHint />
       </div>
     </nav>
   );

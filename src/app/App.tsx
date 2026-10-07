@@ -15,6 +15,8 @@ import { RecallScreen } from "@/features/recall/RecallScreen";
 import { ReportScreen } from "@/features/report/ReportScreen";
 import { SettingsScreen } from "@/features/settings/SettingsScreen";
 import { SpeechProvider } from "@/features/speech/speech";
+import { UpdateCard } from "@/features/update/UpdateCard";
+import { UpdateProvider } from "@/features/update/update";
 import { Setup } from "@/features/setup/Setup";
 import { StructuresScreen } from "@/features/structures/StructuresScreen";
 import { errorMessage } from "@/lib/errors";
@@ -194,10 +196,15 @@ export function App(): ReactNode {
 
   return (
     <SpeechProvider>
-      <div className="flex h-full">
-        {showsNav(route) && <Sidebar route={route} navigate={setRoute} />}
-        <div className="min-w-0 flex-1">{screen}</div>
-      </div>
+      <UpdateProvider>
+        <div className="flex h-full">
+          {showsNav(route) && <Sidebar route={route} navigate={setRoute} />}
+          <div className="relative min-w-0 flex-1">
+            {screen}
+            {showsNav(route) && <UpdateCard />}
+          </div>
+        </div>
+      </UpdateProvider>
     </SpeechProvider>
   );
 }

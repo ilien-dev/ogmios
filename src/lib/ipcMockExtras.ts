@@ -57,7 +57,7 @@ export function extraCommands(
         deleted.add((args as { sessionId: string }).sessionId);
         return null;
       }),
-    ...updateCommands(after),
+    ...updateCommands(after, emit),
     ...bookCommands(after, withMockReadiness),
     ...chapterCommands(after, emit),
     ...practiceCommands(after),
