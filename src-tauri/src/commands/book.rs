@@ -43,13 +43,21 @@ pub fn list(ctx: Ctx<'_>) -> Result<Vec<Book>> {
     books::list_books(&*ctx.conn()?)
 }
 
-/// Adds the file at `path`. The same file twice is the same book.
+/// Adds the file at `path`. The same file twice is the same book, and the
+/// file of a deleted book puts it back as it was left.
 pub fn import(ctx: Ctx<'_>, path: &Path) -> Result<Book> {
     let bytes = std::fs::read(path).map_err(|_| refused(UNREADABLE))?;
     let hash = format!("{:x}", Sha256::digest(&bytes));
     {
         let conn = ctx.conn()?;
         if let Some(id) = books::id_by_hash(&conn, &hash)? {
+            let dir = books_dir(ctx);
+            let copy = dir.join(books::file_name(&conn, &id)?);
+            if !copy.exists() {
+                std::fs::create_dir_all(&dir)?;
+                std::fs::write(&copy, &bytes)?;
+            }
+            books::restore_book(&conn, &id)?;
             return books::get_book(&conn, &id);
         }
     }
@@ -87,11 +95,16 @@ pub fn import(ctx: Ctx<'_>, path: &Path) -> Result<Book> {
     stored
 }
 
-/// Deletes the book's rows and its copy of the file.
+/// Deletes the book: it leaves the shelf and its copy of the file goes. Its
+/// rows are kept (`db::books::archive_book`), so the words learned in it
+/// stay learned.
 pub fn remove(ctx: Ctx<'_>, id: &str) -> Result<()> {
-    let conn = ctx.conn()?;
+    let mut conn = ctx.conn()?;
+    books::get_book(&conn, id)?;
     let file = books_dir(ctx).join(books::file_name(&conn, id)?);
-    books::delete_book(&conn, id)?;
+    let tx = conn.transaction()?;
+    books::archive_book(&tx, id, Utc::now())?;
+    tx.commit()?;
     match std::fs::remove_file(file) {
         Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(e.into()),
         _ => Ok(()),
@@ -366,20 +379,30 @@ mod tests {
     }
 
     #[test]
-    fn deleting_a_book_removes_its_rows_and_its_file() {
+    fn deleting_a_book_removes_its_file_and_adding_it_again_brings_it_back() {
         let desk = Desk::new();
-        let book =
-            import(desk.ctx(), &desk.file("alice.epub", &fixtures::alice())).expect("import");
+        let path = desk.file("alice.epub", &fixtures::alice());
+        let book = import(desk.ctx(), &path).expect("import");
+        let second = book.chapters.get(1).expect("a second chapter");
+        rename(desk.ctx(), &second.id, "Tears").expect("rename");
+        let book = list(desk.ctx()).expect("list").remove(0);
         assert_eq!(desk.copies(), 1);
 
         remove(desk.ctx(), &book.id).expect("delete");
-        assert_eq!(desk.count("books"), 0);
-        assert_eq!(desk.count("book_chapters"), 0);
         assert_eq!(desk.copies(), 0);
         assert_eq!(list(desk.ctx()).expect("list"), Vec::new());
+        // Its rows are kept: what was learned in it is still learned.
+        assert_eq!(desk.count("book_chapters"), 3);
         assert!(matches!(
             remove(desk.ctx(), &book.id),
             Err(Error::NotFound(_))
         ));
+
+        // The same file again is the book as it was left, file and all.
+        let back = import(desk.ctx(), &path).expect("again");
+        assert_eq!(back, book);
+        assert_eq!(list(desk.ctx()).expect("list"), [book]);
+        assert_eq!(desk.count("books"), 1);
+        assert_eq!(desk.copies(), 1);
     }
 }

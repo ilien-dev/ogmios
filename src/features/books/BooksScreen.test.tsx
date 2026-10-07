@@ -338,7 +338,7 @@ describe("BooksScreen", () => {
     await user.click(screen.getByRole("button", { name: "Delete book" }));
     expect(
       screen.getByText(
-        "Delete this book, its chapters and your progress in it?",
+        "Delete this book and its chapters? The words you learned in it are kept.",
       ),
     ).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Cancel" }));

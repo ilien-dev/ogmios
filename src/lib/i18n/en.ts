@@ -501,7 +501,8 @@ export const en = {
     renameLabel: "Chapter name",
     missing: "This book is no longer here.",
     delete: "Delete book",
-    deleteConfirm: "Delete this book, its chapters and your progress in it?",
+    deleteConfirm:
+      "Delete this book and its chapters? The words you learned in it are kept.",
     deleteYes: "Delete",
     known: {
       title: "Words you already know",

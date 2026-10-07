@@ -312,7 +312,8 @@ pub fn extracted(conn: &Connection, word_id: &str) -> Result<Vec<String>> {
 
 /// Every word the learner said they know, the latest first. Its translations
 /// are the ones the first chapter that has it was prepared with, the one the
-/// learner answers with most first; a word whose books are all gone has none.
+/// learner answers with most first, of a deleted book too; a word no chapter
+/// has has none.
 pub fn known(conn: &Connection) -> Result<Vec<KnownWord>> {
     let mut stmt =
         conn.prepare("SELECT key, lemma FROM known_words ORDER BY created_at DESC, key")?;
@@ -430,17 +431,21 @@ pub fn list(conn: &Connection, chapter_id: &str) -> Result<Vec<BookWord>> {
 /// a verb nobody said takes an object or not, or the form of: each was
 /// stored before that was asked for. So was a verb called by another form
 /// than its base form with a translation nobody put in that form: it comes
-/// with those translations.
+/// with those translations. Of a deleted book, only the words learned in
+/// it: the others are asked nowhere.
 pub fn unlabelled(conn: &Connection) -> Result<Vec<LabelWord>> {
     let mut stmt = conn.prepare(
         "SELECT id, lemma, sentence FROM chapter_words
-         WHERE part_of_speech IS NULL
+         WHERE (part_of_speech IS NULL
             OR (part_of_speech IN ('verb', 'phrasalVerb')
                 AND (transitive IS NULL OR verb_form IS NULL))
             OR (base IS NOT NULL AND EXISTS (
                   SELECT 1 FROM word_translations t
                   WHERE t.word_id = chapter_words.id
-                    AND t.source = 'extraction' AND t.in_form IS NULL))
+                    AND t.source = 'extraction' AND t.in_form IS NULL)))
+           AND (learned_at IS NOT NULL OR chapter_id NOT IN (
+                  SELECT c.id FROM book_chapters c
+                  JOIN archived_books a ON a.book_id = c.book_id))
          ORDER BY chapter_id, occurrences DESC, key",
     )?;
     let mut words = stmt
@@ -735,7 +740,7 @@ pub mod tests {
     }
 
     #[test]
-    fn deleting_a_book_takes_its_words_and_keeps_the_known_ones() {
+    fn deleting_a_book_keeps_its_words_and_the_known_ones() {
         let conn = open_in_memory().expect("db");
         let chapters = book(&conn, "b", &["one"]);
         finish(
@@ -749,16 +754,15 @@ pub mod tests {
         store_chunk(&conn, &chapters[0], Depth::Most, (0, 2), &[]).expect("chunk");
         mark_known(&conn, "bank");
 
-        books::delete_book(&conn, "b").expect("delete");
+        books::archive_book(&conn, "b", Utc::now()).expect("delete");
         let count = |table: &str| -> i64 {
             conn.query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |row| {
                 row.get(0)
             })
             .expect("count")
         };
-        assert_eq!(count("chapter_words"), 0);
-        assert_eq!(count("word_translations"), 0);
-        assert_eq!(count("chapter_chunks"), 0);
+        assert_eq!(count("chapter_words"), 1);
+        assert_eq!(count("word_translations"), 1);
         assert_eq!(count("known_words"), 1);
     }
 
@@ -801,20 +805,16 @@ pub mod tests {
             vec!["asomarse".to_owned(), "echar un vistazo".to_owned()],
         );
         let bank = ("bank".to_owned(), vec!["orilla".to_owned()]);
-        assert_eq!(shown(&conn), [peep.clone(), bank]);
+        assert_eq!(shown(&conn), [peep.clone(), bank.clone()]);
 
-        // Its book gone, a known word stays, with nothing to translate it.
-        books::delete_book(&conn, "b").expect("delete");
-        assert_eq!(known(&conn).expect("known")[0].lemma, "peep");
-        assert_eq!(
-            shown(&conn),
-            [("peep".to_owned(), vec![]), ("bank".to_owned(), vec![])]
-        );
+        // Its book deleted, a known word stays, translated as it was.
+        books::archive_book(&conn, "b", Utc::now()).expect("delete");
+        assert_eq!(shown(&conn), [peep, bank.clone()]);
 
-        // Forgotten by its key, with no chapter left to find it through.
+        // Forgotten by its key, with no chapter on the shelf to find it through.
         forget(&conn, "peep").expect("forget");
         forget(&conn, "peep").expect("twice changes nothing");
-        assert_eq!(shown(&conn), [("bank".to_owned(), vec![])]);
+        assert_eq!(shown(&conn), [bank]);
         let other = book(&conn, "c", &["three"]);
         let excluded = excluded(&conn, &other[0]).expect("excluded");
         assert_eq!(excluded, HashSet::from(["bank".to_owned()]));

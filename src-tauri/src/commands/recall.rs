@@ -577,6 +577,19 @@ mod tests {
     }
 
     #[test]
+    fn the_words_of_a_deleted_book_are_still_asked() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let desk = Desk::new(&dir);
+        learned(&desk, "b", 3);
+        crate::commands::book::remove(desk.ctx(), "b").expect("delete");
+
+        assert_eq!(due_now(&desk, days(1)), 3);
+        let (keys, summary) = play(&desk, Ways::Both, days(1));
+        assert_eq!(keys.len(), 3);
+        assert_eq!((summary.right, summary.missed), (3, 0));
+    }
+
+    #[test]
     fn a_right_answer_sends_the_word_away_and_a_miss_brings_it_back() {
         let dir = tempfile::tempdir().expect("tempdir");
         let desk = Desk::new(&dir);
