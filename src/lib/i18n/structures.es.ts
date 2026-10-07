@@ -3,6 +3,17 @@ import type { structuresEn } from "./structures.en";
 
 /** The structures section in Spanish. Same keys as `structures.en.ts`. */
 export const structuresEs: Catalog<typeof structuresEn> = {
+  hub: {
+    freeTitle: "Sesión libre",
+    freeText: "Elige estructuras del catálogo y escribe frases con ellas.",
+    freeStatus: "{{count}} estructuras · {{firm}} firmes",
+    chapterTitle: "Del capítulo",
+    chapterText: "Las estructuras que más usa el capítulo que estás leyendo.",
+    pausedTitle: "En pausa",
+    pausedText: "Continúa la sesión que dejaste, o termínala.",
+    pausedOne: "{{done}} de {{total}} frases",
+    pausedMany: "{{count}} sesiones",
+  },
   title: "Estructuras",
   intro:
     "Escribe frases con una estructura hasta que te salga sola. Usarás palabras que ya viste en tus libros.",

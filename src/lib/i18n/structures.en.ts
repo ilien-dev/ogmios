@@ -4,6 +4,18 @@
  * topic there; a test in Rust says so.
  */
 export const structuresEn = {
+  hub: {
+    freeTitle: "Free session",
+    freeText:
+      "Pick structures from the catalogue and write sentences with them.",
+    freeStatus: "{{count}} structures · {{firm}} firm",
+    chapterTitle: "From the chapter",
+    chapterText: "The structures the chapter you are reading uses most.",
+    pausedTitle: "Paused",
+    pausedText: "Go on with the session you left, or end it.",
+    pausedOne: "{{done}} of {{total}} sentences",
+    pausedMany: "{{count}} sessions",
+  },
   title: "Structures",
   intro:
     "Write sentences with one structure until it comes out by itself. You'll use words you already met in your books.",

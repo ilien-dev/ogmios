@@ -3,6 +3,7 @@ import type { ReactNode, SyntheticEvent } from "react";
 import { useTranslation } from "react-i18next";
 import type { RecallState, Strength, Ways } from "@shared/domain";
 import type { Navigate } from "@/app/routes";
+import { BackLink } from "@/components/ui/BackLink";
 import { Button } from "@/components/ui/Button";
 import { ChoiceGroup } from "@/components/ui/ChoiceGroup";
 import { Notice } from "@/components/ui/Notice";
@@ -97,10 +98,12 @@ function Today({ state, nativeLang, onStart }: TodayProps): ReactNode {
 interface BetweenProps {
   nativeLang: string;
   onStart: (ways: Ways) => void;
+  /** Back to the book section, which the recall is opened from. */
+  onBack: () => void;
 }
 
 /** The screen between runs: it reads how the recall stands as it opens. */
-function Between({ nativeLang, onStart }: BetweenProps): ReactNode {
+function Between({ nativeLang, onStart, onBack }: BetweenProps): ReactNode {
   const { t } = useTranslation();
   const [state, setState] = useState<RecallState | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
@@ -135,6 +138,7 @@ function Between({ nativeLang, onStart }: BetweenProps): ReactNode {
     <main className="h-full overflow-y-auto">
       <div className="mx-auto flex max-w-2xl flex-col gap-12 px-10 py-16">
         <header className="flex flex-col gap-3">
+          <BackLink label={t("nav.book")} onClick={onBack} />
           <h1 className="text-display font-semibold text-ink">
             {t("recall.title")}
           </h1>
@@ -190,6 +194,9 @@ export function RecallScreen({
   return (
     <Between
       nativeLang={nativeLang}
+      onBack={() => {
+        navigate({ name: "books", bookId: null });
+      }}
       onStart={(ways) => {
         navigate({ name: "recall", running: ways });
       }}

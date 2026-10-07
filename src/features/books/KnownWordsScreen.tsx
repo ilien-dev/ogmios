@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft } from "lucide-react";
 import type { KnownWord } from "@shared/domain";
+import { BackLink } from "@/components/ui/BackLink";
 import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
 import { Spinner } from "@/components/ui/Spinner";
@@ -55,15 +55,7 @@ export function KnownWordsScreen({ onBack }: KnownWordsScreenProps): ReactNode {
     <main className="h-full overflow-y-auto">
       <div className="mx-auto flex max-w-2xl flex-col gap-12 px-10 py-16">
         <header className="flex flex-col gap-3">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="-ml-3 self-start"
-            icon={<ArrowLeft aria-hidden className="size-4" />}
-            onClick={onBack}
-          >
-            {t("books.all")}
-          </Button>
+          <BackLink label={t("nav.book")} onClick={onBack} />
           <h1 className="text-display font-semibold text-ink">
             {t("books.known.title")}
           </h1>
