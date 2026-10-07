@@ -190,11 +190,14 @@ borrarlos.
 
 ### 6.1 Pantalla de inicio
 
-Un botón grande **"Empezar charla"** con un tema sugerido ya cargado. Debajo, en pequeño:
+Es la pantalla principal de la sección **Conversación** (§17). Un botón grande
+**"Empezar charla"** con un tema sugerido ya cargado. Debajo, dos tarjetas:
 
-- Foco actual: "Estás trabajando: present perfect".
-- Repaso pendiente si lo hay: "2 min de práctica pendiente" (opcional).
-- Racha suave.
+- **Ejercicios de 2 min:** abre los drills (§9); dice cuántos patrones hay pendientes.
+- **Progreso:** abre el mapa de progreso (§11); dice la racha.
+
+Y bajo ellas, en pequeño, el foco actual ("Estás trabajando: present perfect"), las palabras
+por repasar hoy, el reto y las sugerencias de modo y de nivel.
 
 Un clic empieza. "Personalizar" abre el setup completo.
 
@@ -373,7 +376,8 @@ Repaso de cada patrón activo a los 1 → 3 → 7 → 21 días. Un patrón venci
 
 ### 9.4 Repaso de palabras
 
-Las palabras aprendidas vuelven con los días en una sección propia, **Repaso**. Entran las
+Las palabras aprendidas vuelven con los días en **Repaso diario**, una tarjeta de la sección
+Libro (§17). Entran las
 terminadas en un capítulo de un libro y las pedidas con "¿Cómo digo…?"; nunca las marcadas como
 "ya la sé". Las que usó el compañero no entran: no tienen traducción con la que preguntarlas.
 
@@ -486,7 +490,9 @@ revés, y las tres se ofrecen siempre.
 ### 9.7 Estructuras
 
 Una sección propia, **Estructuras**, para escribir frases con una estructura hasta que salga sola
-en una conversación. No corrige errores del usuario: practica estructuras de un catálogo fijo.
+en una conversación. Su pantalla principal tiene una tarjeta por camino: **Sesión libre** (el
+menú con todo el catálogo), **Del capítulo** (solo si hay un capítulo abierto) y **En pausa**
+(solo si quedó alguna sesión a medias: con una la continúa, con varias abre el menú). No corrige errores del usuario: practica estructuras de un catálogo fijo.
 
 - **Catálogo (código):** 36 estructuras, 12 por nivel (básico, intermedio, avanzado), en
   `src-tauri/src/structures/`. El menú es una sola pantalla con todas; el filtro de nivel es
@@ -538,7 +544,7 @@ en una conversación. No corrige errores del usuario: practica estructuras de un
 
 ### 9.8 Oído
 
-Una sección propia, **Oído**, para entrenar el oído con el libro que se está leyendo. Todo lo
+**Oído**, una tarjeta de la sección Libro (§17), entrena el oído con el libro que se está leyendo. Todo lo
 decide el código: no se le pide nada al modelo y no gasta tokens. Necesita la voz descargada (§12);
 sin ella, la sección solo ofrece descargarla.
 
@@ -860,6 +866,15 @@ básico no reciben frases: no hay grabaciones abiertas que las respalden.
 
 ## 17. Interfaz
 
+- **Tres secciones** en el menú lateral, y Ajustes fijo al pie. Cada una abre una pantalla
+  principal con tarjetas que llevan a lo suyo; las pantallas a las que se llega así tienen un
+  enlace de vuelta a su sección.
+  - **Conversación:** la pantalla de inicio (§6.1), los ejercicios de 2 min y el progreso.
+  - **Libro:** el capítulo actual (el abierto por última vez), con «Cambiar» para ir a la
+    estantería, y una tarjeta para su vocabulario, traducirlo, el repaso diario (§9.4) y el oído
+    (§9.8). Sin capítulo abierto solo ofrece ir a la estantería y el repaso diario.
+  - **Estructuras** (§9.7).
+  - Conversación y Libro dicen en el menú cuánto hay pendiente hoy.
 - **Tailwind CSS** para todo el diseño; tokens de color, espaciado y tipografía definidos en el tema
   de Tailwind (tema claro y oscuro).
 - Referencia visual: la sobriedad de pen.dev (fondo oscuro, tarjetas, caja de chat inferior).
