@@ -322,6 +322,10 @@ Var OgRun
       !insertmacro OG_RECT 30 186 400 120
       System::Call "user32::SetWindowPos(p r0, p 0, i R8, i R7, i R5, i R6, i 0x34)"
       ShowWindow $0 ${SW_SHOW}
+      ; Its last line is the reason.
+      SendMessage $0 0x1004 0 0 $1
+      IntOp $1 $1 - 1
+      SendMessage $0 0x1013 $1 0
     done:
   FunctionEnd
 !macroend
@@ -507,6 +511,7 @@ Var OgRun
     EnableWindow $0 1
     System::Call "user32::GetSystemMenu(p $HWNDPARENT, i 0) p .r0"
     System::Call "user32::EnableMenuItem(p r0, i 0xF060, i 0)"
+    System::Call "user32::DrawMenuBar(p $HWNDPARENT)"
     nsDialogs::Show
   FunctionEnd
 
