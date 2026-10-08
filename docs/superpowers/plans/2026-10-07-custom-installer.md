@@ -15,7 +15,7 @@
 - No new NSIS plugin and no new dependency.
 - Sections `EarlyChecks`, `WebView2`, `Install`, `Uninstall`, `.onInit`, `un.onInit`, `.onInstSuccess`, the four hooks and the `/P`, `/R`, `/NS`, `/UPDATE` handling stay byte-identical to upstream.
 - Installer text in English and Spanish, one file per language, same keys in both.
-- `ui.nsh` is ASCII; `Spanish.nsh` is UTF-8 with BOM.
+- `ui.nsh` is ASCII; the language files are UTF-8 without a byte order mark (Tauri adds its own).
 - Version 0.7.0 → 0.8.0 in `package.json` and `src-tauri/Cargo.toml`.
 - Nothing is installed over the user's own Ogmios: real-installer runs use `productName` "Ogmios Test" and identifier `dev.ilien.ogmios.test`.
 

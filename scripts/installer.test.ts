@@ -116,9 +116,13 @@ test("both languages define the same strings, and every one the pages use", () =
   expect(wanted.some((key) => key.startsWith("og"))).toBe(true);
 });
 
-test("Spanish is read as UTF-8, and the pages need no encoding at all", () => {
-  const spanish = readFileSync(join(tauri, nsis.customLanguageFiles.Spanish));
-  expect([...spanish.subarray(0, 3)]).toEqual([0xef, 0xbb, 0xbf]);
+// Tauri copies a language file with a byte order mark of its own in front: one
+// already there ends up inside the first line, and makensis stops on it.
+test("the strings carry no byte order mark, and the pages need no encoding at all", () => {
+  for (const file of Object.values(nsis.customLanguageFiles)) {
+    const strings = readFileSync(join(tauri, file));
+    expect([...strings.subarray(0, 3)]).not.toEqual([0xef, 0xbb, 0xbf]);
+  }
   const pages = readFileSync(join(tauri, nsis.installerHooks));
   expect(pages.findIndex((byte) => byte > 0x7f)).toBe(-1);
 });
