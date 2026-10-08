@@ -2,6 +2,19 @@
   "bundle": {
     "resources": {
       "vendor/parakeet/x86_64-pc-windows-msvc/parakeet.dll": "parakeet.dll"
+    },
+    "windows": {
+      "nsis": {
+        "template": "windows/installer.nsi",
+        "installerHooks": "windows/ui.nsh",
+        "installerIcon": "icons/icon.ico",
+        "uninstallerIcon": "icons/icon.ico",
+        "languages": ["English", "Spanish"],
+        "customLanguageFiles": {
+          "English": "windows/lang/English.nsh",
+          "Spanish": "windows/lang/Spanish.nsh"
+        }
+      }
     }
   }
 }
