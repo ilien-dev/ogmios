@@ -1,6 +1,6 @@
 [package]
 name = "ogmios"
-version = "0.7.0"
+version = "0.8.0"
 description = "Conversation practice for English learners, with feedback at the end"
 edition = "2021"
 license = "AGPL-3.0-only"

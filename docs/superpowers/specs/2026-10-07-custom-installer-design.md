@@ -18,17 +18,18 @@ Por dentro nada cambia: Windows sigue publicando el `setup.exe` NSIS de Tauri y 
 ### Pantallas
 
 Ventana oscura, logo, tipografía Segoe UI. No hay botones Siguiente / Atrás / Cancelar ni la franja
-de cabecera del asistente; la barra de título es la de Windows.
+de cabecera del asistente. La barra de título es la de Windows, con el color de la página en
+Windows 11 y oscura en Windows 10.
 
 1. **Inicio.** Logo, «Ogmios», la frase de la app y un botón dorado «Instalar». Debajo, un enlace
-   «Opciones» que despliega en la misma pantalla:
+   «Opciones» que despliega en la misma pantalla, en el lugar de la frase:
    - la carpeta de instalación, con «Examinar»;
    - la casilla «Crear acceso directo en el escritorio», marcada por defecto.
 2. **Instalando.** Logo, «Instalando…» y una barra dorada. Sin el registro de detalles.
 3. **Listo.** «Todo listo» y un botón dorado «Abrir Ogmios». Cerrar la ventana termina sin abrir.
 
-Si la instalación falla, la pantalla 2 muestra el error y un enlace «Ver detalles» que enseña el
-registro de NSIS.
+Si la instalación falla, la pantalla 2 dice que no se pudo instalar y enseña debajo el registro de
+NSIS, sin más clics.
 
 ### Ya instalado
 
@@ -45,8 +46,8 @@ mismo `SkipIfPassive` de la plantilla.
 
 ### Desinstalador
 
-Dos pantallas con el mismo estilo: confirmación, con la casilla «Borrar también mis datos» que ya
-existe, y progreso.
+Dos pantallas con el mismo estilo: confirmación, con la casilla «Borrar también lo que he
+aprendido» (la de borrar datos que ya existe), y progreso. Al terminar, la ventana se cierra sola.
 
 ### Idiomas
 
@@ -55,27 +56,33 @@ Todos los textos propios viven en un archivo por idioma.
 
 ### Colores
 
-Derivados a mano de los tokens del tema oscuro de `src/styles/global.css` (`canvas`, `ink`,
-`ink-soft`, `accent`, `on-accent`), convertidos a hexadecimal porque NSIS no entiende `oklch`. Se
-definen una sola vez, al principio de la plantilla.
+El fondo y el dorado son los del icono, para que su cuadrado se funda con la página y solo se vea
+el bocadillo. El resto se deriva a mano de los tokens del tema oscuro de `src/styles/global.css`
+(`raised`, `ink`, `ink-soft`, `on-accent`), en hexadecimal porque NSIS no entiende `oklch`. Se
+definen una sola vez, al principio de `ui.nsh`.
 
 ### Cómo se construye
 
 - `src-tauri/windows/installer.nsi`: copia de la plantilla de `tauri-bundler` de la versión de
   Tauri instalada, enlazada con `bundle.windows.nsis.template` en `tauri.windows.conf.json`. Su
   cabecera anota de qué versión se copió.
+- `src-tauri/windows/ui.nsh`: todo lo que dibuja Ogmios, como macros que la plantilla inserta.
+  Llega a ella como `installerHooks`. Así la copia difiere del original en unas pocas líneas.
 - Solo cambian las páginas. Las secciones (`EarlyChecks`, `WebView2`, `Install`, `Uninstall`),
   `.onInit`, los ganchos y el manejo de `/P`, `/R`, `/UPDATE` y `/NS` quedan como en el original.
 - Las páginas 1 y 3 y la confirmación del desinstalador son páginas `nsDialogs`. La de progreso es
   la página `INSTFILES` de NSIS, recoloreada en su función `SHOW`.
-- El marco del asistente (cabecera, línea inferior, botones) se oculta en una función nueva,
-  enganchada con `MUI_CUSTOMFUNCTION_GUIINIT`.
+- El marco del asistente (cabecera, línea inferior, botones) se saca de la vista en una función
+  nueva, enganchada con `MUI_CUSTOMFUNCTION_GUIINIT`. Siguiente sigue siendo el botón por defecto:
+  Enter avanza.
 - El botón dorado es un control con texto real, color de fondo y esquinas redondeadas por región,
   no una imagen: se traduce como cualquier otro texto.
 - `src-tauri/windows/lang/English.nsh` y `Spanish.nsh`: los textos de Tauri más los nuestros,
   enlazados con `customLanguageFiles`. `languages: ["English", "Spanish"]`.
-- `src-tauri/windows/logo.bmp`: el logo sobre el fondo oscuro. `installerIcon` y `uninstallerIcon`
-  usan `icons/icon.ico`.
+- `src-tauri/windows/logo-<escala>.bmp`: el logo sobre el fondo oscuro, uno por escala de pantalla
+  (100 a 200 %) porque NSIS estira los mapas de bits sin suavizarlos. Los dibuja
+  `scripts/installer-assets.ps1`, igual que el fondo del `.dmg`. `installerIcon` y
+  `uninstallerIcon` usan `icons/icon.ico`.
 - Sin complementos de NSIS nuevos: solo los que ya trae Tauri (`nsDialogs`, `System`,
   `nsis_tauri_utils`).
 

@@ -1,7 +1,13 @@
 {
   "bundle": {
     "macOS": {
-      "frameworks": ["vendor/parakeet/aarch64-apple-darwin/libparakeet.dylib"]
+      "frameworks": ["vendor/parakeet/aarch64-apple-darwin/libparakeet.dylib"],
+      "dmg": {
+        "background": "macos/dmg-background.png",
+        "windowSize": { "width": 660, "height": 400 },
+        "appPosition": { "x": 180, "y": 190 },
+        "applicationFolderPosition": { "x": 480, "y": 190 }
+      }
     }
   }
 }
