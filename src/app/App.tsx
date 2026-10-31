@@ -110,10 +110,12 @@ export function App(): ReactNode {
     );
   }
 
+  const current = currentOf(books, chapterOn(route, currentId));
+
   const screen = (() => {
     switch (route.name) {
       case "home":
-        return <Home navigate={setRoute} />;
+        return <Home navigate={setRoute} current={current} counts={counts} />;
       case "setup":
         return (
           <Setup profile={profile} preset={route.preset} navigate={setRoute} />
@@ -211,7 +213,7 @@ export function App(): ReactNode {
             navigate={setRoute}
             counts={counts}
             books={books}
-            current={currentOf(books, chapterOn(route, currentId))}
+            current={current}
           />
           <ScreenStage route={route}>{screen}</ScreenStage>
           <UpdateCard shown={showsNav(route)} />

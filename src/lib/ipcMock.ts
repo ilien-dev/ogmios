@@ -65,6 +65,7 @@ import {
   resetMockDeleted,
   shownProgress,
 } from "./ipcMockExtras";
+import { mockChallenge, mockHomePatch } from "./ipcMockHome";
 import { mockDueWords } from "./ipcMockRecall";
 
 type Handler = (payload: never) => void;
@@ -556,13 +557,10 @@ function homeState(): HomeState {
     dueReviews: 2,
     dueWords: mockDueWords(),
     streak: { days: 4, freezesLeft: 2, practicedToday: false },
-    activeChallenge: pick(
-      lang(),
-      "Usa dos veces el present perfect para hablar de experiencias.",
-      "Use the present perfect twice to talk about experiences.",
-    ),
+    activeChallenge: mockChallenge(lang()),
     rotationSuggestion: state.lastSetup?.mode === "casual" ? "debate" : null,
     levelSuggestion: null,
+    ...mockHomePatch(),
   };
 }
 

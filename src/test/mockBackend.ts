@@ -3,6 +3,7 @@ import { i18n } from "@/lib/i18n/i18n";
 import { resetMock, setMockLatency } from "@/lib/ipcMock";
 import { resetMockBooks } from "@/lib/ipcMockBooks";
 import { resetMockChapters } from "@/lib/ipcMockChapters";
+import { resetMockHome } from "@/lib/ipcMockHome";
 import { resetMockListening } from "@/lib/ipcMockListening";
 import { resetMockPractice } from "@/lib/ipcMockPractice";
 import { resetMockRecall } from "@/lib/ipcMockRecall";
@@ -21,6 +22,7 @@ export function useMockBackend(onboarded = true): void {
   beforeEach(async () => {
     setMockLatency(0);
     resetMock(onboarded);
+    resetMockHome();
     resetMockBooks(onboarded);
     resetMockChapters();
     resetMockPractice();
