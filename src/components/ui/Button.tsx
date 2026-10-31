@@ -55,7 +55,7 @@ export function Button({
     <button
       type={type === "submit" ? "submit" : "button"}
       className={cn(
-        "inline-flex shrink-0 items-center justify-center font-medium whitespace-nowrap transition duration-150 select-none disabled:cursor-not-allowed",
+        "inline-flex shrink-0 items-center justify-center font-medium whitespace-nowrap select-none transition-control disabled:cursor-not-allowed",
         VARIANTS[variant],
         SIZES[size],
         className,

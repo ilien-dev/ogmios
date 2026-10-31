@@ -309,7 +309,7 @@ function Tile({ label, value, tag, tone, onClick }: TileProps): ReactNode {
     <button
       type="button"
       onClick={onClick}
-      className="group flex flex-col-reverse gap-3 rounded-lg bg-raised px-5 py-4 text-left transition-colors duration-150 hover:bg-line"
+      className="group flex flex-col-reverse gap-3 rounded-lg bg-raised px-5 py-4 text-left transition-control hover:bg-line"
     >
       <span className="flex items-center gap-1.5 text-xs text-ink-soft">
         {label}

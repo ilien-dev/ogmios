@@ -839,7 +839,6 @@ export const en = {
   },
   update: {
     about: "About Ogmios",
-    version: "Version {{version}}",
     short: "v{{version}}",
     checking: "Checking for updates…",
     current: "You have the latest version.",

@@ -30,7 +30,7 @@ export function HubCard({
     <button
       type="button"
       onClick={onClick}
-      className="group flex flex-col gap-1.5 rounded-xl bg-surface px-5 pt-5 pb-4 text-left shadow-card transition duration-150 hover:shadow-float"
+      className="group flex flex-col gap-1.5 rounded-xl bg-surface px-5 pt-5 pb-4 text-left shadow-card transition-control hover:shadow-float"
     >
       <span className="flex items-center gap-2">
         <span className="text-base font-semibold text-ink">{title}</span>

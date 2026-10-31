@@ -244,6 +244,21 @@
   background: linear-gradient(90deg, #ffe7c7, #ffd3b8);
 }
 
+/*
+ * What takes a click: its colours change and it rises and gives with the base
+ * rule. In a utility, because any `transition-*` utility overrides that rule.
+ */
+@utility transition-control {
+  transition:
+    color 150ms var(--ease-out-expo),
+    background-color 150ms var(--ease-out-expo),
+    border-color 150ms var(--ease-out-expo),
+    box-shadow 150ms var(--ease-out-expo),
+    filter 150ms var(--ease-out-expo),
+    translate 160ms var(--ease-out-expo),
+    scale 120ms var(--ease-out-expo);
+}
+
 /* The panel of today's topic: a teal light from its top right corner. */
 @utility bg-hero {
   background: radial-gradient(
@@ -391,7 +406,7 @@
    * What takes a click answers it: it rises under the pointer and gives under
    * the press. The `translate` and `scale` properties stay clear of the
    * `transform` that `motion` writes. A `transition-colors` on the element
-   * would replace this rule: use `transition`, which covers both.
+   * would replace this rule: use `transition-control`.
    */
   button:not(:disabled),
   a,

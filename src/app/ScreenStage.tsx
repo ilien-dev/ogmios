@@ -1,12 +1,25 @@
+import { useIsPresent } from "motion/react";
 import type { ReactNode } from "react";
 import { Presence } from "@/components/motion/Presence";
 import { Reveal } from "@/components/motion/Reveal";
+import { ScreenLeaving } from "@/lib/motion";
 import type { Route } from "./routes";
 import { screenKey } from "./routes";
 
 interface ScreenStageProps {
   route: Route;
   children: ReactNode;
+}
+
+/**
+ * Asked here and handed down, because a `Presence` deeper in the screen would
+ * answer for itself, not for the screen.
+ */
+function Scene({ children }: { children: ReactNode }): ReactNode {
+  const present = useIsPresent();
+  return (
+    <ScreenLeaving.Provider value={!present}>{children}</ScreenLeaving.Provider>
+  );
 }
 
 /**
@@ -22,7 +35,7 @@ export function ScreenStage({ route, children }: ScreenStageProps): ReactNode {
           kind="slide"
           className="absolute inset-0"
         >
-          {children}
+          <Scene>{children}</Scene>
         </Reveal>
       </Presence>
     </div>

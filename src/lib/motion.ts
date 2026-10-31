@@ -1,6 +1,6 @@
 import { MotionGlobalConfig, useReducedMotionConfig } from "motion/react";
 import type { Variants } from "motion/react";
-import { createContext } from "react";
+import { createContext, useContext } from "react";
 import type { PointerEvent } from "react";
 
 export const DURATION = {
@@ -53,6 +53,17 @@ export const REVEAL: Record<RevealKind, Variants> = {
 
 /** The position of a `Reveal` in the `Stagger` around it. */
 export const StaggerIndex = createContext(0);
+
+/** Whether the screen around the caller is on its way out. */
+export const ScreenLeaving = createContext(false);
+
+/**
+ * A window listener answers keys wherever the focus is, and `inert` only stops
+ * what goes through the screen: each one asks this and stands down.
+ */
+export function useScreenLeaving(): boolean {
+  return useContext(ScreenLeaving);
+}
 
 /** Read at render, never at module load: tests flip the flag between renders. */
 export function animated(): boolean {

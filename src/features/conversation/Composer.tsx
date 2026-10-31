@@ -6,6 +6,7 @@ import type {
   ReactNode,
 } from "react";
 import { useTranslation } from "react-i18next";
+import { useScreenLeaving } from "@/lib/motion";
 import { ArrowUp, Trash2 } from "lucide-react";
 import type { Recording } from "@shared/domain";
 import { Button } from "@/components/ui/Button";
@@ -68,6 +69,7 @@ export function Composer({
   const [recording, setRecording] = useState<Recording | null>(null);
   const [sending, setSending] = useState(false);
   const pressedAt = useRef<number | null>(null);
+  const leaving = useScreenLeaving();
   const field = useRef<HTMLTextAreaElement>(null);
 
   const absorb = (next: Recording | null): void => {
@@ -119,7 +121,7 @@ export function Composer({
   status.current = recorder.status;
 
   useEffect(() => {
-    if (!voice) {
+    if (!voice || leaving) {
       return;
     }
     const down = (event: globalThis.KeyboardEvent): void => {
@@ -147,7 +149,7 @@ export function Composer({
       globalThis.removeEventListener("keydown", down);
       globalThis.removeEventListener("keyup", up);
     };
-  }, [voice]);
+  }, [voice, leaving]);
 
   const discard = (): void => {
     void recorder.cancel();

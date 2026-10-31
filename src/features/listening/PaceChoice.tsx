@@ -33,7 +33,7 @@ export function PaceChoice({
             onChange(pace);
           }}
           className={cn(
-            "h-10 border-l border-line px-4 text-sm transition-colors duration-150 first:border-l-0 disabled:cursor-not-allowed disabled:text-ink-faint",
+            "h-10 border-l border-line px-4 text-sm transition-control first:border-l-0 disabled:cursor-not-allowed disabled:text-ink-faint",
             pace === value
               ? "bg-accent-soft font-medium text-ink"
               : "bg-surface text-ink-soft hover:bg-raised hover:text-ink",

@@ -45,7 +45,7 @@ export function MicButton({
         }
       }}
       className={cn(
-        "relative grid size-11 shrink-0 touch-none place-items-center rounded-md transition-colors duration-150 disabled:cursor-not-allowed disabled:text-ink-faint",
+        "relative grid size-11 shrink-0 touch-none place-items-center rounded-md transition-control disabled:cursor-not-allowed disabled:text-ink-faint",
         recording
           ? "bg-accent text-on-accent"
           : "bg-raised text-ink-soft hover:bg-line hover:text-ink",

@@ -112,7 +112,7 @@ export function ChapterMenu({
         }
         title={current?.book.title}
         onClick={toggle}
-        className="flex h-10 max-w-full items-center gap-1.5 rounded-full px-3 text-sm text-book transition duration-150 hover:bg-book-soft"
+        className="flex h-10 max-w-full items-center gap-1.5 rounded-full px-3 text-sm text-book transition-control hover:bg-book-soft"
       >
         <span className="min-w-0 truncate font-serif italic">
           {current === null

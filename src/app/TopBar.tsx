@@ -61,7 +61,7 @@ function Pill({
       title={label}
       onClick={onClick}
       className={cn(
-        "relative flex h-10 shrink-0 items-center gap-2 rounded-full px-3 text-sm font-medium transition duration-150",
+        "relative flex h-10 shrink-0 items-center gap-2 rounded-full px-3 text-sm font-medium transition-control",
         active ? "text-ink" : "text-ink-soft hover:bg-raised hover:text-ink",
       )}
     >

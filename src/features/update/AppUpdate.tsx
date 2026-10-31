@@ -1,23 +1,18 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Download, RefreshCw, RotateCw } from "lucide-react";
+import { Download, RotateCw } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Spinner } from "@/components/ui/Spinner";
 import { UpdateProgress } from "./UpdateProgress";
 import { useUpdate } from "./update";
 
-/** The running version, and the newer release when there is one. */
+/** How the app stands against the latest release, and what to do about it. */
 export function AppUpdate(): ReactNode {
   const { t } = useTranslation();
-  const { version, state, check, download, restart } = useUpdate();
+  const { state, download, restart } = useUpdate();
 
   return (
     <div className="flex flex-col gap-4">
-      {version !== null && (
-        <p className="font-medium text-ink">
-          {t("update.version", { version })}
-        </p>
-      )}
       <div
         aria-live="polite"
         className="flex flex-wrap items-center gap-3 text-ink-soft"
@@ -77,17 +72,6 @@ export function AppUpdate(): ReactNode {
             onClick={download}
           >
             {t(state.kind === "failed" ? "update.retry" : "update.install")}
-          </Button>
-        )}
-        {(state.kind === "current" ||
-          (state.kind === "failed" && state.version === null)) && (
-          <Button
-            variant="ghost"
-            size="sm"
-            icon={<RefreshCw aria-hidden className="size-4" />}
-            onClick={check}
-          >
-            {t("update.check")}
           </Button>
         )}
       </div>

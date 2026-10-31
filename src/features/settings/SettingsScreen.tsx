@@ -180,7 +180,7 @@ export function SettingsScreen({
             <a
               key={id}
               href={`#${id}`}
-              className="rounded-sm px-2 py-1 text-sm text-ink-soft no-underline transition-colors duration-150 hover:bg-raised hover:text-ink"
+              className="rounded-sm px-2 py-1 text-sm text-ink-soft no-underline transition-control hover:bg-raised hover:text-ink"
             >
               {t(title)}
             </a>

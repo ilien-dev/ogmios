@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
+import { useScreenLeaving } from "@/lib/motion";
 import {
   ArrowLeft,
   ArrowRight,
@@ -56,6 +57,7 @@ export function ReportScreen({
   const [report, setReport] = useState<Report | null>(initial);
   const [failure, setFailure] = useState<string | null>(null);
   const [index, setIndex] = useState(0);
+  const leaving = useScreenLeaving();
   const steps = report === null ? [] : toSteps(report.cards);
   const total = steps.length;
 
@@ -81,6 +83,9 @@ export function ReportScreen({
   }, [initial, sessionId]);
 
   useEffect(() => {
+    if (leaving) {
+      return;
+    }
     const onKey = (event: KeyboardEvent): void => {
       if (
         typing(event.target) ||
@@ -100,7 +105,7 @@ export function ReportScreen({
     return () => {
       globalThis.removeEventListener("keydown", onKey);
     };
-  }, [total]);
+  }, [total, leaving]);
 
   const leave = (): void => {
     navigate(origin === "progress" ? { name: "progress" } : { name: "home" });

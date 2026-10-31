@@ -46,11 +46,12 @@ describe("AppUpdate", () => {
   test("shows the running version and says when it is the latest", async () => {
     render(
       <UpdateProvider>
+        <UpdateRow />
         <AppUpdate />
       </UpdateProvider>,
     );
 
-    expect(await screen.findByText(`Version ${version}`)).toBeInTheDocument();
+    expect(await screen.findByText(`v${version}`)).toBeInTheDocument();
     expect(
       await screen.findByText("You have the latest version."),
     ).toBeInTheDocument();
@@ -82,13 +83,16 @@ describe("AppUpdate", () => {
     const user = userEvent.setup();
     render(
       <UpdateProvider>
+        <UpdateRow />
         <AppUpdate />
       </UpdateProvider>,
     );
     await screen.findByText("You have the latest version.");
 
     setMockUpdate(NEWER);
-    await user.click(screen.getByRole("button", { name: "Check for updates" }));
+    await user.click(
+      await screen.findByRole("button", { name: "Check for updates" }),
+    );
 
     expect(
       await screen.findByText("Version 9.0.0 is available."),
@@ -279,7 +283,7 @@ describe("UpdateRow", () => {
     );
 
     await user.click(
-      await screen.findByRole("button", { name: `v${version}` }),
+      await screen.findByRole("button", { name: "Check for updates" }),
     );
     expect(
       await screen.findByText(`v${version} · up to date`),
@@ -299,6 +303,32 @@ describe("UpdateRow", () => {
     ).toBeInTheDocument();
   });
 
+  test("keeps the running version beside a newer release", async () => {
+    setMockUpdate(NEWER);
+    render(
+      <UpdateProvider>
+        <UpdateRow />
+      </UpdateProvider>,
+    );
+
+    expect(await screen.findByText(`v${version}`)).toBeInTheDocument();
+  });
+
+  test("is the only place in the section with the version and the check", async () => {
+    render(
+      <UpdateProvider>
+        <UpdateRow />
+        <AppUpdate />
+      </UpdateProvider>,
+    );
+
+    await screen.findByText("You have the latest version.");
+    expect(screen.getAllByText(`v${version}`)).toHaveLength(1);
+    expect(
+      screen.getAllByRole("button", { name: "Check for updates" }),
+    ).toHaveLength(1);
+  });
+
   test("says when the check could not be made", async () => {
     const user = userEvent.setup();
     const value = held({ kind: "failed", version: null, message: "Offline." });
@@ -308,7 +338,7 @@ describe("UpdateRow", () => {
       </Held>,
     );
 
-    await user.click(screen.getByRole("button", { name: `v${version}` }));
+    await user.click(screen.getByRole("button", { name: "Check for updates" }));
     expect(value.check).toHaveBeenCalledTimes(1);
     expect(screen.getByText("Couldn't check")).toBeInTheDocument();
   });

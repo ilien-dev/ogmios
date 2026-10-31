@@ -58,7 +58,7 @@ export function ChoiceGroup<T extends string>({
           <label
             key={choice.value}
             className={cn(
-              "relative flex cursor-pointer items-start gap-3 rounded-md transition duration-150 has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-accent-strong",
+              "relative flex cursor-pointer items-start gap-3 rounded-md transition-control has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-accent-strong",
               size === "sm" ? "px-3 py-2.5" : "px-4 py-3.5",
               choice.value === value
                 ? "bg-accent-soft"

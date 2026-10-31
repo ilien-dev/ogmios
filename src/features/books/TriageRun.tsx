@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
+import { useScreenLeaving } from "@/lib/motion";
 import type { BookWord, ChapterWords } from "@shared/domain";
 import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
@@ -54,6 +55,7 @@ export function TriageRun({
   onDone,
 }: TriageRunProps): ReactNode {
   const { t } = useTranslation();
+  const leaving = useScreenLeaving();
   /** The words to learn, as they stood on the way in or at the last pass. */
   const [words, setWords] = useState<BookWord[] | null>(null);
   /** Whether each word gone through this time was marked as known, in order. */
@@ -147,6 +149,9 @@ export function TriageRun({
   };
 
   useEffect(() => {
+    if (leaving) {
+      return;
+    }
     const onKey = (event: KeyboardEvent): void => {
       if (event.altKey || event.ctrlKey || event.metaKey) {
         return;

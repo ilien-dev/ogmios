@@ -159,7 +159,7 @@ export function Practice({
                       autostart: true,
                     });
                   }}
-                  className="group flex size-full items-start justify-between gap-3 rounded-lg border border-line-strong px-5 py-4 text-left transition-colors duration-150 hover:border-ink-faint hover:bg-raised"
+                  className="group flex size-full items-start justify-between gap-3 rounded-lg border border-line-strong px-5 py-4 text-left transition-control hover:border-ink-faint hover:bg-raised"
                 >
                   <span className="flex flex-col gap-1">
                     <span className="font-medium text-ink">

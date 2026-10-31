@@ -841,7 +841,6 @@ export const es: Catalog<typeof en> = {
   },
   update: {
     about: "Acerca de Ogmios",
-    version: "Versión {{version}}",
     short: "v{{version}}",
     checking: "Buscando actualizaciones…",
     current: "Tienes la última versión.",

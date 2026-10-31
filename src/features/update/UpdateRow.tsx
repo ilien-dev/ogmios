@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowUpCircle } from "lucide-react";
+import { ArrowUpCircle, RefreshCw } from "lucide-react";
 import { Presence } from "@/components/motion/Presence";
 import { Reveal } from "@/components/motion/Reveal";
 import { Spinner } from "@/components/ui/Spinner";
@@ -10,9 +10,9 @@ import { offered, useUpdate } from "./update";
 const ANSWER_MS = 4000;
 
 /**
- * The running version, in Settings. Pressed, it looks for a newer release and
- * answers in place. A newer one turns it into the way back to the card, for
- * one put away with Later.
+ * The running version, in Settings, and the one way to look for a newer
+ * release, which answers in place. A newer one turns the action into the way
+ * back to the card, for one put away with Later.
  */
 export function UpdateRow(): ReactNode {
   const { t } = useTranslation();
@@ -38,11 +38,16 @@ export function UpdateRow(): ReactNode {
   const row = (): ReactNode => {
     if (newer !== null) {
       return (
-        <Reveal key="newer" kind="fade">
+        <Reveal key="newer" kind="fade" className="flex items-center gap-1">
+          {version !== null && (
+            <span className="px-3 text-sm text-ink-soft">
+              {t("update.short", { version })}
+            </span>
+          )}
           <button
             type="button"
             onClick={unfold}
-            className="flex h-9 items-center gap-2 rounded-full px-3 text-sm font-medium text-accent-text transition duration-150 hover:bg-raised"
+            className="flex h-9 items-center gap-2 rounded-full px-3 text-sm font-medium text-accent-text transition-control hover:bg-raised"
           >
             <ArrowUpCircle aria-hidden className="size-4" />
             {t("update.hint", { version: newer })}
@@ -72,17 +77,20 @@ export function UpdateRow(): ReactNode {
       );
     }
     return (
-      <Reveal key="version" kind="fade">
+      <Reveal key="version" kind="fade" className="flex items-center gap-1">
+        <span className="px-3 text-sm text-ink-soft">
+          {t(asked ? "update.upToDate" : "update.short", { version })}
+        </span>
         <button
           type="button"
-          title={t("update.check")}
           onClick={() => {
             setAsked(true);
             check();
           }}
-          className="flex h-9 items-center rounded-full px-3 text-xs text-ink-faint transition duration-150 hover:bg-raised hover:text-ink-soft"
+          className="flex h-9 items-center gap-2 rounded-full px-3 text-sm text-ink-soft transition-control hover:bg-raised hover:text-ink"
         >
-          {t(asked ? "update.upToDate" : "update.short", { version })}
+          <RefreshCw aria-hidden className="size-4" />
+          {t("update.check")}
         </button>
       </Reveal>
     );
