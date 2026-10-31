@@ -56,6 +56,9 @@ function Reduced({ children }: { children: ReactNode }): ReactNode {
   return <MotionConfig reducedMotion="always">{children}</MotionConfig>;
 }
 
+// A spring lands on its exact target in about 0.9 s, close to the default 1 s.
+const SPRING_LANDING = { timeout: 3000 };
+
 function settled(element: HTMLElement, opacity: string): Promise<void> {
   return waitFor(() => {
     expect(element.style.opacity).toBe(opacity);
@@ -223,7 +226,7 @@ test("Tilt leans towards the pointer, up to 3 degrees", async () => {
   pointerAt(card, 100, 50);
   await waitFor(() => {
     expect(card.style.transform).toContain("rotateY(3deg)");
-  });
+  }, SPRING_LANDING);
 });
 
 test("Tilt stays still on a touch screen", async () => {
@@ -242,11 +245,11 @@ test("Magnetic moves towards the pointer, up to 6 px, and returns", async () => 
   pointerAt(button, 100, 50);
   await waitFor(() => {
     expect(button.style.transform).toContain("translateX(6px)");
-  });
+  }, SPRING_LANDING);
   fireEvent.pointerLeave(button);
   await waitFor(() => {
     expect(["", "none"]).toContain(button.style.transform);
-  });
+  }, SPRING_LANDING);
 });
 
 test("Magnetic stays still under reduced motion", async () => {
