@@ -29,12 +29,42 @@ export const en = {
     seconds_other: "{{count}} s",
   },
   nav: {
-    label: "Main",
     conversation: "Conversation",
     book: "Book",
-    structures: "Structures",
     settings: "Settings",
     due: "{{count}} due today",
+    sections: "Sections",
+    groups: {
+      speak: "Speak",
+      read: "Read",
+    },
+    entries: {
+      conversation: {
+        name: "Conversation",
+        hint: "Talk without interruptions; feedback comes at the end",
+      },
+      drills: { name: "Drills", hint: "Two-minute rounds on your mistakes" },
+      progress: {
+        name: "Progress",
+        hint: "Your level, your minutes and past conversations",
+      },
+      books: {
+        name: "Books",
+        hint: "Learn a chapter's words before reading it",
+      },
+      recall: {
+        name: "Daily review",
+        hint: "Learned words come back over the days",
+      },
+      structures: {
+        name: "Structures",
+        hint: "Sentences with one form until it comes on its own",
+      },
+      listening: {
+        name: "Listening",
+        hint: "Hear the chapter or take a dictation",
+      },
+    },
   },
   level: {
     basic: "Basic",
@@ -257,15 +287,8 @@ export const en = {
     continueLast: "Continue the last one",
     anotherTopic: "Another topic",
     customize: "Customize",
-    focus: "You're working on: {{pattern}}",
-    drillsText: "Practise the mistakes from your conversations.",
-    drillsDue_one: "{{count}} pattern due",
-    drillsDue_other: "{{count}} patterns due",
-    progressText:
-      "Your level, your minutes each week and your past conversations.",
     dueWords_one: "{{count}} word to review today",
     dueWords_other: "{{count}} words to review today",
-    review: "Review",
     streak_one: "{{count}} day in a row",
     streak_other: "{{count}} days in a row",
     streakNone: "Your streak starts with today's conversation",
@@ -278,6 +301,11 @@ export const en = {
       "Your last conversations sat outside your level. Switch to {{level}}?",
     switchLevel: "Switch",
     today: "Practised today",
+    streakLabel: "Days in a row",
+    wordsLabel: "Words to review today",
+    patternsLabel: "Patterns to practise",
+    todayList: "For today",
+    focusLead: "Your partner will steer towards what you're working on:",
   },
   setup: {
     title: "Set up your conversation",
@@ -304,6 +332,9 @@ export const en = {
     topic: "Topic: {{topic}}",
     partner: "Partner",
     you: "You",
+    ai: "AI",
+    app: "Ogmios: {{text}}",
+    live: "In conversation",
     starting: "Getting your partner ready…",
     writing: "Your partner is writing…",
     encourage1:

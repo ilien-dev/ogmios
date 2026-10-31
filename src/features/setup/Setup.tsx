@@ -132,7 +132,7 @@ export function Setup({ profile, preset, navigate }: SetupProps): ReactNode {
           >
             {t("common.back")}
           </Button>
-          <h1 className="text-title font-semibold text-ink">
+          <h1 className="font-display text-title font-normal text-ink">
             {t("setup.title")}
           </h1>
         </header>

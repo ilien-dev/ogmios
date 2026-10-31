@@ -1,6 +1,6 @@
 //! Books and their chapters. The chapter text is stored here; the webview
 //! sees it only as the sentences of a chapter being translated or listened
-//! to.
+//! to, and as the few lines a book without a cover opens with.
 
 use chrono::{DateTime, Utc};
 use rusqlite::{params, Connection, OptionalExtension};
@@ -53,6 +53,9 @@ pub fn insert_book(conn: &Connection, book: &NewBook<'_>, now: DateTime<Utc>) ->
     }
     Ok(())
 }
+
+/// How much of the first chapter a book without a cover shows.
+const OPENING_CHARS: u32 = 320;
 
 /// A book the learner has not deleted (`archive_book`).
 const SHELVED: &str = "id NOT IN (SELECT book_id FROM archived_books)";
@@ -123,6 +126,21 @@ pub fn rename_chapter(conn: &Connection, id: &str, title: &str) -> Result<Chapte
     get_chapter(conn, id)
 }
 
+/// The start of the book's first chapter, enough to fill a page.
+fn opening(conn: &Connection, book_id: &str) -> Result<String> {
+    Ok(conn
+        .query_row(
+            &format!(
+                "SELECT substr(text, 1, {OPENING_CHARS}) FROM book_chapters
+                 WHERE book_id = ?1 ORDER BY idx LIMIT 1"
+            ),
+            [book_id],
+            |row| row.get(0),
+        )
+        .optional()?
+        .unwrap_or_default())
+}
+
 /// A book on the shelf; a deleted one is not found.
 pub fn get_book(conn: &Connection, id: &str) -> Result<Book> {
     let (title, author) = found(
@@ -137,6 +155,7 @@ pub fn get_book(conn: &Connection, id: &str) -> Result<Book> {
         id: id.to_owned(),
         title,
         author,
+        opening: opening(conn, id)?,
         chapters: chapters(conn, id)?,
     })
 }

@@ -19,7 +19,7 @@ export function VerbFormTag({ form }: VerbFormTagProps): ReactNode {
   return (
     <span
       data-verb-form={form}
-      className="rounded-full bg-raised px-2 py-0.5 text-xs font-medium text-ink-soft"
+      className="rounded-sm bg-raised px-2 py-0.5 text-xs font-medium text-ink-soft"
     >
       {t(`books.sitting.verbForm.${form}`)}
     </span>

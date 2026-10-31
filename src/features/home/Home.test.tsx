@@ -8,27 +8,28 @@ import { Home } from "./Home";
 describe("the conversation section", () => {
   useMockBackend();
 
-  test("still opens on the start button, with its cards under it", async () => {
+  test("opens on the start button, with today's numbers beside it", async () => {
     render(<Home navigate={mock()} />);
 
     expect(
       await screen.findByRole("button", { name: "Start conversation" }),
     ).toBeEnabled();
+    expect(screen.getByText("Days in a row").parentElement).toHaveTextContent(
+      "4",
+    );
+    expect(screen.getByText("2 rest days left this week")).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /^2-minute drills/u }),
-    ).toHaveTextContent("2 patterns due");
-    expect(
-      screen.getByRole("button", { name: /^Progress/u }),
-    ).toHaveTextContent("4 days in a row · 2 rest days left this week");
+      screen.getByRole("button", { name: /Patterns to practise/u }),
+    ).toHaveTextContent("2");
   });
 
-  test("the drills card opens the drills, without starting one", async () => {
+  test("the patterns open the drills, without starting one", async () => {
     const user = userEvent.setup();
     const navigate = mock();
     render(<Home navigate={navigate} />);
 
     await user.click(
-      await screen.findByRole("button", { name: /^2-minute drills/u }),
+      await screen.findByRole("button", { name: /Patterns to practise/u }),
     );
     expect(navigate).toHaveBeenCalledWith({
       name: "practice",
@@ -38,32 +39,23 @@ describe("the conversation section", () => {
     });
   });
 
-  test("the progress card opens the progress", async () => {
-    const user = userEvent.setup();
-    const navigate = mock();
-    render(<Home navigate={navigate} />);
-
-    await user.click(await screen.findByRole("button", { name: /^Progress/u }));
-    expect(navigate).toHaveBeenCalledWith({ name: "progress" });
-  });
-
-  test("what the cards say is not said again in a line under them", async () => {
+  test("says what the partner will steer towards, once", async () => {
     render(<Home navigate={mock()} />);
 
     await screen.findByRole("button", { name: "Start conversation" });
-    expect(screen.getAllByText(/4 days in a row/u)).toHaveLength(1);
-    expect(screen.queryByRole("button", { name: "Practise" })).toBeNull();
+    expect(screen.getAllByText(/what you're working on/u)).toHaveLength(1);
   });
 
-  test("the cards are in Spanish too", async () => {
+  test("is in Spanish too", async () => {
     await i18n.changeLanguage("es");
     render(<Home navigate={mock()} />);
 
     expect(
-      await screen.findByRole("button", { name: /^Ejercicios de 2 min/u }),
-    ).toHaveTextContent("2 patrones pendientes");
+      await screen.findByRole("button", { name: "Empezar charla" }),
+    ).toBeEnabled();
     expect(
-      screen.getByRole("button", { name: /^Progreso/u }),
+      screen.getByRole("button", { name: /Patrones por practicar/u }),
     ).toBeInTheDocument();
+    expect(screen.getByText("Días seguidos")).toBeInTheDocument();
   });
 });

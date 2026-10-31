@@ -210,13 +210,13 @@ export function Composer({
     >
       {scaffolds.length > 0 && (
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm text-ink-faint">
+          <span className="text-sm text-partner">
             {t("conversation.scaffolds")}
           </span>
           {scaffolds.map((scaffold) => (
             <Chip
               key={scaffold}
-              className="h-8"
+              className="h-8 border-partner-line bg-partner-soft text-partner hover:border-partner hover:text-partner"
               onClick={() => {
                 setText((held) => appended(held, scaffold.replace(/…$/u, "")));
                 field.current?.focus();
@@ -229,8 +229,10 @@ export function Composer({
       )}
       <div
         className={cn(
-          "relative overflow-visible rounded-xl border bg-surface shadow-card transition-colors duration-150 focus-within:border-line-strong",
-          recording === null ? "border-line" : "border-accent-strong/60",
+          "relative overflow-visible rounded-xl border bg-surface shadow-you transition-colors duration-150",
+          recording === null
+            ? "border-you-line focus-within:border-you"
+            : "border-you",
         )}
       >
         <div
@@ -246,7 +248,7 @@ export function Composer({
           className="absolute inset-x-5 top-0 h-0.5 overflow-hidden rounded-full"
         >
           <div
-            className="h-full origin-left bg-accent transition-transform duration-300 ease-out-expo"
+            className="h-full origin-left bg-you transition-transform duration-300 ease-out-expo"
             style={{ transform: `scaleX(${fill})` }}
           />
         </div>
@@ -265,7 +267,10 @@ export function Composer({
             </Button>
           </div>
         )}
-        <label htmlFor="composer" className="sr-only">
+        <label
+          htmlFor="composer"
+          className="block px-5 pt-4 text-xs font-medium text-you"
+        >
           {t("conversation.composer")}
         </label>
         <textarea
@@ -286,11 +291,11 @@ export function Composer({
           }}
           onKeyDown={onKeyDown}
           className={cn(
-            "block w-full resize-none bg-transparent px-5 pt-4 text-lead focus-visible:outline-none",
+            "block w-full resize-none bg-transparent px-5 pt-1.5 text-lead focus-visible:outline-none",
             listening ? "text-ink-soft" : "text-ink",
           )}
         />
-        <div className="flex items-center gap-2 px-3 pt-1 pb-3">
+        <div className="flex items-center gap-2 border-t border-line px-3 py-2.5">
           {voice && (
             <MicButton
               status={recorder.status}
@@ -325,7 +330,7 @@ export function Composer({
               text.trim() === "" ||
               recorder.status !== "idle"
             }
-            className="size-10 rounded-full px-0"
+            className="size-10 px-0"
           >
             <ArrowUp aria-hidden className="size-5" />
           </Button>

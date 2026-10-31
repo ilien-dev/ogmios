@@ -92,7 +92,7 @@ export function ChoiceGroup<T extends string>({
               <span className="flex items-center gap-2 text-sm font-medium text-ink">
                 {choice.label}
                 {choice.badge !== undefined && (
-                  <span className="rounded-full bg-accent-soft px-2 py-0.5 text-xs font-medium text-accent-text">
+                  <span className="rounded-sm bg-accent-soft px-2 py-0.5 text-xs font-medium text-accent-text">
                     {choice.badge}
                   </span>
                 )}

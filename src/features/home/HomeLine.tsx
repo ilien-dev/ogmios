@@ -14,7 +14,7 @@ export function HomeLine({
   children,
 }: HomeLineProps): ReactNode {
   return (
-    <li className="flex min-h-11 items-center gap-3 text-sm text-ink-soft">
+    <li className="flex min-h-12 items-center gap-3 py-1 text-sm text-ink-soft">
       <Icon aria-hidden className="size-4 shrink-0 text-ink-faint" />
       <span className="min-w-0 flex-1">{children}</span>
       {action !== undefined && (

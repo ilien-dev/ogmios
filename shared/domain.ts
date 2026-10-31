@@ -440,6 +440,8 @@ export interface Book {
   id: string;
   title: string;
   author: string | null;
+  /** The start of the first chapter: the page a book without a cover shows. */
+  opening: string;
   chapters: Chapter[];
 }
 

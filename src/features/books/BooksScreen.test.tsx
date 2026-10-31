@@ -80,7 +80,10 @@ describe("BooksScreen", () => {
     expect(
       screen.getByRole("heading", { name: "Alice's Adventures in Wonderland" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("Lewis Carroll")).toBeInTheDocument();
+    // In a paragraph of its own: the page standing in for a cover says it too.
+    expect(
+      screen.getByText("Lewis Carroll", { selector: "p" }),
+    ).toBeInTheDocument();
 
     const rows = screen.getAllByRole("listitem");
     expect(rows.map((row) => row.textContent)).toEqual([

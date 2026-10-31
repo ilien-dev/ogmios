@@ -7,15 +7,15 @@ Add-Type -AssemblyName System.Drawing
 $tauri = Join-Path $PSScriptRoot "..\src-tauri"
 $icon = [System.Drawing.Bitmap]::FromFile((Join-Path $tauri "icons\icon.png"))
 
-# The icon's own colours: its dark square and the gold of the speech bubble.
-$dark = $icon.GetPixel($icon.Width / 2, $icon.Height / 20)
-$gold = $icon.GetPixel($icon.Width / 4, $icon.Height / 2)
+# The dark theme of src/styles/global.css: the page and the accent.
+$dark = [System.Drawing.ColorTranslator]::FromHtml("#0b0b0b")
+$teal = [System.Drawing.ColorTranslator]::FromHtml("#2dd4bf")
 
 function Hex($colour) { "{0:X2}{1:X2}{2:X2}" -f $colour.R, $colour.G, $colour.B }
-"dark $(Hex $dark)  gold $(Hex $gold)"
+"dark $(Hex $dark)  teal $(Hex $teal)"
 
-# The logo sits on a page of the icon's dark colour, so its square disappears
-# into the page and only the speech bubble shows. NSIS stretches a bitmap
+# The icon sits on the page's dark colour, so its round corners blend into the
+# page. NSIS stretches a bitmap
 # without smoothing it, so there is one per display scale, 72 px at 100 %.
 foreach ($scale in 100, 125, 150, 175, 200) {
     $side = 72 * $scale / 100
@@ -37,7 +37,7 @@ $dmg = New-Object System.Drawing.Bitmap 660, 400, ([System.Drawing.Imaging.Pixel
 $g = [System.Drawing.Graphics]::FromImage($dmg)
 $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
 $g.Clear($graphite)
-$pen = New-Object System.Drawing.Pen $gold, 8
+$pen = New-Object System.Drawing.Pen $teal, 8
 $pen.StartCap = [System.Drawing.Drawing2D.LineCap]::Round
 $pen.EndCap = [System.Drawing.Drawing2D.LineCap]::Round
 $pen.LineJoin = [System.Drawing.Drawing2D.LineJoin]::Round

@@ -124,7 +124,9 @@ export function BookHub({ navigate }: BookHubProps): ReactNode {
   return (
     <main className="h-full overflow-y-auto">
       <div className="mx-auto flex max-w-2xl flex-col gap-8 px-10 py-16">
-        <h1 className="text-display font-semibold text-ink">{t("nav.book")}</h1>
+        <h1 className="font-display text-display font-light text-ink">
+          {t("nav.book")}
+        </h1>
 
         {current === null ? (
           <>

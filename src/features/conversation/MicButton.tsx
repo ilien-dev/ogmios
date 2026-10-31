@@ -45,7 +45,7 @@ export function MicButton({
         }
       }}
       className={cn(
-        "relative grid size-11 shrink-0 touch-none place-items-center rounded-full transition-colors duration-150 disabled:cursor-not-allowed disabled:text-ink-faint",
+        "relative grid size-11 shrink-0 touch-none place-items-center rounded-md transition-colors duration-150 disabled:cursor-not-allowed disabled:text-ink-faint",
         recording
           ? "bg-accent text-on-accent"
           : "bg-raised text-ink-soft hover:bg-line hover:text-ink",
@@ -54,7 +54,7 @@ export function MicButton({
       {recording && (
         <span
           aria-hidden
-          className="absolute inset-0 rounded-full bg-accent-soft transition-transform duration-100"
+          className="absolute inset-0 rounded-md bg-accent-soft transition-transform duration-100"
           style={{ transform: `scale(${1 + peak * 0.6})` }}
         />
       )}

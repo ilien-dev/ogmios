@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { Spinner } from "@/components/ui/Spinner";
 import { TextInput } from "@/components/ui/TextInput";
 import { VerdictLine } from "@/components/ui/Verdict";
+import { Waveform } from "@/components/ui/Waveform";
 import { cn } from "@/lib/cn";
 import { errorMessage } from "@/lib/errors";
 import { grade } from "@/lib/grade";
@@ -83,11 +84,16 @@ export function CorrectionView({
           {card.recurrence}
         </p>
       )}
-      <div className="flex flex-col gap-2">
-        <p className="text-sm text-ink-faint">
+      <div className="flex max-w-xl flex-col items-end gap-1.5 self-end">
+        <p className="text-xs font-medium text-you">
           {t("report.correction.yourSentence")}
         </p>
-        <p className={cn("text-ink", compact ? "text-base" : "text-lead")}>
+        <p
+          className={cn(
+            "rounded-lg rounded-tr-none border border-dashed border-you-line px-4 py-3 text-you-ink",
+            compact ? "text-base" : "text-lead",
+          )}
+        >
           <Highlighted text={card.original} spans={[card.highlight]} />
         </p>
       </div>
@@ -100,27 +106,33 @@ export function CorrectionView({
           {outcome !== null && (
             <VerdictLine tone={outcome}>{t(VERDICT[outcome])}</VerdictLine>
           )}
-          <div className="flex flex-col gap-1 rounded-lg bg-correct-soft px-5 py-4">
-            <p className="text-sm text-ink-faint">
-              {t("report.correction.better")}
+          <div className="relative flex flex-col gap-3 overflow-hidden rounded-xl rounded-tl-none border border-partner-line px-5 py-4 bg-partner-panel">
+            <Waveform
+              bars={14}
+              className="pointer-events-none absolute top-3 right-4 h-8 text-partner/35"
+            />
+            <p className="relative text-xs font-medium text-partner">
+              {t("conversation.partner")} · {t("report.correction.better")}
             </p>
             <p
               className={cn(
-                "font-medium text-ink",
-                compact ? "text-base" : "text-lead",
+                "relative font-display text-ink",
+                compact ? "text-lg" : "text-2xl",
               )}
             >
               {card.corrected}
             </p>
+            <p className="relative border-t border-partner-line pt-3 leading-relaxed text-ink-soft">
+              {card.explanation}
+            </p>
           </div>
-          <p className="leading-relaxed text-ink-soft">{card.explanation}</p>
         </div>
       ) : (
         <form
           onSubmit={(event) => void check(event)}
           className="flex flex-col gap-3"
         >
-          <label htmlFor={inputId} className="font-medium text-ink">
+          <label htmlFor={inputId} className="text-sm text-ink-soft">
             {t("report.correction.fixPrompt")}
           </label>
           <div className="flex gap-2">
@@ -128,6 +140,7 @@ export function CorrectionView({
               id={inputId}
               value={attempt}
               spellCheck={false}
+              className="border-you-line bg-you-soft text-you-ink focus-visible:border-you"
               onChange={(event) => {
                 setDraft(event.target.value);
               }}

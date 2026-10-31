@@ -1,12 +1,15 @@
 import type { ComponentProps, ReactNode } from "react";
 import { cn } from "@/lib/cn";
 
-type Variant = "primary" | "secondary" | "ghost" | "danger" | "learn" | "known";
+type Variant =
+  "primary" | "inverse" | "secondary" | "ghost" | "danger" | "learn" | "known";
 type Size = "sm" | "md" | "lg";
 
 const VARIANTS: Record<Variant, string> = {
   primary:
-    "bg-accent text-on-accent shadow-card hover:bg-accent-strong disabled:bg-raised disabled:text-ink-faint disabled:shadow-none",
+    "bg-accent text-on-accent hover:bg-accent-strong disabled:bg-raised disabled:text-ink-faint",
+  inverse:
+    "bg-ink text-canvas shadow-float hover:bg-ink-soft disabled:bg-raised disabled:text-ink-faint",
   secondary:
     "border border-line-strong bg-surface text-ink hover:bg-raised disabled:text-ink-faint",
   ghost: "text-ink-soft hover:bg-raised hover:text-ink disabled:text-ink-faint",

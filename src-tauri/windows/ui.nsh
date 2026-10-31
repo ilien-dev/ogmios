@@ -24,20 +24,20 @@
 !define OG_HEIGHT 330
 !define OG_LOGO 72
 
-; The dark and the gold are the icon's own (scripts/installer-assets.ps1
-; prints them), so the logo's square disappears into the page; the rest is
+; The logo's bitmaps are drawn on this same dark (scripts/installer-assets.ps1),
+; so only its teal square shows on the page. All of it is
 ; the dark theme of src/styles/global.css, in the hexadecimal NSIS wants.
-!define OG_BG 16181D
-!define OG_RAISED 23252D
-!define OG_INK EEEFF3
-!define OG_SOFT A9ACB8
-!define OG_GOLD E9C46A
-!define OG_ON_GOLD 2C2410
-; The same gold and raised grey as Windows writes a colour: blue first.
-!define OG_GOLD_BGR 0x006AC4E9
-!define OG_RAISED_BGR 0x002D2523
-!define OG_INK_BGR 0x00F3EFEE
-!define OG_BG_BGR 0x001D1816
+!define OG_BG 0B0B0B
+!define OG_RAISED 1A1A1A
+!define OG_INK EDEDED
+!define OG_SOFT A6A6A6
+!define OG_ACCENT 2DD4BF
+!define OG_ON_ACCENT 04201C
+; The same teal and raised grey as Windows writes a colour: blue first.
+!define OG_ACCENT_BGR 0x00BFD42D
+!define OG_RAISED_BGR 0x001A1A1A
+!define OG_INK_BGR 0x00EDEDED
+!define OG_BG_BGR 0x000B0B0B
 
 Var OgDpi
 Var OgW
@@ -91,7 +91,7 @@ Var OgRun
 !macroend
 !define OG_COLOUR_INK ${OG_INK}
 !define OG_COLOUR_SOFT ${OG_SOFT}
-!define OG_COLOUR_GOLD ${OG_GOLD}
+!define OG_COLOUR_ACCENT ${OG_ACCENT}
 
 ; The logo on a page made with nsDialogs.
 !macro OG_LOGO_AT Y
@@ -103,14 +103,14 @@ Var OgRun
   SendMessage $R9 ${STM_SETIMAGE} ${IMAGE_BITMAP} $OgLogoImage
 !macroend
 
-; The one gold button of a page: a label, so that it takes the page's colours
+; The one teal button of a page: a label, so that it takes the page's colours
 ; and its text is a translated string like any other, with rounded corners.
 !macro OG_BUTTON Y TEXT ONCLICK
   !insertmacro OG_RECT center ${Y} 200 42
   nsDialogs::CreateControl STATIC "${DEFAULT_STYLES}|${SS_CENTER}|${SS_CENTERIMAGE}|${SS_NOTIFY}" 0 $R8 $R7 $R5 $R6 "${TEXT}"
   Pop $OgButton
   SendMessage $OgButton ${WM_SETFONT} $OgFontButton 1
-  SetCtlColors $OgButton 0x${OG_ON_GOLD} 0x${OG_GOLD}
+  SetCtlColors $OgButton 0x${OG_ON_ACCENT} 0x${OG_ACCENT}
   IntOp $R9 14 * $OgDpi
   IntOp $R9 $R9 / 96
   IntOp $R5 $R5 + 1
@@ -248,7 +248,7 @@ Var OgRun
     Pop $OgLogoImage
   FunctionEnd
 
-  ; The gold button does what Next did.
+  ; The teal button does what Next did.
   Function ${UN}ogNext
     Pop $0
     SendMessage $HWNDPARENT ${WM_COMMAND} 1 0
@@ -287,14 +287,14 @@ Var OgRun
     !insertmacro OG_RAW 0 204 ${OG_WIDTH} 24 ${SS_CENTER} $OgFontBody SOFT "$(ogWait)"
     StrCpy $OgSub $R9
 
-    ; A themed bar ignores its colours: this one is plain, flat and gold.
+    ; A themed bar ignores its colours: this one is plain, flat and teal.
     GetDlgItem $OgBar $OgDialog 1004
     System::Call 'uxtheme::SetWindowTheme(p $OgBar, w " ", w " ")'
     System::Call "user32::SetWindowLong(p $OgBar, i -20, i 0)"
     System::Call "user32::GetWindowLong(p $OgBar, i -16) i .r0"
     IntOp $0 $0 & 0xFF7FFFFF
     System::Call "user32::SetWindowLong(p $OgBar, i -16, i r0)"
-    SendMessage $OgBar 0x0409 0 ${OG_GOLD_BGR}
+    SendMessage $OgBar 0x0409 0 ${OG_ACCENT_BGR}
     SendMessage $OgBar 0x2001 0 ${OG_RAISED_BGR}
     !insertmacro OG_RECT center 186 280 6
     System::Call "user32::SetWindowPos(p $OgBar, p 0, i R8, i R7, i R5, i R6, i 0x34)"

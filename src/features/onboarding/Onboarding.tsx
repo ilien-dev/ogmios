@@ -6,6 +6,7 @@ import type { Goal, Level, Profile, Settings, Variant } from "@shared/domain";
 import { Button } from "@/components/ui/Button";
 import { ChoiceGroup } from "@/components/ui/ChoiceGroup";
 import { Field } from "@/components/ui/Field";
+import { Logo } from "@/components/ui/Logo";
 import { Notice } from "@/components/ui/Notice";
 import { Select } from "@/components/ui/Select";
 import { TextInput } from "@/components/ui/TextInput";
@@ -281,6 +282,7 @@ export function Onboarding({
         className="mx-auto flex w-full max-w-xl flex-1 flex-col px-8 pt-16 pb-10"
       >
         <div className="flex items-center gap-4">
+          <Logo className="size-6 shrink-0" />
           <ol aria-hidden className="flex flex-1 gap-1.5">
             {STEPS.map((name, i) => (
               <li
@@ -305,7 +307,7 @@ export function Onboarding({
             <h1
               ref={heading}
               tabIndex={-1}
-              className="text-display font-semibold text-balance text-ink focus:outline-none"
+              className="font-display text-display font-light text-balance text-ink focus:outline-none"
             >
               {t(`onboarding.${step}.title`)}
             </h1>

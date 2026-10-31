@@ -37,7 +37,7 @@ export function AnalysisView({ sessionId }: AnalysisViewProps): ReactNode {
   return (
     <main className="grid h-full place-items-center px-8">
       <div className="flex w-full max-w-sm flex-col gap-10 motion-safe:animate-rise">
-        <h1 className="text-title font-semibold text-ink">
+        <h1 className="font-display text-title font-normal text-ink">
           {t("analysis.title")}
         </h1>
         <ol aria-live="polite" className="flex flex-col gap-5">

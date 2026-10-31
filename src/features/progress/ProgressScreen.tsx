@@ -137,7 +137,7 @@ export function ProgressScreen({
               navigate({ name: "home" });
             }}
           />
-          <h1 className="text-display font-semibold text-ink">
+          <h1 className="font-display text-display font-light text-ink">
             {t("progress.title")}
           </h1>
         </header>

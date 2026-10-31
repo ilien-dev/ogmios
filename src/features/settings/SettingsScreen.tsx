@@ -143,7 +143,7 @@ export function SettingsScreen({
     <main className="h-full overflow-y-auto">
       <div className="mx-auto flex max-w-2xl flex-col gap-10 px-10 pt-16 pb-20">
         <header className="flex items-baseline justify-between gap-4">
-          <h1 className="text-display font-semibold text-ink">
+          <h1 className="font-display text-display font-light text-ink">
             {t("settings.title")}
           </h1>
           <p

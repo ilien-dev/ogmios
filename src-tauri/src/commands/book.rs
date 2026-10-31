@@ -5,10 +5,11 @@ use std::path::{Path, PathBuf};
 
 use chrono::Utc;
 use sha2::{Digest, Sha256};
+use tauri::ipc::Response;
 use tauri::AppHandle;
 
 use super::run;
-use crate::books::{epub, pdf, refused, ParsedBook, UNREADABLE};
+use crate::books::{epub, is_image, pdf, refused, ParsedBook, UNREADABLE};
 use crate::db::books::{self, NewBook};
 use crate::db::new_id;
 use crate::domain::{Book, Chapter};
@@ -105,10 +106,66 @@ pub fn remove(ctx: Ctx<'_>, id: &str) -> Result<()> {
     let tx = conn.transaction()?;
     books::archive_book(&tx, id, Utc::now())?;
     tx.commit()?;
-    match std::fs::remove_file(file) {
-        Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(e.into()),
-        _ => Ok(()),
+    for gone in [file, cover_path(ctx, id)] {
+        match std::fs::remove_file(gone) {
+            Err(e) if e.kind() != std::io::ErrorKind::NotFound => return Err(e.into()),
+            _ => {}
+        }
     }
+    Ok(())
+}
+
+/// The book's cover as it is kept: `<data_dir>/books/<bookId>.cover`.
+fn cover_path(ctx: Ctx<'_>, id: &str) -> PathBuf {
+    books_dir(ctx).join(format!("{id}.cover"))
+}
+
+/// The copy of the book's file, if it has this format.
+fn copy_of(ctx: Ctx<'_>, id: &str, format: &str) -> Result<Option<Vec<u8>>> {
+    let name = books::file_name(&*ctx.conn()?, id)?;
+    if !name.ends_with(&format!(".{format}")) {
+        return Ok(None);
+    }
+    match std::fs::read(books_dir(ctx).join(name)) {
+        Ok(bytes) => Ok(Some(bytes)),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(e.into()),
+    }
+}
+
+/// The book's cover, empty when it has none yet. An EPUB gives it up the
+/// first time it is asked, so a book stored before covers existed gains its
+/// own from the file kept for it.
+pub fn cover(ctx: Ctx<'_>, id: &str) -> Result<Vec<u8>> {
+    let path = cover_path(ctx, id);
+    match std::fs::read(&path) {
+        Ok(kept) => return Ok(kept),
+        Err(e) if e.kind() != std::io::ErrorKind::NotFound => return Err(e.into()),
+        Err(_) => {}
+    }
+    let image = copy_of(ctx, id, EPUB)?.and_then(|file| epub::cover(&file));
+    let Some(image) = image else {
+        return Ok(Vec::new());
+    };
+    std::fs::write(path, &image)?;
+    Ok(image)
+}
+
+/// The file of a PDF, for the webview to draw its first page; empty for any
+/// other book.
+pub fn pdf_file(ctx: Ctx<'_>, id: &str) -> Result<Vec<u8>> {
+    Ok(copy_of(ctx, id, PDF)?.unwrap_or_default())
+}
+
+/// Keeps the image the webview drew as the book's cover.
+pub fn save_cover(ctx: Ctx<'_>, id: &str, image: &[u8]) -> Result<()> {
+    books::file_name(&*ctx.conn()?, id)?;
+    if !is_image(image) {
+        return Err(refused(UNREADABLE));
+    }
+    std::fs::create_dir_all(books_dir(ctx))?;
+    std::fs::write(cover_path(ctx, id), image)?;
+    Ok(())
 }
 
 /// Names a chapter. Runs of spaces become one and a long name is cut; an
@@ -132,6 +189,23 @@ pub async fn import_book(app: AppHandle, path: String) -> Result<Book> {
 #[tauri::command]
 pub async fn delete_book(app: AppHandle, id: String) -> Result<()> {
     run(app, move |_, ctx| remove(ctx, &id)).await
+}
+
+#[tauri::command]
+pub async fn book_cover(app: AppHandle, id: String) -> Result<Response> {
+    let bytes = run(app, move |_, ctx| cover(ctx, &id)).await?;
+    Ok(Response::new(bytes))
+}
+
+#[tauri::command]
+pub async fn book_pdf(app: AppHandle, id: String) -> Result<Response> {
+    let bytes = run(app, move |_, ctx| pdf_file(ctx, &id)).await?;
+    Ok(Response::new(bytes))
+}
+
+#[tauri::command]
+pub async fn save_book_cover(app: AppHandle, id: String, image: Vec<u8>) -> Result<()> {
+    run(app, move |_, ctx| save_cover(ctx, &id, &image)).await
 }
 
 #[tauri::command]
@@ -194,6 +268,120 @@ mod tests {
         fn copies(&self) -> usize {
             std::fs::read_dir(self.dir.path().join("books")).map_or(0, Iterator::count)
         }
+    }
+
+    /// An EPUB whose package declares one image as its cover.
+    fn with_cover() -> Vec<u8> {
+        let opf = r#"<package xmlns="http://www.idpf.org/2007/opf" version="3.0">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>Alice</dc:title></metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="a" href="a.xhtml" media-type="application/xhtml+xml"/>
+    <item id="c" href="c.gif" media-type="image/gif" properties="cover-image"/>
+  </manifest>
+  <spine><itemref idref="a"/></spine>
+</package>"#;
+        let container = r#"<container><rootfiles>
+  <rootfile full-path="content.opf"/></rootfiles></container>"#;
+        let nav = r#"<html><body><nav><a href="a.xhtml">I</a></nav></body></html>"#;
+        let page = "<html><body><p>Alice was beginning to get very tired.</p></body></html>";
+        fixtures::zip(&[
+            ("META-INF/container.xml", container),
+            ("content.opf", opf),
+            ("nav.xhtml", nav),
+            ("a.xhtml", page),
+            ("c.gif", "GIF89a cover"),
+        ])
+    }
+
+    #[test]
+    fn a_book_stored_before_covers_gains_its_cover_when_asked() {
+        let desk = Desk::new();
+        let path = desk.file("alice.epub", &with_cover());
+        let book = import(desk.ctx(), &path).expect("import");
+        // Nothing but the copy of the file, as for every book already stored.
+        assert_eq!(desk.copies(), 1);
+
+        assert_eq!(cover(desk.ctx(), &book.id).expect("cover"), b"GIF89a cover");
+        assert_eq!(desk.copies(), 2);
+        // The second time it comes from its own file, whatever the book says.
+        let copy = desk
+            .dir
+            .path()
+            .join("books")
+            .join(format!("{}.epub", book.id));
+        std::fs::remove_file(copy).expect("remove copy");
+        assert_eq!(cover(desk.ctx(), &book.id).expect("cover"), b"GIF89a cover");
+    }
+
+    #[test]
+    fn a_book_without_an_image_has_an_empty_cover() {
+        let desk = Desk::new();
+        let path = desk.file("alice.epub", &fixtures::alice());
+        let book = import(desk.ctx(), &path).expect("import");
+        assert_eq!(
+            cover(desk.ctx(), &book.id).expect("cover"),
+            Vec::<u8>::new()
+        );
+    }
+
+    #[test]
+    fn a_pdf_hands_over_its_file_and_keeps_the_page_drawn_from_it() {
+        let desk = Desk::new();
+        let bytes = pdf_fixtures::alice();
+        let path = desk.file("alice.pdf", &bytes);
+        let book = import(desk.ctx(), &path).expect("import");
+
+        assert_eq!(
+            cover(desk.ctx(), &book.id).expect("cover"),
+            Vec::<u8>::new()
+        );
+        assert_eq!(pdf_file(desk.ctx(), &book.id).expect("file"), bytes);
+
+        save_cover(desk.ctx(), &book.id, b"GIF89a page").expect("save");
+        assert_eq!(cover(desk.ctx(), &book.id).expect("cover"), b"GIF89a page");
+    }
+
+    #[test]
+    fn an_epub_is_not_handed_over_as_a_pdf() {
+        let desk = Desk::new();
+        let path = desk.file("alice.epub", &fixtures::alice());
+        let book = import(desk.ctx(), &path).expect("import");
+        assert_eq!(
+            pdf_file(desk.ctx(), &book.id).expect("file"),
+            Vec::<u8>::new()
+        );
+    }
+
+    #[test]
+    fn only_an_image_is_kept_as_a_cover() {
+        let desk = Desk::new();
+        let path = desk.file("alice.epub", &fixtures::alice());
+        let book = import(desk.ctx(), &path).expect("import");
+        assert!(save_cover(desk.ctx(), &book.id, b"<script>").is_err());
+        assert_eq!(
+            cover(desk.ctx(), &book.id).expect("cover"),
+            Vec::<u8>::new()
+        );
+    }
+
+    #[test]
+    fn a_deleted_book_takes_its_cover_with_it() {
+        let desk = Desk::new();
+        let path = desk.file("alice.epub", &with_cover());
+        let book = import(desk.ctx(), &path).expect("import");
+        cover(desk.ctx(), &book.id).expect("cover");
+        remove(desk.ctx(), &book.id).expect("remove");
+        assert_eq!(desk.copies(), 0);
+    }
+
+    #[test]
+    fn a_book_opens_with_the_start_of_its_first_chapter() {
+        let desk = Desk::new();
+        let path = desk.file("alice.epub", &fixtures::alice());
+        let book = import(desk.ctx(), &path).expect("import");
+        assert!(book.opening.starts_with("Down the Rabbit-Hole\nAlice was"));
+        assert!(book.opening.chars().count() <= 320);
     }
 
     #[test]

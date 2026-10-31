@@ -520,7 +520,7 @@ function Run({ opened, native, onFinished, onLeave }: RunProps): ReactNode {
             >
               {t("books.translate.attempts")}
             </Button>
-            <h1 className="text-display font-semibold text-ink">
+            <h1 className="font-display text-display font-light text-ink">
               {t("books.translate.title")}
             </h1>
           </header>
@@ -552,7 +552,7 @@ function Run({ opened, native, onFinished, onLeave }: RunProps): ReactNode {
   return (
     <main className="flex h-full flex-col">
       <div className="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col gap-6 px-10 pt-10">
-        <h1 className="text-title font-semibold text-ink">
+        <h1 className="font-display text-title font-normal text-ink">
           {t("books.translate.title")}
         </h1>
         <Bar translation={translation} native={native} />
@@ -622,7 +622,7 @@ export function TranslateScreen({
           >
             {chapterName(chapter, t)}
           </Button>
-          <h1 className="text-display font-semibold text-ink">
+          <h1 className="font-display text-display font-light text-ink">
             {t("books.translate.title")}
           </h1>
         </header>

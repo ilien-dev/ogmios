@@ -585,13 +585,15 @@ pub struct UpdateDownload {
 }
 
 /// An uploaded book and its chapters in reading order. Chapter text stays in
-/// Rust until the chapter is translated (`Translation`).
+/// Rust until the chapter is translated (`Translation`), but for the opening.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Book {
     pub id: String,
     pub title: String,
     pub author: Option<String>,
+    /// The start of the first chapter: the page a book without a cover shows.
+    pub opening: String,
     pub chapters: Vec<Chapter>,
 }
 

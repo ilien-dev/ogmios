@@ -26,7 +26,9 @@ describe("Conversation", () => {
     expect(
       await screen.findByText(/What's one thing that happened this week/u),
     ).toBeInTheDocument();
-    expect(await screen.findByText("Try 2–3 sentences")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Ogmios: Try 2–3 sentences"),
+    ).toBeInTheDocument();
 
     const box = screen.getByLabelText("Your answer");
     await user.type(box, "I finished a big report");
@@ -55,7 +57,7 @@ describe("Conversation", () => {
         navigate={mock()}
       />,
     );
-    await screen.findByText("Try 2–3 sentences");
+    await screen.findByText("Ogmios: Try 2–3 sentences");
 
     const mic = screen.getByRole("button", { name: /Microphone/u });
     mic.focus();

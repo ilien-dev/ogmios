@@ -7,10 +7,12 @@ import { READY } from "@shared/domain";
 import { BackLink } from "@/components/ui/BackLink";
 import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
+import { ProgressBar } from "@/components/ui/ProgressBar";
 import { Spinner } from "@/components/ui/Spinner";
 import type { Navigate } from "@/app/routes";
 import { errorMessage } from "@/lib/errors";
 import { importBook, listBooks, listKnownWords, pickBookFile } from "@/lib/ipc";
+import { BookCover } from "./BookCover";
 import { BookDetail } from "./BookDetail";
 import { BookHub } from "./BookHub";
 import { ChapterScreen } from "./ChapterScreen";
@@ -287,10 +289,10 @@ export function BooksScreen({
 
   return (
     <main className="h-full overflow-y-auto">
-      <div className="mx-auto flex max-w-2xl flex-col gap-12 px-10 py-16">
+      <div className="mx-auto flex max-w-3xl flex-col gap-12 px-10 py-16">
         <header className="flex flex-col gap-3">
           <BackLink label={t("nav.book")} onClick={showHub} />
-          <h1 className="text-display font-semibold text-ink">
+          <h1 className="font-display text-display font-light text-ink">
             {t("books.title")}
           </h1>
           <p className="text-lead text-ink-soft">{t("books.intro")}</p>
@@ -331,8 +333,9 @@ export function BooksScreen({
                     onClick={() => {
                       navigate({ name: "books", bookId: book.id });
                     }}
-                    className="group flex w-full items-center gap-4 px-2 py-4 text-left hover:bg-raised"
+                    className="group flex w-full items-center gap-5 px-2 py-3 text-left hover:bg-raised"
                   >
+                    <BookCover book={book} className="w-15" />
                     <span className="flex min-w-0 flex-1 flex-col gap-1">
                       <span className="truncate font-medium text-ink">
                         {book.title}
@@ -349,6 +352,13 @@ export function BooksScreen({
                         ]
                           .filter((part) => part !== null)
                           .join(" · ")}
+                      </span>
+                      <span className="mt-1.5 block max-w-64">
+                        <ProgressBar
+                          label={t("books.readyCount", { count: ready })}
+                          value={ready}
+                          total={book.chapters.length}
+                        />
                       </span>
                     </span>
                     <ChevronRight
