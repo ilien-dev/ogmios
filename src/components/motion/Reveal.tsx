@@ -2,7 +2,12 @@ import { motion, useIsPresent, useReducedMotionConfig } from "motion/react";
 import type { HTMLMotionProps } from "motion/react";
 import { useContext } from "react";
 import type { ReactNode } from "react";
-import { REVEAL, StaggerIndex, animated } from "../../lib/motion";
+import {
+  REVEAL,
+  STAGGER_LIMIT,
+  StaggerIndex,
+  animated,
+} from "../../lib/motion";
 import type { RevealKind } from "../../lib/motion";
 
 type RevealTag = "div" | "li" | "section" | "p" | "span" | "tr" | "main";
@@ -20,7 +25,8 @@ export function Reveal({
   index,
   ...rest
 }: RevealProps): ReactNode {
-  const position = useContext(StaggerIndex);
+  const inherited = useContext(StaggerIndex);
+  const position = index ?? inherited;
   const isPresent = useIsPresent();
   const reduced = useReducedMotionConfig();
   const Tag = motion[as] as typeof motion.div;
@@ -28,9 +34,13 @@ export function Reveal({
     <Tag
       {...rest}
       // Motion makes a transform instant under reduced motion, so an exit that
-      // moves would jump and then fade. A fade alone is what the spec keeps.
-      variants={reduced === true ? REVEAL.fade : REVEAL[kind]}
-      custom={index ?? position}
+      // moves would jump and then fade. Rows past the cascade only fade too.
+      variants={
+        reduced === true || position >= STAGGER_LIMIT
+          ? REVEAL.fade
+          : REVEAL[kind]
+      }
+      custom={position}
       initial={animated() ? "hidden" : false}
       animate="shown"
       exit="gone"

@@ -119,30 +119,39 @@ test("with animations skipped, Presence renders in place", () => {
 
 test("staggerDelay stops growing past the limit", () => {
   expect(staggerDelay(0)).toBe(0);
-  expect(staggerDelay(STAGGER_LIMIT - 1)).toBeLessThan(
-    staggerDelay(STAGGER_LIMIT),
-  );
+  expect(staggerDelay(STAGGER_LIMIT - 1)).toBeGreaterThan(0);
+  expect(staggerDelay(STAGGER_LIMIT)).toBe(0);
   expect(staggerDelay(STAGGER_LIMIT + 1988)).toBe(staggerDelay(STAGGER_LIMIT));
 });
 
-test("a long Stagger cascades by position and adds nothing past the limit", async () => {
+test("a long Stagger cascades what is visible and fades the rest in at once", async () => {
   const rows = STAGGER_LIMIT + 20;
   render(
     <Stagger>
       {Array.from({ length: rows }, (_, row) => (
-        <Reveal key={row}>{`row ${row}`}</Reveal>
+        <Reveal key={row} kind="slide">{`row ${row}`}</Reveal>
       ))}
     </Stagger>,
   );
   const first = screen.getByText("row 0");
-  const capped = screen.getByText(`row ${STAGGER_LIMIT}`);
+  const lastCascaded = screen.getByText(`row ${STAGGER_LIMIT - 1}`);
+  const pastLimit = screen.getByText(`row ${STAGGER_LIMIT}`);
   const last = screen.getByText(`row ${rows - 1}`);
 
-  await settled(first, "1");
-  expect(capped.style.opacity).toBe("0");
+  expect(first.style.transform).toContain("translateX");
+  for (const row of [pastLimit, last]) {
+    expect(row.style.opacity).toBe("0");
+    expect(["", "none"]).toContain(row.style.transform);
+  }
 
-  await settled(capped, "1");
+  await settled(pastLimit, "1");
   expect(last.style.opacity).toBe("1");
+  expect(lastCascaded.style.opacity).toBe("0");
+
+  await settled(lastCascaded, "1");
+  for (const row of [pastLimit, last]) {
+    expect(["", "none"]).toContain(row.style.transform);
+  }
 });
 
 test("under reduced motion, nothing stays hidden", async () => {

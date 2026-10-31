@@ -59,8 +59,9 @@ export function animated(): boolean {
   return MotionGlobalConfig.skipAnimations !== true;
 }
 
+/** The cascade covers what is visible; rows past it wait for nothing. */
 export function staggerDelay(index: number): number {
-  return Math.min(index, STAGGER_LIMIT) * STAGGER_STEP;
+  return index < STAGGER_LIMIT ? index * STAGGER_STEP : 0;
 }
 
 /** Whether something may follow the pointer: a mouse, and motion allowed. */
