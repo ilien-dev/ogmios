@@ -169,33 +169,38 @@ export function TopBar({
                 </Reveal>
               )}
           </Presence>
-          {section !== null && (
-            <nav
-              aria-label={t(`nav.groups.${section}`)}
-              className="mx-auto flex shrink-0 items-center gap-1"
-            >
-              {places.map(({ entry, icon }) => {
-                const name = t(`nav.entries.${entry}`);
-                const count = counts[entry] ?? 0;
-                return (
-                  <Pill
-                    key={entry}
-                    label={
-                      count > 0 ? `${name}, ${t("nav.due", { count })}` : name
-                    }
-                    text={name}
-                    icon={icon}
-                    active={on === entry}
-                    count={count}
-                    section={section}
-                    onClick={() => {
-                      navigate(placeTarget(entry, current));
-                    }}
-                  />
-                );
-              })}
-            </nav>
-          )}
+          <Presence swap>
+            {section !== null && (
+              <Reveal
+                key={section}
+                as="nav"
+                kind="fade"
+                aria-label={t(`nav.groups.${section}`)}
+                className="mx-auto flex shrink-0 items-center gap-1"
+              >
+                {places.map(({ entry, icon }) => {
+                  const name = t(`nav.entries.${entry}`);
+                  const count = counts[entry] ?? 0;
+                  return (
+                    <Pill
+                      key={entry}
+                      label={
+                        count > 0 ? `${name}, ${t("nav.due", { count })}` : name
+                      }
+                      text={name}
+                      icon={icon}
+                      active={on === entry}
+                      count={count}
+                      section={section}
+                      onClick={() => {
+                        navigate(placeTarget(entry, current));
+                      }}
+                    />
+                  );
+                })}
+              </Reveal>
+            )}
+          </Presence>
           <div className="ml-auto shrink-0">
             <Pill
               label={t(waiting ? "nav.settingsWaiting" : "nav.settings")}

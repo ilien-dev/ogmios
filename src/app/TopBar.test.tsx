@@ -1,6 +1,20 @@
-import { beforeEach, describe, expect, mock, test } from "bun:test";
-import { render, screen, within } from "@testing-library/react";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  mock,
+  spyOn,
+  test,
+} from "bun:test";
+import {
+  render,
+  screen,
+  waitForElementToBeRemoved,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { MotionConfig, MotionGlobalConfig } from "motion/react";
 import type { ReactNode } from "react";
 import type { Book } from "@shared/domain";
 import type { Current } from "@/features/books/currentChapter";
@@ -137,6 +151,75 @@ function updates(state: UpdateState, folded: boolean): Updates {
     unfold: mock(),
   };
 }
+
+describe("TopBar, with real exits", () => {
+  const nativeAnimate = Element.prototype.animate;
+  useMockBackend();
+
+  // As in `motion.test.tsx`: on motion's own frame loop.
+  beforeEach(() => {
+    MotionGlobalConfig.skipAnimations = false;
+    Reflect.deleteProperty(Element.prototype, "animate");
+    spyOn(console, "warn").mockImplementation(() => {});
+    // The active pill slides from one place to the next, and the place it left
+    // stays until it lands: without layout here it would never start.
+    spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+      function place(this: HTMLElement): DOMRect {
+        const label = this.parentElement?.getAttribute("aria-label") ?? "";
+        return new DOMRect(label.length * 10, 0, 40, 40);
+      },
+    );
+  });
+
+  afterEach(() => {
+    MotionGlobalConfig.skipAnimations = true;
+    Element.prototype.animate = nativeAnimate;
+    mock.restore();
+  });
+
+  test("moving to Settings takes the places away through an exit", async () => {
+    const { rerender } = render(<Bar route={RECALL} />);
+    const places = screen.getByRole("navigation", { name: "Book" });
+    expect(places).not.toHaveAttribute("inert");
+
+    rerender(<Bar route={{ name: "settings" }} />);
+
+    expect(places).toBeInTheDocument();
+    expect(places).toHaveAttribute("inert");
+    await waitForElementToBeRemoved(places);
+    expect(screen.getByRole("button", { name: "Settings" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+  });
+
+  test("under reduced motion the places still go", async () => {
+    const bar = (route: Route): ReactNode => (
+      <MotionConfig reducedMotion="always">
+        <Bar route={route} />
+      </MotionConfig>
+    );
+    const { rerender } = render(bar(RECALL));
+    const places = screen.getByRole("navigation", { name: "Book" });
+
+    rerender(bar({ name: "settings" }));
+
+    await waitForElementToBeRemoved(places);
+  });
+
+  test("moving across sections swaps the places at once", async () => {
+    const { rerender } = render(<Bar route={RECALL} />);
+    const book = screen.getByRole("navigation", { name: "Book" });
+
+    rerender(<Bar route={SETUP} />);
+
+    expect(book).toHaveAttribute("inert");
+    expect(
+      screen.getByRole("navigation", { name: "Conversation" }),
+    ).not.toHaveAttribute("inert");
+    await waitForElementToBeRemoved(book);
+  });
+});
 
 describe("chapterOn", () => {
   test("the chapter on the screen goes before the one opened last", () => {

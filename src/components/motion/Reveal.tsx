@@ -11,7 +11,16 @@ import {
 import type { RevealKind } from "../../lib/motion";
 
 type RevealTag =
-  "div" | "li" | "section" | "p" | "span" | "tr" | "main" | "aside" | "header";
+  | "div"
+  | "li"
+  | "section"
+  | "p"
+  | "span"
+  | "tr"
+  | "main"
+  | "aside"
+  | "header"
+  | "nav";
 
 interface RevealProps extends HTMLMotionProps<"div"> {
   as?: RevealTag;
