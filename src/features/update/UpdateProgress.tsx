@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { UpdateDownload } from "@shared/domain";
+import { Presence } from "@/components/motion/Presence";
+import { Reveal } from "@/components/motion/Reveal";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { formatBytes } from "@/lib/text";
 
@@ -27,11 +29,18 @@ export function UpdateProgress({
           aria-label={t("update.progress")}
           className="h-1 w-full animate-pulse-soft rounded-full bg-accent"
         />
-        {progress !== null && (
-          <p className="text-sm text-ink-soft">
-            {formatBytes(received, i18n.language)}
-          </p>
-        )}
+        <Presence>
+          {progress !== null && (
+            <Reveal
+              key="received"
+              as="p"
+              kind="fade"
+              className="text-sm text-ink-soft"
+            >
+              {formatBytes(received, i18n.language)}
+            </Reveal>
+          )}
+        </Presence>
       </div>
     );
   }

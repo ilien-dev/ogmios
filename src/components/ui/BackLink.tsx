@@ -14,8 +14,13 @@ export function BackLink({ label, onClick }: BackLinkProps): ReactNode {
     <Button
       variant="ghost"
       size="sm"
-      className="-ml-3 self-start"
-      icon={<ArrowLeft aria-hidden className="size-4" />}
+      className="group -ml-3 self-start"
+      icon={
+        <ArrowLeft
+          aria-hidden
+          className="size-4 transition-transform duration-150 group-hover:-translate-x-0.5"
+        />
+      }
       onClick={onClick}
     >
       {label}

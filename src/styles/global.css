@@ -88,6 +88,8 @@
   --color-on-cta: #23233a;
   --color-on-cta-book: #3a2410;
 
+  --breakpoint-nav: 62.5rem;
+
   --font-sans:
     "Plus Jakarta Sans Variable", ui-sans-serif, system-ui, -apple-system,
     "Segoe UI", sans-serif;
@@ -134,6 +136,7 @@
   --animate-pulse-soft: pulse-soft 1.6s ease-in-out infinite;
   --animate-orb-drift: orb-drift 24s ease-in-out infinite;
   --animate-orb-spin: orb-spin 6s linear infinite;
+  --animate-orb-pulse: orb-pulse 1.6s ease-in-out infinite;
 
   @keyframes rise {
     from {
@@ -199,6 +202,11 @@
   @keyframes orb-spin {
     to {
       transform: rotate(360deg);
+    }
+  }
+  @keyframes orb-pulse {
+    50% {
+      transform: scale(1.06);
     }
   }
   @keyframes pulse-soft {
@@ -379,6 +387,43 @@
     cursor: pointer;
   }
 
+  /*
+   * What takes a click answers it: it rises under the pointer and gives under
+   * the press. The `translate` and `scale` properties stay clear of the
+   * `transform` that `motion` writes. A `transition-colors` on the element
+   * would replace this rule: use `transition`, which covers both.
+   */
+  button:not(:disabled),
+  a,
+  summary,
+  [role="button"]:not([aria-disabled="true"]) {
+    transition:
+      translate 160ms var(--ease-out-expo),
+      scale 120ms var(--ease-out-expo);
+  }
+
+  @media (hover: hover) and (prefers-reduced-motion: no-preference) {
+    :is(
+      button:not(:disabled),
+      a,
+      summary,
+      [role="button"]:not([aria-disabled="true"])
+    ):hover {
+      translate: 0 -1px;
+    }
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    :is(
+      button:not(:disabled),
+      a,
+      summary,
+      [role="button"]:not([aria-disabled="true"])
+    ):active {
+      scale: 0.97;
+    }
+  }
+
   input::placeholder,
   textarea::placeholder {
     color: var(--color-ink-faint);
@@ -391,6 +436,7 @@
   @media (prefers-reduced-motion: reduce) {
     .animate-orb-drift,
     .animate-orb-spin,
+    .animate-orb-pulse,
     .animate-caret,
     .animate-pulse-soft {
       animation-name: none !important;

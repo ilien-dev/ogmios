@@ -29,7 +29,7 @@ export function ProgressBar({
       aria-valuemin={0}
       aria-valuemax={FULL}
       aria-valuenow={Math.floor(share * FULL)}
-      className="h-1 w-full overflow-hidden rounded-full bg-line"
+      className="h-1.5 w-full overflow-hidden rounded-full bg-raised"
     >
       <div
         className="h-full origin-left bg-accent transition-transform duration-300 ease-out-expo motion-reduce:transition-none"

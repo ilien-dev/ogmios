@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 import { useId } from "react";
+import { Presence } from "@/components/motion/Presence";
+import { Reveal } from "@/components/motion/Reveal";
 import { cn } from "@/lib/cn";
 
 export interface Choice<T extends string> {
@@ -56,11 +58,11 @@ export function ChoiceGroup<T extends string>({
           <label
             key={choice.value}
             className={cn(
-              "relative flex cursor-pointer items-start gap-3 rounded-md border transition-colors duration-150 has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-accent-strong",
+              "relative flex cursor-pointer items-start gap-3 rounded-md transition duration-150 has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-accent-strong",
               size === "sm" ? "px-3 py-2.5" : "px-4 py-3.5",
               choice.value === value
-                ? "border-accent-strong bg-accent-soft"
-                : "border-line-strong hover:border-ink-faint hover:bg-raised",
+                ? "bg-accent-soft"
+                : "bg-surface shadow-card hover:bg-raised",
             )}
           >
             {/* `relative` on the label keeps this visually hidden radio inside
@@ -84,15 +86,22 @@ export function ChoiceGroup<T extends string>({
                   : "border-line-strong",
               )}
             >
-              {choice.value === value && (
-                <span className="size-1.5 rounded-full bg-on-accent" />
-              )}
+              <Presence>
+                {choice.value === value && (
+                  <Reveal
+                    key="mark"
+                    as="span"
+                    kind="scale"
+                    className="size-1.5 rounded-full bg-on-accent"
+                  />
+                )}
+              </Presence>
             </span>
             <span className="flex flex-col gap-0.5">
               <span className="flex items-center gap-2 text-sm font-medium text-ink">
                 {choice.label}
                 {choice.badge !== undefined && (
-                  <span className="rounded-sm bg-accent-soft px-2 py-0.5 text-xs font-medium text-accent-text">
+                  <span className="rounded-full bg-accent-soft px-2 py-0.5 text-xs font-medium text-accent-text">
                     {choice.badge}
                   </span>
                 )}

@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 import { ArrowRight } from "lucide-react";
+import { Presence } from "@/components/motion/Presence";
+import { Reveal } from "@/components/motion/Reveal";
 import { cn } from "@/lib/cn";
 
 interface HubCardProps {
@@ -28,7 +30,7 @@ export function HubCard({
     <button
       type="button"
       onClick={onClick}
-      className="group flex flex-col gap-1.5 rounded-xl border border-line bg-surface px-5 pt-5 pb-4 text-left shadow-card transition-colors duration-150 hover:border-line-strong"
+      className="group flex flex-col gap-1.5 rounded-xl bg-surface px-5 pt-5 pb-4 text-left shadow-card transition duration-150 hover:shadow-float"
     >
       <span className="flex items-center gap-2">
         <span className="text-base font-semibold text-ink">{title}</span>
@@ -38,16 +40,21 @@ export function HubCard({
         />
       </span>
       <span className="text-sm text-ink-soft">{text}</span>
-      {status !== undefined && (
-        <span
-          className={cn(
-            "mt-2 border-t border-line pt-3 text-sm",
-            due ? "font-medium text-accent-text" : "text-ink-faint",
-          )}
-        >
-          {status}
-        </span>
-      )}
+      <Presence>
+        {status !== undefined && (
+          <Reveal
+            key="status"
+            as="span"
+            kind="fade"
+            className={cn(
+              "mt-2 border-t border-line pt-3 text-sm",
+              due ? "font-medium text-accent-text" : "text-ink-faint",
+            )}
+          >
+            {status}
+          </Reveal>
+        )}
+      </Presence>
     </button>
   );
 }

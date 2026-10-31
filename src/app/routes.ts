@@ -96,3 +96,69 @@ export function showsNav(route: Route): boolean {
   }
   return route.name !== "report" || route.origin === "progress";
 }
+
+/** The two things the app is for. */
+export type Section = "conversation" | "book";
+
+/** The section a screen is under; Home and Settings stand outside both. */
+export function sectionOf(route: Route): Section | null {
+  switch (route.name) {
+    case "home":
+    case "settings":
+      return null;
+    case "books":
+    case "recall":
+    case "structures":
+    case "listening":
+      return "book";
+    default:
+      return "conversation";
+  }
+}
+
+/**
+ * What tells one screen from another, so that only a move to a different one
+ * animates. What a screen changes from the inside stays out, such as the
+ * chapter picked on the listening menu or the preset of a setup.
+ */
+export function screenKey(route: Route): string {
+  switch (route.name) {
+    case "report":
+      return JSON.stringify([route.name, route.sessionId]);
+    case "practice":
+      return JSON.stringify([
+        route.name,
+        route.patternId,
+        route.format,
+        route.autostart,
+      ]);
+    case "books":
+      return JSON.stringify([
+        route.name,
+        route.bookId,
+        route.chapterId ?? null,
+        route.known === true,
+        route.practising === true,
+        route.refresh === true,
+        route.triage === true,
+        route.translating === true,
+      ]);
+    case "recall":
+      return JSON.stringify([route.name, route.running ?? null]);
+    case "structures":
+      return JSON.stringify([
+        route.name,
+        route.running ?? null,
+        route.chapterId ?? null,
+        route.catalog === true,
+      ]);
+    case "listening":
+      return JSON.stringify([
+        route.name,
+        route.running ?? null,
+        route.reading ?? null,
+      ]);
+    default:
+      return route.name;
+  }
+}

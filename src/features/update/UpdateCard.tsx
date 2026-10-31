@@ -2,6 +2,8 @@ import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { ArrowUpCircle } from "lucide-react";
+import { Presence } from "@/components/motion/Presence";
+import { Reveal } from "@/components/motion/Reveal";
 import { Button } from "@/components/ui/Button";
 import { Spinner } from "@/components/ui/Spinner";
 import { UpdateProgress } from "./UpdateProgress";
@@ -87,23 +89,45 @@ function body(
   }
 }
 
+interface UpdateCardProps {
+  /** The screen has room for it; a run that takes the window does not. */
+  shown?: boolean;
+}
+
 /**
- * The newer release, floating over the corner next to the running version:
- * on offer, downloading, ready for the restart that installs it, or failed.
- * Put away with Later, it stays away until the sidebar opens it again.
+ * The newer release, floating over the bottom right corner: on offer,
+ * downloading, ready for the restart that installs it, or failed. Put away
+ * with Later, it stays away until the row in Settings opens it again.
  */
-export function UpdateCard(): ReactNode {
+export function UpdateCard({ shown = true }: UpdateCardProps): ReactNode {
   const { t } = useTranslation();
   const updates = useUpdate();
-  const content = updates.folded ? null : body(updates.state, updates, t);
+  const content =
+    updates.folded || !shown ? null : body(updates.state, updates, t);
 
-  return content === null ? null : (
-    <aside
-      aria-label={t("update.card")}
-      aria-live="polite"
-      className="absolute bottom-4 left-4 z-10 flex w-72 animate-rise flex-col gap-3 rounded-lg border border-line bg-surface p-4 shadow-float"
-    >
-      {content}
-    </aside>
+  return (
+    <Presence>
+      {content !== null && (
+        <Reveal
+          key="card"
+          as="aside"
+          aria-label={t("update.card")}
+          aria-live="polite"
+          className="absolute right-4 bottom-4 z-10 w-72 rounded-lg bg-surface p-4 shadow-float"
+        >
+          <div className="relative">
+            <Presence swap>
+              <Reveal
+                key={updates.state.kind}
+                kind="fade"
+                className="flex flex-col gap-3"
+              >
+                {content}
+              </Reveal>
+            </Presence>
+          </div>
+        </Reveal>
+      )}
+    </Presence>
   );
 }

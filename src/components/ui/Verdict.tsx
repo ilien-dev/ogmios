@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { CircleAlert, CircleCheck, CircleDot, CircleX } from "lucide-react";
+import { Reveal } from "@/components/motion/Reveal";
 import type { Grade } from "@/lib/grade";
 import { cn } from "@/lib/cn";
 
@@ -44,7 +45,8 @@ export function VerdictLine({
 }: VerdictLineProps): ReactNode {
   const Icon = ICON[tone];
   return (
-    <p
+    <Reveal
+      as="p"
       className={cn(
         "flex items-center gap-2 font-medium",
         tone === "neutral" ? "text-ink" : GRADE_TEXT[tone],
@@ -59,6 +61,6 @@ export function VerdictLine({
         )}
       />
       {children}
-    </p>
+    </Reveal>
   );
 }

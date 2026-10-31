@@ -30,6 +30,8 @@ export const es: Catalog<typeof en> = {
     settings: "Ajustes",
     due: "{{count}} pendientes hoy",
     currentChapter: "Capítulo actual",
+    chapterIs: "Capítulo actual: {{chapter}}",
+    settingsWaiting: "Ajustes, hay una actualización pendiente",
     pickChapter: "Elige un capítulo",
     groups: {
       conversation: "Conversación",

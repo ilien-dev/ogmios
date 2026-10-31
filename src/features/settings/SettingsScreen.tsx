@@ -17,6 +17,7 @@ import { Notice } from "@/components/ui/Notice";
 import { Select } from "@/components/ui/Select";
 import { TextInput } from "@/components/ui/TextInput";
 import { AppUpdate } from "@/features/update/AppUpdate";
+import { UpdateRow } from "@/features/update/UpdateRow";
 import { InterestPicker } from "@/features/onboarding/InterestPicker";
 import { ReminderPicker } from "@/features/onboarding/ReminderPicker";
 import { errorMessage } from "@/lib/errors";
@@ -417,6 +418,7 @@ export function SettingsScreen({
         </Section>
 
         <Section id="settings-about" title={t("update.about")}>
+          <UpdateRow />
           <AppUpdate />
         </Section>
       </div>

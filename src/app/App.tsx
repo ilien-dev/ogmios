@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { Book, Profile, Settings } from "@shared/domain";
+import type { Profile, Settings } from "@shared/domain";
 import { Logo } from "@/components/ui/Logo";
 import { Notice } from "@/components/ui/Notice";
 import { Spinner } from "@/components/ui/Spinner";
@@ -23,18 +23,13 @@ import { Setup } from "@/features/setup/Setup";
 import { StructuresScreen } from "@/features/structures/StructuresScreen";
 import { errorMessage } from "@/lib/errors";
 import { setUiLang } from "@/lib/i18n/i18n";
-import {
-  getProfile,
-  getSettings,
-  homeState,
-  listBooks,
-  structuresState,
-} from "@/lib/ipc";
+import { getProfile, getSettings } from "@/lib/ipc";
 import { useTheme } from "@/lib/theme";
 import type { Route } from "./routes";
 import { chapterOn, showsNav } from "./routes";
-import type { Entry } from "./Sidebar";
-import { Sidebar } from "./Sidebar";
+import { ScreenStage } from "./ScreenStage";
+import { TopBar } from "./TopBar";
+import { useShelf } from "./useShelf";
 
 type Boot =
   | { state: "loading" }
@@ -46,10 +41,8 @@ export function App(): ReactNode {
   const [boot, setBoot] = useState<Boot>({ state: "loading" });
   const [route, setRoute] = useState<Route>({ name: "home" });
   const [theme, setTheme] = useTheme();
-  const [counts, setCounts] = useState<Partial<Record<Entry, number>>>({});
-  const [books, setBooks] = useState<Book[]>([]);
-  const [currentId, setCurrentId] = useState<string | null>(null);
   const onboarded = boot.state === "ready" && boot.profile?.onboarded === true;
+  const { counts, books, currentId } = useShelf(route, onboarded);
 
   useEffect(() => {
     let live = true;
@@ -71,28 +64,6 @@ export function App(): ReactNode {
       live = false;
     };
   }, []);
-
-  // What is due and the chapter the learner is on change behind every screen:
-  // read them again at every move.
-  useEffect(() => {
-    if (!onboarded || !showsNav(route)) {
-      return;
-    }
-    let live = true;
-    Promise.all([homeState(), listBooks(), structuresState()])
-      .then(([home, shelf, structures]) => {
-        if (live) {
-          setCounts({ drills: home.dueReviews, recall: home.dueWords });
-          setBooks(shelf);
-          setCurrentId(structures.chapter?.chapter.id ?? null);
-        }
-      })
-      // Without it the menu still works: it only says nothing of today.
-      .catch(() => null);
-    return () => {
-      live = false;
-    };
-  }, [onboarded, route]);
 
   if (boot.state === "loading") {
     return (
@@ -158,7 +129,6 @@ export function App(): ReactNode {
       case "report":
         return (
           <ReportScreen
-            key={route.sessionId}
             sessionId={route.sessionId}
             initial={route.report}
             origin={route.origin}
@@ -168,7 +138,6 @@ export function App(): ReactNode {
       case "practice":
         return (
           <Practice
-            key={`${route.patternId ?? ""}-${route.format ?? ""}-${String(route.autostart)}`}
             patternId={route.patternId}
             format={route.format}
             autostart={route.autostart}
@@ -236,20 +205,16 @@ export function App(): ReactNode {
   return (
     <SpeechProvider>
       <UpdateProvider>
-        <div className="flex h-full">
-          {showsNav(route) && (
-            <Sidebar
-              route={route}
-              navigate={setRoute}
-              counts={counts}
-              books={books}
-              current={currentOf(books, chapterOn(route, currentId))}
-            />
-          )}
-          <div className="relative h-full min-w-0 flex-1">
-            {screen}
-            {showsNav(route) && <UpdateCard />}
-          </div>
+        <div className="relative flex h-full flex-col">
+          <TopBar
+            route={route}
+            navigate={setRoute}
+            counts={counts}
+            books={books}
+            current={currentOf(books, chapterOn(route, currentId))}
+          />
+          <ScreenStage route={route}>{screen}</ScreenStage>
+          <UpdateCard shown={showsNav(route)} />
         </div>
       </UpdateProvider>
     </SpeechProvider>

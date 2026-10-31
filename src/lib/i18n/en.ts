@@ -33,6 +33,8 @@ export const en = {
     due: "{{count}} due today",
     currentChapter: "Current chapter",
     pickChapter: "Pick a chapter",
+    chapterIs: "Current chapter: {{chapter}}",
+    settingsWaiting: "Settings, an update is waiting",
     groups: {
       conversation: "Conversation",
       book: "Book",

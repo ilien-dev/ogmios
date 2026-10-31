@@ -7,7 +7,7 @@ import { useMockBackend } from "@/test/mockBackend";
 import { version } from "../../../package.json";
 import { AppUpdate } from "./AppUpdate";
 import { UpdateCard } from "./UpdateCard";
-import { UpdateHint } from "./UpdateHint";
+import { UpdateRow } from "./UpdateRow";
 import { UpdateContext, UpdateProvider } from "./update";
 import type { UpdateState, Updates } from "./update";
 
@@ -164,12 +164,12 @@ describe("UpdateProvider", () => {
     });
   });
 
-  test("Later folds the card until the hint opens it again", async () => {
+  test("Later folds the card until the row opens it again", async () => {
     const user = userEvent.setup();
     setMockUpdate(NEWER);
     render(
       <UpdateProvider>
-        <UpdateHint />
+        <UpdateRow />
         <UpdateCard />
       </UpdateProvider>,
     );
@@ -267,14 +267,14 @@ describe("UpdateCard", () => {
   });
 });
 
-describe("UpdateHint", () => {
+describe("UpdateRow", () => {
   useMockBackend();
 
   test("checks when the version is pressed and says it is the latest", async () => {
     const user = userEvent.setup();
     render(
       <UpdateProvider>
-        <UpdateHint />
+        <UpdateRow />
       </UpdateProvider>,
     );
 
@@ -290,7 +290,7 @@ describe("UpdateHint", () => {
     setMockUpdate(NEWER);
     render(
       <UpdateProvider>
-        <UpdateHint />
+        <UpdateRow />
       </UpdateProvider>,
     );
 
@@ -304,7 +304,7 @@ describe("UpdateHint", () => {
     const value = held({ kind: "failed", version: null, message: "Offline." });
     render(
       <Held value={value}>
-        <UpdateHint />
+        <UpdateRow />
       </Held>,
     );
 
