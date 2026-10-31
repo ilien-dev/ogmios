@@ -172,7 +172,7 @@ export function TopBar({
           {section !== null && (
             <nav
               aria-label={t(`nav.groups.${section}`)}
-              className="mx-auto flex items-center gap-1"
+              className="mx-auto flex shrink-0 items-center gap-1"
             >
               {places.map(({ entry, icon }) => {
                 const name = t(`nav.entries.${entry}`);
@@ -196,7 +196,7 @@ export function TopBar({
               })}
             </nav>
           )}
-          <div className="ml-auto">
+          <div className="ml-auto shrink-0">
             <Pill
               label={t(waiting ? "nav.settingsWaiting" : "nav.settings")}
               icon={Settings}

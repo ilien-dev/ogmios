@@ -132,7 +132,7 @@ export function ChapterMenu({
             aria-label={t("nav.currentChapter")}
             aria-activedescendant={activeId}
             onKeyDown={onKeyDown}
-            className="absolute top-full left-0 z-30 mt-2 flex max-h-80 w-72 origin-top-left flex-col gap-3 overflow-y-auto rounded-lg bg-surface p-2 shadow-float"
+            className="absolute top-full left-0 z-30 mt-2 flex max-h-80 w-72 origin-top-left flex-col gap-3 overflow-y-auto rounded-lg bg-surface p-2 shadow-float outline-none"
           >
             {books.map((book) => (
               <div
