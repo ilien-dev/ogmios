@@ -7,7 +7,7 @@ import {
 } from "../../lib/motion";
 
 const MAX_DEGREES = 3;
-const PERSPECTIVE = 800;
+const transformPerspective = 800;
 
 interface TiltProps {
   className?: string;
@@ -38,7 +38,7 @@ export function Tilt({ className, children }: TiltProps): ReactNode {
   return (
     <motion.div
       className={className}
-      style={{ rotateX, rotateY, transformPerspective: PERSPECTIVE }}
+      style={follows ? { rotateX, rotateY, transformPerspective } : {}}
       onPointerMove={lean}
       onPointerLeave={settle}
     >

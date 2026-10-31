@@ -232,7 +232,7 @@ test("Tilt stays still on a touch screen", async () => {
   const card = screen.getByText("card");
   pointerAt(card, 100, 50);
   await Bun.sleep(50);
-  expect(card.style.transform).not.toContain("rotateY");
+  expect(["", "none"]).toContain(card.style.transform);
 });
 
 test("Magnetic moves towards the pointer, up to 6 px, and returns", async () => {
