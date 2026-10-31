@@ -6,8 +6,10 @@
  * The whole design system. Components use these tokens through Tailwind
  * utilities and never write a colour, a radius or a font of their own.
  *
- * Look: graphite, straight and quiet. Warm grey neutrals, small radii, light
- * display type (Urbanist) over a plain interface face (Geist).
+ * Look: Aura. Cool, airy neutrals with a violet cast, large radii, soft
+ * shadows instead of borders, and Plus Jakarta Sans for everything but the
+ * text of books. The gradient lives only in the orb, the glow around it and
+ * the main action; every other surface is flat.
  *
  * Every voice on screen has its own colour, and nothing else uses it:
  * `you` (teal) is what the learner writes, says or does, so it is also the
@@ -25,35 +27,36 @@
  *
  * The values below are the light theme. Dark is the same token names
  * redefined further down, chosen by the system preference or by
- * `data-theme` on <html>.
+ * `data-theme` on <html>. `src/styles/contrast.test.ts` holds every text pair
+ * to 4.5:1 in both.
  */
 @theme {
   --color-*: initial;
 
-  --color-canvas: #ededec;
-  --color-surface: #f8f8f7;
-  --color-raised: #e3e3e1;
-  --color-sunken: #f3f3f1;
-  --color-line: #dcdcd9;
-  --color-line-strong: #c4c4bf;
-  --color-ink: #111111;
-  --color-ink-soft: #4f4f49;
-  --color-ink-faint: #64645e;
+  --color-canvas: #f6f7fb;
+  --color-surface: #ffffff;
+  --color-raised: #eef0f7;
+  --color-sunken: #f2f4f9;
+  --color-line: #e8eaf2;
+  --color-line-strong: #c9ccdb;
+  --color-ink: #23233a;
+  --color-ink-soft: #5c5f74;
+  --color-ink-faint: #6b6e83;
   --color-accent: #0f766e;
   --color-accent-strong: #0b5f58;
   --color-on-accent: #ffffff;
   --color-accent-text: #0f766e;
   --color-accent-soft: rgb(15 118 110 / 0.14);
   --color-you: #0f766e;
-  --color-you-soft: #dcf0ec;
-  --color-you-line: #8fcfc5;
-  --color-you-ink: #08332f;
+  --color-you-soft: #dff2ee;
+  --color-you-line: #9bd3c8;
+  --color-you-ink: #0a3a36;
   --color-partner: #5b21b6;
-  --color-partner-soft: #ece7fa;
-  --color-partner-line: #d3c8f3;
-  --color-partner-glow: #cdbdf6;
-  --color-book: #b45309;
-  --color-book-soft: #f6e7cf;
+  --color-partner-soft: #ece9fb;
+  --color-partner-line: #d4cef4;
+  --color-partner-glow: #cfc6f6;
+  --color-book: #a3540f;
+  --color-book-soft: #fcebd8;
   --color-book-ink: #5a3410;
   --color-hero-glow: #8eddd1;
   --color-hero-mid: #cdede8;
@@ -81,13 +84,16 @@
   --color-adverb-soft: oklch(0.64 0.16 345 / 0.13);
   --color-learned: oklch(0.52 0.16 275);
   --color-scrim: oklch(0.2 0.01 265 / 0.4);
+  /* Ink on the gradient of the main action, the same in both themes. */
+  --color-on-cta: #23233a;
+  --color-on-cta-book: #3a2410;
 
   --font-sans:
-    "Geist Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
-    sans-serif;
+    "Plus Jakarta Sans Variable", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", sans-serif;
   --font-display:
-    "Urbanist Variable", "Geist Variable", ui-sans-serif, sans-serif;
-  --font-mono: "Geist Mono Variable", ui-monospace, monospace;
+    "Plus Jakarta Sans Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-sans);
   --font-serif: "Newsreader Variable", Georgia, serif;
 
   --text-display: 3rem;
@@ -105,12 +111,14 @@
   --text-cover-title--line-height: 1.15;
   --spacing-cover: 8cqw;
 
-  --radius-sm: 0.25rem;
-  --radius-md: 0.25rem;
-  --radius-lg: 0.375rem;
-  --radius-xl: 0.5rem;
+  --radius-sm: 0.75rem;
+  --radius-md: 1.125rem;
+  --radius-lg: 1.5rem;
+  --radius-xl: 2rem;
 
-  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.04);
+  --shadow-card: 0 4px 18px rgb(35 35 58 / 0.06);
+  --shadow-glow: 0 24px 70px rgb(154 140 240 / 0.28);
+  --shadow-glow-book: 0 20px 60px rgb(240 160 110 / 0.3);
   --shadow-float: 0 2px 6px rgb(0 0 0 / 0.08), 0 16px 40px rgb(0 0 0 / 0.14);
   --shadow-cover: 0 1px 2px rgb(0 0 0 / 0.16), 0 4px 10px rgb(0 0 0 / 0.16);
   --shadow-you: 0 8px 24px -8px rgb(15 118 110 / 0.3);
@@ -124,6 +132,8 @@
   --animate-point: point 900ms var(--ease-out-expo) both;
   --animate-caret: caret 1s steps(2, start) infinite;
   --animate-pulse-soft: pulse-soft 1.6s ease-in-out infinite;
+  --animate-orb-drift: orb-drift 24s ease-in-out infinite;
+  --animate-orb-spin: orb-spin 6s linear infinite;
 
   @keyframes rise {
     from {
@@ -181,6 +191,16 @@
       visibility: hidden;
     }
   }
+  @keyframes orb-drift {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  @keyframes orb-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
   @keyframes pulse-soft {
     0%,
     100% {
@@ -190,6 +210,30 @@
       opacity: 1;
     }
   }
+}
+
+/* The orb: a soft sphere of light, the partner's (violet) or the book's (warm). */
+@utility bg-orb {
+  background:
+    radial-gradient(circle at 34% 30%, #fff4e6 0 12%, transparent 42%),
+    radial-gradient(circle at 70% 36%, #afc6ff 0 10%, transparent 52%),
+    radial-gradient(circle at 44% 76%, #f7b8d8 0 8%, transparent 50%),
+    radial-gradient(circle at 78% 78%, #9a8cf0 0 6%, transparent 46%), #d6e3ff;
+}
+@utility bg-orb-book {
+  background:
+    radial-gradient(circle at 34% 30%, #fff8e8 0 12%, transparent 44%),
+    radial-gradient(circle at 72% 38%, #ffd49a 0 10%, transparent 52%),
+    radial-gradient(circle at 42% 78%, #f9b48c 0 8%, transparent 50%),
+    radial-gradient(circle at 80% 78%, #e8917a 0 6%, transparent 46%), #ffe7c7;
+}
+
+/* The main action of a screen, with the ink in `on-cta` or `on-cta-book`. */
+@utility bg-cta {
+  background: linear-gradient(90deg, #e7ddfb, #ffd9e4);
+}
+@utility bg-cta-book {
+  background: linear-gradient(90deg, #ffe7c7, #ffd3b8);
 }
 
 /* The panel of today's topic: a teal light from its top right corner. */
@@ -237,31 +281,31 @@
 
   :root[data-theme="dark"] {
     color-scheme: dark;
-    --color-canvas: #0b0b0b;
-    --color-surface: #121212;
-    --color-raised: #1a1a1a;
-    --color-sunken: #0f0f0f;
-    --color-line: #232323;
-    --color-line-strong: #363636;
-    --color-ink: #ededed;
-    --color-ink-soft: #a6a6a6;
-    --color-ink-faint: #8c8c8c;
-    --color-accent: #2dd4bf;
-    --color-accent-strong: #5eead4;
-    --color-on-accent: #04201c;
-    --color-accent-text: #2dd4bf;
-    --color-accent-soft: rgb(45 212 191 / 0.14);
-    --color-you: #2dd4bf;
-    --color-you-soft: #0c2421;
-    --color-you-line: #1f5650;
-    --color-you-ink: #ccf5ee;
+    --color-canvas: #0e0f1a;
+    --color-surface: #191b2b;
+    --color-raised: #23263a;
+    --color-sunken: #141624;
+    --color-line: #2c2f45;
+    --color-line-strong: #4a4e68;
+    --color-ink: #f1f2fa;
+    --color-ink-soft: #a9acc4;
+    --color-ink-faint: #8d90aa;
+    --color-accent: #7fdccb;
+    --color-accent-strong: #a6eadd;
+    --color-on-accent: #0e0f1a;
+    --color-accent-text: #7fdccb;
+    --color-accent-soft: rgb(127 220 203 / 0.14);
+    --color-you: #7fdccb;
+    --color-you-soft: #14393a;
+    --color-you-line: #2a6a66;
+    --color-you-ink: #cff5ec;
     --color-partner: #c4b5fd;
-    --color-partner-soft: #1c1830;
-    --color-partner-line: #3b3360;
-    --color-partner-glow: #3a2b78;
-    --color-book: #f2b65a;
-    --color-book-soft: #2a2010;
-    --color-book-ink: #ebd7b0;
+    --color-partner-soft: #26244a;
+    --color-partner-line: #3f3b72;
+    --color-partner-glow: #3a2f7a;
+    --color-book: #f2be8a;
+    --color-book-soft: #3c2a1a;
+    --color-book-ink: #f6ddbf;
     --color-hero-glow: #0f5f57;
     --color-hero-mid: #0b2b28;
     --color-danger: oklch(0.74 0.14 25);
@@ -284,10 +328,12 @@
     --color-adverb-soft: oklch(0.82 0.1 345 / 0.15);
     --color-learned: oklch(0.78 0.12 275);
     --color-scrim: oklch(0.1 0.01 265 / 0.6);
-    --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4);
+    --shadow-card: 0 4px 18px rgb(0 0 0 / 0.3);
+    --shadow-glow: 0 24px 90px rgb(154 140 240 / 0.4);
+    --shadow-glow-book: 0 20px 80px rgb(240 160 110 / 0.3);
     --shadow-float: 0 2px 8px rgb(0 0 0 / 0.4), 0 22px 56px rgb(0 0 0 / 0.45);
     --shadow-cover: 0 1px 2px rgb(0 0 0 / 0.6), 0 4px 10px rgb(0 0 0 / 0.6);
-    --shadow-you: 0 8px 24px -8px rgb(45 212 191 / 0.3);
+    --shadow-you: 0 8px 24px -8px rgb(127 220 203 / 0.3);
   }
 
   html,
@@ -338,13 +384,20 @@
     color: var(--color-ink-faint);
   }
 
+  /*
+   * Nothing loops and nothing drifts, but what comes in or goes out still
+   * fades: the durations stay, only the endless animations are switched off.
+   */
   @media (prefers-reduced-motion: reduce) {
-    *,
-    *::before,
-    *::after {
-      animation-duration: 1ms !important;
+    .animate-orb-drift,
+    .animate-orb-spin,
+    .animate-caret,
+    .animate-pulse-soft {
+      animation-name: none !important;
       animation-iteration-count: 1 !important;
-      transition-duration: 1ms !important;
+    }
+
+    * {
       scroll-behavior: auto !important;
     }
   }
