@@ -125,7 +125,7 @@ export function Home({ navigate }: HomeProps): ReactNode {
           <Tile
             label={t("home.wordsLabel")}
             value={home.dueWords}
-            tag={t("nav.groups.read")}
+            tag={t("nav.groups.book")}
             tone="book"
             onClick={() => {
               navigate({ name: "recall" });
@@ -134,7 +134,7 @@ export function Home({ navigate }: HomeProps): ReactNode {
           <Tile
             label={t("home.patternsLabel")}
             value={home.dueReviews}
-            tag={t("nav.groups.speak")}
+            tag={t("nav.groups.conversation")}
             tone="you"
             onClick={() => {
               navigate({

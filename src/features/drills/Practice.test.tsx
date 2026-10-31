@@ -8,23 +8,20 @@ import { Practice } from "./Practice";
 describe("the drills", () => {
   useMockBackend();
 
-  test("go by a name of their own, and lead back to conversation", async () => {
-    const user = userEvent.setup();
-    const navigate = mock();
+  test("go by a name of their own, and leave the way out to the menu", () => {
     render(
       <Practice
         patternId={null}
         format={null}
         autostart={false}
-        navigate={navigate}
+        navigate={mock()}
       />,
     );
 
     expect(
       screen.getByRole("heading", { name: "2-minute drills" }),
     ).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Conversation" }));
-    expect(navigate).toHaveBeenCalledWith({ name: "home" });
+    expect(screen.queryByRole("button", { name: "Conversation" })).toBeNull();
   });
 
   test("are named in Spanish too", async () => {
@@ -41,8 +38,23 @@ describe("the drills", () => {
     expect(
       screen.getByRole("heading", { name: "Ejercicios de 2 min" }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Conversación" }),
-    ).toBeInTheDocument();
+  });
+
+  test("a drill ends back on the drills, wherever it was started", async () => {
+    const user = userEvent.setup();
+    const navigate = mock();
+    render(
+      <Practice patternId="p" format={null} autostart navigate={navigate} />,
+    );
+
+    await user.click(
+      await screen.findByRole("button", { name: "End practice" }),
+    );
+    expect(navigate).toHaveBeenCalledWith({
+      name: "practice",
+      patternId: null,
+      format: null,
+      autostart: false,
+    });
   });
 });

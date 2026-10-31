@@ -12,8 +12,6 @@ interface StructuresScreenProps {
   catalog: boolean;
   /** Instead of the menu: the structures of that chapter. */
   chapterId: string | null;
-  /** The book that chapter was opened from; null from the menu. */
-  bookId: string | null;
   navigate: Navigate;
 }
 
@@ -27,7 +25,6 @@ export function StructuresScreen({
   running,
   catalog,
   chapterId,
-  bookId,
   navigate,
 }: StructuresScreenProps): ReactNode {
   if (running !== null) {
@@ -50,11 +47,7 @@ export function StructuresScreen({
         key={chapterId}
         chapterId={chapterId}
         onBack={() => {
-          navigate(
-            bookId === null
-              ? { name: "structures" }
-              : { name: "books", bookId, chapterId },
-          );
+          navigate({ name: "structures" });
         }}
         onStarted={(sittingId) => {
           navigate({ name: "structures", running: sittingId });

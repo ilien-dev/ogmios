@@ -44,6 +44,19 @@ interface SettingsScreenProps {
   onSettingsChange: (settings: Settings) => void;
 }
 
+/** Every section of the screen, for the jumps at its top. */
+const SECTIONS = [
+  ["settings-profile", "settings.profile"],
+  ["settings-appearance", "settings.appearance"],
+  ["settings-spelling", "settings.spelling"],
+  ["settings-connection", "settings.connection"],
+  ["settings-voice", "settings.voice"],
+  ["settings-read-aloud", "settings.readAloud"],
+  ["settings-memory", "settings.memory"],
+  ["settings-data", "settings.data"],
+  ["settings-about", "update.about"],
+] as const;
+
 function Section({
   id,
   title,
@@ -158,6 +171,20 @@ export function SettingsScreen({
             )}
           </p>
         </header>
+        <nav
+          aria-label={t("settings.sections")}
+          className="-mt-4 flex flex-wrap gap-1"
+        >
+          {SECTIONS.map(([id, title]) => (
+            <a
+              key={id}
+              href={`#${id}`}
+              className="rounded-sm px-2 py-1 text-sm text-ink-soft no-underline transition-colors duration-150 hover:bg-raised hover:text-ink"
+            >
+              {t(title)}
+            </a>
+          ))}
+        </nav>
         {failure !== null && (
           <Notice tone="danger">
             {t("common.error", { message: failure })}

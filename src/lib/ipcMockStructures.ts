@@ -23,7 +23,11 @@ import type {
   StructuresState,
   Topic,
 } from "@shared/structures";
-import { allMockChapters, mockBookTitle } from "./ipcMockBooks";
+import {
+  allMockChapters,
+  mockBookTitle,
+  mockOpenedChapter,
+} from "./ipcMockBooks";
 import { PracticeError } from "./ipcMockPractice";
 
 const BY_LEVEL: Record<
@@ -231,7 +235,7 @@ function chapterView(chapterId: string): ChapterStructures {
 }
 
 function state(): StructuresState {
-  const [current] = allMockChapters();
+  const current = mockOpenedChapter();
   return {
     structures: CATALOGUE.map((each): StructureInfo => ({
       ...each,

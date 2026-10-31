@@ -55,7 +55,7 @@ export function KnownWordsScreen({ onBack }: KnownWordsScreenProps): ReactNode {
     <main className="h-full overflow-y-auto">
       <div className="mx-auto flex max-w-2xl flex-col gap-12 px-10 py-16">
         <header className="flex flex-col gap-3">
-          <BackLink label={t("nav.book")} onClick={onBack} />
+          <BackLink label={t("books.title")} onClick={onBack} />
           <h1 className="font-display text-display font-light text-ink">
             {t("books.known.title")}
           </h1>

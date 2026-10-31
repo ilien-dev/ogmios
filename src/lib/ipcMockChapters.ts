@@ -18,6 +18,7 @@ import {
   allMockChapters,
   findMockChapter,
   setMockChapterPrepared,
+  setMockOpened,
 } from "./ipcMockBooks";
 import {
   isMockWordDone,
@@ -336,7 +337,10 @@ export function chapterCommands(
 
   return {
     get_chapter_words: (args) =>
-      after(150, () => chapterWords(arg(args, "id"))),
+      after(150, () => {
+        setMockOpened(arg(args, "id"));
+        return chapterWords(arg(args, "id"));
+      }),
     prepare_chapter: (args) =>
       prepare(arg(args, "id"), arg(args, "depth") as Depth),
     set_word_known: (args) =>

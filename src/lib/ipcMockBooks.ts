@@ -81,6 +81,7 @@ const DEFAULT_PICK = "/home/you/Books/emma.epub";
 
 let books: Book[] = [];
 let pick: string | null = DEFAULT_PICK;
+let opened: string | null = null;
 
 try {
   if (new URLSearchParams(globalThis.location.search).get("mock") === "ready") {
@@ -92,7 +93,19 @@ try {
 }
 
 /** An empty shelf, or the one a set-up learner has: one book. */
+/** The learner opened the chapter: it is the one they are on. */
+export function setMockOpened(chapterId: string): void {
+  opened = chapterId;
+}
+
+/** The chapter opened last; before any, the first of the shelf. */
+export function mockOpenedChapter(): Chapter | undefined {
+  const chapters = allMockChapters();
+  return chapters.find((each) => each.id === opened) ?? chapters[0];
+}
+
 export function resetMockBooks(seeded: boolean): void {
+  opened = null;
   books = seeded ? [ALICE] : [];
   pick = DEFAULT_PICK;
 }

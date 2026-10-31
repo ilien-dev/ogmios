@@ -867,22 +867,24 @@ básico no reciben frases: no hay grabaciones abiertas que las respalden.
 
 ## 17. Interfaz
 
-- **Menú arriba, en dos filas.** La primera elige entre **Hablar** y **Leer**, con Ajustes a la
-  derecha; la segunda lista los lugares de ese grupo, cada uno con una línea que dice para qué
-  sirve y cuánto tiene pendiente hoy. Cada grupo suma lo pendiente de sus lugares.
-  - **Hablar:** Charla (la pantalla de inicio, §6.1), Ejercicios (de 2 min) y Progreso.
-  - **Leer:** Libros, Repaso diario (§9.4), Estructuras (§9.7) y Oído (§9.8).
+- **Barra lateral fija a la izquierda**, siempre desplegada: nada queda a más de 3 clics de Inicio y
+  cada función vive en un solo lugar. Cada entrada dice cuánto tiene pendiente hoy.
+  - **Inicio** (§6.1): pantalla propia, no pertenece a ningún grupo.
+  - **Conversación:** Charla (abre el setup, §6.2), Ejercicios (de 2 min) y Progreso.
+  - **Libro:** selector del capítulo actual (elegir uno lo abre), Vocabulario, Traducir, Estructuras
+    (§9.7), Oído (§9.8), Repaso diario (§9.4) y Libros (la estantería). Sin capítulo, Vocabulario,
+    Traducir y Oído llevan a Libros; Estructuras funciona sin libro.
+  - **Ajustes**, al fondo, con saltos a cada sección arriba de su pantalla.
   - Las pantallas que ocupan toda la ventana (una charla, un reporte recién terminado, una
-    sesión en curso) no muestran el menú.
+    sesión en curso) no muestran la barra.
+- **Atrás.** Entre secciones no existe: la barra lo sustituye. El detalle interno lleva un enlace a
+  su padre, siempre el mismo sin importar por dónde se llegó (Progreso › reporte, Libros › libro ›
+  capítulo, Libros › palabras conocidas, Estructuras › todas).
 - **Voces.** Cada fuente de texto tiene su color y su forma, y nada más los usa: lo que escribe o
   dice el usuario es verde azulado, en burbujas a la derecha (lo que escribió antes, citado, va
   con borde punteado); lo que escribe el modelo es violeta, a la izquierda con su avatar; el texto
   de un libro es ámbar y en serif; Ogmios habla en tinta gris, con «Ogmios:» delante.
-- **Las secciones Libro y Estructuras** abren una pantalla principal con tarjetas que llevan a lo
-  suyo; las pantallas a las que se llega así tienen un enlace de vuelta.
-  - **Libro:** el capítulo actual (el abierto por última vez), con «Cambiar» para ir a la
-    estantería, y una tarjeta para su vocabulario, traducirlo, el repaso diario (§9.4) y el oído
-    (§9.8). Sin capítulo abierto solo ofrece ir a la estantería y el repaso diario.
+- **Estructuras** abre una pantalla principal con tarjetas que llevan a lo suyo.
   - **Eliminar un libro:** desde su pantalla, con confirmación. Sale de la estantería y se borra su
     archivo, pero sus filas se quedan: las palabras aprendidas en él siguen aprendidas (repaso
     diario, palabras de repaso en los otros libros, nunca se extraen otra vez) y lo pendiente no
@@ -892,7 +894,7 @@ básico no reciben frases: no hay grabaciones abiertas que las respalden.
 - **Tailwind CSS** para todo el diseño; tokens de color, espaciado y tipografía definidos en el tema
   de Tailwind (tema claro y oscuro).
 - Estilo «Grafito»: neutros grises, radios pequeños (4–8 px), titulares ligeros en Urbanist sobre
-  Geist; Geist Mono solo para cifras. Acentos: verde azulado (Hablar, el usuario), ámbar (Leer, el
+  Geist; Geist Mono solo para cifras. Acentos: verde azulado (Conversación, el usuario), ámbar (Libro, el
   libro), violeta (el compañero), naranja (lo que está en foco).
 - Accesibilidad: todo usable con teclado (atajo global para el micrófono), contraste AA,
   lectores de pantalla en el reporte.

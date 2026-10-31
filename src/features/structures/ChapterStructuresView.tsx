@@ -4,7 +4,6 @@ import { useTranslation } from "react-i18next";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
-import { chapterName } from "@/features/books/chapterName";
 import { errorMessage } from "@/lib/errors";
 import { startStructureSitting, structuresState } from "@/lib/ipc";
 import { ScanProgress, useChapterScan } from "./ChapterScan";
@@ -87,9 +86,7 @@ export function ChapterStructuresView({
               icon={<ArrowLeft aria-hidden className="size-4" />}
               onClick={onBack}
             >
-              {found === null
-                ? t("common.back")
-                : chapterName(found.chapter, t)}
+              {t("structures.title")}
             </Button>
             <h1 className="font-display text-display font-light text-ink">
               {t("structures.chapter.screenTitle")}
