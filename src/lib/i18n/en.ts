@@ -29,41 +29,25 @@ export const en = {
     seconds_other: "{{count}} s",
   },
   nav: {
-    conversation: "Conversation",
-    book: "Book",
     settings: "Settings",
     due: "{{count}} due today",
-    sections: "Sections",
+    currentChapter: "Current chapter",
+    pickChapter: "Pick a chapter",
     groups: {
-      speak: "Speak",
-      read: "Read",
+      conversation: "Conversation",
+      book: "Book",
     },
     entries: {
-      conversation: {
-        name: "Conversation",
-        hint: "Talk without interruptions; feedback comes at the end",
-      },
-      drills: { name: "Drills", hint: "Two-minute rounds on your mistakes" },
-      progress: {
-        name: "Progress",
-        hint: "Your level, your minutes and past conversations",
-      },
-      books: {
-        name: "Books",
-        hint: "Learn a chapter's words before reading it",
-      },
-      recall: {
-        name: "Daily review",
-        hint: "Learned words come back over the days",
-      },
-      structures: {
-        name: "Structures",
-        hint: "Sentences with one form until it comes on its own",
-      },
-      listening: {
-        name: "Listening",
-        hint: "Hear the chapter or take a dictation",
-      },
+      home: "Home",
+      conversation: "Chat",
+      drills: "Drills",
+      progress: "Progress",
+      vocabulary: "Vocabulary",
+      translate: "Translate",
+      structures: "Structures",
+      listening: "Listening",
+      recall: "Daily review",
+      books: "Books",
     },
   },
   level: {
@@ -491,24 +475,6 @@ export const en = {
     home: "Back home",
     close: "End practice",
   },
-  bookHub: {
-    current: "Current chapter",
-    change: "Change",
-    vocabularyTitle: "Vocabulary",
-    vocabularyText: "The chapter's words, until it is ready to read.",
-    unprepared: "Not prepared yet",
-    translateTitle: "Translate the chapter",
-    translateText: "Sentence by sentence, with the words you learned marked.",
-    recallTitle: "Daily review",
-    recallText: "The words you learned come back over the days.",
-    listeningText: "Hear the chapter, or take a dictation of its sentences.",
-    structures: "Structures of this chapter",
-    openStructures: "See its structures",
-    openKnown: "See them",
-    empty:
-      "Open a chapter of a book to learn its words, translate it and listen to it.",
-    toShelf: "Go to your books",
-  },
   books: {
     title: "Books",
     intro: "Add a book and learn each chapter's words before you read it.",
@@ -840,6 +806,7 @@ export const en = {
   },
   settings: {
     title: "Settings",
+    sections: "Sections",
     profile: "Profile",
     appearance: "Appearance",
     spelling: "Spelling",

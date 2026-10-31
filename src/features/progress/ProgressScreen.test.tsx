@@ -15,15 +15,11 @@ function listed(): string[] {
 describe("ProgressScreen", () => {
   useMockBackend();
 
-  test("leads back to conversation, which it is opened from", async () => {
-    const user = userEvent.setup();
-    const navigate = mock();
-    render(<ProgressScreen navigate={navigate} />);
+  test("leaves the way out to the menu", async () => {
+    render(<ProgressScreen navigate={mock()} />);
 
-    await user.click(
-      await screen.findByRole("button", { name: "Conversation" }),
-    );
-    expect(navigate).toHaveBeenCalledWith({ name: "home" });
+    await screen.findByRole("heading", { name: "Words you learned" });
+    expect(screen.queryByRole("button", { name: "Conversation" })).toBeNull();
   });
 
   test("the words asked for in conversations are listed", async () => {

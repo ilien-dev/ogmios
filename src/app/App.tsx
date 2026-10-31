@@ -1,11 +1,12 @@
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { Profile, Settings } from "@shared/domain";
+import type { Book, Profile, Settings } from "@shared/domain";
 import { Logo } from "@/components/ui/Logo";
 import { Notice } from "@/components/ui/Notice";
 import { Spinner } from "@/components/ui/Spinner";
 import { BooksScreen } from "@/features/books/BooksScreen";
+import { currentOf } from "@/features/books/currentChapter";
 import { Conversation } from "@/features/conversation/Conversation";
 import { Practice } from "@/features/drills/Practice";
 import { Home } from "@/features/home/Home";
@@ -22,12 +23,18 @@ import { Setup } from "@/features/setup/Setup";
 import { StructuresScreen } from "@/features/structures/StructuresScreen";
 import { errorMessage } from "@/lib/errors";
 import { setUiLang } from "@/lib/i18n/i18n";
-import { getProfile, getSettings, homeState } from "@/lib/ipc";
+import {
+  getProfile,
+  getSettings,
+  homeState,
+  listBooks,
+  structuresState,
+} from "@/lib/ipc";
 import { useTheme } from "@/lib/theme";
 import type { Route } from "./routes";
-import { showsNav } from "./routes";
-import type { Entry } from "./TopNav";
-import { TopNav } from "./TopNav";
+import { chapterOn, showsNav } from "./routes";
+import type { Entry } from "./Sidebar";
+import { Sidebar } from "./Sidebar";
 
 type Boot =
   | { state: "loading" }
@@ -40,6 +47,8 @@ export function App(): ReactNode {
   const [route, setRoute] = useState<Route>({ name: "home" });
   const [theme, setTheme] = useTheme();
   const [counts, setCounts] = useState<Partial<Record<Entry, number>>>({});
+  const [books, setBooks] = useState<Book[]>([]);
+  const [currentId, setCurrentId] = useState<string | null>(null);
   const onboarded = boot.state === "ready" && boot.profile?.onboarded === true;
 
   useEffect(() => {
@@ -63,17 +72,19 @@ export function App(): ReactNode {
     };
   }, []);
 
-  // What is due changes behind every screen that takes the window: read it
-  // again each time the menu comes back.
+  // What is due and the chapter the learner is on change behind every screen:
+  // read them again at every move.
   useEffect(() => {
     if (!onboarded || !showsNav(route)) {
       return;
     }
     let live = true;
-    homeState()
-      .then((home) => {
+    Promise.all([homeState(), listBooks(), structuresState()])
+      .then(([home, shelf, structures]) => {
         if (live) {
           setCounts({ drills: home.dueReviews, recall: home.dueWords });
+          setBooks(shelf);
+          setCurrentId(structures.chapter?.chapter.id ?? null);
         }
       })
       // Without it the menu still works: it only says nothing of today.
@@ -170,7 +181,6 @@ export function App(): ReactNode {
             nativeLang={profile.nativeLang}
             bookId={route.bookId}
             chapterId={route.chapterId ?? null}
-            shelf={route.shelf === true}
             known={route.known === true}
             practising={route.practising === true}
             refresh={route.refresh === true}
@@ -193,7 +203,6 @@ export function App(): ReactNode {
             running={route.running ?? null}
             catalog={route.catalog === true}
             chapterId={route.chapterId ?? null}
-            bookId={route.bookId ?? null}
             navigate={setRoute}
           />
         );
@@ -227,11 +236,17 @@ export function App(): ReactNode {
   return (
     <SpeechProvider>
       <UpdateProvider>
-        <div className="flex h-full flex-col">
+        <div className="flex h-full">
           {showsNav(route) && (
-            <TopNav route={route} navigate={setRoute} counts={counts} />
+            <Sidebar
+              route={route}
+              navigate={setRoute}
+              counts={counts}
+              books={books}
+              current={currentOf(books, chapterOn(route, currentId))}
+            />
           )}
-          <div className="relative min-h-0 flex-1">
+          <div className="relative h-full min-w-0 flex-1">
             {screen}
             {showsNav(route) && <UpdateCard />}
           </div>

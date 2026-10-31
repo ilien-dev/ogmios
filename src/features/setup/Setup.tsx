@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { SyntheticEvent, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft, ArrowRight } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import type {
   FocusMode,
   Level,
@@ -121,17 +121,6 @@ export function Setup({ profile, preset, navigate }: SetupProps): ReactNode {
         className="mx-auto flex max-w-2xl flex-col gap-10 px-10 pt-12 pb-16"
       >
         <header className="flex flex-col items-start gap-6">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="-ml-3"
-            icon={<ArrowLeft aria-hidden className="size-4" />}
-            onClick={() => {
-              navigate({ name: "home" });
-            }}
-          >
-            {t("common.back")}
-          </Button>
           <h1 className="font-display text-title font-normal text-ink">
             {t("setup.title")}
           </h1>

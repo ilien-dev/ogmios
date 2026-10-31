@@ -25,7 +25,6 @@ function Section({ hub = false }: { hub?: boolean }): ReactNode {
         running={route.running ?? null}
         catalog={route.catalog === true}
         chapterId={route.chapterId ?? null}
-        bookId={route.bookId ?? null}
         navigate={setRoute}
       />
     </>

@@ -21,8 +21,6 @@ export type Route =
       name: "books";
       bookId: string | null;
       chapterId?: string;
-      /** Instead of the section's own screen: the shelf, every book on it. */
-      shelf?: boolean;
       /** Instead of the shelf: every word the learner already knows. */
       known?: boolean;
       /** A sitting on that chapter is running. */
@@ -47,8 +45,6 @@ export type Route =
       catalog?: boolean;
       /** Instead of the menu: the structures of that chapter. */
       chapterId?: string;
-      /** The book that chapter was opened from: where "back" returns. */
-      bookId?: string;
     }
   | {
       name: "listening";
@@ -63,6 +59,17 @@ export type Route =
   | { name: "settings" };
 
 export type Navigate = (route: Route) => void;
+
+/**
+ * The chapter the learner is on: the one on the screen, or else the one the
+ * backend says was opened last. The backend learns of a chapter only once its
+ * screen has loaded, too late for what is read at the move that opens it.
+ */
+export function chapterOn(route: Route, opened: string | null): string | null {
+  return route.name === "books" && route.chapterId !== undefined
+    ? route.chapterId
+    : opened;
+}
 
 /**
  * The screens that live beside the navigation rather than instead of it. A

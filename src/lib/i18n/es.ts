@@ -27,38 +27,25 @@ export const es: Catalog<typeof en> = {
     seconds_other: "{{count}} s",
   },
   nav: {
-    conversation: "Conversación",
-    book: "Libro",
     settings: "Ajustes",
     due: "{{count}} pendientes hoy",
-    sections: "Secciones",
+    currentChapter: "Capítulo actual",
+    pickChapter: "Elige un capítulo",
     groups: {
-      speak: "Hablar",
-      read: "Leer",
+      conversation: "Conversación",
+      book: "Libro",
     },
     entries: {
-      conversation: {
-        name: "Charla",
-        hint: "Habla sin interrupciones; el feedback llega al final",
-      },
-      drills: { name: "Ejercicios", hint: "Rondas de 2 min sobre tus errores" },
-      progress: {
-        name: "Progreso",
-        hint: "Tu nivel, tus minutos y tus charlas anteriores",
-      },
-      books: {
-        name: "Libros",
-        hint: "Las palabras de un capítulo, antes de leerlo",
-      },
-      recall: {
-        name: "Repaso diario",
-        hint: "Las palabras aprendidas vuelven con los días",
-      },
-      structures: {
-        name: "Estructuras",
-        hint: "Frases con una forma hasta que salga sola",
-      },
-      listening: { name: "Oído", hint: "Escucha el capítulo o haz un dictado" },
+      home: "Inicio",
+      conversation: "Charla",
+      drills: "Ejercicios",
+      progress: "Progreso",
+      vocabulary: "Vocabulario",
+      translate: "Traducir",
+      structures: "Estructuras",
+      listening: "Oído",
+      recall: "Repaso diario",
+      books: "Libros",
     },
   },
   level: {
@@ -488,25 +475,6 @@ export const es: Catalog<typeof en> = {
     home: "Volver al inicio",
     close: "Terminar práctica",
   },
-  bookHub: {
-    current: "Capítulo actual",
-    change: "Cambiar",
-    vocabularyTitle: "Vocabulario",
-    vocabularyText:
-      "Las palabras del capítulo, hasta que esté listo para leer.",
-    unprepared: "Sin preparar",
-    translateTitle: "Traducir el capítulo",
-    translateText: "Frase a frase, con las palabras aprendidas marcadas.",
-    recallTitle: "Repaso diario",
-    recallText: "Las palabras aprendidas vuelven con los días.",
-    listeningText: "Escucha el capítulo o haz un dictado con sus frases.",
-    structures: "Estructuras de este capítulo",
-    openStructures: "Ver sus estructuras",
-    openKnown: "Verlas",
-    empty:
-      "Abre un capítulo de un libro para aprender sus palabras, traducirlo y escucharlo.",
-    toShelf: "Ir a tus libros",
-  },
   books: {
     title: "Libros",
     intro:
@@ -839,6 +807,7 @@ export const es: Catalog<typeof en> = {
   },
   settings: {
     title: "Ajustes",
+    sections: "Secciones",
     profile: "Perfil",
     appearance: "Apariencia",
     spelling: "Ortografía",

@@ -3,7 +3,6 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ArrowRight, Dumbbell } from "lucide-react";
 import type { Drill, DrillFormat } from "@shared/domain";
-import { BackLink } from "@/components/ui/BackLink";
 import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
 import { Spinner } from "@/components/ui/Spinner";
@@ -79,7 +78,12 @@ export function Practice({
         drill={phase.drill}
         onAgain={() => void begin(format)}
         onClose={() => {
-          navigate({ name: "home" });
+          navigate({
+            name: "practice",
+            patternId: null,
+            format: null,
+            autostart: false,
+          });
         }}
       />
     );
@@ -100,12 +104,6 @@ export function Practice({
     <main className="h-full overflow-y-auto">
       <div className="mx-auto flex max-w-2xl flex-col gap-12 px-10 py-16">
         <header className="flex flex-col gap-3">
-          <BackLink
-            label={t("nav.conversation")}
-            onClick={() => {
-              navigate({ name: "home" });
-            }}
-          />
           <h1 className="font-display text-display font-light text-ink">
             {t("drills.title")}
           </h1>

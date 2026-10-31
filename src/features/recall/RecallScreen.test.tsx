@@ -61,12 +61,11 @@ async function start(user: UserEvent): Promise<void> {
 describe("the daily recall", () => {
   useMockBackend();
 
-  test("leads back to the book section it is opened from", async () => {
-    const user = userEvent.setup();
+  test("leaves the way out to the menu", async () => {
     render(<Section />);
 
-    await user.click(await screen.findByRole("button", { name: "Book" }));
-    expect(screen.getByText("Left for books")).toBeInTheDocument();
+    await screen.findByRole("heading", { name: "Review" });
+    expect(screen.queryByRole("button", { name: "Book" })).toBeNull();
   });
 
   test("with nothing learned it says where its words come from", async () => {

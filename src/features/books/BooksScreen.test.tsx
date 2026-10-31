@@ -22,34 +22,19 @@ function Section({ from }: { from: Route }): ReactNode {
       nativeLang="es"
       bookId={route.bookId}
       chapterId={route.chapterId ?? null}
-      shelf={route.shelf === true}
       known={route.known === true}
       navigate={setRoute}
     />
   );
 }
 
-/** The section opened on its shelf. */
+/** The section, on its shelf. */
 function Shelf(): ReactNode {
-  return <Section from={{ name: "books", bookId: null, shelf: true }} />;
+  return <Section from={{ name: "books", bookId: null }} />;
 }
 
 describe("BooksScreen", () => {
   useMockBackend();
-
-  test("opens on the section's own screen, and the shelf leads back to it", async () => {
-    const user = userEvent.setup();
-    render(<Section from={{ name: "books", bookId: null }} />);
-
-    await user.click(await screen.findByRole("button", { name: "Change" }));
-    expect(
-      await screen.findByRole("heading", { name: "Books" }),
-    ).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Book" }));
-    expect(
-      await screen.findByRole("region", { name: "Current chapter" }),
-    ).toBeInTheDocument();
-  });
 
   test("an empty shelf says so, and that chapter text goes to Claude", async () => {
     clearMockBooks();
@@ -179,9 +164,9 @@ describe("BooksScreen", () => {
       ),
     ).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Libro" }));
+    await user.click(screen.getByRole("button", { name: "Libros" }));
     expect(
-      await screen.findByRole("heading", { name: "Libro" }),
+      await screen.findByRole("heading", { name: "Libros" }),
     ).toBeInTheDocument();
     expect(screen.queryByText(/ya sabes/u)).toBeNull();
   });
