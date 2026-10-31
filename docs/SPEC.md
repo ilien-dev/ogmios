@@ -867,10 +867,19 @@ básico no reciben frases: no hay grabaciones abiertas que las respalden.
 
 ## 17. Interfaz
 
-- **Tres secciones** en el menú lateral, y Ajustes fijo al pie. Cada una abre una pantalla
-  principal con tarjetas que llevan a lo suyo; las pantallas a las que se llega así tienen un
-  enlace de vuelta a su sección.
-  - **Conversación:** la pantalla de inicio (§6.1), los ejercicios de 2 min y el progreso.
+- **Menú arriba, en dos filas.** La primera elige entre **Hablar** y **Leer**, con Ajustes a la
+  derecha; la segunda lista los lugares de ese grupo, cada uno con una línea que dice para qué
+  sirve y cuánto tiene pendiente hoy. Cada grupo suma lo pendiente de sus lugares.
+  - **Hablar:** Charla (la pantalla de inicio, §6.1), Ejercicios (de 2 min) y Progreso.
+  - **Leer:** Libros, Repaso diario (§9.4), Estructuras (§9.7) y Oído (§9.8).
+  - Las pantallas que ocupan toda la ventana (una charla, un reporte recién terminado, una
+    sesión en curso) no muestran el menú.
+- **Voces.** Cada fuente de texto tiene su color y su forma, y nada más los usa: lo que escribe o
+  dice el usuario es verde azulado, en burbujas a la derecha (lo que escribió antes, citado, va
+  con borde punteado); lo que escribe el modelo es violeta, a la izquierda con su avatar; el texto
+  de un libro es ámbar y en serif; Ogmios habla en tinta gris, con «Ogmios:» delante.
+- **Las secciones Libro y Estructuras** abren una pantalla principal con tarjetas que llevan a lo
+  suyo; las pantallas a las que se llega así tienen un enlace de vuelta.
   - **Libro:** el capítulo actual (el abierto por última vez), con «Cambiar» para ir a la
     estantería, y una tarjeta para su vocabulario, traducirlo, el repaso diario (§9.4) y el oído
     (§9.8). Sin capítulo abierto solo ofrece ir a la estantería y el repaso diario.
@@ -880,11 +889,11 @@ básico no reciben frases: no hay grabaciones abiertas que las respalden.
     se ofrece en ningún sitio. Añadir el mismo archivo otra vez lo devuelve como estaba, sin
     analizar nada de nuevo; solo los dictados y ejercicios de estructuras que quedaron en pausa
     dejan de ser de su capítulo.
-  - **Estructuras** (§9.7).
-  - Conversación y Libro dicen en el menú cuánto hay pendiente hoy.
 - **Tailwind CSS** para todo el diseño; tokens de color, espaciado y tipografía definidos en el tema
   de Tailwind (tema claro y oscuro).
-- Referencia visual: la sobriedad de pen.dev (fondo oscuro, tarjetas, caja de chat inferior).
+- Estilo «Grafito»: neutros grises, radios pequeños (4–8 px), titulares ligeros en Urbanist sobre
+  Geist; Geist Mono solo para cifras. Acentos: verde azulado (Hablar, el usuario), ámbar (Leer, el
+  libro), violeta (el compañero), naranja (lo que está en foco).
 - Accesibilidad: todo usable con teclado (atajo global para el micrófono), contraste AA,
   lectores de pantalla en el reporte.
 - i18next con `en` y `es` desde el día uno; ningún texto de UI fijo en componentes.

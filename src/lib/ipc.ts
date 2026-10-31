@@ -210,6 +210,14 @@ export const importBook = (path: string): Promise<Book> =>
   call("import_book", { path });
 export const deleteBook = (id: string): Promise<void> =>
   call("delete_book", { id });
+/** The book's cover as image bytes; empty when it has none yet. */
+export const bookCover = (id: string): Promise<ArrayBuffer> =>
+  call("book_cover", { id });
+/** The file of a PDF, to draw its first page; empty for any other book. */
+export const bookPdf = (id: string): Promise<ArrayBuffer> =>
+  call("book_pdf", { id });
+export const saveBookCover = (id: string, image: ArrayBuffer): Promise<void> =>
+  call("save_book_cover", { id, image: Array.from(new Uint8Array(image)) });
 /** An empty title gives the chapter back the name it has without one. */
 export const renameChapter = (id: string, title: string): Promise<Chapter> =>
   call("rename_chapter", { id, title });

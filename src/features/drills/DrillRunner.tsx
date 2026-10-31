@@ -76,7 +76,7 @@ export function DrillRunner({
     return (
       <main className="grid h-full place-items-center px-10">
         <div className="flex w-full max-w-lg flex-col gap-8 motion-safe:animate-rise">
-          <h1 className="text-display font-semibold text-ink">
+          <h1 className="font-display text-display font-light text-ink">
             {t("drills.summary")}
           </h1>
           <div className="flex flex-col gap-3">

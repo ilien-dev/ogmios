@@ -46,7 +46,7 @@ export function Score({ score }: ScoreProps): ReactNode {
   return (
     <span
       aria-label={t("books.translate.score", { score })}
-      className={`text-title font-semibold tabular-nums ${GRADE_TEXT[scoreGrade(score)]}`}
+      className={`font-display text-title font-normal tabular-nums ${GRADE_TEXT[scoreGrade(score)]}`}
     >
       {score}
     </span>

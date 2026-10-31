@@ -219,7 +219,7 @@ export function ChapterListen({
               {t("listening.reading.back")}
             </Button>
             <p className="text-sm text-ink-faint">{reading.bookTitle}</p>
-            <h1 className="text-display font-semibold text-ink">
+            <h1 className="font-display text-display font-light text-ink">
               {chapterName(reading.chapter, t)}
             </h1>
           </header>

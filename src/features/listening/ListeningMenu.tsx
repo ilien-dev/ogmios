@@ -73,7 +73,7 @@ function Standing({ state }: { state: ListeningState }): ReactNode {
         </p>
         {state.understood === null ? (
           <>
-            <p className="text-title font-semibold text-ink-soft">
+            <p className="font-display text-title font-normal text-ink-soft">
               {t("listening.understood.none")}
             </p>
             <p className="text-sm text-ink-soft">
@@ -81,7 +81,7 @@ function Standing({ state }: { state: ListeningState }): ReactNode {
             </p>
           </>
         ) : (
-          <p className="text-display font-semibold text-accent-text">
+          <p className="font-display text-display font-light text-accent-text">
             {t(`listening.pace.${state.understood}`)}
           </p>
         )}
@@ -232,8 +232,7 @@ function Paused({ paused, onContinue, onEnd }: PausedProps): ReactNode {
 /** The words that escape the ear, and the ones the dictations bring back. */
 function Escaping({ state }: { state: ListeningState }): ReactNode {
   const { t } = useTranslation();
-  const chip =
-    "rounded-full border border-line px-3 py-1 text-sm text-ink-soft";
+  const chip = "rounded-sm border border-line px-3 py-1 text-sm text-ink-soft";
   return (
     <section className="flex flex-col gap-6">
       <div className="flex flex-col gap-3">
@@ -348,7 +347,7 @@ export function ListeningMenu({
               navigate({ name: "books", bookId: null });
             }}
           />
-          <h1 className="text-display font-semibold text-ink">
+          <h1 className="font-display text-display font-light text-ink">
             {t("listening.title")}
           </h1>
           <p className="text-lead text-ink-soft">{t("listening.intro")}</p>

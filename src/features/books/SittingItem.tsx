@@ -481,7 +481,7 @@ export function SittingItem<Result extends Checked>({
           />
         </p>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-          <h1 className="text-display font-semibold text-balance text-ink">
+          <h1 className="font-display text-display font-light text-balance text-ink">
             {item.prompt}
             {!toEnglish && <SpeakButton text={item.prompt} className="ml-2" />}
           </h1>

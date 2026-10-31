@@ -169,7 +169,7 @@ function Writing({
         {` · ${tags.join(" · ")}`}
       </p>
       <div className="flex flex-col gap-2">
-        <h1 className="text-title font-semibold text-ink">
+        <h1 className="font-display text-title font-normal text-ink">
           {item.topic === null
             ? t("structures.run.askWord", { structure: item.name })
             : t("structures.run.ask", {
@@ -338,7 +338,7 @@ function End({
     <div className="grid h-full place-items-center overflow-y-auto p-10">
       <div className="flex w-full max-w-lg flex-col gap-8 motion-safe:animate-rise">
         <header className="flex flex-col gap-2">
-          <h1 className="text-display font-semibold text-ink">
+          <h1 className="font-display text-display font-light text-ink">
             {t("structures.summary.title")}
           </h1>
           <p className="text-lead text-ink-soft">
@@ -352,7 +352,7 @@ function End({
             <div key={grade} className="flex flex-col">
               <dd
                 className={cn(
-                  "text-title font-semibold tabular-nums",
+                  "font-display text-title font-normal tabular-nums",
                   GRADE_TEXT[grade],
                 )}
               >

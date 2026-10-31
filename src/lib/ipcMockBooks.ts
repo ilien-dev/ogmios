@@ -10,6 +10,16 @@ type Outline = Array<[title: string, words: number]>;
 /** The chapter of the seeded book that comes already prepared. */
 const PREPARED: Record<string, Depth> = { "book-alice-0": "relevant" };
 
+/** How the seeded books start, in the words of each. */
+const OPENINGS: Record<string, string> = {
+  "book-alice":
+    "Alice was beginning to get very tired of sitting by her sister on the bank, and of having nothing to do: once or twice she had peeped into the book her sister was reading.",
+  "book-emma":
+    "Emma Woodhouse, handsome, clever, and rich, with a comfortable home and happy disposition, seemed to unite some of the best blessings of existence.",
+  "book-wonderland":
+    "Alice was beginning to get very tired of sitting by her sister on the bank.",
+};
+
 function book(
   id: string,
   heading: [string, string | null],
@@ -20,6 +30,7 @@ function book(
     id,
     title,
     author,
+    opening: OPENINGS[id] ?? "",
     chapters: outline.map(([name, words], index): Chapter => ({
       id: `${id}-${index}`,
       index,
@@ -216,5 +227,9 @@ export function bookCommands(
         const id = text(args, "id");
         books = books.filter((candidate) => candidate.id !== id);
       }),
+    // No file behind the mock's books: each shows the page it opens with.
+    book_cover: () => after(0, () => new ArrayBuffer(0)),
+    book_pdf: () => after(0, () => new ArrayBuffer(0)),
+    save_book_cover: () => Promise.resolve(),
   };
 }

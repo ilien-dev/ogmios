@@ -106,7 +106,7 @@ export function Practice({
               navigate({ name: "home" });
             }}
           />
-          <h1 className="text-display font-semibold text-ink">
+          <h1 className="font-display text-display font-light text-ink">
             {t("drills.title")}
           </h1>
           <p className="text-lead text-ink-soft">{t("drills.intro")}</p>

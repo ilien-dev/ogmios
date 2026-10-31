@@ -222,8 +222,8 @@ export function ReportScreen({
             <li
               key={`${item.kind}-${i}`}
               className={cn(
-                "h-1 flex-1 rounded-full transition-colors duration-300",
-                i <= index ? "bg-accent" : "bg-line",
+                "h-0.5 flex-1 transition-colors duration-300",
+                i <= index ? "bg-you" : "bg-line-strong",
               )}
             />
           ))}
@@ -240,6 +240,7 @@ export function ReportScreen({
           <X aria-hidden className="size-5" />
         </button>
       </header>
+      <div aria-hidden className="h-0.5 shrink-0 opacity-70 bg-voices" />
       <p className="sr-only">{t("report.keys")}</p>
 
       <div className="min-h-0 flex-1 overflow-y-auto">

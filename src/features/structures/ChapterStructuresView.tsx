@@ -91,7 +91,7 @@ export function ChapterStructuresView({
                 ? t("common.back")
                 : chapterName(found.chapter, t)}
             </Button>
-            <h1 className="text-display font-semibold text-ink">
+            <h1 className="font-display text-display font-light text-ink">
               {t("structures.chapter.screenTitle")}
             </h1>
             <p className="text-lead text-ink-soft">

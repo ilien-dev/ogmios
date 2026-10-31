@@ -257,7 +257,7 @@ export function ChapterScreen({
           >
             {book.title}
           </Button>
-          <h1 className="text-display font-semibold text-ink">
+          <h1 className="font-display text-display font-light text-ink">
             {chapterName(chapter, t)}
           </h1>
         </header>

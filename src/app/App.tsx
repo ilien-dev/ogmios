@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { Profile, Settings } from "@shared/domain";
+import { Logo } from "@/components/ui/Logo";
 import { Notice } from "@/components/ui/Notice";
 import { Spinner } from "@/components/ui/Spinner";
 import { BooksScreen } from "@/features/books/BooksScreen";
@@ -25,8 +26,8 @@ import { getProfile, getSettings, homeState } from "@/lib/ipc";
 import { useTheme } from "@/lib/theme";
 import type { Route } from "./routes";
 import { showsNav } from "./routes";
-import type { Section } from "./Sidebar";
-import { Sidebar } from "./Sidebar";
+import type { Entry } from "./TopNav";
+import { TopNav } from "./TopNav";
 
 type Boot =
   | { state: "loading" }
@@ -38,7 +39,7 @@ export function App(): ReactNode {
   const [boot, setBoot] = useState<Boot>({ state: "loading" });
   const [route, setRoute] = useState<Route>({ name: "home" });
   const [theme, setTheme] = useTheme();
-  const [counts, setCounts] = useState<Partial<Record<Section, number>>>({});
+  const [counts, setCounts] = useState<Partial<Record<Entry, number>>>({});
   const onboarded = boot.state === "ready" && boot.profile?.onboarded === true;
 
   useEffect(() => {
@@ -72,7 +73,7 @@ export function App(): ReactNode {
     homeState()
       .then((home) => {
         if (live) {
-          setCounts({ conversation: home.dueReviews, book: home.dueWords });
+          setCounts({ drills: home.dueReviews, recall: home.dueWords });
         }
       })
       // Without it the menu still works: it only says nothing of today.
@@ -84,7 +85,11 @@ export function App(): ReactNode {
 
   if (boot.state === "loading") {
     return (
-      <div className="grid h-full place-items-center" aria-busy>
+      <div
+        className="flex h-full flex-col items-center justify-center gap-6"
+        aria-busy
+      >
+        <Logo className="size-12" />
         <p className="flex items-center gap-3 text-sm text-ink-faint">
           <Spinner />
           {t("app.loading")}
@@ -222,11 +227,11 @@ export function App(): ReactNode {
   return (
     <SpeechProvider>
       <UpdateProvider>
-        <div className="flex h-full">
+        <div className="flex h-full flex-col">
           {showsNav(route) && (
-            <Sidebar route={route} navigate={setRoute} counts={counts} />
+            <TopNav route={route} navigate={setRoute} counts={counts} />
           )}
-          <div className="relative min-w-0 flex-1">
+          <div className="relative min-h-0 flex-1">
             {screen}
             {showsNav(route) && <UpdateCard />}
           </div>

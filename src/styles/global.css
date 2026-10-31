@@ -1,23 +1,29 @@
 @import "tailwindcss";
-@import "@fontsource-variable/onest";
+@import "@fontsource-variable/geist";
+@import "@fontsource-variable/geist-mono";
+@import "@fontsource-variable/urbanist";
+@import "@fontsource-variable/newsreader/opsz-italic.css";
 
 /*
  * The whole design system. Components use these tokens through Tailwind
  * utilities and never write a colour, a radius or a font of their own.
  *
- * Colour strategy: restrained. Cool graphite neutrals and one accent hue, a
- * soft gold, which marks the next step and the learner's own progress (the
- * primary button, the live word meter, a bar that fills). Gold never says
- * how an answer went: that is the verdict scale, read before any word is.
- * `correct` is green, an answer or a trend that is right; `partial` is an
- * orange amber, right only with help or something to watch; `wrong` is red,
- * a miss. `danger` is for destructive actions and failed requests. `known`
- * is the green of one choice: a word the learner already knows, against the
- * gold of one to learn. `noun`, `verb`, `adjective` and `adverb` tell the kinds
- * of word apart on their tags: blue, violet, teal and pink, hues that say
- * nothing about an answer. `learned` is indigo, and only ever a line or a
- * dot: a word the learner has learned, met again in a text, and how strong
- * it is.
+ * Look: graphite, straight and quiet. Warm grey neutrals, small radii, light
+ * display type (Urbanist) over a plain interface face (Geist).
+ *
+ * Every voice on screen has its own colour, and nothing else uses it:
+ * `you` (teal) is what the learner writes, says or does, so it is also the
+ * accent of the next step and of the learner's own progress; `partner`
+ * (violet) is what the model writes; `book` (amber) is the text of a book and
+ * everything under Read; the app itself speaks in plain ink. `accent` is the
+ * same teal as `you`.
+ *
+ * The verdict scale says how an answer went and is read before any word is:
+ * `correct` is green, `partial` an orange amber (right only with help, or
+ * something to work on), `wrong` red. `danger` is for destructive actions and
+ * failed requests. `known` is the green of a word the learner already knows.
+ * `noun`, `verb`, `adjective` and `adverb` tell the kinds of word apart on
+ * their tags. `learned` is indigo, and only ever a line or a dot.
  *
  * The values below are the light theme. Dark is the same token names
  * redefined further down, chosen by the system preference or by
@@ -26,29 +32,46 @@
 @theme {
   --color-*: initial;
 
-  --color-canvas: oklch(0.975 0.004 265);
-  --color-surface: oklch(1 0 0);
-  --color-raised: oklch(0.955 0.005 265);
-  --color-sunken: oklch(0.945 0.006 265);
-  --color-line: oklch(0.9 0.006 265);
-  --color-line-strong: oklch(0.8 0.009 265);
-  --color-ink: oklch(0.22 0.012 265);
-  --color-ink-soft: oklch(0.42 0.012 265);
-  --color-ink-faint: oklch(0.5 0.012 265);
-  --color-accent: oklch(0.82 0.135 82);
-  --color-accent-strong: oklch(0.76 0.14 76);
-  --color-on-accent: oklch(0.24 0.04 70);
-  --color-accent-text: oklch(0.5 0.105 68);
-  --color-accent-soft: oklch(0.82 0.135 82 / 0.18);
+  --color-canvas: #ededec;
+  --color-surface: #f8f8f7;
+  --color-raised: #e3e3e1;
+  --color-sunken: #f3f3f1;
+  --color-line: #dcdcd9;
+  --color-line-strong: #c4c4bf;
+  --color-ink: #111111;
+  --color-ink-soft: #4f4f49;
+  --color-ink-faint: #64645e;
+  --color-accent: #0f766e;
+  --color-accent-strong: #0b5f58;
+  --color-on-accent: #ffffff;
+  --color-accent-text: #0f766e;
+  --color-accent-soft: rgb(15 118 110 / 0.14);
+  --color-you: #0f766e;
+  --color-you-soft: #dcf0ec;
+  --color-you-line: #8fcfc5;
+  --color-you-ink: #08332f;
+  --color-partner: #5b21b6;
+  --color-partner-soft: #ece7fa;
+  --color-partner-line: #d3c8f3;
+  --color-partner-glow: #cdbdf6;
+  --color-book: #b45309;
+  --color-book-soft: #f6e7cf;
+  --color-book-ink: #5a3410;
+  --color-hero-glow: #8eddd1;
+  --color-hero-mid: #cdede8;
+  /* The logo, the same in both themes: dark never redefines these. */
+  --color-logo: #0f766e;
+  --color-logo-first: #ffffff;
+  --color-logo-second: #8eddd1;
   --color-danger: oklch(0.52 0.17 25);
   --color-danger-soft: oklch(0.6 0.17 25 / 0.12);
-  --color-correct: oklch(0.54 0.14 150);
+  --color-correct: oklch(0.52 0.14 150);
   --color-correct-soft: oklch(0.62 0.15 150 / 0.14);
-  --color-partial: oklch(0.53 0.15 48);
-  --color-partial-soft: oklch(0.7 0.17 50 / 0.16);
-  --color-wrong: oklch(0.54 0.19 27);
+  --color-partial: oklch(0.51 0.15 48);
+  --color-partial-soft: oklch(0.7 0.17 50 / 0.18);
+  --color-wrong: oklch(0.52 0.19 27);
   --color-wrong-soft: oklch(0.6 0.19 27 / 0.12);
-  --color-known: oklch(0.56 0.13 155);
+  --color-known: oklch(0.54 0.13 155);
   --color-known-soft: oklch(0.62 0.14 155 / 0.14);
   --color-noun: oklch(0.5 0.13 245);
   --color-noun-soft: oklch(0.62 0.13 245 / 0.14);
@@ -62,27 +85,37 @@
   --color-scrim: oklch(0.2 0.01 265 / 0.4);
 
   --font-sans:
-    "Onest Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    "Geist Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
     sans-serif;
+  --font-display:
+    "Urbanist Variable", "Geist Variable", ui-sans-serif, sans-serif;
+  --font-mono: "Geist Mono Variable", ui-monospace, monospace;
+  --font-serif: "Newsreader Variable", Georgia, serif;
 
-  --text-display: 2.25rem;
-  --text-display--line-height: 1.15;
-  --text-display--letter-spacing: -0.025em;
-  --text-title: 1.5rem;
-  --text-title--line-height: 1.25;
-  --text-title--letter-spacing: -0.015em;
-  --text-lead: 1.1875rem;
+  --text-display: 3rem;
+  --text-display--line-height: 1.05;
+  --text-display--letter-spacing: -0.03em;
+  --text-title: 2rem;
+  --text-title--line-height: 1.15;
+  --text-title--letter-spacing: -0.02em;
+  --text-lead: 1.125rem;
   --text-lead--line-height: 1.55;
+  /* Inside a book's cover: sized by the cover, whatever its size. */
+  --text-cover: 6.5cqw;
+  --text-cover--line-height: 1.35;
+  --text-cover-title: 10cqw;
+  --text-cover-title--line-height: 1.15;
+  --spacing-cover: 8cqw;
 
-  --radius-sm: 0.375rem;
-  --radius-md: 0.625rem;
-  --radius-lg: 1rem;
-  --radius-xl: 1.375rem;
+  --radius-sm: 0.25rem;
+  --radius-md: 0.25rem;
+  --radius-lg: 0.375rem;
+  --radius-xl: 0.5rem;
 
-  --shadow-card:
-    0 1px 2px oklch(0.2 0.02 265 / 0.06), 0 8px 24px oklch(0.2 0.02 265 / 0.06);
-  --shadow-float:
-    0 2px 6px oklch(0.2 0.02 265 / 0.08), 0 18px 48px oklch(0.2 0.02 265 / 0.14);
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.04);
+  --shadow-float: 0 2px 6px rgb(0 0 0 / 0.08), 0 16px 40px rgb(0 0 0 / 0.14);
+  --shadow-cover: 0 1px 2px rgb(0 0 0 / 0.16), 0 4px 10px rgb(0 0 0 / 0.16);
+  --shadow-you: 0 8px 24px -8px rgb(15 118 110 / 0.3);
 
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
 
@@ -161,6 +194,44 @@
   }
 }
 
+/* The panel of today's topic: a teal light from its top right corner. */
+@utility bg-hero {
+  background: radial-gradient(
+    120% 170% at 100% 0%,
+    var(--color-hero-glow) 0%,
+    var(--color-hero-mid) 40%,
+    var(--color-surface) 75%
+  );
+}
+
+/* What the partner proposes, in a violet light of its own. */
+@utility bg-partner-panel {
+  background: radial-gradient(
+    130% 170% at 100% 0%,
+    var(--color-partner-glow) 0%,
+    var(--color-partner-soft) 45%,
+    var(--color-surface) 85%
+  );
+}
+
+/* A header where the learner is at work: a faint teal from its top left. */
+@utility bg-glow {
+  background: radial-gradient(
+    60% 220% at 0% 0%,
+    var(--color-accent-soft) 0%,
+    transparent 70%
+  );
+}
+
+/* The thin line under a conversation's header: its two voices. */
+@utility bg-voices {
+  background: linear-gradient(
+    90deg,
+    var(--color-partner) 30%,
+    var(--color-you) 70%
+  );
+}
+
 @layer base {
   :root {
     color-scheme: light;
@@ -168,27 +239,40 @@
 
   :root[data-theme="dark"] {
     color-scheme: dark;
-    --color-canvas: oklch(0.175 0.008 265);
-    --color-surface: oklch(0.21 0.009 265);
-    --color-raised: oklch(0.25 0.01 265);
-    --color-sunken: oklch(0.155 0.007 265);
-    --color-line: oklch(0.29 0.01 265);
-    --color-line-strong: oklch(0.38 0.012 265);
-    --color-ink: oklch(0.945 0.005 265);
-    --color-ink-soft: oklch(0.8 0.01 265);
-    --color-ink-faint: oklch(0.68 0.012 265);
-    --color-accent: oklch(0.82 0.13 82);
-    --color-accent-strong: oklch(0.87 0.12 85);
-    --color-on-accent: oklch(0.22 0.04 70);
-    --color-accent-text: oklch(0.85 0.12 84);
-    --color-accent-soft: oklch(0.82 0.13 82 / 0.13);
+    --color-canvas: #0b0b0b;
+    --color-surface: #121212;
+    --color-raised: #1a1a1a;
+    --color-sunken: #0f0f0f;
+    --color-line: #232323;
+    --color-line-strong: #363636;
+    --color-ink: #ededed;
+    --color-ink-soft: #a6a6a6;
+    --color-ink-faint: #8c8c8c;
+    --color-accent: #2dd4bf;
+    --color-accent-strong: #5eead4;
+    --color-on-accent: #04201c;
+    --color-accent-text: #2dd4bf;
+    --color-accent-soft: rgb(45 212 191 / 0.14);
+    --color-you: #2dd4bf;
+    --color-you-soft: #0c2421;
+    --color-you-line: #1f5650;
+    --color-you-ink: #ccf5ee;
+    --color-partner: #c4b5fd;
+    --color-partner-soft: #1c1830;
+    --color-partner-line: #3b3360;
+    --color-partner-glow: #3a2b78;
+    --color-book: #f2b65a;
+    --color-book-soft: #2a2010;
+    --color-book-ink: #ebd7b0;
+    --color-hero-glow: #0f5f57;
+    --color-hero-mid: #0b2b28;
     --color-danger: oklch(0.74 0.14 25);
     --color-danger-soft: oklch(0.7 0.15 25 / 0.14);
     --color-correct: oklch(0.78 0.15 150);
     --color-correct-soft: oklch(0.78 0.15 150 / 0.14);
-    --color-partial: oklch(0.76 0.15 48);
-    --color-partial-soft: oklch(0.76 0.15 48 / 0.15);
-    --color-wrong: oklch(0.72 0.16 25);
+    --color-partial: oklch(0.78 0.14 55);
+    --color-partial-soft: oklch(0.76 0.15 48 / 0.2);
+    --color-wrong: oklch(0.74 0.16 25);
     --color-wrong-soft: oklch(0.7 0.17 25 / 0.15);
     --color-known: oklch(0.78 0.14 155);
     --color-known-soft: oklch(0.78 0.14 155 / 0.14);
@@ -202,10 +286,10 @@
     --color-adverb-soft: oklch(0.82 0.1 345 / 0.15);
     --color-learned: oklch(0.78 0.12 275);
     --color-scrim: oklch(0.1 0.01 265 / 0.6);
-    --shadow-card:
-      0 1px 2px oklch(0 0 0 / 0.3), 0 10px 28px oklch(0 0 0 / 0.22);
-    --shadow-float:
-      0 2px 8px oklch(0 0 0 / 0.35), 0 22px 56px oklch(0 0 0 / 0.4);
+    --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4);
+    --shadow-float: 0 2px 8px rgb(0 0 0 / 0.4), 0 22px 56px rgb(0 0 0 / 0.45);
+    --shadow-cover: 0 1px 2px rgb(0 0 0 / 0.6), 0 4px 10px rgb(0 0 0 / 0.6);
+    --shadow-you: 0 8px 24px -8px rgb(45 212 191 / 0.3);
   }
 
   html,
@@ -214,9 +298,8 @@
   }
 
   body {
-    font-feature-settings: "ss01", "cv11";
     font-variant-numeric: tabular-nums;
-    caret-color: var(--color-accent-strong);
+    caret-color: var(--color-you);
   }
 
   ::selection {

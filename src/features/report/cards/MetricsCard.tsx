@@ -78,7 +78,7 @@ export function MetricsCard({
               <dt className="text-sm text-ink-soft">
                 {t(`report.metrics.${key}`)}
               </dt>
-              <dd className="text-title font-semibold text-ink tabular-nums">
+              <dd className="font-display text-title font-normal text-ink tabular-nums">
                 {show(key, now, digits)}
               </dd>
               {before !== null && (

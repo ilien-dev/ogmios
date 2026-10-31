@@ -68,7 +68,7 @@ function ChapterCard({
           {found.structures.map((each) => (
             <li
               key={each.key}
-              className="rounded-full border border-line bg-canvas px-3 py-1 text-sm text-ink-soft"
+              className="rounded-sm border border-line bg-canvas px-3 py-1 text-sm text-ink-soft"
             >
               <span className="font-medium text-ink">
                 {names.get(each.key) ?? each.key}
@@ -295,7 +295,7 @@ export function StructureMenu({ navigate }: StructureMenuProps): ReactNode {
                 navigate({ name: "structures" });
               }}
             />
-            <h1 className="text-display font-semibold text-ink">
+            <h1 className="font-display text-display font-light text-ink">
               {t("structures.hub.freeTitle")}
             </h1>
             <p className="text-lead text-ink-soft">

@@ -67,7 +67,7 @@ export function StructuresHub({ navigate }: StructuresHubProps): ReactNode {
     <main className="h-full overflow-y-auto">
       <div className="mx-auto flex max-w-2xl flex-col gap-10 px-10 py-16">
         <header className="flex flex-col gap-3">
-          <h1 className="text-display font-semibold text-ink">
+          <h1 className="font-display text-display font-light text-ink">
             {t("structures.title")}
           </h1>
           <p className="text-lead text-ink-soft">{t("structures.intro")}</p>

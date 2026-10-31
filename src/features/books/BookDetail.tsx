@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
 import { errorMessage } from "@/lib/errors";
 import { deleteBook } from "@/lib/ipc";
+import { BookCover } from "./BookCover";
 import { ChapterRow } from "./ChapterRow";
 
 interface BookDetailProps {
@@ -69,13 +70,20 @@ export function BookDetail({
 
   return (
     <main className="h-full overflow-y-auto">
-      <div className="mx-auto flex max-w-2xl flex-col gap-12 px-10 py-16">
+      <div className="mx-auto flex max-w-3xl flex-col gap-12 px-10 py-16">
         <header className="flex flex-col gap-3">
           {back}
-          <h1 className="text-display font-semibold text-ink">{book.title}</h1>
-          {book.author !== null && (
-            <p className="text-lead text-ink-soft">{book.author}</p>
-          )}
+          <div className="flex items-center gap-6">
+            <BookCover book={book} className="w-24" />
+            <div className="flex min-w-0 flex-col gap-2">
+              <h1 className="font-display text-title font-light text-ink">
+                {book.title}
+              </h1>
+              {book.author !== null && (
+                <p className="text-lead text-ink-soft">{book.author}</p>
+              )}
+            </div>
+          </div>
         </header>
 
         <section aria-labelledby="chapters" className="flex flex-col gap-4">

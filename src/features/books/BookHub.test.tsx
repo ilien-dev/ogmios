@@ -135,6 +135,7 @@ describe("currentOf", () => {
     id: "b",
     title: "A book",
     author: null,
+    opening: "",
     chapters: [
       {
         id: "c",

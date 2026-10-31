@@ -8,7 +8,7 @@ use percent_encoding::percent_decode_str;
 use zip::ZipArchive;
 
 use super::xml::{self, Node, Styles, Text};
-use super::{is_front_title, refused, ParsedBook, ParsedChapter, DRM, UNREADABLE};
+use super::{is_front_title, is_image, refused, ParsedBook, ParsedChapter, DRM, UNREADABLE};
 use crate::error::Result;
 
 type Archive<'a> = ZipArchive<Cursor<&'a [u8]>>;
@@ -46,10 +46,15 @@ struct Package {
 /// The start of a chapter: a document of the spine and an offset in its text.
 type Position = (usize, usize);
 
-fn read(archive: &mut Archive<'_>, name: &str) -> Option<String> {
+fn read_bytes(archive: &mut Archive<'_>, name: &str) -> Option<Vec<u8>> {
     let file = archive.by_name(name).ok()?;
     let mut bytes = Vec::new();
     file.take(MAX_ENTRY_BYTES).read_to_end(&mut bytes).ok()?;
+    Some(bytes)
+}
+
+fn read(archive: &mut Archive<'_>, name: &str) -> Option<String> {
+    let bytes = read_bytes(archive, name)?;
     let text = String::from_utf8_lossy(&bytes);
     Some(text.trim_start_matches('\u{feff}').to_owned())
 }
@@ -160,10 +165,16 @@ fn ncx_toc(ncx: &Node, base: &str) -> Vec<TocEntry> {
         .collect()
 }
 
-fn package(archive: &mut Archive<'_>) -> Option<Package> {
+/// The package file, with its path in the archive.
+fn opf(archive: &mut Archive<'_>) -> Option<(String, Node)> {
     let container = read_xml(archive, "META-INF/container.xml")?;
-    let opf_path = container.find("rootfile")?.attr("full-path")?.to_owned();
-    let opf = read_xml(archive, &opf_path)?;
+    let path = container.find("rootfile")?.attr("full-path")?.to_owned();
+    let opf = read_xml(archive, &path)?;
+    Some((path, opf))
+}
+
+fn package(archive: &mut Archive<'_>) -> Option<Package> {
+    let (opf_path, opf) = opf(archive)?;
     let base = dir(&opf_path);
 
     let items = opf.find("manifest")?.descendants("item");
@@ -288,6 +299,72 @@ fn styles(archive: &mut Archive<'_>) -> Styles {
         }
     }
     styles
+}
+
+/// Where the book's cover may be, best first: what EPUB 3 declares, what
+/// EPUB 2 names, an image called so.
+fn declared_covers(opf: &Node, base: &str) -> Vec<String> {
+    let items = opf
+        .find("manifest")
+        .map(|manifest| manifest.descendants("item"))
+        .unwrap_or_default();
+    let declared = items.iter().filter(|item| {
+        item.attr("properties")
+            .is_some_and(|p| p.split_whitespace().any(|p| p == "cover-image"))
+    });
+    let named = opf
+        .descendants("meta")
+        .iter()
+        .find(|meta| meta.attr("name") == Some("cover"))
+        .and_then(|meta| meta.attr("content"))
+        .and_then(|id| items.iter().find(|item| item.attr("id") == Some(id)));
+    let called = items.iter().filter(|item| {
+        let is_image = item
+            .attr("media-type")
+            .is_some_and(|kind| kind.starts_with("image/"));
+        let says_cover = |name: Option<&str>| {
+            name.is_some_and(|name| name.to_ascii_lowercase().contains("cover"))
+        };
+        is_image && (says_cover(item.attr("id")) || says_cover(item.attr("href")))
+    });
+    declared
+        .chain(named)
+        .chain(called)
+        .filter_map(|item| Some(resolve(base, item.attr("href")?).path))
+        .collect()
+}
+
+/// The images on a page, in the order the page has them.
+fn images_on(page: &Node, base: &str) -> Vec<String> {
+    let html = page.descendants("img");
+    let svg = page.descendants("image");
+    let sources = html.iter().filter_map(|img| img.attr("src"));
+    sources
+        .chain(svg.iter().filter_map(|image| image.attr("href")))
+        .map(|source| resolve(base, source).path)
+        .collect()
+}
+
+/// The book's cover, or the image that opens it when it declares none. Only
+/// what is really an image counts: a book is free to lie in its manifest.
+pub fn cover(bytes: &[u8]) -> Option<Vec<u8>> {
+    let mut archive = ZipArchive::new(Cursor::new(bytes)).ok()?;
+    if protected(&mut archive) {
+        return None;
+    }
+    let (opf_path, opf) = opf(&mut archive)?;
+    let base = dir(&opf_path);
+    let mut places = declared_covers(&opf, base);
+    let first = package(&mut archive).and_then(|package| package.spine.into_iter().next());
+    if let Some(first) = first {
+        if let Some(page) = read_xml(&mut archive, &first) {
+            places.extend(images_on(&page, dir(&first)));
+        }
+    }
+    places
+        .iter()
+        .filter_map(|place| read_bytes(&mut archive, place))
+        .find(|image| is_image(image))
 }
 
 /// Reads an EPUB into its chapters. A protected file and one that cannot be
@@ -591,6 +668,85 @@ mod tests {
         assert_eq!(refusal(b"%PDF-1.7 not a zip"), UNREADABLE);
         let no_package = fixtures::zip(&[("mimetype", "application/epub+zip")]);
         assert_eq!(refusal(&no_package), UNREADABLE);
+    }
+
+    /// A package with these manifest items, around a first page of this body.
+    fn illustrated(manifest: &str, meta: &str, first_page: &str) -> Vec<u8> {
+        let opf = format!(
+            r#"<package xmlns="http://www.idpf.org/2007/opf" version="3.0">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>Alice</dc:title>{meta}</metadata>
+  <manifest><item id="a" href="text/a.xhtml" media-type="application/xhtml+xml"/>{manifest}</manifest>
+  <spine><itemref idref="a"/></spine>
+</package>"#
+        );
+        let container = r#"<container><rootfiles>
+  <rootfile full-path="OEBPS/content.opf"/></rootfiles></container>"#;
+        let page = format!("<html><body>{first_page}</body></html>");
+        fixtures::zip(&[
+            ("META-INF/container.xml", container),
+            ("OEBPS/content.opf", &opf),
+            ("OEBPS/text/a.xhtml", &page),
+            ("OEBPS/images/one.gif", "GIF89a one"),
+            ("OEBPS/images/two.gif", "GIF89a two"),
+            ("OEBPS/images/cover.gif", "GIF89a named"),
+            ("OEBPS/images/fake.gif", "not an image"),
+        ])
+    }
+
+    const ONE: &str = r#"<item id="i1" href="images/one.gif" media-type="image/gif"/>"#;
+
+    #[test]
+    fn the_cover_is_the_image_epub_3_declares() {
+        let manifest = format!(
+            r#"{ONE}<item id="i2" href="images/two.gif" media-type="image/gif" properties="cover-image"/>"#
+        );
+        let cover = cover(&illustrated(&manifest, "", "<p>Text</p>")).expect("cover");
+        assert_eq!(cover, b"GIF89a two");
+    }
+
+    #[test]
+    fn the_cover_is_the_image_epub_2_names() {
+        let meta = r#"<meta name="cover" content="i1"/>"#;
+        let cover = cover(&illustrated(ONE, meta, "<p>Text</p>")).expect("cover");
+        assert_eq!(cover, b"GIF89a one");
+    }
+
+    #[test]
+    fn an_image_called_cover_is_taken_when_nothing_declares_one() {
+        let manifest = r#"<item id="c" href="images/cover.gif" media-type="image/gif"/>"#;
+        let cover = cover(&illustrated(manifest, "", "<p>Text</p>")).expect("cover");
+        assert_eq!(cover, b"GIF89a named");
+    }
+
+    #[test]
+    fn without_a_cover_the_image_on_the_first_page_stands_in() {
+        let img = r#"<img src="../images/one.gif"/>"#;
+        assert_eq!(
+            cover(&illustrated("", "", img)).expect("img"),
+            b"GIF89a one"
+        );
+        let svg = r#"<svg xmlns:xlink="http://www.w3.org/1999/xlink">
+  <image xlink:href="../images/two.gif"/></svg>"#;
+        assert_eq!(
+            cover(&illustrated("", "", svg)).expect("svg"),
+            b"GIF89a two"
+        );
+    }
+
+    #[test]
+    fn a_book_without_any_image_has_no_cover() {
+        assert_eq!(cover(&fixtures::alice()), None);
+        assert_eq!(cover(b"not a zip"), None);
+    }
+
+    #[test]
+    fn what_is_not_an_image_is_passed_over() {
+        let manifest = format!(
+            r#"<item id="f" href="images/fake.gif" media-type="image/gif" properties="cover-image"/>{ONE}"#
+        );
+        let meta = r#"<meta name="cover" content="i1"/>"#;
+        let cover = cover(&illustrated(&manifest, meta, "<p>Text</p>")).expect("cover");
+        assert_eq!(cover, b"GIF89a one");
     }
 
     #[test]

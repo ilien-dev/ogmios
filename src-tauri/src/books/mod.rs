@@ -46,6 +46,15 @@ fn is_front_title(title: &str) -> bool {
     FRONT_TITLES.contains(&title.trim().to_lowercase().as_str())
 }
 
+/// Whether these bytes are an image the webview draws without being told its
+/// type: JPEG, PNG, GIF or WebP.
+pub fn is_image(bytes: &[u8]) -> bool {
+    bytes.starts_with(&[0xFF, 0xD8, 0xFF])
+        || bytes.starts_with(&[0x89, b'P', b'N', b'G'])
+        || bytes.starts_with(b"GIF8")
+        || (bytes.starts_with(b"RIFF") && bytes.get(8..12) == Some(b"WEBP"))
+}
+
 pub fn refused(why: &str) -> Error {
     Error::Invalid(why.to_owned())
 }

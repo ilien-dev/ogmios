@@ -167,7 +167,7 @@ export function SittingSizes({
         onSubmit={start}
         className="flex w-full max-w-lg flex-col items-start gap-8 motion-safe:animate-rise"
       >
-        <h1 className="text-display font-semibold text-ink">
+        <h1 className="font-display text-display font-light text-ink">
           {t("books.sitting.size")}
         </h1>
         {directions.length > 1 && (
@@ -260,7 +260,9 @@ export function SittingEnd({
   return (
     <div className="grid h-full place-items-center px-10">
       <div className="flex w-full max-w-lg flex-col gap-8 motion-safe:animate-rise">
-        <h1 className="text-display font-semibold text-ink">{title}</h1>
+        <h1 className="font-display text-display font-light text-ink">
+          {title}
+        </h1>
         <div className="flex flex-col gap-2">
           <p
             className={cn(
