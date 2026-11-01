@@ -6,6 +6,7 @@ import { SittingItem } from "@/features/books/SittingItem";
 import {
   SittingEnd,
   SittingFrame,
+  SittingStage,
   SittingWait,
 } from "@/features/books/SittingParts";
 import { errorMessage } from "@/lib/errors";
@@ -58,6 +59,14 @@ function Round({ ways, nativeLang, onMore, onDone }: RoundProps): ReactNode {
     };
   }, [ways]);
 
+  /** Names what is on the screen: a new word is a new step. */
+  const stepNow = (): string => {
+    if (run === null) {
+      return "wait";
+    }
+    return run.step.type === "summary" ? "summary" : String(run.turn);
+  };
+
   const asking = (): ReactNode => {
     if (run === null) {
       return <SittingWait failure={failure} />;
@@ -88,7 +97,6 @@ function Round({ ways, nativeLang, onMore, onDone }: RoundProps): ReactNode {
     const slipped = last !== null && !last.correct && last.stubborn;
     return (
       <SittingItem
-        key={run.turn}
         nativeLang={nativeLang}
         item={step.item}
         check={(answer: string, second: boolean, hinted: boolean) =>
@@ -98,7 +106,11 @@ function Round({ ways, nativeLang, onMore, onDone }: RoundProps): ReactNode {
         bad={(result) => discardRecallSentence(id, result.answerId)}
         know={null}
         dispute={null}
-        notice={slipped ? <WordNote wordId={wordId} note={last.note} /> : null}
+        notice={
+          slipped ? (
+            <WordNote key="note" wordId={wordId} note={last.note} />
+          ) : null
+        }
         onAnswered={setLast}
         onDispute={null}
         onNext={(next) => {
@@ -115,7 +127,7 @@ function Round({ ways, nativeLang, onMore, onDone }: RoundProps): ReactNode {
       progress={run?.step.progress ?? null}
       onClose={onDone}
     >
-      {asking()}
+      <SittingStage step={stepNow()}>{asking()}</SittingStage>
     </SittingFrame>
   );
 }

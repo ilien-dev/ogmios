@@ -7,7 +7,7 @@ export function Tally({
   children,
 }: {
   dot: string;
-  children: string;
+  children: ReactNode;
 }): ReactNode {
   return (
     <p className="flex items-center gap-2 text-sm font-medium text-ink-soft">

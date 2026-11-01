@@ -3,6 +3,8 @@ import type { ReactNode, SyntheticEvent } from "react";
 import { useTranslation } from "react-i18next";
 import type { RecallState, Strength, Ways } from "@shared/domain";
 import type { Navigate } from "@/app/routes";
+import { Presence } from "@/components/motion/Presence";
+import { Reveal } from "@/components/motion/Reveal";
 import { Button } from "@/components/ui/Button";
 import { ChoiceGroup } from "@/components/ui/ChoiceGroup";
 import { Notice } from "@/components/ui/Notice";
@@ -68,7 +70,7 @@ function Today({ state, nativeLang, onStart }: TodayProps): ReactNode {
                 onChange={setWays}
               />
             </div>
-            <Button type="submit" variant="primary">
+            <Button type="submit" variant="primaryBook">
               {t("recall.start")}
             </Button>
           </>
@@ -131,6 +133,16 @@ function Between({ nativeLang, onStart }: BetweenProps): ReactNode {
 
   const learned =
     state === null ? 0 : state.fresh + state.settling + state.firm;
+  /** Names what the screen says: each of these comes in over the last. */
+  const showing = (): string => {
+    if (failure !== null) {
+      return "failure";
+    }
+    if (state === null) {
+      return "loading";
+    }
+    return learned === 0 ? "empty" : "today";
+  };
   return (
     <main className="h-full overflow-y-auto">
       <div className="mx-auto flex max-w-2xl flex-col gap-12 px-10 py-16">
@@ -140,18 +152,28 @@ function Between({ nativeLang, onStart }: BetweenProps): ReactNode {
           </h1>
           <p className="text-lead text-ink-soft">{t("recall.intro")}</p>
         </header>
-        {failure !== null && (
-          <Notice tone="danger">
-            {t("common.error", { message: failure })}
-          </Notice>
-        )}
-        {state === null && failure === null && <Spinner />}
-        {state !== null && learned === 0 && (
-          <p className="text-ink-soft">{t("recall.empty")}</p>
-        )}
-        {state !== null && learned > 0 && (
-          <Today state={state} nativeLang={nativeLang} onStart={onStart} />
-        )}
+        <div className="relative">
+          <Presence swap>
+            <Reveal key={showing()} className="flex flex-col gap-12">
+              {failure !== null && (
+                <Notice tone="danger">
+                  {t("common.error", { message: failure })}
+                </Notice>
+              )}
+              {state === null && failure === null && <Spinner />}
+              {state !== null && learned === 0 && (
+                <p className="text-ink-soft">{t("recall.empty")}</p>
+              )}
+              {state !== null && learned > 0 && (
+                <Today
+                  state={state}
+                  nativeLang={nativeLang}
+                  onStart={onStart}
+                />
+              )}
+            </Reveal>
+          </Presence>
+        </div>
       </div>
     </main>
   );

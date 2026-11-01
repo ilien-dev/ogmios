@@ -5,7 +5,12 @@ import type { Refresh, RefreshStep } from "@shared/domain";
 import { errorMessage } from "@/lib/errors";
 import { answerRefresh, startRefresh } from "@/lib/ipc";
 import { SittingItem } from "./SittingItem";
-import { SittingEnd, SittingFrame, SittingWait } from "./SittingParts";
+import {
+  SittingEnd,
+  SittingFrame,
+  SittingStage,
+  SittingWait,
+} from "./SittingParts";
 
 /** The pass on the screen, and how many words it has shown here. */
 interface Pass {
@@ -67,7 +72,6 @@ function Asking({
   const { wordId } = step.item;
   return (
     <SittingItem
-      key={pass.turn}
       nativeLang={nativeLang}
       item={step.item}
       check={(answer: string) => answerRefresh(id, wordId, answer)}
@@ -125,29 +129,39 @@ export function RefreshRun({
     };
   }, [chapterId]);
 
+  /** Names what is on the screen: a new word is a new step. */
+  const step = (): string => {
+    if (pass === null) {
+      return "wait";
+    }
+    return pass.step.type === "summary" ? "summary" : String(pass.turn);
+  };
+
   return (
     <SittingFrame
       leave={t("books.refresh.leave")}
       progress={pass?.step.progress ?? null}
       onClose={onDone}
     >
-      {pass === null ? (
-        <SittingWait failure={failure} />
-      ) : (
-        <Asking
-          pass={pass}
-          nativeLang={nativeLang}
-          onPractise={onPractise}
-          onDone={onDone}
-          onNext={(next) => {
-            setPass((held) =>
-              held === null
-                ? held
-                : { ...held, step: next, turn: held.turn + 1 },
-            );
-          }}
-        />
-      )}
+      <SittingStage step={step()}>
+        {pass === null ? (
+          <SittingWait failure={failure} />
+        ) : (
+          <Asking
+            pass={pass}
+            nativeLang={nativeLang}
+            onPractise={onPractise}
+            onDone={onDone}
+            onNext={(next) => {
+              setPass((held) =>
+                held === null
+                  ? held
+                  : { ...held, step: next, turn: held.turn + 1 },
+              );
+            }}
+          />
+        )}
+      </SittingStage>
     </SittingFrame>
   );
 }

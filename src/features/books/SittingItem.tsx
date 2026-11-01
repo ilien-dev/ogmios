@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { ReactNode, SyntheticEvent } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { ArrowRight } from "lucide-react";
@@ -9,9 +9,10 @@ import type {
   ShownSentence,
   WordHint,
 } from "@shared/domain";
+import { Presence } from "@/components/motion/Presence";
+import { Reveal } from "@/components/motion/Reveal";
 import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
-import { TextInput } from "@/components/ui/TextInput";
 import { VerdictLine } from "@/components/ui/Verdict";
 import { SpeakButton } from "@/features/speech/SpeakButton";
 import { useReadAloud } from "@/features/speech/speech";
@@ -80,7 +81,7 @@ function Context({ parts, blanked }: ContextProps): ReactNode {
     ) : (
       <mark
         key={key}
-        className="rounded-sm bg-accent-soft px-1 font-medium text-ink"
+        className="rounded-sm bg-book-soft px-1 font-medium text-ink"
       >
         {part.text}
       </mark>
@@ -130,7 +131,7 @@ function Verdict({ result, unknown, heard }: VerdictProps): ReactNode {
     : grade(result.correct, result.helped === true);
   const exact = result.exact ?? null;
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col items-center gap-2">
       <VerdictLine tone={tone}>
         {result.correct ? t("books.sitting.right") : miss}
       </VerdictLine>
@@ -169,7 +170,7 @@ interface ClueProps {
 function Clue({ clue, blanked }: ClueProps): ReactNode {
   const { t } = useTranslation();
   return (
-    <div data-hint className="flex flex-col gap-2 motion-safe:animate-rise">
+    <Reveal data-hint className="flex flex-col gap-2">
       {clue.context !== null && (
         <Context parts={clue.context} blanked={blanked} />
       )}
@@ -184,7 +185,7 @@ function Clue({ clue, blanked }: ClueProps): ReactNode {
           </span>
         </p>
       )}
-    </div>
+    </Reveal>
   );
 }
 
@@ -228,7 +229,7 @@ function retryKey(
 function Whole({ sentence, onBad, busy }: WholeProps): ReactNode {
   const { t } = useTranslation();
   return (
-    <div className="flex flex-col gap-1 border-l-2 border-line pl-4">
+    <div className="flex w-full flex-col gap-1 border-l-2 border-line pl-4 text-left">
       <p className="text-lead text-ink">
         {sentence.text}
         <SpeakButton text={sentence.text} className="ml-1" />
@@ -349,6 +350,8 @@ export function SittingItem<Result extends Checked>({
   const [clue, setClue] = useState<WordHint | null>(null);
   const [hints, setHints] = useState(0);
   const [hinting, setHinting] = useState(false);
+  // Its own: while the last word leaves, two of these forms are on the screen.
+  const fieldId = useId();
   const field = useRef<HTMLInputElement>(null);
   const onward = useRef<HTMLButtonElement>(null);
   const toEnglish = item.direction === "production";
@@ -466,9 +469,9 @@ export function SittingItem<Result extends Checked>({
   const discardable = bad !== null && dispute === null;
 
   return (
-    <section className="mx-auto flex max-w-2xl flex-col gap-8 px-10 pt-10 pb-12 motion-safe:animate-rise">
-      <div className="flex flex-col gap-3">
-        <p data-way className="text-sm font-medium text-ink-faint capitalize">
+    <section className="mx-auto flex w-full max-w-2xl flex-col items-center gap-6 px-6 pt-4 pb-12 text-center nav:px-10">
+      <div className="flex flex-col items-center gap-3">
+        <p data-way className="text-sm font-semibold text-book capitalize">
           <Trans
             i18nKey="books.sitting.directionFrom"
             values={{
@@ -476,11 +479,11 @@ export function SittingItem<Result extends Checked>({
               to: toEnglish ? english : native,
             }}
             components={{
-              from: <span data-from className="font-bold text-accent-text" />,
+              from: <span data-from className="font-bold" />,
             }}
           />
         </p>
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2">
           <h1 className="font-display text-display font-light text-balance text-ink">
             {item.prompt}
             {!toEnglish && <SpeakButton text={item.prompt} className="ml-2" />}
@@ -492,98 +495,125 @@ export function SittingItem<Result extends Checked>({
         {item.context !== null && (
           <Context parts={item.context} blanked={toEnglish} />
         )}
-        {clue !== null && result === null && (
-          <Clue clue={clue} blanked={toEnglish} />
-        )}
+        <Presence>
+          {clue !== null && result === null && (
+            <Clue key="clue" clue={clue} blanked={toEnglish} />
+          )}
+        </Presence>
       </div>
 
-      <form onSubmit={submit} className="flex flex-col gap-3">
-        <label
-          htmlFor="sitting-answer"
-          className="text-sm font-medium text-ink"
-        >
+      <form onSubmit={submit} className="flex w-full max-w-xl flex-col gap-3">
+        <label htmlFor={fieldId} className="sr-only">
           {t("books.sitting.answer")}
         </label>
-        <TextInput
-          ref={field}
-          id="sitting-answer"
-          autoComplete="off"
-          autoCapitalize="none"
-          spellCheck={false}
-          value={response}
-          readOnly={result !== null}
-          onChange={(event) => {
-            setResponse(event.target.value);
-          }}
-          onKeyDown={(event) => {
-            // By the key, not the letter: Option+H types another one on a Mac.
-            if (event.altKey && event.code === "KeyH") {
-              event.preventDefault();
-              void help();
-            } else if (event.altKey && event.code === "KeyN") {
-              event.preventDefault();
-              void send("");
-            }
-          }}
-        />
-        {result === null && again && (
-          <VerdictLine tone="partial">
-            {t(retryKey(other, item.sentenceId !== null, toEnglish))}
-          </VerdictLine>
-        )}
-        {result === null && (
-          <div className="flex gap-2">
-            <Button
-              type="submit"
-              variant="primary"
-              disabled={checking || response.trim() === ""}
-            >
-              {t("books.sitting.check")}
-            </Button>
-            <Button
-              variant="ghost"
-              disabled={checking}
-              aria-keyshortcuts={t("books.sitting.dontKnowKey")}
-              onClick={() => void send("")}
-            >
-              {t("books.sitting.dontKnow")}
-              <Key>{t("books.sitting.dontKnowKey")}</Key>
-            </Button>
-            {hint !== null && (
-              <Button
-                variant="ghost"
-                disabled={checking || hinting || !canHint}
-                aria-keyshortcuts={t("books.sitting.hintKey")}
-                onClick={() => void help()}
-              >
-                {lettered
-                  ? t("books.sitting.hintMore")
-                  : t("books.sitting.hint")}
-                <Key>{t("books.sitting.hintKey")}</Key>
-              </Button>
+        <div className="flex items-center gap-2 rounded-full bg-surface py-1.5 pr-1.5 pl-6 shadow-card transition-shadow duration-150 focus-within:shadow-glow-book">
+          <input
+            ref={field}
+            id={fieldId}
+            autoComplete="off"
+            autoCapitalize="none"
+            spellCheck={false}
+            placeholder={t("books.sitting.answer")}
+            value={response}
+            readOnly={result !== null}
+            onChange={(event) => {
+              setResponse(event.target.value);
+            }}
+            onKeyDown={(event) => {
+              // By the key, not the letter: Option+H types another one on a Mac.
+              if (event.altKey && event.code === "KeyH") {
+                event.preventDefault();
+                void help();
+              } else if (event.altKey && event.code === "KeyN") {
+                event.preventDefault();
+                void send("");
+              }
+            }}
+            className="h-11 min-w-0 flex-1 bg-transparent text-ink placeholder:text-ink-faint focus-visible:outline-none"
+          />
+          <Presence>
+            {result === null && (
+              <Reveal key="check" as="span" kind="fade" className="shrink-0">
+                <Button
+                  type="submit"
+                  variant="primaryBook"
+                  disabled={checking || response.trim() === ""}
+                >
+                  {t("books.sitting.check")}
+                </Button>
+              </Reveal>
             )}
-            {know !== null && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="ml-auto self-center text-ink-faint"
-                disabled={checking}
-                onClick={() => void skip(know)}
+          </Presence>
+        </div>
+        <Presence>
+          {result === null && again && (
+            <Reveal key="again" className="flex justify-center">
+              <VerdictLine tone="partial">
+                {t(retryKey(other, item.sentenceId !== null, toEnglish))}
+              </VerdictLine>
+            </Reveal>
+          )}
+        </Presence>
+        <div className="relative">
+          <Presence swap>
+            {result === null && (
+              <Reveal
+                key="ways"
+                kind="fade"
+                className="flex flex-wrap items-center justify-center gap-2"
               >
-                {t("books.sitting.know")}
-              </Button>
+                <Button
+                  variant="ghost"
+                  className="bg-raised"
+                  disabled={checking}
+                  aria-keyshortcuts={t("books.sitting.dontKnowKey")}
+                  onClick={() => void send("")}
+                >
+                  {t("books.sitting.dontKnow")}
+                  <Key>{t("books.sitting.dontKnowKey")}</Key>
+                </Button>
+                {hint !== null && (
+                  <Button
+                    variant="ghost"
+                    className="bg-raised"
+                    disabled={checking || hinting || !canHint}
+                    aria-keyshortcuts={t("books.sitting.hintKey")}
+                    onClick={() => void help()}
+                  >
+                    {lettered
+                      ? t("books.sitting.hintMore")
+                      : t("books.sitting.hint")}
+                    <Key>{t("books.sitting.hintKey")}</Key>
+                  </Button>
+                )}
+                {know !== null && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-ink-faint"
+                    disabled={checking}
+                    onClick={() => void skip(know)}
+                  >
+                    {t("books.sitting.know")}
+                  </Button>
+                )}
+              </Reveal>
             )}
-          </div>
-        )}
+          </Presence>
+        </div>
       </form>
 
-      {failure !== null && (
-        <Notice tone="danger">{t("common.error", { message: failure })}</Notice>
-      )}
+      <Presence>
+        {failure !== null && (
+          <Notice key="failure" tone="danger" className="w-full max-w-xl">
+            {t("common.error", { message: failure })}
+          </Notice>
+        )}
+      </Presence>
 
-      <div aria-live="polite">
+      <div aria-live="polite" className="w-full max-w-xl empty:hidden">
         {result !== null && (
-          <div className="flex flex-col gap-5 motion-safe:animate-rise">
+          <Reveal className="flex flex-col items-center gap-5">
             <Verdict result={result} unknown={unknown} heard={heard} />
             {shown !== null && (
               <Whole
@@ -592,10 +622,10 @@ export function SittingItem<Result extends Checked>({
                 onBad={discardable ? () => void skip(() => bad(result)) : null}
               />
             )}
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-wrap items-center justify-center gap-3">
               <Button
                 ref={onward}
-                variant="primary"
+                variant="primaryBook"
                 onClick={() => {
                   onNext(result.step);
                 }}
@@ -603,25 +633,31 @@ export function SittingItem<Result extends Checked>({
                 {t("books.sitting.next")}
                 <ArrowRight aria-hidden className="size-4" />
               </Button>
-              {disputable && onDispute !== null && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-ink-faint"
-                  onClick={() => {
-                    onDispute(result);
-                    // The button goes; Enter still means "next".
-                    onward.current?.focus();
-                  }}
-                >
-                  {t("books.sitting.wasRight")}
-                </Button>
-              )}
+              <Presence>
+                {disputable && onDispute !== null && (
+                  <Reveal key="dispute" as="span" kind="fade">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-ink-faint"
+                      onClick={() => {
+                        onDispute(result);
+                        // The button goes; Enter still means "next".
+                        onward.current?.focus();
+                      }}
+                    >
+                      {t("books.sitting.wasRight")}
+                    </Button>
+                  </Reveal>
+                )}
+              </Presence>
             </div>
-            {dispute !== null && <DisputeNote state={dispute} />}
-          </div>
+            <Presence>
+              {dispute !== null && <DisputeNote key="note" state={dispute} />}
+            </Presence>
+          </Reveal>
         )}
-        {notice}
+        <Presence>{notice}</Presence>
       </div>
     </section>
   );

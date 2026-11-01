@@ -8,6 +8,7 @@ import {
   SittingEnd,
   SittingFrame,
   SittingSizes,
+  SittingStage,
   SittingWait,
 } from "./SittingParts";
 import { advanced, answered, showsReason } from "./sittingRun";
@@ -18,6 +19,17 @@ interface WordsProps {
   sittings: SittingRun;
   nativeLang: string;
   onDone: () => void;
+}
+
+/** Names what is on the screen: a new word is a new step, each its own. */
+function stepOf({ running, failure, options }: SittingRun): string {
+  if (running === null) {
+    return options === null || failure !== null ? "wait" : "sizes";
+  }
+  const { step, sittingId, turn } = running;
+  return step.type === "summary"
+    ? `${sittingId}-summary`
+    : `${sittingId}-${String(turn)}`;
 }
 
 /** What a sitting shows under its bar: its choices, its word, its summary. */
@@ -41,6 +53,7 @@ function Words({ sittings, nativeLang, onDone }: WordsProps): ReactNode {
   const notice =
     earlier === null ? null : (
       <DisputeNote
+        key="earlier"
         state={earlier.state}
         earlier
         withReason={showsReason(earlier, step)}
@@ -74,7 +87,6 @@ function Words({ sittings, nativeLang, onDone }: WordsProps): ReactNode {
   const mine = running.answered?.answerId;
   return (
     <SittingItem
-      key={`${sittingId}-${String(running.turn)}`}
       nativeLang={nativeLang}
       item={item}
       check={(answer, second, hinted) =>
@@ -124,7 +136,9 @@ function Run({ chapterId, nativeLang, onDone }: RunProps): ReactNode {
       progress={sittings.running?.step.progress ?? null}
       onClose={onDone}
     >
-      <Words sittings={sittings} nativeLang={nativeLang} onDone={onDone} />
+      <SittingStage step={stepOf(sittings)}>
+        <Words sittings={sittings} nativeLang={nativeLang} onDone={onDone} />
+      </SittingStage>
     </SittingFrame>
   );
 }

@@ -3,11 +3,13 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
 import type { ReactNode } from "react";
+import { useIsPresent } from "motion/react";
 import type { TtsStatus } from "@shared/domain";
 import {
   onTtsDownload,
@@ -146,11 +148,22 @@ export function useSpeech(): Speech {
 /**
  * Reads `text` aloud by itself when it appears, where the learner left that
  * on. `key` tells two appearances of the same text apart. Leaving the screen
- * silences it.
+ * silences it. What is swapped out by an animation falls silent as it starts
+ * to leave, before what replaces it speaks: by the time it unmounts, that is
+ * being read, and hushing then would cut it off.
  */
 export function useReadAloud(text: string | null, key = ""): void {
   const { status, say, hush } = useSpeech();
   const auto = status?.downloaded === true && status.enabled;
+  const present = useIsPresent();
+  const silenced = useRef(false);
+
+  useLayoutEffect(() => {
+    if (!present) {
+      silenced.current = true;
+      hush();
+    }
+  }, [present, hush]);
 
   useEffect(() => {
     if (auto && text !== null) {
@@ -158,5 +171,12 @@ export function useReadAloud(text: string | null, key = ""): void {
     }
   }, [auto, text, key, say]);
 
-  useEffect(() => hush, [hush]);
+  useEffect(
+    () => () => {
+      if (!silenced.current) {
+        hush();
+      }
+    },
+    [hush],
+  );
 }
