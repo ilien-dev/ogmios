@@ -2,12 +2,12 @@ import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Check } from "lucide-react";
 import type { StructureInfo, StructureSittingInfo } from "@shared/structures";
+import { Presence } from "@/components/motion/Presence";
+import { Reveal } from "@/components/motion/Reveal";
 import { Button } from "@/components/ui/Button";
 import { StrengthMark } from "@/features/recall/StrengthMark";
 import { cn } from "@/lib/cn";
 import { formOf } from "./structureText";
-import { Reveal } from "@/components/motion/Reveal";
-import { Presence } from "@/components/motion/Presence";
 
 interface PausedRowProps {
   sitting: StructureSittingInfo;

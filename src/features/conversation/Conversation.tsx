@@ -1,5 +1,4 @@
 import type { MotionValue } from "motion/react";
-import { Swap } from "@/components/motion/Swap";
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -7,6 +6,7 @@ import { Flag, Square } from "lucide-react";
 import type { SessionSetup } from "@shared/domain";
 import { Presence } from "@/components/motion/Presence";
 import { Reveal } from "@/components/motion/Reveal";
+import { Swap } from "@/components/motion/Swap";
 import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
 import type { OrbState } from "@/components/ui/Orb";

@@ -1,14 +1,14 @@
 import type { ReactNode } from "react";
-import { Swap } from "@/components/motion/Swap";
 import { useTranslation } from "react-i18next";
 import { Square, Volume2 } from "lucide-react";
 import type { DictationItem, Pace } from "@shared/listening";
+import { Presence } from "@/components/motion/Presence";
+import { Reveal } from "@/components/motion/Reveal";
+import { Swap } from "@/components/motion/Swap";
 import { Button } from "@/components/ui/Button";
 import { Key } from "@/features/books/TriageRun";
 import { cn } from "@/lib/cn";
 import { PaceChoice } from "./PaceChoice";
-import { Reveal } from "@/components/motion/Reveal";
-import { Presence } from "@/components/motion/Presence";
 
 /** Listening to a sentence more often than this is help. */
 const FREE_LISTENS = 2;

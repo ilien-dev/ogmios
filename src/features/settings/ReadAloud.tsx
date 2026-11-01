@@ -1,8 +1,10 @@
 import type { ReactNode } from "react";
-import { Swap } from "@/components/motion/Swap";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Download } from "lucide-react";
+import { Presence } from "@/components/motion/Presence";
+import { Reveal } from "@/components/motion/Reveal";
+import { Swap } from "@/components/motion/Swap";
 import { Button } from "@/components/ui/Button";
 import { ChoiceGroup } from "@/components/ui/ChoiceGroup";
 import { Notice } from "@/components/ui/Notice";
@@ -13,8 +15,6 @@ import { useSpeech } from "@/features/speech/speech";
 import { errorMessage } from "@/lib/errors";
 import { ttsConfigure } from "@/lib/ipc";
 import { formatBytes } from "@/lib/text";
-import { Reveal } from "@/components/motion/Reveal";
-import { Presence } from "@/components/motion/Presence";
 
 /** Said by "Listen" beside the voices: short, and with sounds worth hearing. */
 const SAMPLE = "I thought I'd read through the whole chapter tonight.";
@@ -59,7 +59,7 @@ export function ReadAloud(): ReactNode {
         <p className="text-ink-soft">{t("readAloud.body")}</p>
         <Presence swap>
           {status.downloaded ? (
-            <Reveal key="downloaded">
+            <Reveal key="choices" className="flex flex-col gap-6">
               <ChoiceGroup<"on" | "off">
                 legend={t("readAloud.auto")}
                 columns={2}
@@ -93,7 +93,7 @@ export function ReadAloud(): ReactNode {
               </div>
             </Reveal>
           ) : (
-            <Reveal key="no-downloaded" className="flex flex-col gap-3">
+            <Reveal key="download" className="flex flex-col gap-3">
               <Button
                 className="self-start"
                 disabled={fraction !== null}

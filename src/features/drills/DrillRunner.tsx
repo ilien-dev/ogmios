@@ -295,15 +295,20 @@ function DrillSummary({
         </h1>
         <div className="flex flex-col gap-3">
           <ol aria-hidden className="flex gap-1.5">
-            {answered.map((entry) => (
-              <li
-                key={entry.item.index}
-                className={cn(
-                  "h-1.5 flex-1 rounded-full",
-                  GRADE_FILL[graded(entry)],
-                )}
-              />
-            ))}
+            <Presence>
+              {answered.map((entry) => (
+                <Reveal
+                  key={entry.item.index}
+                  as="li"
+                  kind="fade"
+                  index={0}
+                  className={cn(
+                    "h-1.5 flex-1 rounded-full",
+                    GRADE_FILL[graded(entry)],
+                  )}
+                />
+              ))}
+            </Presence>
           </ol>
           <p className="text-lead text-ink">
             {t("drills.summaryCount", { correct, total: answered.length })}
@@ -392,15 +397,20 @@ export function DrillRunner({
     item === undefined ? null : (
       <Reveal key="segments" kind="fade" className="flex items-center gap-5">
         <ol aria-hidden className="flex flex-1 gap-1.5">
-          {queue.map((entry, i) => (
-            <li
-              key={entry.index}
-              className={cn(
-                "h-1 flex-1 rounded-full transition-colors duration-300",
-                fill(entry, i),
-              )}
-            />
-          ))}
+          <Presence>
+            {queue.map((entry, i) => (
+              <Reveal
+                key={entry.index}
+                as="li"
+                kind="fade"
+                index={0}
+                className={cn(
+                  "h-1 flex-1 rounded-full transition-colors duration-300",
+                  fill(entry, i),
+                )}
+              />
+            ))}
+          </Presence>
         </ol>
         <p className="text-sm text-ink-faint tabular-nums">{label}</p>
       </Reveal>

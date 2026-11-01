@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import type { KnownWord } from "@shared/domain";
 import { Presence } from "@/components/motion/Presence";
 import { Reveal } from "@/components/motion/Reveal";
+import { STAGGER_LIMIT } from "@/lib/motion";
 import { BackLink } from "@/components/ui/BackLink";
 import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
@@ -100,7 +101,7 @@ export function KnownWordsScreen({ onBack }: KnownWordsScreenProps): ReactNode {
                       as="li"
                       kind="fade"
                       index={index}
-                      layout="position"
+                      layout={index < STAGGER_LIMIT ? "position" : false}
                       className="flex items-center gap-4 py-2"
                     >
                       <span className="font-medium text-ink">

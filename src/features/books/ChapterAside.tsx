@@ -2,11 +2,11 @@ import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { CircleCheck } from "lucide-react";
 import type { Book, BookWord } from "@shared/domain";
+import { Presence } from "@/components/motion/Presence";
+import { Reveal } from "@/components/motion/Reveal";
 import { Button } from "@/components/ui/Button";
 import { Orb } from "@/components/ui/Orb";
 import { ProgressBar } from "@/components/ui/ProgressBar";
-import { Reveal } from "@/components/motion/Reveal";
-import { Presence } from "@/components/motion/Presence";
 
 interface ChapterAsideProps {
   book: Book;
@@ -59,7 +59,7 @@ function Actions(props: ChapterAsideProps): ReactNode {
         <div className="flex flex-wrap justify-center gap-2">
           <Presence>
             {refreshable && (
-              <Reveal key="refreshable" as="span" kind="fade">
+              <Reveal key="refresh" as="span" kind="fade">
                 <Button onClick={props.onRefresh}>
                   {t("books.refresh.start")}
                 </Button>
@@ -68,7 +68,7 @@ function Actions(props: ChapterAsideProps): ReactNode {
           </Presence>
           <Presence>
             {refreshable && (
-              <Reveal key="refreshable" as="span" kind="fade">
+              <Reveal key="practise" as="span" kind="fade">
                 <Button onClick={props.onPractise}>
                   {t("books.chapter.practise")}
                 </Button>

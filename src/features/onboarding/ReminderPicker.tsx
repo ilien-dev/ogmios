@@ -1,7 +1,7 @@
-import { Reveal } from "@/components/motion/Reveal";
-import { Presence } from "@/components/motion/Presence";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
+import { Presence } from "@/components/motion/Presence";
+import { Reveal } from "@/components/motion/Reveal";
 import { ChoiceGroup } from "@/components/ui/ChoiceGroup";
 import { Field } from "@/components/ui/Field";
 import { TextInput } from "@/components/ui/TextInput";

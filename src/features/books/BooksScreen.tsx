@@ -1,10 +1,10 @@
-import { Reveal } from "@/components/motion/Reveal";
-import { Swap } from "@/components/motion/Swap";
-import { Presence } from "@/components/motion/Presence";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { Book, BookRefusal, Chapter } from "@shared/domain";
+import { Presence } from "@/components/motion/Presence";
+import { Reveal } from "@/components/motion/Reveal";
+import { Swap } from "@/components/motion/Swap";
 import { Notice } from "@/components/ui/Notice";
 import { Spinner } from "@/components/ui/Spinner";
 import type { Navigate } from "@/app/routes";
@@ -164,7 +164,7 @@ export function BooksScreen({
         <main className="grid h-full place-items-center">
           <Presence swap>
             {failure === null ? (
-              <Reveal key="no-failure" as="span" kind="fade">
+              <Reveal key="waiting" as="span" kind="fade">
                 <Spinner />
               </Reveal>
             ) : (

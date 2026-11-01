@@ -1,12 +1,12 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Download, RotateCw } from "lucide-react";
+import { Presence } from "@/components/motion/Presence";
+import { Reveal } from "@/components/motion/Reveal";
 import { Button } from "@/components/ui/Button";
 import { Spinner } from "@/components/ui/Spinner";
 import { UpdateProgress } from "./UpdateProgress";
 import { useUpdate } from "./update";
-import { Reveal } from "@/components/motion/Reveal";
-import { Presence } from "@/components/motion/Presence";
 
 /** How the app stands against the latest release, and what to do about it. */
 export function AppUpdate(): ReactNode {
@@ -70,7 +70,7 @@ export function AppUpdate(): ReactNode {
         </Presence>
         <Presence>
           {state.kind === "ready" && (
-            <Reveal key="ready">
+            <Reveal key="ready" className="flex flex-wrap items-center gap-3">
               <p className="text-ink">
                 {t("update.ready", { version: state.version })}
               </p>

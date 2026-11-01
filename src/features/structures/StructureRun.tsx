@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
-import { Swap } from "@/components/motion/Swap";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { StructureResult, StructureSitting } from "@shared/structures";
+import { Presence } from "@/components/motion/Presence";
+import { Reveal } from "@/components/motion/Reveal";
+import { Swap } from "@/components/motion/Swap";
 import { Notice } from "@/components/ui/Notice";
 import { Spinner } from "@/components/ui/Spinner";
 import { RunFrame } from "@/features/books/RunFrame";
@@ -19,8 +21,6 @@ import {
 import { StructureEnd } from "./StructureEnd";
 import { StructureForm } from "./StructureForm";
 import { StructureWriting } from "./StructureWriting";
-import { Reveal } from "@/components/motion/Reveal";
-import { Presence } from "@/components/motion/Presence";
 
 interface StructureRunProps {
   sittingId: string;
@@ -89,7 +89,7 @@ export function StructureRun({
         <main className="grid h-full place-items-center px-10">
           <Presence swap>
             {failure === null ? (
-              <Reveal key="no-failure" as="span" kind="fade">
+              <Reveal key="waiting" as="span" kind="fade">
                 <Spinner />
               </Reveal>
             ) : (

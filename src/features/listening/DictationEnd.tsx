@@ -3,14 +3,14 @@ import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { DictationSummary, Pace } from "@shared/listening";
 import { PACES } from "@shared/listening";
+import { Presence } from "@/components/motion/Presence";
+import { Reveal } from "@/components/motion/Reveal";
 import { Stagger } from "@/components/motion/Stagger";
 import { Button } from "@/components/ui/Button";
 import { Orb } from "@/components/ui/Orb";
 import { GRADE_TEXT } from "@/components/ui/Verdict";
 import { cn } from "@/lib/cn";
 import { PaceChoice } from "./PaceChoice";
-import { Reveal } from "@/components/motion/Reveal";
-import { Presence } from "@/components/motion/Presence";
 
 /** The pace a hint points at, from the one a dictation went at. */
 function hinted(summary: DictationSummary): Pace {

@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
-import { Swap } from "@/components/motion/Swap";
 import { useTranslation } from "react-i18next";
 import { Eye, EyeOff, Pause, Play, SkipBack, SkipForward } from "lucide-react";
 import type { Pace } from "@shared/listening";
+import { Swap } from "@/components/motion/Swap";
 import { Button } from "@/components/ui/Button";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { PaceChoice } from "./PaceChoice";

@@ -43,7 +43,11 @@ export function WordRow({ word, index, onKnown }: WordRowProps): ReactNode {
             {word.lemma}
             <SpeakButton text={word.lemma} className="ml-1" />
           </span>
-          <PartOfSpeechTag kind={word.partOfSpeech} />
+          {/* A label only ever arrives (`words::label`), so this needs no exit. */}
+          <PartOfSpeechTag
+            kind={word.partOfSpeech}
+            className="animate-appear"
+          />
         </span>
       </th>
       <td className="px-2 py-3 text-ink-soft">

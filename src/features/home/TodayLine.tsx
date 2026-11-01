@@ -5,13 +5,13 @@ import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Flag, Sparkles, TrendingUp } from "lucide-react";
 import type { HomeState } from "@shared/domain";
+import { Presence } from "@/components/motion/Presence";
+import { Reveal } from "@/components/motion/Reveal";
 import { Button } from "@/components/ui/Button";
 import type { Navigate } from "@/app/routes";
 import { DURATION, EASE_OUT, REVEAL, animated } from "@/lib/motion";
 import type { TodayKind } from "./homeLayout";
 import { todayLines } from "./homeLayout";
-import { Reveal } from "@/components/motion/Reveal";
-import { Presence } from "@/components/motion/Presence";
 
 const ICONS = { challenge: Flag, rotation: Sparkles, level: TrendingUp };
 
@@ -65,7 +65,7 @@ function Line({ kind, home, topic, navigate }: LineProps): ReactNode {
       <span className="min-w-0">{text}</span>
       <Presence>
         {action !== null && (
-          <Reveal key="action" as="span" kind="fade">
+          <Reveal key="action" as="span" kind="fade" className="shrink-0">
             <button
               type="button"
               onClick={() => {

@@ -126,6 +126,7 @@
   /* How long the colours take to cross when the theme changes. */
   --duration-theme: 300ms;
 
+  --animate-appear: appear 240ms var(--ease-out-expo) both;
   --animate-point: point 900ms var(--ease-out-expo) both;
   --animate-caret: caret 1s steps(2, start) infinite;
   --animate-pulse-soft: pulse-soft 1.6s ease-in-out infinite;
@@ -133,6 +134,12 @@
   --animate-orb-spin: orb-spin 6s linear infinite;
   --animate-orb-pulse: orb-pulse 1.6s ease-in-out infinite;
 
+  /* What arrives on a row of a long list, where a `motion` node each is too dear. */
+  @keyframes appear {
+    from {
+      opacity: 0;
+    }
+  }
   /* What an answer should have been, pointed out: it swells once. */
   @keyframes point {
     0% {

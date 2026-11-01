@@ -2,9 +2,9 @@ import { useEffect, useState } from "react";
 import type { ReactNode, SyntheticEvent } from "react";
 import { useTranslation } from "react-i18next";
 import type { RecallState, Strength, Ways } from "@shared/domain";
-import type { Navigate } from "@/app/routes";
 import { Presence } from "@/components/motion/Presence";
 import { Reveal } from "@/components/motion/Reveal";
+import type { Navigate } from "@/app/routes";
 import { Button } from "@/components/ui/Button";
 import { ChoiceGroup } from "@/components/ui/ChoiceGroup";
 import { Notice } from "@/components/ui/Notice";
@@ -57,7 +57,10 @@ function Today({ state, nativeLang, onStart }: TodayProps): ReactNode {
         </p>
         <Presence>
           {state.due > 0 && (
-            <Reveal key="due">
+            <Reveal
+              key="choose"
+              className="flex w-full flex-col items-start gap-6"
+            >
               <div className="w-full">
                 <ChoiceGroup
                   legend={t("books.sitting.ways")}
@@ -166,21 +169,21 @@ function Between({ nativeLang, onStart }: BetweenProps): ReactNode {
               </Presence>
               <Presence>
                 {state === null && failure === null && (
-                  <Reveal key="failure" as="span" kind="fade">
+                  <Reveal key="loading" as="span" kind="fade">
                     <Spinner />
                   </Reveal>
                 )}
               </Presence>
               <Presence>
                 {state !== null && learned === 0 && (
-                  <Reveal key="learned" as="p" className="text-ink-soft">
+                  <Reveal key="empty" as="p" className="text-ink-soft">
                     {t("recall.empty")}
                   </Reveal>
                 )}
               </Presence>
               <Presence>
                 {state !== null && learned > 0 && (
-                  <Reveal key="learned">
+                  <Reveal key="today" className="flex flex-col gap-12">
                     <Today
                       state={state}
                       nativeLang={nativeLang}

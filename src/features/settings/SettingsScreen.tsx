@@ -174,7 +174,12 @@ export function SettingsScreen({
           >
             <Presence>
               {saved && (
-                <Reveal key="saved" as="span" kind="fade">
+                <Reveal
+                  key="saved"
+                  as="span"
+                  kind="fade"
+                  className="flex items-center gap-1.5"
+                >
                   <Check aria-hidden className="size-4 text-accent-text" />
                   {t("common.saved")}
                 </Reveal>
@@ -369,7 +374,7 @@ export function SettingsScreen({
           <p className="text-ink-soft">{t("settings.factsBody")}</p>
           <Presence swap>
             {facts.length === 0 ? (
-              <Reveal key="no-facts" as="p" className="text-sm text-ink-faint">
+              <Reveal key="empty" as="p" className="text-sm text-ink-faint">
                 {t("settings.factsEmpty")}
               </Reveal>
             ) : (
@@ -378,22 +383,28 @@ export function SettingsScreen({
                 as="ul"
                 className="flex flex-col divide-y divide-line"
               >
-                {facts.map((fact) => (
-                  <li
-                    key={fact.id}
-                    className="flex items-center justify-between gap-4 py-2.5"
-                  >
-                    <span className="text-ink">{fact.text}</span>
-                    <button
-                      type="button"
-                      aria-label={t("settings.forget", { fact: fact.text })}
-                      onClick={() => void forget(fact.id)}
-                      className="grid size-8 shrink-0 place-items-center rounded-sm text-ink-faint hover:bg-raised hover:text-ink"
+                <Presence>
+                  {facts.map((fact) => (
+                    <Reveal
+                      key={fact.id}
+                      as="li"
+                      kind="fade"
+                      index={0}
+                      layout="position"
+                      className="flex items-center justify-between gap-4 py-2.5"
                     >
-                      <X aria-hidden className="size-4" />
-                    </button>
-                  </li>
-                ))}
+                      <span className="text-ink">{fact.text}</span>
+                      <button
+                        type="button"
+                        aria-label={t("settings.forget", { fact: fact.text })}
+                        onClick={() => void forget(fact.id)}
+                        className="grid size-8 shrink-0 place-items-center rounded-sm text-ink-faint hover:bg-raised hover:text-ink"
+                      >
+                        <X aria-hidden className="size-4" />
+                      </button>
+                    </Reveal>
+                  ))}
+                </Presence>
               </Reveal>
             )}
           </Presence>

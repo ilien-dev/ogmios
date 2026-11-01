@@ -6,12 +6,12 @@ import type {
   ReactNode,
 } from "react";
 import { useTranslation } from "react-i18next";
+import { Presence } from "@/components/motion/Presence";
+import { Reveal } from "@/components/motion/Reveal";
 import { useScreenLeaving } from "@/lib/motion";
 import type { MotionValue } from "motion/react";
 import { ArrowUp, Trash2 } from "lucide-react";
 import type { Recording } from "@shared/domain";
-import { Presence } from "@/components/motion/Presence";
-import { Reveal } from "@/components/motion/Reveal";
 import { Button } from "@/components/ui/Button";
 import { Chip } from "@/components/ui/Chip";
 import { Spinner } from "@/components/ui/Spinner";
@@ -356,7 +356,7 @@ export function Composer({
         </p>
         <Presence>
           {voice && (
-            <Reveal key="voice">
+            <Reveal key="mic">
               <MicButton
                 status={recorder.status}
                 level={recorder.level}

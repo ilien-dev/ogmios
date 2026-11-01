@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
-import { Reveal } from "@/components/motion/Reveal";
-import { Presence } from "@/components/motion/Presence";
 import { useEffect, useState } from "react";
 import type { Book } from "@shared/domain";
+import { Presence } from "@/components/motion/Presence";
+import { Reveal } from "@/components/motion/Reveal";
 import { coverUrl } from "./covers";
 
 interface BookCoverProps {

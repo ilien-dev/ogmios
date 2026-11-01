@@ -1,6 +1,3 @@
-import { Reveal } from "@/components/motion/Reveal";
-import { Swap } from "@/components/motion/Swap";
-import { Presence } from "@/components/motion/Presence";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -12,6 +9,9 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import type { ModelOption, ProviderMode, Settings } from "@shared/domain";
+import { Presence } from "@/components/motion/Presence";
+import { Reveal } from "@/components/motion/Reveal";
+import { Swap } from "@/components/motion/Swap";
 import { Button } from "@/components/ui/Button";
 import { ChoiceGroup } from "@/components/ui/ChoiceGroup";
 import { Field } from "@/components/ui/Field";
@@ -227,7 +227,7 @@ export function ConnectionPanel({
         {settings.providerMode === "apiKey" ? (
           hasKey ? (
             <Reveal
-              key="hasKey"
+              key="keyStored"
               className="flex items-center justify-between gap-4 rounded-md border border-line bg-raised px-4 py-3"
             >
               <p className="flex items-center gap-2 text-sm text-ink-soft">
@@ -239,7 +239,7 @@ export function ConnectionPanel({
               </Button>
             </Reveal>
           ) : (
-            <Reveal key="no-hasKey" className="flex items-end gap-2">
+            <Reveal key="enterKey" className="flex items-end gap-2">
               <Field
                 id="api-key"
                 label={t("connection.apiKeyField")}
@@ -276,7 +276,7 @@ export function ConnectionPanel({
             </Reveal>
           )
         ) : (
-          <Reveal key="no-apiKey" className="flex flex-col gap-3">
+          <Reveal key="claudeCode" className="flex flex-col gap-3">
             <Notice
               icon={
                 <TriangleAlert

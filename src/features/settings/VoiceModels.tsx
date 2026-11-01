@@ -1,9 +1,11 @@
 import type { ReactNode } from "react";
-import { Swap } from "@/components/motion/Swap";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Check, Download } from "lucide-react";
 import type { SttStatus } from "@shared/domain";
+import { Presence } from "@/components/motion/Presence";
+import { Reveal } from "@/components/motion/Reveal";
+import { Swap } from "@/components/motion/Swap";
 import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
 import { Spinner } from "@/components/ui/Spinner";
@@ -11,11 +13,17 @@ import { cn } from "@/lib/cn";
 import { errorMessage } from "@/lib/errors";
 import { onSttDownload, sttDownload, sttSelect, sttStatus } from "@/lib/ipc";
 import { formatBytes } from "@/lib/text";
-import { Reveal } from "@/components/motion/Reveal";
-import { Presence } from "@/components/motion/Presence";
 
 interface VoiceModelsProps {
   onSelected?: (modelId: string) => void;
+}
+
+/** Names what the section shows: the reason it can show no model is its own. */
+function viewOf(status: SttStatus | null): string {
+  if (status === null) {
+    return "loading";
+  }
+  return status.available ? "models" : "unavailable";
 }
 
 /**
@@ -142,7 +150,7 @@ export function VoiceModels({ onSelected }: VoiceModelsProps): ReactNode {
                         </Button>
                       </Reveal>
                     ) : (
-                      <Reveal key="no-downloaded" as="span" kind="fade">
+                      <Reveal key="download" as="span" kind="fade">
                         <Button
                           size="sm"
                           disabled={fraction !== undefined}
@@ -209,7 +217,7 @@ export function VoiceModels({ onSelected }: VoiceModelsProps): ReactNode {
   };
 
   return (
-    <Swap as="div" id={status?.available === true ? "ready" : "waiting"}>
+    <Swap as="div" id={viewOf(status)}>
       {view()}
     </Swap>
   );

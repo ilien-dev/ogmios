@@ -1,9 +1,9 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { ListeningState } from "@shared/listening";
-import { Stagger } from "@/components/motion/Stagger";
-import { Reveal } from "@/components/motion/Reveal";
 import { Presence } from "@/components/motion/Presence";
+import { Reveal } from "@/components/motion/Reveal";
+import { Stagger } from "@/components/motion/Stagger";
 
 const CHIP = "rounded-full bg-raised px-3 py-1 text-sm text-ink-soft";
 

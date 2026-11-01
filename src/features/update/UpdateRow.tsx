@@ -2,10 +2,10 @@ import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { ArrowUpCircle, RefreshCw } from "lucide-react";
+import { Presence } from "@/components/motion/Presence";
+import { Reveal } from "@/components/motion/Reveal";
 import { Spinner } from "@/components/ui/Spinner";
 import { offered, useUpdate } from "./update";
-import { Reveal } from "@/components/motion/Reveal";
-import { Presence } from "@/components/motion/Presence";
 
 const ANSWER_MS = 4000;
 

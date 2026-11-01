@@ -1,10 +1,10 @@
-import { Presence } from "@/components/motion/Presence";
-import { Swap } from "@/components/motion/Swap";
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { Progress, VocabEntry } from "@shared/domain";
+import { Presence } from "@/components/motion/Presence";
 import { Reveal } from "@/components/motion/Reveal";
+import { Swap } from "@/components/motion/Swap";
 import { Stagger } from "@/components/motion/Stagger";
 import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
@@ -33,7 +33,23 @@ function Section({
   return (
     <Reveal as="section" className={cn("flex flex-col gap-5", className)}>
       <h2 className="text-lg font-semibold text-ink">{title}</h2>
-      {empty === null ? children : <p className="text-ink-soft">{empty}</p>}
+      <Presence swap>
+        {empty === null ? (
+          <Reveal key="filled" kind="fade" index={0}>
+            {children}
+          </Reveal>
+        ) : (
+          <Reveal
+            key="empty"
+            as="p"
+            kind="fade"
+            index={0}
+            className="text-ink-soft"
+          >
+            {empty}
+          </Reveal>
+        )}
+      </Presence>
     </Reveal>
   );
 }
@@ -52,26 +68,30 @@ function Vocabulary({ words }: { words: VocabEntry[] }): ReactNode {
   return (
     <div className="flex flex-col items-start gap-3">
       <dl className="flex w-full flex-col divide-y divide-line">
-        {shown.map((word) => (
-          <div
-            key={`${word.date}-${word.english}-${word.asked ?? ""}`}
-            className="flex items-baseline justify-between gap-4 py-2.5 first:pt-0"
-          >
-            <dt className="flex items-center gap-2 font-medium text-ink">
-              {word.english}
-              <Presence>
-                {word.strength !== null && (
-                  <Reveal key="strength" as="span" kind="fade">
-                    <StrengthMark strength={word.strength} />
-                  </Reveal>
-                )}
-              </Presence>
-            </dt>
-            <dd className="truncate text-sm text-ink-faint">
-              {word.asked ?? ""}
-            </dd>
-          </div>
-        ))}
+        <Presence>
+          {shown.map((word, index) => (
+            <Reveal
+              key={`${word.date}-${word.english}-${word.asked ?? ""}`}
+              kind="fade"
+              index={index}
+              className="flex items-baseline justify-between gap-4 py-2.5 first:pt-0"
+            >
+              <dt className="flex items-center gap-2 font-medium text-ink">
+                {word.english}
+                <Presence>
+                  {word.strength !== null && (
+                    <Reveal key="strength" as="span" kind="fade">
+                      <StrengthMark strength={word.strength} />
+                    </Reveal>
+                  )}
+                </Presence>
+              </dt>
+              <dd className="truncate text-sm text-ink-faint">
+                {word.asked ?? ""}
+              </dd>
+            </Reveal>
+          ))}
+        </Presence>
       </dl>
       <Presence>
         {shown.length < words.length && (
@@ -127,7 +147,7 @@ export function ProgressScreen({
         <main className="grid h-full place-items-center">
           <Presence swap>
             {failure === null ? (
-              <Reveal key="no-failure" as="span" kind="fade">
+              <Reveal key="waiting" as="span" kind="fade">
                 <Spinner />
               </Reveal>
             ) : (
@@ -163,11 +183,19 @@ export function ProgressScreen({
                   {cefr?.cefr}
                 </p>
                 <ol className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-ink-faint">
-                  {progress.cefrHistory.map((point) => (
-                    <li key={point.date} className="tabular-nums">
-                      {`${formatDate(point.date, locale)} · ${point.cefr}`}
-                    </li>
-                  ))}
+                  <Presence>
+                    {progress.cefrHistory.map((point) => (
+                      <Reveal
+                        key={point.date}
+                        as="li"
+                        kind="fade"
+                        index={0}
+                        className="tabular-nums"
+                      >
+                        {`${formatDate(point.date, locale)} · ${point.cefr}`}
+                      </Reveal>
+                    ))}
+                  </Presence>
                 </ol>
                 <p className="text-sm text-ink-soft">
                   {t("progress.cefrNote")}
@@ -208,17 +236,24 @@ export function ProgressScreen({
               }
             >
               <ul className="flex flex-col gap-5">
-                {progress.bestSentences.map((sentence) => (
-                  <li
-                    key={`${sentence.date}-${sentence.text}`}
-                    className="flex flex-col gap-1"
-                  >
-                    <p className="leading-relaxed text-ink">{sentence.text}</p>
-                    <p className="text-sm text-ink-faint">
-                      {formatDate(sentence.date, locale)}
-                    </p>
-                  </li>
-                ))}
+                <Presence>
+                  {progress.bestSentences.map((sentence) => (
+                    <Reveal
+                      key={`${sentence.date}-${sentence.text}`}
+                      as="li"
+                      kind="fade"
+                      index={0}
+                      className="flex flex-col gap-1"
+                    >
+                      <p className="leading-relaxed text-ink">
+                        {sentence.text}
+                      </p>
+                      <p className="text-sm text-ink-faint">
+                        {formatDate(sentence.date, locale)}
+                      </p>
+                    </Reveal>
+                  ))}
+                </Presence>
               </ul>
             </Section>
             <Section

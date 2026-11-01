@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
-import { Swap } from "@/components/motion/Swap";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { motion } from "motion/react";
+import { Presence } from "@/components/motion/Presence";
+import { Reveal } from "@/components/motion/Reveal";
+import { Swap } from "@/components/motion/Swap";
 import { useScreenLeaving } from "@/lib/motion";
 import {
   ArrowLeft,
@@ -30,8 +32,6 @@ import { NativeRewriteCard } from "./cards/NativeRewriteCard";
 import { VocabularyCard } from "./cards/VocabularyCard";
 import type { Step } from "./steps";
 import { toSteps } from "./steps";
-import { Reveal } from "@/components/motion/Reveal";
-import { Presence } from "@/components/motion/Presence";
 
 interface ReportScreenProps {
   sessionId: string;

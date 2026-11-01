@@ -1,10 +1,10 @@
-import { Reveal } from "@/components/motion/Reveal";
-import { Swap } from "@/components/motion/Swap";
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { Dictation, DictationResult, Pace } from "@shared/listening";
 import { Presence } from "@/components/motion/Presence";
+import { Reveal } from "@/components/motion/Reveal";
+import { Swap } from "@/components/motion/Swap";
 import { Notice } from "@/components/ui/Notice";
 import { Spinner } from "@/components/ui/Spinner";
 import { RunFrame } from "@/features/books/RunFrame";
@@ -90,7 +90,7 @@ export function DictationRun({
         <main className="grid h-full place-items-center px-10">
           <Presence swap>
             {failure === null ? (
-              <Reveal key="no-failure" as="span" kind="fade">
+              <Reveal key="waiting" as="span" kind="fade">
                 <Spinner />
               </Reveal>
             ) : (

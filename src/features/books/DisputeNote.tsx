@@ -1,8 +1,8 @@
-import { Presence } from "@/components/motion/Presence";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { Check } from "lucide-react";
+import { Presence } from "@/components/motion/Presence";
 import { Reveal } from "@/components/motion/Reveal";
 import { cn } from "@/lib/cn";
 import type { DisputeState } from "./sittingRun";
@@ -61,7 +61,7 @@ export function DisputeNote(props: DisputeNoteProps): ReactNode {
     >
       <Presence>
         {props.state.status === "upheld" && (
-          <Reveal key="upheld" as="span" kind="fade">
+          <Reveal key="upheld" as="span" kind="fade" className="shrink-0">
             <Check aria-hidden className="mt-0.5 size-4 shrink-0" />
           </Reveal>
         )}

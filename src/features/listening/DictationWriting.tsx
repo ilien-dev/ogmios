@@ -2,6 +2,8 @@ import { useLayoutEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { DictationItem, DictationResult } from "@shared/listening";
+import { Presence } from "@/components/motion/Presence";
+import { Reveal } from "@/components/motion/Reveal";
 import { Button } from "@/components/ui/Button";
 import { TextArea } from "@/components/ui/TextArea";
 import { GRADE_TEXT, VerdictLine } from "@/components/ui/Verdict";
@@ -9,8 +11,6 @@ import { Key } from "@/features/books/TriageRun";
 import { SpeakButton } from "@/features/speech/SpeakButton";
 import { cn } from "@/lib/cn";
 import { VERDICT_GRADE } from "@/lib/grade";
-import { Reveal } from "@/components/motion/Reveal";
-import { Presence } from "@/components/motion/Presence";
 
 interface DictationWritingProps {
   item: DictationItem;

@@ -247,7 +247,7 @@ export function ChapterScreen({
                   <Notice tone="danger">{failure.message}</Notice>
                   <Presence>
                     {failure.retry !== null && !preparing && (
-                      <Reveal key="preparing" as="span" kind="fade">
+                      <Reveal key="retry" as="span" kind="fade">
                         <Button
                           variant="primaryBook"
                           onClick={() => {

@@ -1,5 +1,3 @@
-import { Presence } from "@/components/motion/Presence";
-import { Swap } from "@/components/motion/Swap";
 import { useIsPresent } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import type { KeyboardEvent, ReactNode, SyntheticEvent } from "react";
@@ -10,7 +8,9 @@ import type {
   Severity,
   TranslationParagraph,
 } from "@shared/domain";
+import { Presence } from "@/components/motion/Presence";
 import { Reveal } from "@/components/motion/Reveal";
+import { Swap } from "@/components/motion/Swap";
 import { Button } from "@/components/ui/Button";
 import { Spinner } from "@/components/ui/Spinner";
 import { TextArea } from "@/components/ui/TextArea";
@@ -404,7 +404,7 @@ export function WritingRow({
                   </Reveal>
                 ) : (
                   <Reveal
-                    key="no-at"
+                    key="plain"
                     as="span"
                     kind="fade"
                     className={

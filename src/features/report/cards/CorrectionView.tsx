@@ -78,18 +78,17 @@ export function CorrectionView({
 
   return (
     <div className={cn("flex flex-col", compact ? "gap-4" : "gap-6")}>
-      <Presence>
-        {card.recurrence !== null && (
-          <Reveal
-            key="recurrence"
-            as="p"
-            className="flex items-center gap-2 text-sm text-partial"
-          >
-            <Repeat aria-hidden className="size-4" />
-            {card.recurrence}
-          </Reveal>
-        )}
-      </Presence>
+      {card.recurrence !== null && (
+        <Reveal
+          key="recurrence"
+          as="p"
+          className="flex items-center gap-2 text-sm text-partial"
+        >
+          <Repeat aria-hidden className="size-4" />
+          {card.recurrence}
+        </Reveal>
+      )}
+
       <div className="flex flex-col gap-2">
         <p className="text-sm font-semibold text-ink-soft">
           {t("report.correction.yourSentence")}

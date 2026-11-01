@@ -6,6 +6,8 @@ import type {
   StructureResult,
   StructureWord,
 } from "@shared/structures";
+import { Presence } from "@/components/motion/Presence";
+import { Reveal } from "@/components/motion/Reveal";
 import { Button } from "@/components/ui/Button";
 import { TextArea } from "@/components/ui/TextArea";
 import { Tooltip } from "@/components/ui/Tooltip";
@@ -15,8 +17,6 @@ import { Key } from "@/features/books/TriageRun";
 import { cn } from "@/lib/cn";
 import { VERDICT_GRADE } from "@/lib/grade";
 import { goalOf, sampleOf, topicName } from "./structureText";
-import { Reveal } from "@/components/motion/Reveal";
-import { Presence } from "@/components/motion/Presence";
 
 /**
  * The word a sentence is asked to use, in the colour of its kind. Asked, it

@@ -3,9 +3,9 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { Book } from "@shared/domain";
 import type { ListeningState, Pace } from "@shared/listening";
-import type { Navigate } from "@/app/routes";
 import { Presence } from "@/components/motion/Presence";
 import { Reveal } from "@/components/motion/Reveal";
+import type { Navigate } from "@/app/routes";
 import { Stagger } from "@/components/motion/Stagger";
 import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
@@ -149,7 +149,7 @@ export function ListeningMenu({
                 <Presence swap>
                   {on === null ? (
                     <Reveal
-                      key="no-on"
+                      key="noBook"
                       as="section"
                       className="flex flex-col items-start gap-4"
                     >

@@ -325,7 +325,7 @@ export function Onboarding({
           <div className="ml-auto flex items-center gap-2">
             <Presence>
               {step === "voice" && (
-                <Reveal key="voice" as="span" kind="fade">
+                <Reveal key="textOnly" as="span" kind="fade">
                   <Button variant="ghost" onClick={advance}>
                     {t("voice.textOnly")}
                   </Button>
@@ -334,7 +334,7 @@ export function Onboarding({
             </Presence>
             <Presence>
               {!REQUIRED.has(step) && !last && step !== "voice" && (
-                <Reveal key="voice" as="span" kind="fade">
+                <Reveal key="skip" as="span" kind="fade">
                   <Button variant="ghost" onClick={advance}>
                     {t("common.skip")}
                   </Button>

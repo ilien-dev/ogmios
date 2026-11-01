@@ -3,6 +3,8 @@ import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Settings } from "lucide-react";
 import type { HomeState, Streak } from "@shared/domain";
+import { Presence } from "@/components/motion/Presence";
+import { Reveal } from "@/components/motion/Reveal";
 import { CountUp } from "@/components/motion/CountUp";
 import { Stagger } from "@/components/motion/Stagger";
 import { Logo } from "@/components/ui/Logo";
@@ -18,8 +20,6 @@ import { homeState } from "@/lib/ipc";
 import { HomeCenter } from "./HomeCenter";
 import { HomeColumn } from "./HomeColumn";
 import type { EntryData } from "./HomeColumn";
-import { Reveal } from "@/components/motion/Reveal";
-import { Presence } from "@/components/motion/Presence";
 
 function StreakLine({ streak }: { streak: Streak }): ReactNode {
   const { t } = useTranslation();
@@ -182,7 +182,7 @@ export function Home({ navigate, current, counts }: HomeProps): ReactNode {
         >
           <Presence swap>
             {failure === null ? (
-              <Reveal key="no-failure" as="span" kind="fade">
+              <Reveal key="waiting" as="span" kind="fade">
                 <Spinner />
               </Reveal>
             ) : (

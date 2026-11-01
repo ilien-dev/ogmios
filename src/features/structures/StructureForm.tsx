@@ -1,12 +1,12 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { StructureItem } from "@shared/structures";
+import { Presence } from "@/components/motion/Presence";
+import { Reveal } from "@/components/motion/Reveal";
 import { Button } from "@/components/ui/Button";
 import { Key } from "@/features/books/TriageRun";
 import { FormText } from "./FormText";
 import { formOf, usageOf } from "./structureText";
-import { Reveal } from "@/components/motion/Reveal";
-import { Presence } from "@/components/motion/Presence";
 
 interface StructureFormProps {
   item: StructureItem;

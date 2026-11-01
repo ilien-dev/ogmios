@@ -1,8 +1,8 @@
-import { Presence } from "@/components/motion/Presence";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { CircleCheck } from "lucide-react";
 import type { ListeningState, PaceStanding } from "@shared/listening";
+import { Presence } from "@/components/motion/Presence";
 import { Reveal } from "@/components/motion/Reveal";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 
@@ -59,7 +59,7 @@ export function Standing({ state }: { state: ListeningState }): ReactNode {
         </p>
         <Presence swap>
           {state.understood === null ? (
-            <Reveal key="no-understood">
+            <Reveal key="none" className="flex flex-col gap-1">
               <p className="font-display text-title font-normal text-ink-soft">
                 {t("listening.understood.none")}
               </p>

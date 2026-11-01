@@ -1,9 +1,11 @@
 import type { ReactNode } from "react";
-import { Swap } from "@/components/motion/Swap";
 import { useTranslation } from "react-i18next";
 import { ChevronRight, Plus } from "lucide-react";
 import type { Book } from "@shared/domain";
 import { READY } from "@shared/domain";
+import { Presence } from "@/components/motion/Presence";
+import { Reveal } from "@/components/motion/Reveal";
+import { Swap } from "@/components/motion/Swap";
 import { Tilt } from "@/components/motion/Tilt";
 import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
@@ -12,8 +14,6 @@ import { ProgressBar } from "@/components/ui/ProgressBar";
 import { Spinner } from "@/components/ui/Spinner";
 import type { Navigate } from "@/app/routes";
 import { BookCover } from "./BookCover";
-import { Reveal } from "@/components/motion/Reveal";
-import { Presence } from "@/components/motion/Presence";
 
 interface BookCardProps {
   book: Book;
@@ -130,7 +130,7 @@ export function BookShelf({
 
         <Presence swap>
           {books.length === 0 ? (
-            <Reveal key="no-books" as="p" index={2} className="text-ink-soft">
+            <Reveal key="shelf" as="p" index={2} className="text-ink-soft">
               {t("books.empty")}
             </Reveal>
           ) : (

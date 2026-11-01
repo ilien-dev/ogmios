@@ -83,7 +83,7 @@ export function TranslateStart({
           <Reveal key="loading" kind="fade">
             <Presence swap>
               {failure === null ? (
-                <Reveal key="no-failure" as="span" kind="fade">
+                <Reveal key="waiting" as="span" kind="fade">
                   <Spinner />
                 </Reveal>
               ) : (

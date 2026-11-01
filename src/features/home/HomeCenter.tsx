@@ -3,14 +3,14 @@ import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { History, Mic, Shuffle, SlidersHorizontal } from "lucide-react";
 import type { HomeState, SessionSetup } from "@shared/domain";
+import { Presence } from "@/components/motion/Presence";
+import { Reveal } from "@/components/motion/Reveal";
 import { Magnetic } from "@/components/motion/Magnetic";
 import { Button } from "@/components/ui/Button";
 import { Orb } from "@/components/ui/Orb";
 import type { Navigate } from "@/app/routes";
 import { useWideHome } from "./homeLayout";
 import { TodayLine } from "./TodayLine";
-import { Reveal } from "@/components/motion/Reveal";
-import { Presence } from "@/components/motion/Presence";
 
 function quickSetup(home: HomeState, topic: string): SessionSetup {
   const last = home.lastSetup;

@@ -2,6 +2,8 @@ import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { StructuresState } from "@shared/structures";
+import { Presence } from "@/components/motion/Presence";
+import { Reveal } from "@/components/motion/Reveal";
 import type { Navigate } from "@/app/routes";
 import { Stagger } from "@/components/motion/Stagger";
 import { HubCard, HubGrid } from "@/components/ui/HubCard";
@@ -10,8 +12,6 @@ import { SittingWait } from "@/features/books/SittingParts";
 import { chapterName } from "@/features/books/chapterName";
 import { errorMessage } from "@/lib/errors";
 import { structuresState } from "@/lib/ipc";
-import { Reveal } from "@/components/motion/Reveal";
-import { Presence } from "@/components/motion/Presence";
 
 interface StructuresHubProps {
   navigate: Navigate;

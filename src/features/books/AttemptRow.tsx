@@ -92,13 +92,13 @@ export function AttemptRow({
             >
               <Presence swap>
                 {attempt.finished ? (
-                  <Reveal key="finished" as="span" kind="fade">
+                  <Reveal key="view" as="span" kind="fade">
                     <Button size="sm" onClick={onOpen}>
                       {t("books.translate.view")}
                     </Button>
                   </Reveal>
                 ) : (
-                  <Reveal key="no-finished">
+                  <Reveal key="open" className="flex items-center gap-2">
                     <Button size="sm" variant="primaryBook" onClick={onOpen}>
                       {t("books.translate.continue")}
                     </Button>

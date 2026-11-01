@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { Swap } from "@/components/motion/Swap";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { Chapter, Translation } from "@shared/domain";
 import { Presence } from "@/components/motion/Presence";
 import { Reveal } from "@/components/motion/Reveal";
+import { Swap } from "@/components/motion/Swap";
 import { Stagger } from "@/components/motion/Stagger";
 import { BackLink } from "@/components/ui/BackLink";
 import { Button } from "@/components/ui/Button";

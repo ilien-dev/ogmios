@@ -27,12 +27,21 @@ import ts from "typescript";
  * Sitting under a `Presence` further up is not enough: that one only sees its
  * own children.
  *
+ * Two more things are held to the same rule: an `if (...) return` inside the
+ * callback of a `.map`, and a list drawn from state its own file changes on a
+ * learner's action (a setter used outside an effect), whose rows have to be
+ * animated direct children of a `Presence`.
+ *
  * What the guard cannot read: whether a carrier's name really changes with the
  * choice, and what a component returning `null` was showing. Those are for
  * review.
  */
 
 const ROOT = join(import.meta.dirname, "..");
+
+/** A report's cards never change: what they hold is settled when they show. */
+const SETTLED = /^src\/features\/report\/cards\/.*/u;
+const SETTLED_ROOTS = new Set(["card", "item"]);
 
 /** Hold a choice as `Presence` does: they key their child themselves. */
 const CARRIERS = new Set(["Presence", "Swap", "SittingStage", "Glyph"]);
@@ -63,6 +72,11 @@ interface Allowance {
  * while its screen shows never goes here.
  */
 const ALLOWED: readonly Allowance[] = [
+  {
+    file: "src/features/progress/SessionList.tsx",
+    when: "session.hasReport",
+    why: "A session keeps or lacks its report for as long as its row shows.",
+  },
   {
     file: "src/features/books/BookCover.tsx",
     when: "book.author !== null",
@@ -102,11 +116,6 @@ const ALLOWED: readonly Allowance[] = [
     file: "src/features/books/TranslateRows.tsx",
     when: "parts === undefined",
     why: "Plain or learned, a sentence is fixed for the row whose Reveal holds it.",
-  },
-  {
-    file: "src/features/progress/ProgressScreen.tsx",
-    when: "empty === null",
-    why: "Known once the screen has loaded, and the Section's Reveal carries it.",
   },
 ];
 
@@ -370,6 +379,36 @@ function travels(elements: readonly Element[]): boolean {
   return elements.every((element) => attributeOf(element, "layoutId") !== null);
 }
 
+/** The leftmost name of each thing a condition reads. */
+function rootsRead(node: ts.Node): string[] {
+  if (
+    ts.isPropertyAccessExpression(node) ||
+    ts.isElementAccessExpression(node)
+  ) {
+    return rootsRead(node.expression);
+  }
+  if (ts.isIdentifier(node)) {
+    return node.text === "undefined" ? [] : [node.text];
+  }
+  const roots: string[] = [];
+  ts.forEachChild(node, (child) => {
+    roots.push(...rootsRead(child));
+  });
+  return roots;
+}
+
+function isSettled(file: string, node: ts.Node): boolean {
+  const condition = ts.isConditionalExpression(node)
+    ? node.condition
+    : ts.isBinaryExpression(node)
+      ? node.left
+      : node;
+  return (
+    SETTLED.test(file) &&
+    rootsRead(condition).every((root) => SETTLED_ROOTS.has(root))
+  );
+}
+
 function findingAt(
   { file, tree }: Source,
   node: ts.Node,
@@ -405,7 +444,7 @@ function auditChoice(
   const carried =
     (held !== null && CARRIERS.has(held)) ||
     namedKey(holder.parent)?.includes(conditionOf(node)) === true;
-  if (!carried && !travels(elements)) {
+  if (!carried && !travels(elements) && !isSettled(source.file, node)) {
     const first = elements[0] as Element;
     return [findingAt(source, node, tagOf(first), `bare in <${held}>`)];
   }
@@ -417,11 +456,127 @@ function auditChoice(
   return [];
 }
 
+function callbackOf(node: ts.CallExpression): ts.ArrowFunction | null {
+  const callback = node.arguments[0];
+  const mapped =
+    ts.isPropertyAccessExpression(node.expression) &&
+    node.expression.name.text === "map";
+  return mapped && callback !== undefined && ts.isArrowFunction(callback)
+    ? callback
+    : null;
+}
+
+function auditMappedReturns(
+  source: Source,
+  callback: ts.ArrowFunction,
+): Finding[] {
+  if (!ts.isBlock(callback.body)) {
+    return [];
+  }
+  return callback.body.statements.filter(ts.isIfStatement).flatMap((each) => {
+    const tags = resultsOf(each.thenStatement).flatMap((result) =>
+      given(result),
+    );
+    return tags.length === 0
+      ? []
+      : [findingAt(source, each, tagOf(tags[0] as Element), "return in .map")];
+  });
+}
+
+/** State this file changes on a learner's action, and what is derived from it. */
+function changingState(source: Source): Set<string> {
+  const state: Set<string> = new Set();
+  const derived: Array<[string, ts.Expression]> = [];
+  const visit = (node: ts.Node): void => {
+    if (ts.isVariableDeclaration(node) && node.initializer !== undefined) {
+      if (
+        ts.isArrayBindingPattern(node.name) &&
+        node.initializer.getText().startsWith("useState")
+      ) {
+        const [value, setter] = node.name.elements;
+        if (
+          value !== undefined &&
+          setter !== undefined &&
+          ts.isBindingElement(setter) &&
+          ts.isBindingElement(value) &&
+          firedByLearner(source.tree, setter.name.getText())
+        ) {
+          state.add(value.name.getText());
+        }
+      } else if (ts.isIdentifier(node.name)) {
+        derived.push([node.name.text, node.initializer]);
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(source.tree);
+  for (const [name, value] of derived) {
+    if (rootsRead(value).some((root) => state.has(root))) {
+      state.add(name);
+    }
+  }
+  return state;
+}
+
+function firedByLearner(tree: ts.SourceFile, setter: string): boolean {
+  let fired = false;
+  const visit = (node: ts.Node): void => {
+    if (
+      ts.isCallExpression(node) &&
+      node.expression.getText() === "useEffect"
+    ) {
+      return;
+    }
+    if (ts.isCallExpression(node) && node.expression.getText() === setter) {
+      fired = true;
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(tree);
+  return fired;
+}
+
+function auditMappedList(
+  source: Source,
+  node: ts.CallExpression,
+  callback: ts.ArrowFunction,
+  state: Set<string>,
+): Finding[] {
+  const list = (node.expression as ts.PropertyAccessExpression).expression;
+  const holder = spot(node);
+  if (
+    !ts.isJsxExpression(holder) ||
+    ts.isJsxAttribute(holder.parent) ||
+    !rootsRead(list).some((root) => state.has(root)) ||
+    ts.isBlock(callback.body)
+  ) {
+    return [];
+  }
+  const rows = given(callback.body);
+  const loose = rows.length === 0 ? undefined : unanimated(rows);
+  if (loose !== undefined) {
+    return [findingAt(source, node, tagOf(loose), "mapped row not animated")];
+  }
+  return rows.length > 0 && holderOf(holder) !== "Presence"
+    ? [findingAt(source, node, tagOf(rows[0] as Element), "mapped row bare")]
+    : [];
+}
+
 function audit(source: Source): Finding[] {
   const findings: Finding[] = [];
+  const state = changingState(source);
   const visit = (node: ts.Node): void => {
     if (isChoice(node) && isOuterChoice(node)) {
       findings.push(...auditChoice(source, node));
+    }
+    if (ts.isCallExpression(node)) {
+      const callback = callbackOf(node);
+      if (callback !== null) {
+        findings.push(
+          ...auditMappedReturns(source, callback),
+          ...auditMappedList(source, node, callback, state),
+        );
+      }
     }
     ts.forEachChild(node, visit);
   };
