@@ -1,9 +1,10 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { UserEvent } from "@testing-library/user-event";
+import { MotionGlobalConfig } from "motion/react";
 import type { Route } from "@/app/routes";
 import { setMockTranslateFails } from "@/lib/ipcMockTranslate";
 import { useMockBackend } from "@/test/mockBackend";
@@ -168,12 +169,16 @@ describe("translating a chapter", () => {
     await write(user, ["Uno.", "Dos;", "Tres."]);
     await write(user, ["Cuatro.", "Cinco;", "Seis."]);
     expect(inSight()).toEqual(["Uno. Dos; Tres.", "Cuatro. Cinco; Seis."]);
+    // The same query finds a paragraph that is still there.
+    expect(document.body.textContent).toContain("Uno. Dos; Tres.");
 
     await write(user, ["Siete.", "Ocho."]);
     expect(screen.getByText("Paragraph 4 of 4")).toBeInTheDocument();
     expect(inSight()).toEqual(["Cuatro. Cinco; Seis.", "Siete. Ocho."]);
     // The first one lifts away, and without motion it is simply gone.
-    expect(screen.queryByText("Uno. Dos; Tres.")).toBeNull();
+    expect(document.body.textContent).not.toContain("Uno. Dos; Tres.");
+    expect(document.body.textContent).toContain("Cuatro. Cinco; Seis.");
+    expect(document.querySelectorAll("li[data-past]")).toHaveLength(2);
   });
 
   test("a review that fails says why and can be asked for again", async () => {
@@ -310,5 +315,43 @@ describe("translating a chapter", () => {
       screen.getByText(/The boy woke before the sirens did\. He lay still/u),
     ).toBeInTheDocument();
     expect(screen.getByText(/→ there were/u)).toBeInTheDocument();
+  });
+});
+
+describe("a paragraph leaving the translation, with animation on", () => {
+  useMockBackend();
+
+  const nativeAnimate = Element.prototype.animate;
+
+  // As in `motion.test.tsx`: real exits, on motion's own frame loop.
+  beforeEach(() => {
+    MotionGlobalConfig.skipAnimations = false;
+    Reflect.deleteProperty(Element.prototype, "animate");
+  });
+
+  afterEach(() => {
+    MotionGlobalConfig.skipAnimations = true;
+    Element.prototype.animate = nativeAnimate;
+  });
+
+  test("the oldest row leaves inert, and only the rows that stay are counted", async () => {
+    const user = await open();
+    await begin(user, THERE);
+    await write(user, ["Uno.", "Dos;", "Tres."]);
+    await write(user, ["Cuatro.", "Cinco;", "Seis."]);
+    await write(user, ["Siete.", "Ocho."]);
+
+    const leaving = await waitFor(() => {
+      const row = document.querySelector("li[data-past][inert]");
+      expect(row).not.toBeNull();
+      return row;
+    });
+    expect(leaving?.textContent).toContain("Uno. Dos; Tres.");
+    expect(leaving).toHaveAttribute("aria-hidden", "true");
+    // What is measured and shown is what stays: two rows, not three.
+    expect(
+      document.querySelectorAll("li[data-past]:not([inert])"),
+    ).toHaveLength(2);
+    expect(inSight()).toEqual(["Cuatro. Cinco; Seis.", "Siete. Ocho."]);
   });
 });
