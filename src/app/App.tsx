@@ -150,6 +150,7 @@ export function App(): ReactNode {
         return (
           <BooksScreen
             nativeLang={profile.nativeLang}
+            shelf={books}
             bookId={route.bookId}
             chapterId={route.chapterId ?? null}
             known={route.known === true}

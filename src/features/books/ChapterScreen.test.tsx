@@ -54,6 +54,73 @@ function rows(): Array<string | null> {
 describe("ChapterScreen", () => {
   useMockBackend();
 
+  test("the chapter shows book, progress and Practise beside the words", async () => {
+    const user = userEvent.setup();
+    await openChapter(user, "I. Down the Rabbit-Hole");
+    expect(await screen.findByText("8 words to learn")).toBeInTheDocument();
+
+    const aside = screen.getByRole("complementary");
+    const beside = within(aside);
+    expect(beside.getByText("Alice's Adventures in Wonderland")).toBeVisible();
+    expect(
+      beside.getByRole("heading", {
+        level: 1,
+        name: "I. Down the Rabbit-Hole",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      beside.getByRole("progressbar", {
+        name: "Words learned in this chapter",
+      }),
+    ).toBeInTheDocument();
+    expect(beside.getByText("0 learned")).toBeInTheDocument();
+    expect(
+      beside.getByRole("button", { name: "Practice" }),
+    ).toBeInTheDocument();
+    // The words are on the other side.
+    expect(aside).not.toContainElement(screen.getByRole("table"));
+  });
+
+  test("each state of the chapter still shows", async () => {
+    const user = userEvent.setup();
+    await openChapter(user, "II. The Pool of Tears");
+    // Choosing the depth: nothing to practise yet, translating is within reach.
+    expect(
+      screen.getByRole("heading", {
+        name: "How many words do you want to learn?",
+      }),
+    ).toBeInTheDocument();
+    const aside = within(screen.getByRole("complementary"));
+    expect(aside.queryByRole("button", { name: "Practice" })).toBeNull();
+    expect(
+      aside.getByRole("button", { name: "Translate the chapter" }),
+    ).toBeInTheDocument();
+
+    // Preparing.
+    setMockLatency(0.03);
+    await user.click(screen.getByRole("button", { name: /Hardest words/u }));
+    expect(await screen.findByText("Reading the chapter…")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: /How many words/u }),
+    ).toBeNull();
+
+    // The words, with Practice beside them.
+    expect(await screen.findByRole("table")).toBeInTheDocument();
+    expect(
+      await aside.findByRole("button", { name: "Practice" }),
+    ).toBeInTheDocument();
+  });
+
+  test("a ready chapter says so beside its words", async () => {
+    seedMockReadiness();
+    const user = userEvent.setup();
+    await openChapter(user, "II. The Pool of Tears");
+
+    const aside = within(await screen.findByRole("complementary"));
+    expect(await aside.findByText("Ready to read")).toBeInTheDocument();
+    expect(aside.getByRole("button", { name: REFRESH })).toBeInTheDocument();
+  });
+
   test("an unprepared chapter offers three depths, each with what it means", async () => {
     const user = userEvent.setup();
     await openChapter(user, "II. The Pool of Tears");

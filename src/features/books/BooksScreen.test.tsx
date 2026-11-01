@@ -1,10 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import type { ReactNode } from "react";
 import { useState } from "react";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { Route } from "@/app/routes";
 import { i18n } from "@/lib/i18n/i18n";
+import { listBooks } from "@/lib/ipc";
+import { setMockLatency } from "@/lib/ipcMock";
 import { clearMockBooks, setMockBookPick } from "@/lib/ipcMockBooks";
 import { seedMockReadiness } from "@/lib/ipcMockChapters";
 import { setMockWordKnown } from "@/lib/ipcMockWords";
@@ -340,6 +342,66 @@ describe("BooksScreen", () => {
       await screen.findByText(
         "No books yet. Add an EPUB or a PDF to see its chapters.",
       ),
+    ).toBeInTheDocument();
+  });
+
+  test("a move between shelf, book and chapter shows content at once, seeded from the shelf the app holds", async () => {
+    const shelf = await listBooks();
+    setMockLatency(0.05);
+    const { rerender } = render(
+      <BooksScreen
+        key="book"
+        nativeLang="es"
+        shelf={shelf}
+        bookId="book-alice"
+        chapterId={null}
+        navigate={() => {}}
+      />,
+    );
+    // No spinner frame first: the book is there before anything is read.
+    expect(
+      screen.getByRole("heading", { name: "Alice's Adventures in Wonderland" }),
+    ).toBeInTheDocument();
+
+    // The route changes the screen's key in the app: it mounts anew.
+    rerender(
+      <BooksScreen
+        key="chapter"
+        nativeLang="es"
+        shelf={shelf}
+        bookId="book-alice"
+        chapterId={shelf[0]?.chapters[0]?.id ?? null}
+        navigate={() => {}}
+      />,
+    );
+    expect(
+      screen.getByRole("heading", {
+        level: 1,
+        name: "I. Down the Rabbit-Hole",
+      }),
+    ).toBeInTheDocument();
+    // The read behind it still lands.
+    await waitFor(() => {
+      expect(screen.getByText("8 words to learn")).toBeInTheDocument();
+    });
+  });
+
+  test("a shelf that lacks the open book is not trusted: no missing-book flash", async () => {
+    setMockLatency(0.05);
+    render(
+      <BooksScreen
+        nativeLang="es"
+        shelf={[]}
+        bookId="book-alice"
+        chapterId={null}
+        navigate={() => {}}
+      />,
+    );
+    expect(screen.queryByText("This book is no longer here.")).toBeNull();
+    expect(
+      await screen.findByRole("heading", {
+        name: "Alice's Adventures in Wonderland",
+      }),
     ).toBeInTheDocument();
   });
 });

@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft, ChevronRight, CircleCheck } from "lucide-react";
 import type {
   Book,
   BookWord,
@@ -12,11 +11,13 @@ import type {
   SentenceProgress,
 } from "@shared/domain";
 import { READY } from "@shared/domain";
+import { Presence } from "@/components/motion/Presence";
+import { Reveal } from "@/components/motion/Reveal";
+import { BackLink } from "@/components/ui/BackLink";
 import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { Spinner } from "@/components/ui/Spinner";
-import { cn } from "@/lib/cn";
 import { errorMessage } from "@/lib/errors";
 import {
   getChapterWords,
@@ -27,7 +28,10 @@ import {
   setWordKnown,
   writeSentences,
 } from "@/lib/ipc";
+import { ChapterAside } from "./ChapterAside";
 import { chapterName } from "./chapterName";
+import { DepthChoice } from "./DepthChoice";
+import { PreparingBar } from "./PreparingBar";
 import { WordList } from "./WordList";
 
 /** As offered, widest first; a later one is shallower. */
@@ -43,44 +47,6 @@ function deeperThan(prepared: Depth | null): readonly Depth[] {
 interface Failure {
   message: string;
   retry: Depth | null;
-}
-
-interface DepthChoiceProps {
-  depths: readonly Depth[];
-  onChoose: (depth: Depth) => void;
-}
-
-/** The depths on offer, each with what it means in one line. */
-function DepthChoice({ depths, onChoose }: DepthChoiceProps): ReactNode {
-  const { t } = useTranslation();
-  return (
-    <ul className="flex flex-col divide-y divide-line border-y border-line">
-      {depths.map((depth) => (
-        <li key={depth}>
-          <button
-            type="button"
-            onClick={() => {
-              onChoose(depth);
-            }}
-            className="group flex w-full items-center gap-4 px-2 py-4 text-left hover:bg-raised"
-          >
-            <span className="flex min-w-0 flex-1 flex-col gap-1">
-              <span className="font-medium text-ink">
-                {t(`books.chapter.depth.${depth}.name`)}
-              </span>
-              <span className="text-sm text-ink-soft">
-                {t(`books.chapter.depth.${depth}.hint`)}
-              </span>
-            </span>
-            <ChevronRight
-              aria-hidden
-              className="size-4 shrink-0 text-ink-faint transition-transform duration-150 group-hover:translate-x-0.5 group-hover:text-ink"
-            />
-          </button>
-        </li>
-      ))}
-    </ul>
-  );
 }
 
 interface ChapterScreenProps {
@@ -246,172 +212,125 @@ export function ChapterScreen({
 
   return (
     <main className="h-full overflow-y-auto">
-      <div className="mx-auto flex max-w-3xl flex-col gap-12 px-10 py-16">
-        <header className="flex flex-col gap-3">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="-ml-3 self-start"
-            icon={<ArrowLeft aria-hidden className="size-4" />}
-            onClick={onBack}
+      <div className="mx-auto flex max-w-6xl flex-col gap-6 px-6 py-8 nav:px-10 nav:py-12">
+        <Reveal index={0}>
+          <BackLink label={book.title} onClick={onBack} />
+        </Reveal>
+        <div className="flex flex-col gap-10 nav:flex-row nav:items-start nav:gap-12">
+          <Reveal
+            as="aside"
+            index={1}
+            className="nav:sticky nav:top-0 nav:w-80 nav:shrink-0"
           >
-            {book.title}
-          </Button>
-          <h1 className="font-display text-display font-light text-ink">
-            {chapterName(chapter, t)}
-          </h1>
-        </header>
-
-        {failure !== null && (
-          <section className="flex flex-col items-start gap-4">
-            <Notice tone="danger">{failure.message}</Notice>
-            {failure.retry !== null && !preparing && (
-              <Button
-                variant="primary"
-                onClick={() => {
-                  if (failure.retry !== null) {
-                    void prepare(failure.retry);
-                  }
-                }}
-              >
-                {t("common.retry")}
-              </Button>
-            )}
-          </section>
-        )}
-
-        {preparing && (
-          <section
-            aria-live="polite"
-            className="flex flex-col gap-4 text-ink-soft"
-          >
-            <p className="flex items-center gap-3">
-              <Spinner />
-              {t("books.chapter.preparing")}
-            </p>
-            {progress !== null && (
-              <>
-                <div
-                  role="progressbar"
-                  aria-label={t("books.chapter.preparing")}
-                  aria-valuemin={0}
-                  aria-valuenow={progress.done}
-                  aria-valuemax={progress.total}
-                  className="flex h-2 gap-1"
-                >
-                  {Array.from({ length: progress.total }, (_, piece) => (
-                    <span
-                      key={piece}
-                      className={cn(
-                        "flex-1 rounded-full transition-colors duration-150",
-                        piece < progress.done ? "bg-accent-strong" : "bg-line",
-                      )}
-                    />
-                  ))}
-                </div>
-                <p className="text-sm text-ink-faint tabular-nums">
-                  {t("books.chapter.progress", {
-                    done: progress.done,
-                    total: progress.total,
-                  })}
-                </p>
-              </>
-            )}
-          </section>
-        )}
-
-        {!preparing && words === null && <Spinner />}
-
-        {!preparing && chapter.prepared !== null && words !== null && (
-          <section className="flex flex-col items-start gap-8">
-            {writing !== null && writing.done < writing.total && (
-              <div className="flex w-full flex-col gap-2">
-                <p className="text-sm text-ink-faint">
-                  {t("books.sentences.writing", {
-                    done: writing.done,
-                    total: writing.total,
-                  })}
-                </p>
-                <ProgressBar
-                  label={t("books.sentences.bar")}
-                  value={writing.done}
-                  total={writing.total}
-                />
-              </div>
-            )}
-            {open && (
-              <div className="flex w-full flex-wrap gap-3">
-                <Button variant="primary" size="lg" onClick={onPractise}>
-                  {t("books.chapter.practise")}
-                </Button>
-                <Button variant="learn" size="lg" onClick={onTranslate}>
-                  {t("books.translate.start")}
-                </Button>
-                <Button variant="learn" size="lg" onClick={onStructures}>
-                  {t("structures.chapter.open")}
-                </Button>
-              </div>
-            )}
-            {ready && (
-              <div className="flex flex-col items-start gap-4">
-                <p className="flex items-center gap-2 text-lead font-medium text-accent-text">
-                  <CircleCheck aria-hidden className="size-5" />
-                  {t("books.ready")}
-                </p>
-                <div className="flex flex-wrap gap-3">
-                  {refreshable && (
-                    <Button onClick={onRefresh}>
-                      {t("books.refresh.start")}
-                    </Button>
-                  )}
-                  {refreshable && (
-                    <Button onClick={onPractise}>
-                      {t("books.chapter.practise")}
-                    </Button>
-                  )}
-                  <Button onClick={onTranslate}>
-                    {t("books.translate.start")}
-                  </Button>
-                  <Button onClick={onStructures}>
-                    {t("structures.chapter.open")}
-                  </Button>
-                </div>
-              </div>
-            )}
-            <WordList
+            <ChapterAside
+              book={book}
+              name={chapterName(chapter, t)}
               words={words}
-              onKnown={(word, known) => void setKnown(word, known)}
-              onTriage={open ? onTriage : undefined}
+              preparing={preparing}
+              prepared={chapter.prepared !== null}
+              open={open}
+              ready={ready}
+              refreshable={refreshable}
+              onPractise={onPractise}
+              onRefresh={onRefresh}
+              onTranslate={onTranslate}
+              onStructures={onStructures}
             />
-          </section>
-        )}
-
-        {!preparing && deeper.length > 0 && (
-          <section className="flex flex-col gap-4">
-            <header className="flex flex-col gap-1">
-              <h2 className="font-medium text-ink">
-                {chapter.prepared === null
-                  ? t("books.chapter.choose")
-                  : t("books.chapter.more")}
-              </h2>
-              <p className="text-sm text-ink-soft">
-                {chapter.prepared === null
-                  ? t("books.chapter.chooseHint")
-                  : t("books.chapter.moreHint")}
-              </p>
-            </header>
-            <DepthChoice
-              depths={deeper}
-              onChoose={(depth) => void prepare(depth)}
-            />
-          </section>
-        )}
-
-        {!preparing && words !== null && !open && !ready && (
-          <Button className="self-start" onClick={onTranslate}>
-            {t("books.translate.start")}
-          </Button>
-        )}
+          </Reveal>
+          <Reveal index={2} className="flex min-w-0 flex-1 flex-col gap-6">
+            <Presence>
+              {failure !== null && (
+                <Reveal
+                  key="failure"
+                  className="flex flex-col items-start gap-4"
+                >
+                  <Notice tone="danger">{failure.message}</Notice>
+                  {failure.retry !== null && !preparing && (
+                    <Button
+                      variant="primaryBook"
+                      onClick={() => {
+                        if (failure.retry !== null) {
+                          void prepare(failure.retry);
+                        }
+                      }}
+                    >
+                      {t("common.retry")}
+                    </Button>
+                  )}
+                </Reveal>
+              )}
+              {preparing && (
+                <Reveal
+                  key="preparing"
+                  aria-live="polite"
+                  className="flex flex-col gap-4 text-ink-soft"
+                >
+                  <p className="flex items-center gap-3">
+                    <Spinner />
+                    {t("books.chapter.preparing")}
+                  </p>
+                  {progress !== null && <PreparingBar progress={progress} />}
+                </Reveal>
+              )}
+              {!preparing && words === null && (
+                <Reveal key="loading" kind="fade">
+                  <Spinner />
+                </Reveal>
+              )}
+              {!preparing && chapter.prepared !== null && words !== null && (
+                <Reveal
+                  key="words"
+                  className="flex flex-col gap-6 rounded-xl bg-surface p-6 shadow-card nav:p-8"
+                >
+                  {writing !== null && writing.done < writing.total && (
+                    <div className="flex w-full flex-col gap-2">
+                      <p className="text-sm text-ink-faint">
+                        {t("books.sentences.writing", {
+                          done: writing.done,
+                          total: writing.total,
+                        })}
+                      </p>
+                      <ProgressBar
+                        label={t("books.sentences.bar")}
+                        value={writing.done}
+                        total={writing.total}
+                        tone="book"
+                      />
+                    </div>
+                  )}
+                  <WordList
+                    words={words}
+                    onKnown={(word, known) => void setKnown(word, known)}
+                    onTriage={open ? onTriage : undefined}
+                  />
+                </Reveal>
+              )}
+              {!preparing && deeper.length > 0 && (
+                <Reveal
+                  key="deeper"
+                  className="flex flex-col gap-4 rounded-xl bg-surface p-6 shadow-card nav:p-8"
+                >
+                  <header className="flex flex-col gap-1">
+                    <h2 className="font-medium text-ink">
+                      {chapter.prepared === null
+                        ? t("books.chapter.choose")
+                        : t("books.chapter.more")}
+                    </h2>
+                    <p className="text-sm text-ink-soft">
+                      {chapter.prepared === null
+                        ? t("books.chapter.chooseHint")
+                        : t("books.chapter.moreHint")}
+                    </p>
+                  </header>
+                  <DepthChoice
+                    depths={deeper}
+                    onChoose={(depth) => void prepare(depth)}
+                  />
+                </Reveal>
+              )}
+            </Presence>
+          </Reveal>
+        </div>
       </div>
     </main>
   );

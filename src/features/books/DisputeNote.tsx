@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { Check } from "lucide-react";
+import { Reveal } from "@/components/motion/Reveal";
 import { cn } from "@/lib/cn";
 import type { DisputeState } from "./sittingRun";
 
@@ -49,10 +50,11 @@ function wording(
 export function DisputeNote(props: DisputeNoteProps): ReactNode {
   const { t } = useTranslation();
   return (
-    <p
+    <Reveal
+      as="p"
       role="status"
       className={cn(
-        "flex items-start gap-1.5 text-sm motion-safe:animate-rise",
+        "flex items-start gap-1.5 text-sm",
         props.state.status === "upheld" ? "text-correct" : "text-ink-soft",
       )}
     >
@@ -60,6 +62,6 @@ export function DisputeNote(props: DisputeNoteProps): ReactNode {
         <Check aria-hidden className="mt-0.5 size-4 shrink-0" />
       )}
       {wording(t, props)}
-    </p>
+    </Reveal>
   );
 }
