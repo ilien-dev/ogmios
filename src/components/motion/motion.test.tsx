@@ -267,6 +267,20 @@ test("CountUp never shows a rounded value on the way to a fractional one", async
   expect(seen.filter((text) => text === "0" || text === "1")).toEqual([]);
 });
 
+test("CountUp stays on whole numbers when a whole count is interrupted", async () => {
+  const seen: string[] = [];
+  const { rerender, container } = render(<CountUp value={1} />);
+  const watch = setInterval(() => {
+    seen.push(container.textContent ?? "");
+  }, 5);
+  rerender(<CountUp value={5} />);
+  await Bun.sleep(100);
+  rerender(<CountUp value={9} />);
+  expect(await screen.findByText("9")).toBeInTheDocument();
+  clearInterval(watch);
+  expect(seen.filter((text) => !Number.isInteger(Number(text)))).toEqual([]);
+});
+
 test("CountUp shows the value it was given after reduced motion ends", () => {
   const under = (
     value: number,

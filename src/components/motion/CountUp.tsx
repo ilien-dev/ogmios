@@ -31,7 +31,7 @@ export function CountUp({
     }
     // A whole target counts in whole steps; a fractional one keeps its fraction
     // all the way, so it never reads a rounded value and then snaps.
-    const whole = Number.isInteger(value) && Number.isInteger(from.current);
+    const whole = Number.isInteger(value);
     const controls = animate(from.current, value, {
       duration: DURATION.enterSlow,
       ease: EASE_OUT,
