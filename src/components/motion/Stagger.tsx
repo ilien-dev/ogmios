@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { StaggerIndex } from "../../lib/motion";
 
 interface StaggerProps {
-  as?: "div" | "ul" | "ol" | "section" | "tbody" | "main";
+  as?: "div" | "ul" | "ol" | "dl" | "section" | "tbody" | "main";
   className?: string;
   children: ReactNode;
 }

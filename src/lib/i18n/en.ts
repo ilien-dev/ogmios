@@ -312,6 +312,7 @@ export const en = {
   },
   conversation: {
     label: "Conversation",
+    chat: "Messages",
     topic: "Topic: {{topic}}",
     partner: "Partner",
     you: "You",

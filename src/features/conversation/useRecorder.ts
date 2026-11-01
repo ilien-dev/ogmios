@@ -1,3 +1,5 @@
+import { useMotionValue } from "motion/react";
+import type { MotionValue } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import type { Recording } from "@shared/domain";
 import { errorMessage } from "@/lib/errors";
@@ -13,8 +15,8 @@ export type RecorderStatus = "idle" | "recording" | "transcribing";
 
 export interface Recorder {
   status: RecorderStatus;
-  /** Microphone peak, 0–1, for the live ring. */
-  peak: number;
+  /** Microphone peak, 0–1: for the orb and the ring, without a render each. */
+  level: MotionValue<number>;
   /** Seconds with voice detected in the current recording. */
   speechSeconds: number;
   /** What the live preview has heard so far; kept until the final text lands. */
@@ -28,10 +30,10 @@ export interface Recorder {
 /** The microphone, recorded and transcribed on the Rust side (§12). */
 export function useRecorder(): Recorder {
   const [status, setStatus] = useState<RecorderStatus>("idle");
-  const [peak, setPeak] = useState(0);
   const [speechSeconds, setSpeechSeconds] = useState(0);
   const [partial, setPartial] = useState("");
   const [failure, setFailure] = useState<string | null>(null);
+  const level = useMotionValue(0);
   const statusRef = useRef<RecorderStatus>("idle");
 
   const move = (next: RecorderStatus): void => {
@@ -40,10 +42,10 @@ export function useRecorder(): Recorder {
   };
 
   useEffect(() => {
-    const unlisten = onSttLevel((level) => {
+    const unlisten = onSttLevel((heard) => {
       if (statusRef.current === "recording") {
-        setPeak(level.peak);
-        setSpeechSeconds(level.speechSeconds);
+        level.set(heard.peak);
+        setSpeechSeconds(heard.speechSeconds);
       }
     });
     const unlistenPartial = onSttPartial((heard) => {
@@ -61,14 +63,14 @@ export function useRecorder(): Recorder {
         });
       }
     };
-  }, []);
+  }, [level]);
 
   const start = async (): Promise<void> => {
     if (statusRef.current !== "idle") {
       return;
     }
     setFailure(null);
-    setPeak(0);
+    level.set(0);
     setSpeechSeconds(0);
     setPartial("");
     move("recording");
@@ -85,7 +87,7 @@ export function useRecorder(): Recorder {
       return null;
     }
     move("transcribing");
-    setPeak(0);
+    level.set(0);
     try {
       return await sttStop();
     } catch (error) {
@@ -100,6 +102,7 @@ export function useRecorder(): Recorder {
   const cancel = async (): Promise<void> => {
     if (statusRef.current === "recording") {
       move("idle");
+      level.set(0);
       setPartial("");
       await sttCancel();
     }
@@ -107,7 +110,7 @@ export function useRecorder(): Recorder {
 
   return {
     status,
-    peak,
+    level,
     speechSeconds,
     partial,
     error: failure,

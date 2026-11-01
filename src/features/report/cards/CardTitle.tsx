@@ -14,7 +14,7 @@ export function CardTitle({ children }: { children: ReactNode }): ReactNode {
     <h2
       ref={heading}
       tabIndex={-1}
-      className="font-display text-title font-normal text-balance text-ink focus:outline-none"
+      className="text-title font-semibold text-balance text-ink focus:outline-none"
     >
       {children}
     </h2>

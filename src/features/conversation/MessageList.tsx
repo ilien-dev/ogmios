@@ -1,7 +1,9 @@
 import type { ReactNode } from "react";
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { AudioLines, User } from "lucide-react";
+import { Presence } from "@/components/motion/Presence";
+import { Reveal } from "@/components/motion/Reveal";
+import { Orb } from "@/components/ui/Orb";
 import { SpeakButton } from "@/features/speech/SpeakButton";
 import type { Message } from "./useConversation";
 
@@ -11,23 +13,44 @@ interface MessageListProps {
   lengthHint: string;
 }
 
-/** Who is speaking, beside each line: a small square in that voice's colour. */
-function Avatar({ role }: { role: Message["role"] }): ReactNode {
-  return role === "user" ? (
-    <span
-      aria-hidden
-      className="grid size-7 shrink-0 place-items-center rounded-sm bg-you-soft text-you"
-    >
-      <User className="size-4" />
-    </span>
-  ) : (
-    <span
-      aria-hidden
-      className="grid size-7 shrink-0 place-items-center rounded-sm bg-partner-soft text-partner"
-    >
-      <AudioLines className="size-4" />
-    </span>
-  );
+/** One line of the conversation: a message, or the reply still coming in. */
+interface Line {
+  /**
+   * The same from the first chunk of a reply to its last, and from a turn
+   * sent to the id it is given: the element is never made twice.
+   */
+  key: string;
+  role: Message["role"];
+  text: string;
+  /** The reply that is still arriving, if this is it. */
+  live: boolean;
+  /** The message behind the line; none while its text is still streaming. */
+  message: Message | null;
+}
+
+function linesOf(messages: Message[], streaming: string | null): Line[] {
+  const seen = { user: 0, assistant: 0 };
+  const lines: Line[] = messages.map((message) => {
+    const key = `${message.role}-${String(seen[message.role])}`;
+    seen[message.role] += 1;
+    return {
+      key,
+      role: message.role,
+      text: message.text,
+      live: false,
+      message,
+    };
+  });
+  if (streaming !== null) {
+    lines.push({
+      key: `assistant-${String(seen.assistant)}`,
+      role: "assistant",
+      text: streaming,
+      live: true,
+      message: null,
+    });
+  }
+  return lines;
 }
 
 function PartnerName(): ReactNode {
@@ -42,11 +65,37 @@ function PartnerName(): ReactNode {
   );
 }
 
+function LiveText({
+  text,
+  first,
+}: {
+  text: string;
+  first: boolean;
+}): ReactNode {
+  const { t } = useTranslation();
+  if (text === "") {
+    return (
+      <span className="text-base text-ink-faint motion-safe:animate-pulse-soft">
+        {first ? t("conversation.starting") : t("conversation.writing")}
+      </span>
+    );
+  }
+  return (
+    <>
+      {text}
+      <span
+        aria-hidden
+        className="ml-0.5 inline-block h-5 w-0.5 translate-y-1 bg-partner motion-safe:animate-caret"
+      />
+    </>
+  );
+}
+
 /**
  * The conversation so far, as two voices. The partner's lines sit on the
- * left in plain bubbles, each with a way to hear it again; the learner's own
- * sit on the right in their teal. Ogmios's own word, the length hint, hangs
- * under the latest question in plain ink.
+ * left in soft violet beside its small orb, each with a way to hear it again;
+ * the learner's own sit on the right in their teal. Ogmios's own word, the
+ * length hint, hangs under the latest question in plain ink.
  */
 export function MessageList({
   messages,
@@ -56,6 +105,7 @@ export function MessageList({
   const { t } = useTranslation();
   const end = useRef<HTMLDivElement>(null);
   const last = messages.at(-1);
+  const lines = linesOf(messages, streaming);
 
   useEffect(() => {
     end.current?.scrollIntoView({ block: "end" });
@@ -63,73 +113,71 @@ export function MessageList({
 
   return (
     <div className="flex flex-col gap-6">
-      <ol className="flex flex-col gap-6">
-        {messages.map((message) =>
-          message.role === "user" ? (
-            <li
-              key={message.id}
-              className="flex max-w-xl flex-row-reverse gap-3 self-end"
-            >
-              <Avatar role="user" />
-              <div className="flex flex-col items-end gap-1.5">
+      <ol className="flex flex-col gap-4">
+        <Presence>
+          {lines.map((line) =>
+            line.role === "user" ? (
+              <Reveal
+                key={line.key}
+                as="li"
+                index={0}
+                className="flex max-w-xl flex-col items-end gap-1.5 self-end"
+              >
                 <span className="text-xs font-medium text-you">
                   {t("conversation.you")}
                 </span>
-                <p className="rounded-lg rounded-tr-none border border-you-line bg-you-soft px-4 py-3 leading-relaxed text-you-ink">
-                  {message.text}
+                <p className="rounded-lg rounded-tr-sm bg-you-soft px-5 py-3.5 text-lead text-you-ink">
+                  {line.text}
                 </p>
-              </div>
-            </li>
-          ) : (
-            <li key={message.id} className="flex max-w-2xl gap-3">
-              <Avatar role="assistant" />
-              <div className="flex min-w-0 flex-col gap-1.5">
-                <PartnerName />
-                <p className="rounded-lg rounded-tl-none border border-line bg-surface px-4 py-3 text-lead text-ink">
-                  {message.text}
-                  <SpeakButton text={message.text} className="ml-1" />
-                </p>
-                {message === last &&
-                  streaming === null &&
-                  lengthHint !== "" && (
-                    <p className="text-xs text-ink-soft">
-                      {t("conversation.app", { text: lengthHint })}
-                    </p>
-                  )}
-              </div>
-            </li>
-          ),
-        )}
+              </Reveal>
+            ) : (
+              <Reveal
+                key={line.key}
+                as="li"
+                index={0}
+                className="flex max-w-2xl gap-3"
+              >
+                <Orb size="xs" className="mt-6" />
+                <div className="flex min-w-0 flex-col gap-1.5">
+                  <PartnerName />
+                  <p
+                    aria-live={line.live ? "polite" : undefined}
+                    aria-busy={line.live ? true : undefined}
+                    className="rounded-lg rounded-tl-sm bg-partner-soft px-5 py-3.5 text-lead text-ink"
+                  >
+                    {line.live ? (
+                      <LiveText
+                        text={line.text}
+                        first={messages.length === 0}
+                      />
+                    ) : (
+                      <>
+                        {line.text}
+                        <Reveal
+                          as="span"
+                          kind="fade"
+                          index={0}
+                          className="ml-1"
+                        >
+                          <SpeakButton text={line.text} />
+                        </Reveal>
+                      </>
+                    )}
+                  </p>
+                  {line.message !== null &&
+                    line.message === last &&
+                    streaming === null &&
+                    lengthHint !== "" && (
+                      <p className="text-xs text-ink-soft">
+                        {t("conversation.app", { text: lengthHint })}
+                      </p>
+                    )}
+                </div>
+              </Reveal>
+            ),
+          )}
+        </Presence>
       </ol>
-      {streaming !== null && (
-        <div className="flex max-w-2xl gap-3">
-          <Avatar role="assistant" />
-          <div className="flex min-w-0 flex-col gap-1.5">
-            <PartnerName />
-            <p
-              aria-live="polite"
-              aria-busy
-              className="rounded-lg rounded-tl-none border border-line bg-surface px-4 py-3 text-lead text-ink"
-            >
-              {streaming === "" ? (
-                <span className="text-base text-ink-faint motion-safe:animate-pulse-soft">
-                  {messages.length === 0
-                    ? t("conversation.starting")
-                    : t("conversation.writing")}
-                </span>
-              ) : (
-                <>
-                  {streaming}
-                  <span
-                    aria-hidden
-                    className="ml-0.5 inline-block h-5 w-0.5 translate-y-1 bg-partner motion-safe:animate-caret"
-                  />
-                </>
-              )}
-            </p>
-          </div>
-        </div>
-      )}
       <div ref={end} />
     </div>
   );

@@ -313,6 +313,7 @@ export const es: Catalog<typeof en> = {
   },
   conversation: {
     label: "Charla",
+    chat: "Mensajes",
     topic: "Tema: {{topic}}",
     partner: "Compañero",
     you: "Tú",

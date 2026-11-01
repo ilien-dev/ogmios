@@ -10,10 +10,14 @@ import type {
   Profile,
   SessionSetup,
 } from "@shared/domain";
+import { Presence } from "@/components/motion/Presence";
+import { Reveal } from "@/components/motion/Reveal";
+import { Stagger } from "@/components/motion/Stagger";
 import { Button } from "@/components/ui/Button";
 import { ChoiceGroup } from "@/components/ui/ChoiceGroup";
 import { Chip } from "@/components/ui/Chip";
 import { Field } from "@/components/ui/Field";
+import { Orb } from "@/components/ui/Orb";
 import { TextArea } from "@/components/ui/TextArea";
 import type { Navigate } from "@/app/routes";
 import { homeState } from "@/lib/ipc";
@@ -118,163 +122,187 @@ export function Setup({ profile, preset, navigate }: SetupProps): ReactNode {
       <form
         onSubmit={submit}
         noValidate
-        className="mx-auto flex max-w-2xl flex-col gap-10 px-10 pt-12 pb-16"
+        className="mx-auto max-w-2xl px-6 pt-10 pb-16 nav:px-10"
       >
-        <header className="flex flex-col items-start gap-6">
-          <h1 className="font-display text-title font-normal text-ink">
-            {t("setup.title")}
-          </h1>
-        </header>
+        <Stagger className="flex flex-col gap-10">
+          <Reveal as="header" className="flex items-center gap-4">
+            <Orb size="sm" />
+            <h1 className="text-title font-semibold text-ink">
+              {t("setup.title")}
+            </h1>
+          </Reveal>
 
-        <div className="flex flex-col gap-3">
-          <Field
-            id="topic"
-            label={t("setup.topic")}
-            error={problem === "topic" ? t("setup.topicRequired") : null}
-            hint={t("setup.topicCount", {
-              count: setup.topic.length,
-              max: TOPIC_MAX,
-            })}
-          >
-            <TextArea
+          <Reveal className="flex flex-col gap-3">
+            <Field
               id="topic"
-              rows={2}
-              maxLength={TOPIC_MAX}
-              placeholder={t("setup.topicPlaceholder")}
-              aria-invalid={problem === "topic"}
-              aria-describedby="topic-hint"
-              value={setup.topic}
-              onChange={(event) => {
-                patch({ topic: event.target.value });
-              }}
-            />
-          </Field>
-          {suggestions.length > 0 && (
-            <div
-              role="group"
-              aria-label={t("setup.suggestions")}
-              className="flex flex-wrap gap-2"
+              label={t("setup.topic")}
+              error={problem === "topic" ? t("setup.topicRequired") : null}
+              hint={t("setup.topicCount", {
+                count: setup.topic.length,
+                max: TOPIC_MAX,
+              })}
             >
-              {suggestions.map((suggestion) => (
-                <Chip
-                  key={suggestion}
-                  selected={setup.topic === suggestion}
-                  onClick={() => {
-                    patch({ topic: suggestion });
-                  }}
+              <TextArea
+                id="topic"
+                rows={2}
+                maxLength={TOPIC_MAX}
+                placeholder={t("setup.topicPlaceholder")}
+                aria-invalid={problem === "topic"}
+                aria-describedby="topic-hint"
+                value={setup.topic}
+                onChange={(event) => {
+                  patch({ topic: event.target.value });
+                }}
+              />
+            </Field>
+            <Presence>
+              {suggestions.length > 0 && (
+                <Reveal
+                  key="suggestions"
+                  role="group"
+                  aria-label={t("setup.suggestions")}
+                  index={0}
+                  className="flex flex-wrap gap-2"
                 >
-                  {suggestion}
-                </Chip>
-              ))}
-            </div>
-          )}
-        </div>
+                  {suggestions.map((suggestion) => (
+                    <Chip
+                      key={suggestion}
+                      selected={setup.topic === suggestion}
+                      onClick={() => {
+                        patch({ topic: suggestion });
+                      }}
+                    >
+                      {suggestion}
+                    </Chip>
+                  ))}
+                </Reveal>
+              )}
+            </Presence>
+          </Reveal>
 
-        <ChoiceGroup<Level>
-          legend={t("setup.level")}
-          columns={3}
-          size="sm"
-          value={setup.level}
-          onChange={(level) => {
-            patch({ level });
-          }}
-          choices={LEVELS.map((value) => ({
-            value,
-            label: t(`level.${value}`),
-          }))}
-        />
-
-        <ChoiceGroup<Mode>
-          legend={t("setup.mode")}
-          columns={3}
-          size="sm"
-          value={setup.mode}
-          onChange={(mode) => {
-            patch({ mode });
-          }}
-          choices={MODES.map((value) => ({ value, label: t(`mode.${value}`) }))}
-        />
-
-        {setup.mode === "material" && (
-          <Field
-            id="material"
-            label={t("setup.material")}
-            error={problem === "material" ? t("setup.materialRequired") : null}
-          >
-            <TextArea
-              id="material"
-              rows={7}
-              placeholder={t("setup.materialPlaceholder")}
-              aria-invalid={problem === "material"}
-              value={setup.material ?? ""}
-              onChange={(event) => {
-                patch({ material: event.target.value });
+          <Reveal>
+            <ChoiceGroup<Level>
+              legend={t("setup.level")}
+              columns={3}
+              size="sm"
+              value={setup.level}
+              onChange={(level) => {
+                patch({ level });
               }}
+              choices={LEVELS.map((value) => ({
+                value,
+                label: t(`level.${value}`),
+              }))}
             />
-          </Field>
-        )}
+          </Reveal>
 
-        <ChoiceGroup<Personality>
-          legend={t("setup.personality")}
-          columns={2}
-          size="sm"
-          value={setup.personality}
-          onChange={(personality) => {
-            patch({ personality });
-          }}
-          choices={PERSONALITIES.map((value) => ({
-            value,
-            label: t(`personality.${value}`),
-          }))}
-        />
+          <Reveal>
+            <ChoiceGroup<Mode>
+              legend={t("setup.mode")}
+              columns={3}
+              size="sm"
+              value={setup.mode}
+              onChange={(mode) => {
+                patch({ mode });
+              }}
+              choices={MODES.map((value) => ({
+                value,
+                label: t(`mode.${value}`),
+              }))}
+            />
+          </Reveal>
 
-        <ChoiceGroup<FocusMode>
-          legend={t("setup.focus")}
-          columns={2}
-          value={setup.focusMode}
-          onChange={(focusMode) => {
-            patch({ focusMode });
-          }}
-          choices={(["free", "pending"] as const).map((value) => ({
-            value,
-            label: t(`focusMode.${value}`),
-            description: t(`focusMode.${value}Hint`),
-          }))}
-        />
+          <Presence>
+            {setup.mode === "material" && (
+              <Reveal key="material">
+                <Field
+                  id="material"
+                  label={t("setup.material")}
+                  error={
+                    problem === "material" ? t("setup.materialRequired") : null
+                  }
+                >
+                  <TextArea
+                    id="material"
+                    rows={7}
+                    placeholder={t("setup.materialPlaceholder")}
+                    aria-invalid={problem === "material"}
+                    value={setup.material ?? ""}
+                    onChange={(event) => {
+                      patch({ material: event.target.value });
+                    }}
+                  />
+                </Field>
+              </Reveal>
+            )}
+          </Presence>
 
-        <div className="flex flex-col gap-2">
-          <ChoiceGroup<(typeof TARGETS)[number]>
-            legend={t("setup.target")}
-            columns={4}
-            size="sm"
-            value={
-              setup.targetMinutes === null
-                ? "none"
-                : (TARGETS.find((v) => v === String(setup.targetMinutes)) ??
-                  "10")
-            }
-            onChange={(value) => {
-              patch({
-                targetMinutes: value === "none" ? null : Number(value),
-              });
-            }}
-            choices={TARGETS.map((value) => ({
-              value,
-              label:
-                value === "none"
-                  ? t("setup.targetNone")
-                  : t("common.minutes", { count: Number(value) }),
-            }))}
-          />
-          <p className="text-sm text-ink-faint">{t("setup.targetHint")}</p>
-        </div>
+          <Reveal>
+            <ChoiceGroup<Personality>
+              legend={t("setup.personality")}
+              columns={2}
+              size="sm"
+              value={setup.personality}
+              onChange={(personality) => {
+                patch({ personality });
+              }}
+              choices={PERSONALITIES.map((value) => ({
+                value,
+                label: t(`personality.${value}`),
+              }))}
+            />
+          </Reveal>
 
-        <div className="flex justify-end border-t border-line pt-6">
-          <Button type="submit" variant="primary" size="lg">
-            {t("setup.start")}
-            <ArrowRight aria-hidden className="size-5" />
-          </Button>
-        </div>
+          <Reveal>
+            <ChoiceGroup<FocusMode>
+              legend={t("setup.focus")}
+              columns={2}
+              value={setup.focusMode}
+              onChange={(focusMode) => {
+                patch({ focusMode });
+              }}
+              choices={(["free", "pending"] as const).map((value) => ({
+                value,
+                label: t(`focusMode.${value}`),
+                description: t(`focusMode.${value}Hint`),
+              }))}
+            />
+          </Reveal>
+
+          <Reveal className="flex flex-col gap-2">
+            <ChoiceGroup<(typeof TARGETS)[number]>
+              legend={t("setup.target")}
+              columns={4}
+              size="sm"
+              value={
+                setup.targetMinutes === null
+                  ? "none"
+                  : (TARGETS.find((v) => v === String(setup.targetMinutes)) ??
+                    "10")
+              }
+              onChange={(value) => {
+                patch({
+                  targetMinutes: value === "none" ? null : Number(value),
+                });
+              }}
+              choices={TARGETS.map((value) => ({
+                value,
+                label:
+                  value === "none"
+                    ? t("setup.targetNone")
+                    : t("common.minutes", { count: Number(value) }),
+              }))}
+            />
+            <p className="text-sm text-ink-faint">{t("setup.targetHint")}</p>
+          </Reveal>
+
+          <Reveal className="flex justify-end">
+            <Button type="submit" variant="primary" size="lg">
+              {t("setup.start")}
+              <ArrowRight aria-hidden className="size-5" />
+            </Button>
+          </Reveal>
+        </Stagger>
       </form>
     </main>
   );

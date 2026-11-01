@@ -78,4 +78,55 @@ describe("Conversation", () => {
       "Well, this week I have finished a big report for the logistics team and my boss was really happy with it.",
     );
   });
+
+  test("the orb says it is listening while recording", async () => {
+    const user = userEvent.setup();
+    render(
+      <Conversation
+        setup={SETUP}
+        sttModel="parakeet-tdt-0.6b-v2"
+        navigate={mock()}
+      />,
+    );
+    await screen.findByText("Ogmios: Try 2–3 sentences");
+    expect(screen.getByText("In conversation")).toBeInTheDocument();
+
+    const mic = screen.getByRole("button", { name: /Microphone/u });
+    mic.focus();
+    await user.keyboard("{Enter}");
+
+    expect(await screen.findByText("Listening…")).toBeInTheDocument();
+    expect(screen.queryByText("In conversation")).toBeNull();
+  });
+
+  test("the screen shows spoken minutes and the mood note", async () => {
+    render(<Conversation setup={SETUP} sttModel={null} navigate={mock()} />);
+    await screen.findByText("Ogmios: Try 2–3 sentences");
+
+    expect(screen.getByText("0 of 10 min spoken")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /Ogmios: (Keep going|No corrections now|Rough is fine|Say it your way)/u,
+      ),
+    ).toBeInTheDocument();
+  });
+
+  test("nothing on the chat screen corrects", async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <Conversation setup={SETUP} sttModel={null} navigate={mock()} />,
+    );
+    await screen.findByText("Ogmios: Try 2–3 sentences");
+    await user.type(
+      screen.getByLabelText("Your answer"),
+      "I have went there yesterday{Enter}",
+    );
+    await screen.findByText(/sleeping at the office/u, undefined, {
+      timeout: 3000,
+    });
+
+    expect(container.querySelector("mark")).toBeNull();
+    expect(screen.queryByText("Can you fix it?")).toBeNull();
+    expect(screen.queryByText(/Better/u)).toBeNull();
+  });
 });

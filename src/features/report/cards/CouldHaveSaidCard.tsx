@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { ArrowRight } from "lucide-react";
+import { Reveal } from "@/components/motion/Reveal";
+import { Stagger } from "@/components/motion/Stagger";
 import type { Step } from "../steps";
 import { CardTitle } from "./CardTitle";
 
@@ -13,11 +15,17 @@ export function CouldHaveSaidCard({
 }): ReactNode {
   const { t } = useTranslation();
   return (
-    <div className="flex flex-col gap-10">
-      <CardTitle>{t("report.couldHaveSaid.title")}</CardTitle>
-      <ul className="flex flex-col gap-8">
+    <div className="flex flex-col gap-8">
+      <Reveal>
+        <CardTitle>{t("report.couldHaveSaid.title")}</CardTitle>
+      </Reveal>
+      <Stagger as="ul" className="flex flex-col gap-4">
         {card.items.map((item) => (
-          <li key={item.original} className="flex flex-col gap-2">
+          <Reveal
+            key={item.original}
+            as="li"
+            className="flex flex-col gap-2 rounded-lg bg-raised px-5 py-4"
+          >
             <p className="text-ink-soft">
               <span className="sr-only">
                 {t("report.couldHaveSaid.said")}:{" "}
@@ -37,9 +45,9 @@ export function CouldHaveSaidCard({
               </span>
             </p>
             <p className="text-sm text-ink-soft">{item.why}</p>
-          </li>
+          </Reveal>
         ))}
-      </ul>
+      </Stagger>
     </div>
   );
 }

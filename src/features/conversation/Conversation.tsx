@@ -1,20 +1,24 @@
+import type { MotionValue } from "motion/react";
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Flag, Info, Square } from "lucide-react";
+import { Flag, Square } from "lucide-react";
 import type { SessionSetup } from "@shared/domain";
+import { Presence } from "@/components/motion/Presence";
+import { Reveal } from "@/components/motion/Reveal";
 import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
-import { Waveform } from "@/components/ui/Waveform";
+import type { OrbState } from "@/components/ui/Orb";
 import type { Navigate } from "@/app/routes";
 import { useReadAloud } from "@/features/speech/speech";
 import { errorMessage } from "@/lib/errors";
 import { endSession } from "@/lib/ipc";
-import { formatNumber } from "@/lib/text";
 import { AnalysisView } from "./AnalysisView";
 import { Composer } from "./Composer";
+import { ConversationAside } from "./ConversationAside";
 import { MessageList } from "./MessageList";
 import { useConversation } from "./useConversation";
+import type { RecorderStatus } from "./useRecorder";
 
 const ENCOURAGEMENTS = [
   "conversation.encourage1",
@@ -35,10 +39,13 @@ export function Conversation({
   sttModel,
   navigate,
 }: ConversationProps): ReactNode {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const { state, send, dismissTarget } = useConversation(setup);
   const [ending, setEnding] = useState(false);
   const [endError, setEndError] = useState<string | null>(null);
+  // What the microphone does, and how loud: the orb listens with them.
+  const [mic, setMic] = useState<RecorderStatus>("idle");
+  const [level, setLevel] = useState<MotionValue<number>>();
   const userTurns = state.messages.filter((m) => m.role === "user").length;
   // Only the partner is read aloud, each line once it is all there.
   const latest = state.messages.at(-1);
@@ -69,16 +76,36 @@ export function Conversation({
     return <AnalysisView sessionId={state.sessionId} />;
   }
 
-  const spoken = formatNumber(state.speechMinutes, i18n.language);
   const target = setup.targetMinutes;
   const encouragement =
     ENCOURAGEMENTS[userTurns % ENCOURAGEMENTS.length] ?? ENCOURAGEMENTS[0];
+  const thinking =
+    state.phase === "waiting" ||
+    state.streaming !== null ||
+    mic === "transcribing";
+  const orb: OrbState =
+    mic === "recording" ? "listening" : thinking ? "thinking" : "idle";
+  const status =
+    mic === "recording"
+      ? t("conversation.recording")
+      : thinking
+        ? t(
+            state.streaming === "" && state.messages.length === 0
+              ? "conversation.starting"
+              : "conversation.writing",
+          )
+        : t("conversation.live");
 
   return (
     <main aria-label={t("conversation.label")} className="flex h-full flex-col">
-      <header className="flex shrink-0 flex-wrap items-center gap-x-6 gap-y-3 border-b border-line px-10 py-4 bg-glow">
+      <Reveal
+        as="header"
+        kind="fade"
+        index={0}
+        className="flex shrink-0 items-center gap-4 px-6 py-4 nav:px-10 nav:py-6"
+      >
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <h1 className="truncate font-display text-2xl font-light text-ink">
+          <h1 className="truncate text-lg font-semibold text-ink">
             {setup.topic}
           </h1>
           <p className="truncate text-xs text-ink-soft">
@@ -89,93 +116,91 @@ export function Conversation({
             ].join(" · ")}
           </p>
         </div>
-        <p className="flex items-center gap-2 rounded-sm bg-you-soft px-2.5 py-1 text-xs font-medium text-you">
-          <Waveform bars={16} className="h-3.5" />
-          {t("conversation.live")}
-        </p>
-        <div className="flex items-center gap-3 text-xs text-ink-soft tabular-nums">
-          {target !== null && (
-            <span
-              aria-hidden
-              className="h-0.5 w-28 overflow-hidden bg-line-strong"
-            >
-              <span
-                className="block h-full origin-left bg-you transition-transform duration-500 ease-out-expo"
-                style={{
-                  transform: `scaleX(${Math.min(1, state.speechMinutes / target)})`,
-                }}
-              />
-            </span>
-          )}
-          {target === null
-            ? t("conversation.speechNoTarget", { spoken })
-            : t("conversation.speech", { spoken, target })}
-        </div>
         <Button
-          variant="inverse"
-          size="sm"
+          variant="secondary"
           icon={<Square aria-hidden className="size-3 fill-current" />}
           onClick={() => void end()}
         >
           {t("conversation.end")}
         </Button>
-      </header>
-      <div aria-hidden className="h-0.5 shrink-0 opacity-70 bg-voices" />
+      </Reveal>
 
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-3xl px-10 pt-10 pb-8">
-          <MessageList
-            messages={state.messages}
-            streaming={state.streaming}
-            lengthHint={state.lengthHint}
-          />
-        </div>
-      </div>
-
-      <div className="shrink-0 px-10 pb-6">
-        <div className="mx-auto flex max-w-3xl flex-col gap-3">
-          {state.targetReached && (
-            <Notice
-              tone="accent"
-              icon={<Flag aria-hidden className="size-4 text-accent-text" />}
-              className="items-center motion-safe:animate-rise"
-            >
-              <div role="status" className="flex flex-wrap items-center gap-3">
-                <span className="flex-1">
-                  {t("conversation.targetReached")}
-                </span>
-                <Button size="sm" variant="ghost" onClick={dismissTarget}>
-                  {t("conversation.keepGoing")}
-                </Button>
-                <Button size="sm" variant="primary" onClick={() => void end()}>
-                  {t("conversation.seeFeedback")}
-                </Button>
-              </div>
-            </Notice>
-          )}
-          {(state.error ?? endError) !== null && (
-            <Notice tone="danger">
-              {t("common.error", { message: state.error ?? endError ?? "" })}
-            </Notice>
-          )}
-          <p
-            key={encouragement}
-            className="flex items-center gap-3 text-xs text-ink-soft motion-safe:animate-fade"
-          >
-            <span aria-hidden className="h-px flex-1 bg-line-strong" />
-            <Info aria-hidden className="size-3.5 shrink-0" />
-            {t("conversation.app", { text: t(encouragement) })}
-            <span aria-hidden className="h-px flex-1 bg-line-strong" />
-          </p>
-          <Composer
-            sessionId={state.sessionId}
-            turnWordGoal={state.turnWordGoal}
-            scaffolds={state.scaffolds}
-            voice={sttModel !== null}
-            disabled={state.phase !== "ready"}
-            onSend={send}
-          />
-        </div>
+      <div className="flex min-h-0 flex-1 flex-col gap-4 px-6 pb-6 nav:flex-row nav:gap-10 nav:px-10">
+        <ConversationAside
+          state={orb}
+          status={status}
+          level={level}
+          minutes={state.speechMinutes}
+          target={target}
+          mood={t("conversation.app", { text: t(encouragement) })}
+          moodKey={encouragement}
+        />
+        <Reveal
+          as="section"
+          index={2}
+          aria-label={t("conversation.chat")}
+          className="flex min-h-0 min-w-0 flex-1 flex-col gap-4"
+        >
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <div className="mx-auto flex min-h-full max-w-3xl flex-col justify-end px-1 pb-4">
+              <MessageList
+                messages={state.messages}
+                streaming={state.streaming}
+                lengthHint={state.lengthHint}
+              />
+            </div>
+          </div>
+          <div className="mx-auto flex w-full max-w-3xl shrink-0 flex-col gap-3">
+            <Presence>
+              {state.targetReached && (
+                <Notice
+                  key="target"
+                  tone="accent"
+                  icon={
+                    <Flag aria-hidden className="size-4 text-accent-text" />
+                  }
+                  className="items-center"
+                >
+                  <div
+                    role="status"
+                    className="flex flex-wrap items-center gap-3"
+                  >
+                    <span className="flex-1">
+                      {t("conversation.targetReached")}
+                    </span>
+                    <Button size="sm" variant="ghost" onClick={dismissTarget}>
+                      {t("conversation.keepGoing")}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      onClick={() => void end()}
+                    >
+                      {t("conversation.seeFeedback")}
+                    </Button>
+                  </div>
+                </Notice>
+              )}
+              {(state.error ?? endError) !== null && (
+                <Notice key="error" tone="danger">
+                  {t("common.error", {
+                    message: state.error ?? endError ?? "",
+                  })}
+                </Notice>
+              )}
+            </Presence>
+            <Composer
+              sessionId={state.sessionId}
+              turnWordGoal={state.turnWordGoal}
+              scaffolds={state.scaffolds}
+              voice={sttModel !== null}
+              disabled={state.phase !== "ready"}
+              onSend={send}
+              onLevel={setLevel}
+              onStatus={setMic}
+            />
+          </div>
+        </Reveal>
       </div>
     </main>
   );

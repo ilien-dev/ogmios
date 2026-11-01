@@ -1,6 +1,19 @@
-import { describe, expect, mock, test } from "bun:test";
-import { render, screen } from "@testing-library/react";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  mock,
+  spyOn,
+  test,
+} from "bun:test";
+import {
+  render,
+  screen,
+  waitForElementToBeRemoved,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { MotionGlobalConfig } from "motion/react";
 import type { Report } from "@shared/domain";
 import { getReport } from "@/lib/ipc";
 import { useMockBackend } from "@/test/mockBackend";
@@ -199,5 +212,120 @@ describe("ReportScreen", () => {
       format: null,
       autostart: true,
     });
+  });
+
+  test("the report has one card per step with its dots", async () => {
+    render(
+      <ReportScreen
+        sessionId="s-106"
+        initial={await report()}
+        origin="session"
+        navigate={mock()}
+      />,
+    );
+    const dots = screen.getByRole("img", { name: "1 of 9" });
+    expect(dots.children).toHaveLength(9);
+    expect(screen.getAllByRole("heading", { level: 2 })).toHaveLength(1);
+  });
+
+  test("Back and Next move between cards", async () => {
+    const user = userEvent.setup();
+    render(
+      <ReportScreen
+        sessionId="s-106"
+        initial={await report()}
+        origin="session"
+        navigate={mock()}
+      />,
+    );
+    const back = screen.getByRole("button", { name: "Previous card" });
+    expect(back).toBeDisabled();
+
+    await user.click(screen.getByRole("button", { name: /Next/u }));
+    expect(
+      screen.getByRole("heading", { name: "One thing to work on" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "2 of 9" })).toBeInTheDocument();
+
+    await user.click(back);
+    expect(
+      screen.getByRole("heading", { name: "What went well" }),
+    ).toBeInTheDocument();
+    expect(back).toBeDisabled();
+  });
+
+  test("a report never shows more than one focus and two minors", async () => {
+    const user = userEvent.setup();
+    const full = await report();
+    const corrections = full.cards.filter((card) => card.type === "correction");
+    const extra = corrections.flatMap((card) => [
+      card,
+      { ...card, itemId: `${card.itemId}-again` },
+    ]);
+    const others = full.cards.filter((card) => card.type !== "correction");
+    render(
+      <ReportScreen
+        sessionId="s-106"
+        initial={{ ...full, cards: [...extra, ...others] }}
+        origin="session"
+        navigate={mock()}
+      />,
+    );
+    let focus = 0;
+    let minors = 0;
+    for (let step = 0; step < 12; step += 1) {
+      focus += screen.queryAllByRole("heading", {
+        name: "One thing to work on",
+      }).length;
+      if (screen.queryByRole("heading", { name: /small things?$/u }) !== null) {
+        minors = screen.getAllByText("What you said").length;
+      }
+      await user.keyboard("{ArrowRight}");
+    }
+    expect(focus).toBe(1);
+    expect(minors).toBeLessThanOrEqual(2);
+    expect(minors).toBeGreaterThan(0);
+  });
+});
+
+describe("ReportScreen, with real exits", () => {
+  const nativeAnimate = Element.prototype.animate;
+  useMockBackend();
+
+  // As in `motion.test.tsx`: on motion's own frame loop.
+  beforeEach(() => {
+    MotionGlobalConfig.skipAnimations = false;
+    Reflect.deleteProperty(Element.prototype, "animate");
+    spyOn(console, "warn").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    MotionGlobalConfig.skipAnimations = true;
+    Element.prototype.animate = nativeAnimate;
+    mock.restore();
+  });
+
+  test("the card that goes stays on screen, out of reach, until it has left", async () => {
+    const user = userEvent.setup();
+    render(
+      <ReportScreen
+        sessionId="s-106"
+        initial={await report()}
+        origin="session"
+        navigate={mock()}
+      />,
+    );
+    const first = screen.getByRole("heading", { name: "What went well" });
+    const card = first.closest("section") as HTMLElement;
+
+    await user.keyboard("{ArrowRight}");
+
+    expect(card).toBeInTheDocument();
+    expect(card).toHaveAttribute("inert");
+    // The next card is already there, and the keys work during the exit.
+    expect(
+      screen.getByRole("heading", { name: "One thing to work on" }),
+    ).toBeInTheDocument();
+    await waitForElementToBeRemoved(card);
   });
 });
