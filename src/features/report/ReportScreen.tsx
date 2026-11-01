@@ -1,6 +1,11 @@
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
+import { motion } from "motion/react";
+import { Presence } from "@/components/motion/Presence";
+import { Reveal } from "@/components/motion/Reveal";
+import { Swap } from "@/components/motion/Swap";
+import { useScreenLeaving } from "@/lib/motion";
 import {
   ArrowLeft,
   ArrowRight,
@@ -9,11 +14,12 @@ import {
   X,
 } from "lucide-react";
 import type { Report } from "@shared/domain";
+import { Stagger } from "@/components/motion/Stagger";
 import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
+import { Orb } from "@/components/ui/Orb";
 import { Spinner } from "@/components/ui/Spinner";
 import type { Navigate } from "@/app/routes";
-import { cn } from "@/lib/cn";
 import { errorMessage } from "@/lib/errors";
 import { getReport } from "@/lib/ipc";
 import { AchievementCard } from "./cards/AchievementCard";
@@ -56,6 +62,7 @@ export function ReportScreen({
   const [report, setReport] = useState<Report | null>(initial);
   const [failure, setFailure] = useState<string | null>(null);
   const [index, setIndex] = useState(0);
+  const leaving = useScreenLeaving();
   const steps = report === null ? [] : toSteps(report.cards);
   const total = steps.length;
 
@@ -81,6 +88,9 @@ export function ReportScreen({
   }, [initial, sessionId]);
 
   useEffect(() => {
+    if (leaving) {
+      return;
+    }
     const onKey = (event: KeyboardEvent): void => {
       if (
         typing(event.target) ||
@@ -100,59 +110,71 @@ export function ReportScreen({
     return () => {
       globalThis.removeEventListener("keydown", onKey);
     };
-  }, [total]);
+  }, [total, leaving]);
 
   const leave = (): void => {
     navigate(origin === "progress" ? { name: "progress" } : { name: "home" });
   };
 
-  if (report === null) {
-    return (
-      <main className="grid h-full place-items-center">
-        {failure === null ? (
-          <p className="flex items-center gap-3 text-sm text-ink-faint">
-            <Spinner />
-            {t("report.loading")}
+  const view = (): ReactNode => {
+    if (report === null) {
+      return (
+        <main className="grid h-full place-items-center">
+          <Presence swap>
+            {failure === null ? (
+              <Reveal
+                key="loading"
+                as="p"
+                kind="fade"
+                index={0}
+                className="flex items-center gap-3 text-sm text-ink-faint"
+              >
+                <Spinner />
+                {t("report.loading")}
+              </Reveal>
+            ) : (
+              <Notice key="failed" tone="danger">
+                {t("common.error", { message: failure })}
+              </Notice>
+            )}
+          </Presence>
+        </main>
+      );
+    }
+
+    const step = steps[index] ?? steps[0];
+    const onlyClosing = report.cards.length === 0;
+
+    const closing = (focusPatternId: string | null): ReactNode => (
+      <Stagger className="flex flex-col gap-8">
+        <Reveal className="flex flex-col gap-3">
+          <CardTitle>{t("report.closing.title")}</CardTitle>
+          <p className="text-lead text-ink-soft">
+            {onlyClosing ? t("report.empty") : t("report.closing.body")}
           </p>
-        ) : (
-          <Notice tone="danger">
-            {t("common.error", { message: failure })}
-          </Notice>
-        )}
-      </main>
-    );
-  }
-
-  const step = steps[index] ?? steps[0];
-  const onlyClosing = report.cards.length === 0;
-
-  const closing = (focusPatternId: string | null): ReactNode => (
-    <div className="flex flex-col gap-10">
-      <div className="flex flex-col gap-3">
-        <CardTitle>{t("report.closing.title")}</CardTitle>
-        <p className="text-lead text-ink-soft">
-          {onlyClosing ? t("report.empty") : t("report.closing.body")}
-        </p>
-      </div>
-      <div className="flex flex-col items-start gap-3">
-        {focusPatternId !== null && (
-          <Button
-            variant="primary"
-            size="lg"
-            icon={<Dumbbell aria-hidden className="size-5" />}
-            onClick={() => {
-              navigate({
-                name: "practice",
-                patternId: focusPatternId,
-                format: null,
-                autostart: true,
-              });
-            }}
-          >
-            {t("report.closing.practise")}
-          </Button>
-        )}
-        <div className="flex gap-2">
+        </Reveal>
+        <Reveal className="flex flex-wrap items-center gap-3">
+          <Presence>
+            {focusPatternId !== null && (
+              <Reveal key="focusPatternId" as="span" kind="fade">
+                <Button
+                  variant="primary"
+                  size="lg"
+                  icon={<Dumbbell aria-hidden className="size-5" />}
+                  onClick={() => {
+                    navigate({
+                      name: "practice",
+                      patternId: focusPatternId,
+                      format: null,
+                      autostart: true,
+                    });
+                  }}
+                >
+                  {t("report.closing.practise")}
+                </Button>
+              </Reveal>
+            )}
+          </Presence>
           <Button
             icon={<MessageCircle aria-hidden className="size-4" />}
             onClick={() => {
@@ -164,118 +186,168 @@ export function ReportScreen({
           <Button variant="ghost" onClick={leave}>
             {t("report.closing.done")}
           </Button>
-        </div>
-      </div>
-    </div>
-  );
+        </Reveal>
+      </Stagger>
+    );
 
-  const render = (current: Step): ReactNode => {
-    switch (current.kind) {
-      case "achievement":
-        return <AchievementCard card={current.card} />;
-      case "focus":
-        return (
-          <div className="flex flex-col gap-8">
-            <CardTitle>{t("report.focus.title")}</CardTitle>
-            <CorrectionView card={current.card} />
-          </div>
-        );
-      case "minors":
-        return (
-          <div className="flex flex-col gap-8">
-            <CardTitle>
-              {t("report.minor.title", { count: current.cards.length })}
-            </CardTitle>
-            <div className="flex flex-col divide-y divide-line">
+    const render = (current: Step): ReactNode => {
+      switch (current.kind) {
+        case "achievement":
+          return <AchievementCard card={current.card} />;
+        case "focus":
+          return (
+            <Stagger className="flex flex-col gap-8">
+              <Reveal>
+                <CardTitle>{t("report.focus.title")}</CardTitle>
+              </Reveal>
+              <Reveal>
+                <CorrectionView card={current.card} />
+              </Reveal>
+            </Stagger>
+          );
+        case "minors":
+          return (
+            <Stagger className="flex flex-col gap-8">
+              <Reveal>
+                <CardTitle>
+                  {t("report.minor.title", { count: current.cards.length })}
+                </CardTitle>
+              </Reveal>
               {current.cards.map((card) => (
-                <div key={card.itemId} className="py-6 first:pt-0 last:pb-0">
+                <Reveal
+                  key={card.itemId}
+                  className="rounded-lg bg-raised px-6 py-5"
+                >
                   <CorrectionView card={card} compact />
-                </div>
+                </Reveal>
               ))}
-            </div>
+            </Stagger>
+          );
+        case "couldHaveSaid":
+          return <CouldHaveSaidCard card={current.card} />;
+        case "nativeRewrite":
+          return <NativeRewriteCard rewrite={current.rewrite} />;
+        case "vocabulary":
+          return <VocabularyCard card={current.card} />;
+        case "metrics":
+          return <MetricsCard card={current.card} />;
+        case "challenge":
+          return <ChallengeCard card={current.card} />;
+        case "closing":
+          return closing(current.focusPatternId);
+        default:
+          return null;
+      }
+    };
+
+    const last = index >= total - 1;
+    const where = t("report.step", { current: index + 1, total });
+
+    return (
+      <main aria-label={t("report.label")} className="flex h-full flex-col">
+        <Reveal
+          as="header"
+          kind="fade"
+          index={0}
+          className="flex shrink-0 items-center gap-4 px-6 py-4 nav:px-10"
+        >
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            <Orb size="sm" shared />
+            <p className="truncate font-semibold text-ink">
+              {t("report.label")}
+            </p>
           </div>
-        );
-      case "couldHaveSaid":
-        return <CouldHaveSaidCard card={current.card} />;
-      case "nativeRewrite":
-        return <NativeRewriteCard rewrite={current.rewrite} />;
-      case "vocabulary":
-        return <VocabularyCard card={current.card} />;
-      case "metrics":
-        return <MetricsCard card={current.card} />;
-      case "challenge":
-        return <ChallengeCard card={current.card} />;
-      case "closing":
-        return closing(current.focusPatternId);
-      default:
-        return null;
-    }
+          <div
+            role="img"
+            aria-label={where}
+            className="flex items-center gap-2"
+          >
+            {steps.map((item, i) => (
+              <span
+                key={`${item.kind}-${i}`}
+                className="relative size-2 rounded-full bg-line-strong"
+              >
+                {i === index && (
+                  <motion.span
+                    layoutId="report-dot"
+                    className="absolute -inset-1 rounded-full bg-ink"
+                  />
+                )}
+              </span>
+            ))}
+          </div>
+          <button
+            type="button"
+            aria-label={t("common.close")}
+            onClick={leave}
+            className="grid size-11 place-items-center rounded-full bg-raised text-ink transition-control hover:bg-line"
+          >
+            <X aria-hidden className="size-5" />
+          </button>
+        </Reveal>
+        <p className="sr-only" aria-live="polite">
+          {where}
+        </p>
+        <p className="sr-only">{t("report.keys")}</p>
+
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="relative mx-auto max-w-3xl px-6 py-2 nav:px-10">
+            <Presence swap>
+              <Reveal
+                key={index}
+                as="section"
+                aria-roledescription="slide"
+                aria-label={where}
+                className="rounded-xl bg-surface p-8 shadow-card nav:p-10"
+              >
+                {step === undefined ? null : render(step)}
+              </Reveal>
+            </Presence>
+          </div>
+        </div>
+
+        <Reveal
+          kind="fade"
+          index={1}
+          className="mx-auto flex w-full max-w-3xl shrink-0 items-center justify-between px-6 py-5 nav:px-10"
+        >
+          <Button
+            disabled={index === 0}
+            aria-label={t("report.previous")}
+            className="size-12 px-0"
+            icon={<ArrowLeft aria-hidden className="size-5" />}
+            onClick={() => {
+              setIndex((held) => Math.max(held - 1, 0));
+            }}
+          />
+          <Presence>
+            {!last && (
+              <Reveal key="next" as="span" kind="scale" index={0}>
+                <Button
+                  variant="inverse"
+                  size="lg"
+                  onClick={() => {
+                    setIndex((held) => Math.min(held + 1, total - 1));
+                  }}
+                >
+                  {t("report.next")}
+                  <ArrowRight aria-hidden className="size-4" />
+                </Button>
+              </Reveal>
+            )}
+          </Presence>
+        </Reveal>
+      </main>
+    );
   };
 
-  const last = index >= total - 1;
-
   return (
-    <main aria-label={t("report.label")} className="flex h-full flex-col">
-      <header className="flex h-16 shrink-0 items-center gap-6 px-8">
-        <ol aria-hidden className="flex flex-1 gap-1.5">
-          {steps.map((item, i) => (
-            <li
-              key={`${item.kind}-${i}`}
-              className={cn(
-                "h-0.5 flex-1 transition-colors duration-300",
-                i <= index ? "bg-you" : "bg-line-strong",
-              )}
-            />
-          ))}
-        </ol>
-        <p className="text-sm text-ink-faint tabular-nums">
-          {t("report.step", { current: index + 1, total })}
-        </p>
-        <button
-          type="button"
-          aria-label={t("common.close")}
-          onClick={leave}
-          className="grid size-9 place-items-center rounded-md text-ink-faint hover:bg-raised hover:text-ink"
-        >
-          <X aria-hidden className="size-5" />
-        </button>
-      </header>
-      <div aria-hidden className="h-0.5 shrink-0 opacity-70 bg-voices" />
-      <p className="sr-only">{t("report.keys")}</p>
-
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        <section
-          key={index}
-          aria-roledescription="slide"
-          aria-label={t("report.step", { current: index + 1, total })}
-          className="mx-auto max-w-2xl px-10 pt-10 pb-12 motion-safe:animate-rise"
-        >
-          {step === undefined ? null : render(step)}
-        </section>
-      </div>
-
-      <footer className="flex h-20 shrink-0 items-center justify-between border-t border-line px-8">
-        <Button
-          variant="ghost"
-          disabled={index === 0}
-          aria-label={t("report.previous")}
-          icon={<ArrowLeft aria-hidden className="size-4" />}
-          onClick={() => {
-            setIndex((held) => Math.max(held - 1, 0));
-          }}
-        />
-        {!last && (
-          <Button
-            variant="primary"
-            onClick={() => {
-              setIndex((held) => Math.min(held + 1, total - 1));
-            }}
-          >
-            {t("report.next")}
-            <ArrowRight aria-hidden className="size-4" />
-          </Button>
-        )}
-      </footer>
-    </main>
+    <Swap
+      as="div"
+      id={report === null ? "loading" : "ready"}
+      className="h-full"
+    >
+      {view()}
+    </Swap>
   );
 }

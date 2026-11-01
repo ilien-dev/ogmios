@@ -3,6 +3,8 @@ import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { CornerDownLeft, Languages, X } from "lucide-react";
 import type { HelpOption } from "@shared/domain";
+import { Presence } from "@/components/motion/Presence";
+import { Reveal } from "@/components/motion/Reveal";
 import { Button } from "@/components/ui/Button";
 import { Spinner } from "@/components/ui/Spinner";
 import { TextInput } from "@/components/ui/TextInput";
@@ -69,7 +71,7 @@ export function HelpPopover({
       <Button
         ref={trigger}
         variant="ghost"
-        size="sm"
+        className="bg-raised"
         aria-expanded={open}
         aria-controls={panelId}
         icon={<Languages aria-hidden className="size-4" />}
@@ -83,99 +85,134 @@ export function HelpPopover({
       >
         {t("conversation.help")}
       </Button>
-      {open && (
-        <section
-          id={panelId}
-          aria-label={t("conversation.help")}
-          onKeyDown={(event) => {
-            if (event.key === "Escape") {
-              event.stopPropagation();
-              close();
-            }
-          }}
-          className="absolute bottom-full left-0 z-20 mb-3 flex w-96 flex-col gap-4 rounded-lg border border-line bg-surface p-4 shadow-float motion-safe:animate-rise"
-        >
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-medium text-ink">
-              {t("conversation.help")}
-            </h2>
-            <button
-              type="button"
-              aria-label={t("common.close")}
-              onClick={close}
-              className="grid size-7 place-items-center rounded-sm text-ink-faint hover:bg-raised hover:text-ink"
-            >
-              <X aria-hidden className="size-4" />
-            </button>
-          </div>
-          {/* Not a <form>: the panel lives inside the composer's form. */}
-          <div className="flex gap-2">
-            <label htmlFor={`${panelId}-text`} className="sr-only">
-              {t("conversation.helpField")}
-            </label>
-            <TextInput
-              ref={input}
-              id={`${panelId}-text`}
-              placeholder={t("conversation.helpField")}
-              value={text}
-              onChange={(event) => {
-                setText(event.target.value);
-              }}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  event.preventDefault();
-                  void ask();
-                }
-              }}
-            />
-            <Button
-              className="h-11"
-              onClick={() => void ask()}
-              disabled={asking || text.trim() === ""}
-            >
-              {asking ? <Spinner /> : t("conversation.helpAsk")}
-            </Button>
-          </div>
-          <div aria-live="polite" className="flex flex-col gap-2">
-            {options?.length === 0 && (
-              <p className="text-sm text-ink-soft">
-                {t("conversation.helpEmpty")}
-              </p>
-            )}
-            {options?.map((option) => (
-              <div
-                key={option.english}
-                className="flex items-center justify-between gap-3 rounded-md bg-raised px-3 py-2.5"
+      <Presence>
+        {open && (
+          <Reveal
+            key="panel"
+            as="section"
+            id={panelId}
+            aria-label={t("conversation.help")}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                event.stopPropagation();
+                close();
+              }
+            }}
+            className="absolute bottom-full left-0 z-20 mb-3 flex w-96 flex-col gap-4 rounded-lg bg-surface p-4 shadow-float"
+          >
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-medium text-ink">
+                {t("conversation.help")}
+              </h2>
+              <button
+                type="button"
+                aria-label={t("common.close")}
+                onClick={close}
+                className="grid size-7 place-items-center rounded-sm text-ink-faint hover:bg-raised hover:text-ink"
               >
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-ink">
-                    {option.english}
-                  </p>
-                  {option.note !== null && (
-                    <p className="text-sm text-ink-soft">{option.note}</p>
-                  )}
-                </div>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  icon={<CornerDownLeft aria-hidden className="size-3.5" />}
-                  aria-label={`${t("conversation.insert")}: ${option.english}`}
-                  onClick={() => {
-                    insert(option.english);
-                  }}
-                >
-                  {t("conversation.insert")}
-                </Button>
-              </div>
-            ))}
-            {failure !== null && (
-              <p role="alert" className="text-sm text-danger">
-                {t("common.error", { message: failure })}
-              </p>
-            )}
-          </div>
-        </section>
-      )}
+                <X aria-hidden className="size-4" />
+              </button>
+            </div>
+            {/* Not a <form>: the panel lives inside the composer's form. */}
+            <div className="flex gap-2">
+              <label htmlFor={`${panelId}-text`} className="sr-only">
+                {t("conversation.helpField")}
+              </label>
+              <TextInput
+                ref={input}
+                id={`${panelId}-text`}
+                placeholder={t("conversation.helpField")}
+                value={text}
+                onChange={(event) => {
+                  setText(event.target.value);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    void ask();
+                  }
+                }}
+              />
+              <Button
+                className="relative h-11"
+                onClick={() => void ask()}
+                disabled={asking || text.trim() === ""}
+              >
+                <Presence swap>
+                  <Reveal
+                    key={asking ? "asking" : "ask"}
+                    as="span"
+                    kind="fade"
+                    index={0}
+                  >
+                    {asking ? <Spinner /> : t("conversation.helpAsk")}
+                  </Reveal>
+                </Presence>
+              </Button>
+            </div>
+            <div aria-live="polite" className="flex flex-col gap-2">
+              <Presence>
+                {options?.length === 0 && (
+                  <Reveal
+                    key="empty"
+                    as="p"
+                    index={0}
+                    className="text-sm text-ink-soft"
+                  >
+                    {t("conversation.helpEmpty")}
+                  </Reveal>
+                )}
+                {options?.map((option, i) => (
+                  <Reveal
+                    key={option.english}
+                    index={i}
+                    className="flex items-center justify-between gap-3 rounded-md bg-raised px-3 py-2.5"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-ink">
+                        {option.english}
+                      </p>
+                      <Presence>
+                        {option.note !== null && (
+                          <Reveal
+                            key="note"
+                            as="p"
+                            className="text-sm text-ink-soft"
+                          >
+                            {option.note}
+                          </Reveal>
+                        )}
+                      </Presence>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      icon={<CornerDownLeft aria-hidden className="size-3.5" />}
+                      aria-label={`${t("conversation.insert")}: ${option.english}`}
+                      onClick={() => {
+                        insert(option.english);
+                      }}
+                    >
+                      {t("conversation.insert")}
+                    </Button>
+                  </Reveal>
+                ))}
+                {failure !== null && (
+                  <Reveal
+                    key="failure"
+                    as="p"
+                    index={0}
+                    role="alert"
+                    className="text-sm text-danger"
+                  >
+                    {t("common.error", { message: failure })}
+                  </Reveal>
+                )}
+              </Presence>
+            </div>
+          </Reveal>
+        )}
+      </Presence>
     </div>
   );
 }

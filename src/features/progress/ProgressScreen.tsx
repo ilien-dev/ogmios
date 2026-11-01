@@ -2,6 +2,10 @@ import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { Progress, VocabEntry } from "@shared/domain";
+import { Presence } from "@/components/motion/Presence";
+import { Reveal } from "@/components/motion/Reveal";
+import { Swap } from "@/components/motion/Swap";
+import { Stagger } from "@/components/motion/Stagger";
 import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
 import { Spinner } from "@/components/ui/Spinner";
@@ -27,10 +31,26 @@ function Section({
   className?: string;
 }): ReactNode {
   return (
-    <section className={cn("flex flex-col gap-5", className)}>
+    <Reveal as="section" className={cn("flex flex-col gap-5", className)}>
       <h2 className="text-lg font-semibold text-ink">{title}</h2>
-      {empty === null ? children : <p className="text-ink-soft">{empty}</p>}
-    </section>
+      <Presence swap>
+        {empty === null ? (
+          <Reveal key="filled" kind="fade" index={0}>
+            {children}
+          </Reveal>
+        ) : (
+          <Reveal
+            key="empty"
+            as="p"
+            kind="fade"
+            index={0}
+            className="text-ink-soft"
+          >
+            {empty}
+          </Reveal>
+        )}
+      </Presence>
+    </Reveal>
   );
 }
 
@@ -48,35 +68,47 @@ function Vocabulary({ words }: { words: VocabEntry[] }): ReactNode {
   return (
     <div className="flex flex-col items-start gap-3">
       <dl className="flex w-full flex-col divide-y divide-line">
-        {shown.map((word) => (
-          <div
-            key={`${word.date}-${word.english}-${word.asked ?? ""}`}
-            className="flex items-baseline justify-between gap-4 py-2.5 first:pt-0"
-          >
-            <dt className="flex items-center gap-2 font-medium text-ink">
-              {word.english}
-              {word.strength !== null && (
-                <StrengthMark strength={word.strength} />
-              )}
-            </dt>
-            <dd className="truncate text-sm text-ink-faint">
-              {word.asked ?? ""}
-            </dd>
-          </div>
-        ))}
+        <Presence>
+          {shown.map((word, index) => (
+            <Reveal
+              key={`${word.date}-${word.english}-${word.asked ?? ""}`}
+              kind="fade"
+              index={index}
+              className="flex items-baseline justify-between gap-4 py-2.5 first:pt-0"
+            >
+              <dt className="flex items-center gap-2 font-medium text-ink">
+                {word.english}
+                <Presence>
+                  {word.strength !== null && (
+                    <Reveal key="strength" as="span" kind="fade">
+                      <StrengthMark strength={word.strength} />
+                    </Reveal>
+                  )}
+                </Presence>
+              </dt>
+              <dd className="truncate text-sm text-ink-faint">
+                {word.asked ?? ""}
+              </dd>
+            </Reveal>
+          ))}
+        </Presence>
       </dl>
-      {shown.length < words.length && (
-        <Button
-          variant="ghost"
-          size="sm"
-          className="-ml-3"
-          onClick={() => {
-            setAll(true);
-          }}
-        >
-          {t("progress.vocabularyAll", { count: words.length })}
-        </Button>
-      )}
+      <Presence>
+        {shown.length < words.length && (
+          <Reveal key="words" as="span" kind="fade">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="-ml-3"
+              onClick={() => {
+                setAll(true);
+              }}
+            >
+              {t("progress.vocabularyAll", { count: words.length })}
+            </Button>
+          </Reveal>
+        )}
+      </Presence>
     </div>
   );
 }
@@ -109,125 +141,162 @@ export function ProgressScreen({
     };
   }, []);
 
-  if (progress === null) {
+  const view = (): ReactNode => {
+    if (progress === null) {
+      return (
+        <main className="grid h-full place-items-center">
+          <Presence swap>
+            {failure === null ? (
+              <Reveal key="waiting" as="span" kind="fade">
+                <Spinner />
+              </Reveal>
+            ) : (
+              <Notice key="failure" tone="danger">
+                {t("common.error", { message: failure })}
+              </Notice>
+            )}
+          </Presence>
+        </main>
+      );
+    }
+
+    const cefr = progress.cefrHistory.at(-1);
+    const locale = i18n.language;
+
     return (
-      <main className="grid h-full place-items-center">
-        {failure === null ? (
-          <Spinner />
-        ) : (
-          <Notice tone="danger">
-            {t("common.error", { message: failure })}
-          </Notice>
-        )}
+      <main className="h-full overflow-y-auto">
+        <Stagger className="mx-auto flex max-w-4xl flex-col gap-16 px-10 pt-16 pb-20">
+          <Reveal as="header" className="flex flex-col gap-3">
+            <h1 className="font-display text-display font-light text-ink">
+              {t("progress.title")}
+            </h1>
+          </Reveal>
+
+          <div className="grid grid-cols-5 gap-12">
+            <Section
+              title={t("progress.cefr")}
+              empty={cefr === undefined ? t("progress.cefrEmpty") : null}
+              className="col-span-2"
+            >
+              <div className="flex flex-col gap-4">
+                <p className="text-6xl font-semibold tracking-tight text-ink">
+                  {cefr?.cefr}
+                </p>
+                <ol className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-ink-faint">
+                  <Presence>
+                    {progress.cefrHistory.map((point) => (
+                      <Reveal
+                        key={point.date}
+                        as="li"
+                        kind="fade"
+                        index={0}
+                        className="tabular-nums"
+                      >
+                        {`${formatDate(point.date, locale)} · ${point.cefr}`}
+                      </Reveal>
+                    ))}
+                  </Presence>
+                </ol>
+                <p className="text-sm text-ink-soft">
+                  {t("progress.cefrNote")}
+                </p>
+              </div>
+            </Section>
+            <Section
+              title={t("progress.weekly")}
+              empty={
+                progress.weeklyMinutes.some((week) => week.minutes > 0)
+                  ? null
+                  : t("progress.weeklyEmpty")
+              }
+              className="col-span-3"
+            >
+              <WeeklyBars weeks={progress.weeklyMinutes} />
+            </Section>
+          </div>
+
+          <Section
+            title={t("progress.patterns")}
+            empty={
+              progress.patterns.length === 0
+                ? t("progress.patternsEmpty")
+                : null
+            }
+          >
+            <PatternList patterns={progress.patterns} />
+          </Section>
+
+          <div className="grid grid-cols-2 gap-12">
+            <Section
+              title={t("progress.best")}
+              empty={
+                progress.bestSentences.length === 0
+                  ? t("progress.bestEmpty")
+                  : null
+              }
+            >
+              <ul className="flex flex-col gap-5">
+                <Presence>
+                  {progress.bestSentences.map((sentence) => (
+                    <Reveal
+                      key={`${sentence.date}-${sentence.text}`}
+                      as="li"
+                      kind="fade"
+                      index={0}
+                      className="flex flex-col gap-1"
+                    >
+                      <p className="leading-relaxed text-ink">
+                        {sentence.text}
+                      </p>
+                      <p className="text-sm text-ink-faint">
+                        {formatDate(sentence.date, locale)}
+                      </p>
+                    </Reveal>
+                  ))}
+                </Presence>
+              </ul>
+            </Section>
+            <Section
+              title={t("progress.vocabulary")}
+              empty={
+                progress.vocabulary.length === 0
+                  ? t("progress.vocabularyEmpty")
+                  : null
+              }
+            >
+              <Vocabulary words={progress.vocabulary} />
+            </Section>
+          </div>
+
+          <Section
+            title={t("progress.sessions")}
+            empty={
+              progress.sessions.length === 0
+                ? t("progress.sessionsEmpty")
+                : null
+            }
+          >
+            <SessionList
+              sessions={progress.sessions}
+              navigate={navigate}
+              onDelete={async (sessionId) => {
+                await deleteSession(sessionId);
+                setProgress(await getProgress());
+              }}
+            />
+          </Section>
+        </Stagger>
       </main>
     );
-  }
-
-  const cefr = progress.cefrHistory.at(-1);
-  const locale = i18n.language;
+  };
 
   return (
-    <main className="h-full overflow-y-auto">
-      <div className="mx-auto flex max-w-4xl flex-col gap-16 px-10 pt-16 pb-20">
-        <header className="flex flex-col gap-3">
-          <h1 className="font-display text-display font-light text-ink">
-            {t("progress.title")}
-          </h1>
-        </header>
-
-        <div className="grid grid-cols-5 gap-12">
-          <Section
-            title={t("progress.cefr")}
-            empty={cefr === undefined ? t("progress.cefrEmpty") : null}
-            className="col-span-2"
-          >
-            <div className="flex flex-col gap-4">
-              <p className="text-6xl font-semibold tracking-tight text-ink">
-                {cefr?.cefr}
-              </p>
-              <ol className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-ink-faint">
-                {progress.cefrHistory.map((point) => (
-                  <li key={point.date} className="tabular-nums">
-                    {`${formatDate(point.date, locale)} · ${point.cefr}`}
-                  </li>
-                ))}
-              </ol>
-              <p className="text-sm text-ink-soft">{t("progress.cefrNote")}</p>
-            </div>
-          </Section>
-          <Section
-            title={t("progress.weekly")}
-            empty={
-              progress.weeklyMinutes.some((week) => week.minutes > 0)
-                ? null
-                : t("progress.weeklyEmpty")
-            }
-            className="col-span-3"
-          >
-            <WeeklyBars weeks={progress.weeklyMinutes} />
-          </Section>
-        </div>
-
-        <Section
-          title={t("progress.patterns")}
-          empty={
-            progress.patterns.length === 0 ? t("progress.patternsEmpty") : null
-          }
-        >
-          <PatternList patterns={progress.patterns} />
-        </Section>
-
-        <div className="grid grid-cols-2 gap-12">
-          <Section
-            title={t("progress.best")}
-            empty={
-              progress.bestSentences.length === 0
-                ? t("progress.bestEmpty")
-                : null
-            }
-          >
-            <ul className="flex flex-col gap-5">
-              {progress.bestSentences.map((sentence) => (
-                <li
-                  key={`${sentence.date}-${sentence.text}`}
-                  className="flex flex-col gap-1"
-                >
-                  <p className="leading-relaxed text-ink">{sentence.text}</p>
-                  <p className="text-sm text-ink-faint">
-                    {formatDate(sentence.date, locale)}
-                  </p>
-                </li>
-              ))}
-            </ul>
-          </Section>
-          <Section
-            title={t("progress.vocabulary")}
-            empty={
-              progress.vocabulary.length === 0
-                ? t("progress.vocabularyEmpty")
-                : null
-            }
-          >
-            <Vocabulary words={progress.vocabulary} />
-          </Section>
-        </div>
-
-        <Section
-          title={t("progress.sessions")}
-          empty={
-            progress.sessions.length === 0 ? t("progress.sessionsEmpty") : null
-          }
-        >
-          <SessionList
-            sessions={progress.sessions}
-            navigate={navigate}
-            onDelete={async (sessionId) => {
-              await deleteSession(sessionId);
-              setProgress(await getProgress());
-            }}
-          />
-        </Section>
-      </div>
-    </main>
+    <Swap
+      as="div"
+      id={progress === null ? "loading" : "ready"}
+      className="h-full"
+    >
+      {view()}
+    </Swap>
   );
 }

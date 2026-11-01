@@ -1,8 +1,23 @@
-import { describe, expect, test } from "bun:test";
-import { cleanup, render, screen } from "@testing-library/react";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  mock,
+  spyOn,
+  test,
+} from "bun:test";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { UserEvent } from "@testing-library/user-event";
+import { MotionGlobalConfig } from "motion/react";
 import type { PracticeItem, ShownSentence, WordHint } from "@shared/domain";
+import { SpeechProvider } from "@/features/speech/speech";
+import * as ipc from "@/lib/ipc";
+import { seedMockReadiness } from "@/lib/ipcMockChapters";
+import { mockSpoken, resetMockSpeech } from "@/lib/ipcMockSpeech";
 import { useMockBackend } from "@/test/mockBackend";
+import { RefreshRun } from "./RefreshRun";
 import { SittingItem } from "./SittingItem";
 import type { Checked } from "./SittingItem";
 
@@ -594,5 +609,142 @@ describe("a word asked with a sentence of its bank", () => {
     expect(await screen.findByText("Not quite.")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Bad sentence" }));
     expect(held.went).toEqual(["another sentence"]);
+  });
+});
+
+describe("from one word to the next, with animation on", () => {
+  useMockBackend();
+
+  const nativeAnimate = Element.prototype.animate;
+
+  // As in `motion.test.tsx`: real exits, on motion's own frame loop.
+  beforeEach(() => {
+    MotionGlobalConfig.skipAnimations = false;
+    Reflect.deleteProperty(Element.prototype, "animate");
+    spyOn(console, "warn").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    MotionGlobalConfig.skipAnimations = true;
+    Element.prototype.animate = nativeAnimate;
+    mock.restore();
+  });
+
+  function noop(): void {
+    // The way out is not taken here.
+  }
+
+  /** The field that takes an answer: never one on its way out. */
+  function ask(): HTMLInputElement {
+    const fields = screen.getAllByRole<HTMLInputElement>("textbox");
+    const live = fields.find((each) => each.closest("[inert]") === null);
+    if (live === undefined) {
+      throw new Error("No field takes an answer.");
+    }
+    return live;
+  }
+
+  /** The word on its way out; null once it is gone. */
+  function leaving(): Element | null {
+    return document.querySelector("[inert]");
+  }
+
+  /**
+   * Everything on the screen has finished coming in: what is removed during
+   * its entry never finishes its exit in happy-dom, unlike in a browser.
+   */
+  function settled(): Promise<void> {
+    return waitFor(() => {
+      const moving = [
+        ...document.querySelectorAll<HTMLElement>('[style*="opacity"]'),
+      ].filter((each) => each.style.opacity !== "1");
+      expect(moving).toHaveLength(0);
+    });
+  }
+
+  /** The refresh on the screen, its first word done coming in. */
+  async function refreshing(voiced = false): Promise<UserEvent> {
+    seedMockReadiness();
+    const run = (
+      <RefreshRun
+        chapterId="book-alice-1"
+        nativeLang="es"
+        onPractise={noop}
+        onDone={noop}
+      />
+    );
+    render(voiced ? <SpeechProvider>{run}</SpeechProvider> : run);
+    await screen.findByRole("textbox");
+    await settled();
+    return userEvent.setup({ delay: null });
+  }
+
+  /** Answers the word on the screen and goes on, with Enter both times. */
+  async function through(user: UserEvent, text: string): Promise<void> {
+    await user.keyboard(`${text}{Enter}`);
+    await waitFor(() => {
+      expect(document.activeElement?.textContent).toContain("Next");
+    });
+    await settled();
+    await user.keyboard("{Enter}");
+  }
+
+  test("Enter during an exit answers the new item and never the old one twice", async () => {
+    const sent = spyOn(ipc, "answerRefresh");
+    const user = await refreshing();
+
+    await through(user, "first");
+    expect(leaving() === null).toBe(false);
+    await user.keyboard("second{Enter}");
+    // Still on its way out: the answer did not wait for it.
+    expect(leaving() === null).toBe(false);
+
+    await waitFor(() => {
+      expect(sent).toHaveBeenCalledTimes(2);
+    });
+    expect(sent.mock.calls.map((call) => call[2])).toEqual(["first", "second"]);
+    await waitFor(() => {
+      expect(leaving() === null).toBe(true);
+    });
+    expect(sent).toHaveBeenCalledTimes(2);
+  });
+
+  test("the next item takes input while the last one leaves", async () => {
+    const user = await refreshing();
+    const first = ask();
+
+    await through(user, "first");
+
+    expect(leaving()).toContainElement(first);
+    const next = ask();
+    expect(next).not.toBe(first);
+    expect(next).toHaveFocus();
+    await user.keyboard("y");
+    expect(next).toHaveValue("y");
+    expect(first).toHaveValue("first");
+    // Its label points at this field, not at the one leaving.
+    expect(next.id).not.toBe(first.id);
+    expect(screen.getAllByText("Your translation").at(-1)).toHaveAttribute(
+      "for",
+      next.id,
+    );
+  });
+
+  test("the next word is read past the exit of the last", async () => {
+    resetMockSpeech(true);
+    const user = await refreshing(true);
+    await waitFor(() => {
+      expect(mockSpoken()).toHaveLength(1);
+    });
+
+    await through(user, "first");
+    await waitFor(() => {
+      expect(mockSpoken()).toHaveLength(2);
+    });
+    const hushed = spyOn(ipc, "ttsStop");
+    await waitFor(() => {
+      expect(leaving() === null).toBe(true);
+    });
+    expect(hushed).not.toHaveBeenCalled();
   });
 });

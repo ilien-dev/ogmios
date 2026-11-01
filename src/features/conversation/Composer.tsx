@@ -6,6 +6,10 @@ import type {
   ReactNode,
 } from "react";
 import { useTranslation } from "react-i18next";
+import { Presence } from "@/components/motion/Presence";
+import { Reveal } from "@/components/motion/Reveal";
+import { useScreenLeaving } from "@/lib/motion";
+import type { MotionValue } from "motion/react";
 import { ArrowUp, Trash2 } from "lucide-react";
 import type { Recording } from "@shared/domain";
 import { Button } from "@/components/ui/Button";
@@ -15,6 +19,7 @@ import { cn } from "@/lib/cn";
 import { countWords, WORDS_PER_SPEECH_SECOND } from "@/lib/text";
 import { HelpPopover } from "./HelpPopover";
 import { MicButton } from "./MicButton";
+import type { RecorderStatus } from "./useRecorder";
 import { useRecorder } from "./useRecorder";
 
 /** A press longer than this is push-to-talk; shorter ones toggle. */
@@ -27,6 +32,10 @@ interface ComposerProps {
   voice: boolean;
   disabled: boolean;
   onSend: (text: string, recording: Recording | null) => Promise<boolean>;
+  /** Hands over the microphone level, once, for the orb to beat with. */
+  onLevel?: (level: MotionValue<number>) => void;
+  /** Tells what the microphone is doing whenever that changes. */
+  onStatus?: (status: RecorderStatus) => void;
 }
 
 function merge(held: Recording | null, next: Recording): Recording {
@@ -61,6 +70,8 @@ export function Composer({
   voice,
   disabled,
   onSend,
+  onLevel,
+  onStatus,
 }: ComposerProps): ReactNode {
   const { t } = useTranslation();
   const recorder = useRecorder();
@@ -68,6 +79,7 @@ export function Composer({
   const [recording, setRecording] = useState<Recording | null>(null);
   const [sending, setSending] = useState(false);
   const pressedAt = useRef<number | null>(null);
+  const leaving = useScreenLeaving();
   const field = useRef<HTMLTextAreaElement>(null);
 
   const absorb = (next: Recording | null): void => {
@@ -119,7 +131,15 @@ export function Composer({
   status.current = recorder.status;
 
   useEffect(() => {
-    if (!voice) {
+    onLevel?.(recorder.level);
+  }, [onLevel, recorder.level]);
+
+  useEffect(() => {
+    onStatus?.(recorder.status);
+  }, [onStatus, recorder.status]);
+
+  useEffect(() => {
+    if (!voice || leaving) {
       return;
     }
     const down = (event: globalThis.KeyboardEvent): void => {
@@ -147,7 +167,7 @@ export function Composer({
       globalThis.removeEventListener("keydown", down);
       globalThis.removeEventListener("keyup", up);
     };
-  }, [voice]);
+  }, [voice, leaving]);
 
   const discard = (): void => {
     void recorder.cancel();
@@ -208,31 +228,69 @@ export function Composer({
       onSubmit={(event) => void submit(event)}
       className="flex flex-col gap-3"
     >
-      {scaffolds.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm text-partner">
-            {t("conversation.scaffolds")}
-          </span>
-          {scaffolds.map((scaffold) => (
-            <Chip
-              key={scaffold}
-              className="h-8 border-partner-line bg-partner-soft text-partner hover:border-partner hover:text-partner"
-              onClick={() => {
-                setText((held) => appended(held, scaffold.replace(/…$/u, "")));
-                field.current?.focus();
-              }}
+      <div className="flex flex-wrap items-center gap-2">
+        <HelpPopover
+          sessionId={sessionId}
+          onInsert={(english) => {
+            setText((held) => appended(held, english));
+            field.current?.focus();
+          }}
+        />
+        <Presence>
+          {scaffolds.length > 0 && (
+            <Reveal
+              key="scaffolds"
+              as="span"
+              kind="fade"
+              index={0}
+              className="text-sm text-partner"
             >
-              {scaffold}
-            </Chip>
+              {t("conversation.scaffolds")}
+            </Reveal>
+          )}
+          {scaffolds.map((scaffold, i) => (
+            <Reveal key={scaffold} as="span" kind="scale" index={i + 1}>
+              <Chip
+                className="h-8 bg-partner-soft text-partner hover:text-partner"
+                onClick={() => {
+                  setText((held) =>
+                    appended(held, scaffold.replace(/…$/u, "")),
+                  );
+                  field.current?.focus();
+                }}
+              >
+                {scaffold}
+              </Chip>
+            </Reveal>
           ))}
-        </div>
-      )}
+        </Presence>
+      </div>
+      <Presence>
+        {recording !== null && (
+          <Reveal
+            key="transcript"
+            as="div"
+            index={0}
+            className="flex items-center justify-between gap-3 px-5"
+          >
+            <p className="text-sm text-accent-text">
+              {t("conversation.transcriptHint")}
+            </p>
+            <Button
+              size="sm"
+              variant="ghost"
+              icon={<Trash2 aria-hidden className="size-3.5" />}
+              onClick={discard}
+            >
+              {t("conversation.discard")}
+            </Button>
+          </Reveal>
+        )}
+      </Presence>
       <div
         className={cn(
-          "relative overflow-visible rounded-xl border bg-surface shadow-you transition-colors duration-150",
-          recording === null
-            ? "border-you-line focus-within:border-you"
-            : "border-you",
+          "relative flex items-end gap-2 rounded-xl bg-surface py-2 pr-2 pl-6 shadow-card transition-shadow duration-150",
+          recording === null ? "focus-within:shadow-you" : "shadow-you",
         )}
       >
         <div
@@ -245,38 +303,20 @@ export function Composer({
             count: words,
             goal: turnWordGoal,
           })}
-          className="absolute inset-x-5 top-0 h-0.5 overflow-hidden rounded-full"
+          className="absolute inset-x-8 bottom-0 h-0.5 overflow-hidden rounded-full"
         >
           <div
             className="h-full origin-left bg-you transition-transform duration-300 ease-out-expo"
             style={{ transform: `scaleX(${fill})` }}
           />
         </div>
-        {recording !== null && (
-          <div className="flex items-center justify-between gap-3 px-5 pt-3">
-            <p className="text-sm text-accent-text">
-              {t("conversation.transcriptHint")}
-            </p>
-            <Button
-              size="sm"
-              variant="ghost"
-              icon={<Trash2 aria-hidden className="size-3.5" />}
-              onClick={discard}
-            >
-              {t("conversation.discard")}
-            </Button>
-          </div>
-        )}
-        <label
-          htmlFor="composer"
-          className="block px-5 pt-4 text-xs font-medium text-you"
-        >
+        <label htmlFor="composer" className="sr-only">
           {t("conversation.composer")}
         </label>
         <textarea
           ref={field}
           id="composer"
-          rows={3}
+          rows={2}
           value={shown}
           readOnly={listening}
           placeholder={
@@ -291,56 +331,71 @@ export function Composer({
           }}
           onKeyDown={onKeyDown}
           className={cn(
-            "block w-full resize-none bg-transparent px-5 pt-1.5 text-lead focus-visible:outline-none",
+            "block field-sizing-content max-h-40 min-h-14 min-w-0 flex-1 resize-none self-center bg-transparent py-2 text-lead focus-visible:outline-none",
             listening ? "text-ink-soft" : "text-ink",
           )}
         />
-        <div className="flex items-center gap-2 border-t border-line px-3 py-2.5">
-          {voice && (
-            <MicButton
-              status={recorder.status}
-              peak={recorder.peak}
-              disabled={disabled}
-              onPress={press}
-              onRelease={release}
-              onKeyboardToggle={toggle}
-            />
+        <Presence>
+          {recorder.status === "transcribing" && (
+            <Reveal
+              key="transcribing"
+              as="span"
+              kind="fade"
+              index={0}
+              className="self-center"
+            >
+              <Spinner />
+            </Reveal>
           )}
-          <HelpPopover
-            sessionId={sessionId}
-            onInsert={(english) => {
-              setText((held) => appended(held, english));
-              field.current?.focus();
-            }}
-          />
-          {recorder.status === "transcribing" && <Spinner />}
-          <p
-            aria-hidden
-            className="ml-auto text-sm text-ink-faint tabular-nums"
-          >
-            {t("conversation.meter", { count: words, goal: turnWordGoal })}
-          </p>
-          <Button
-            type="submit"
-            variant="primary"
-            aria-label={t("conversation.send")}
-            disabled={
-              disabled ||
-              sending ||
-              text.trim() === "" ||
-              recorder.status !== "idle"
-            }
-            className="size-10 px-0"
-          >
-            <ArrowUp aria-hidden className="size-5" />
-          </Button>
-        </div>
-      </div>
-      {recorder.error !== null && (
-        <p role="alert" className="text-sm text-danger">
-          {t("common.error", { message: recorder.error })}
+        </Presence>
+        <p
+          aria-hidden
+          className="shrink-0 self-center text-sm text-ink-faint tabular-nums"
+        >
+          {t("conversation.meter", { count: words, goal: turnWordGoal })}
         </p>
-      )}
+        <Presence>
+          {voice && (
+            <Reveal key="mic">
+              <MicButton
+                status={recorder.status}
+                level={recorder.level}
+                disabled={disabled}
+                onPress={press}
+                onRelease={release}
+                onKeyboardToggle={toggle}
+              />
+            </Reveal>
+          )}
+        </Presence>
+        <Button
+          type="submit"
+          variant={voice ? "secondary" : "primary"}
+          aria-label={t("conversation.send")}
+          disabled={
+            disabled ||
+            sending ||
+            text.trim() === "" ||
+            recorder.status !== "idle"
+          }
+          className="size-14 px-0"
+        >
+          <ArrowUp aria-hidden className="size-5" />
+        </Button>
+      </div>
+      <Presence>
+        {recorder.error !== null && (
+          <Reveal
+            key="error"
+            as="p"
+            index={0}
+            role="alert"
+            className="text-sm text-danger"
+          >
+            {t("common.error", { message: recorder.error })}
+          </Reveal>
+        )}
+      </Presence>
     </form>
   );
 }

@@ -1,14 +1,18 @@
-import { beforeEach, describe, expect, mock, test } from "bun:test";
-import { render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { MotionGlobalConfig, PresenceContext } from "motion/react";
+import type { ReactNode } from "react";
 import type { PracticeItem, SessionSetup } from "@shared/domain";
 import { SittingItem } from "@/features/books/SittingItem";
 import type { Checked } from "@/features/books/SittingItem";
 import { Conversation } from "@/features/conversation/Conversation";
 import { ReadAloud } from "@/features/settings/ReadAloud";
+import { setMockLatency } from "@/lib/ipcMock";
 import { mockSpoken, resetMockSpeech } from "@/lib/ipcMockSpeech";
 import { useMockBackend } from "@/test/mockBackend";
-import { SpeechProvider } from "./speech";
+import { SpeakButton } from "./SpeakButton";
+import { SpeechProvider, useReadAloud, useSpeech } from "./speech";
 
 const SETUP: SessionSetup = {
   topic: "A small win at work",
@@ -179,6 +183,81 @@ describe("reading aloud, with the voice downloaded", () => {
   });
 });
 
+function Reader({ text }: { text: string | null }): ReactNode {
+  useReadAloud(text);
+  return null;
+}
+
+function Speaking(): ReactNode {
+  return <output aria-label="speaking">{useSpeech().speaking}</output>;
+}
+
+const PRESENCE = {
+  id: "screen",
+  initial: false,
+  custom: undefined,
+  onExitComplete: () => null,
+  register: () => () => null,
+} as const;
+const STAYING = { ...PRESENCE, isPresent: true };
+const LEAVING = { ...PRESENCE, isPresent: false };
+
+/** A reader in a screen that is staying, or already on its way out. */
+function reader(
+  present: boolean,
+  text: string | null,
+  shown = true,
+): ReactNode {
+  return (
+    <SpeechProvider>
+      <Speaking />
+      <PresenceContext.Provider value={present ? STAYING : LEAVING}>
+        {shown && <Reader text={text} />}
+      </PresenceContext.Provider>
+    </SpeechProvider>
+  );
+}
+
+describe("reading aloud, on a screen that leaves", () => {
+  useMockBackend();
+  beforeEach(() => {
+    resetMockSpeech(true);
+  });
+
+  async function voiceLoaded(): Promise<void> {
+    await act(async () => {
+      await new Promise((settled) => {
+        setTimeout(settled, 0);
+      });
+    });
+  }
+
+  test("a reply that lands during the exit is not read over the next screen", async () => {
+    const { rerender } = render(reader(true, null));
+    await voiceLoaded();
+    rerender(reader(false, "A reply that came too late"));
+    await voiceLoaded();
+    expect(mockSpoken()).toEqual([]);
+  });
+
+  test("a screen that stays after all goes on reading, and stops on leaving", async () => {
+    setMockLatency(1);
+    const line = "A sentence long enough to still be heard at the end of this";
+    const { rerender } = render(reader(false, null));
+    await voiceLoaded();
+    rerender(reader(true, null));
+    rerender(reader(true, line));
+    await waitFor(() => {
+      expect(mockSpoken()).toEqual([line]);
+    });
+    expect(screen.getByLabelText("speaking")).toHaveTextContent(line);
+    rerender(reader(true, line, false));
+    await waitFor(() => {
+      expect(screen.getByLabelText("speaking")).toBeEmptyDOMElement();
+    });
+  });
+});
+
 describe("reading aloud, before the voice is downloaded", () => {
   useMockBackend();
 
@@ -221,5 +300,43 @@ describe("reading aloud, before the voice is downloaded", () => {
       expect(screen.getByRole("radio", { name: /George/u })).toBeChecked();
     });
     expect(screen.getByRole("radio", { name: "Read it aloud" })).toBeChecked();
+  });
+});
+
+describe("the glyph of the speak button", () => {
+  useMockBackend();
+  const nativeAnimate = Element.prototype.animate;
+  beforeEach(() => {
+    resetMockSpeech(true);
+    MotionGlobalConfig.skipAnimations = false;
+    // Motion then drives opacity itself, which happy-dom can follow.
+    Reflect.deleteProperty(Element.prototype, "animate");
+  });
+  afterEach(() => {
+    MotionGlobalConfig.skipAnimations = true;
+    Element.prototype.animate = nativeAnimate;
+  });
+
+  test("is there on the first mount, and a change swaps it with a swell", async () => {
+    setMockLatency(1);
+    const user = userEvent.setup();
+    render(
+      <SpeechProvider>
+        <SpeakButton text="A sentence long enough to still be heard at the end of this" />
+      </SpeechProvider>,
+    );
+    const button = await screen.findByRole("button", { name: "Listen" });
+    const glyph = button.querySelector("svg")?.parentElement;
+    expect(glyph?.style.opacity).not.toBe("0");
+    expect(glyph?.style.transform ?? "").not.toContain("scale(0");
+
+    await user.click(button);
+    expect(
+      await screen.findByRole("button", { name: "Stop reading" }),
+    ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(button.querySelectorAll("svg")).toHaveLength(1);
+    });
+    expect(button.querySelector("svg.fill-current")).not.toBeNull();
   });
 });

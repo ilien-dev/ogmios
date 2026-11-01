@@ -2,6 +2,9 @@ import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { KnownWord } from "@shared/domain";
+import { Presence } from "@/components/motion/Presence";
+import { Reveal } from "@/components/motion/Reveal";
+import { STAGGER_LIMIT } from "@/lib/motion";
 import { BackLink } from "@/components/ui/BackLink";
 import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
@@ -53,54 +56,78 @@ export function KnownWordsScreen({ onBack }: KnownWordsScreenProps): ReactNode {
 
   return (
     <main className="h-full overflow-y-auto">
-      <div className="mx-auto flex max-w-2xl flex-col gap-12 px-10 py-16">
-        <header className="flex flex-col gap-3">
+      <div className="mx-auto flex max-w-2xl flex-col gap-10 px-6 py-12 nav:py-16">
+        <Reveal as="header" index={0} className="flex flex-col gap-3">
           <BackLink label={t("books.title")} onClick={onBack} />
           <h1 className="font-display text-display font-light text-ink">
             {t("books.known.title")}
           </h1>
           <p className="text-lead text-ink-soft">{t("books.known.intro")}</p>
-        </header>
+        </Reveal>
 
-        {failure !== null && (
-          <Notice tone="danger">
-            {t("common.error", { message: failure })}
-          </Notice>
-        )}
-        {words === null && failure === null && <Spinner />}
-        {words?.length === 0 && (
-          <p className="text-ink-soft">{t("books.known.empty")}</p>
-        )}
-        {words !== null && words.length > 0 && (
-          <section className="flex flex-col gap-4">
-            <h2 className="text-sm font-medium text-ink-faint">
-              {t("books.chapter.knownCount", { count: words.length })}
-            </h2>
-            <ul className="flex flex-col divide-y divide-line border-y border-line">
-              {words.map((word) => (
-                <li key={word.key} className="flex items-center gap-4 p-2">
-                  <span className="font-medium text-ink">
-                    {word.lemma}
-                    <SpeakButton text={word.lemma} className="ml-1" />
-                  </span>
-                  <span className="min-w-0 flex-1 truncate text-ink-soft">
-                    {word.translations.join(", ")}
-                  </span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    aria-label={t("books.chapter.undoWord", {
-                      word: word.lemma,
-                    })}
-                    onClick={() => void undo(word)}
-                  >
-                    {t("books.chapter.undo")}
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
+        <Presence>
+          {failure !== null && (
+            <Reveal key="failure">
+              <Notice tone="danger">
+                {t("common.error", { message: failure })}
+              </Notice>
+            </Reveal>
+          )}
+          {words === null && failure === null && (
+            <Reveal key="loading" kind="fade">
+              <Spinner />
+            </Reveal>
+          )}
+          {words?.length === 0 && (
+            <Reveal key="empty" as="p" kind="fade" className="text-ink-soft">
+              {t("books.known.empty")}
+            </Reveal>
+          )}
+          {words !== null && words.length > 0 && (
+            <Reveal
+              key="words"
+              as="section"
+              index={1}
+              className="flex flex-col gap-4"
+            >
+              <h2 className="text-sm font-medium text-ink-faint">
+                {t("books.chapter.knownCount", { count: words.length })}
+              </h2>
+              <ul className="flex flex-col divide-y divide-line rounded-xl bg-surface px-4 py-2 shadow-card">
+                <Presence>
+                  {words.map((word, index) => (
+                    <Reveal
+                      key={word.key}
+                      as="li"
+                      kind="fade"
+                      index={index}
+                      layout={index < STAGGER_LIMIT ? "position" : false}
+                      className="flex items-center gap-4 py-2"
+                    >
+                      <span className="font-medium text-ink">
+                        {word.lemma}
+                        <SpeakButton text={word.lemma} className="ml-1" />
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-ink-soft">
+                        {word.translations.join(", ")}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        aria-label={t("books.chapter.undoWord", {
+                          word: word.lemma,
+                        })}
+                        onClick={() => void undo(word)}
+                      >
+                        {t("books.chapter.undo")}
+                      </Button>
+                    </Reveal>
+                  ))}
+                </Presence>
+              </ul>
+            </Reveal>
+          )}
+        </Presence>
       </div>
     </main>
   );

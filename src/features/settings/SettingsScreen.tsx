@@ -10,13 +10,18 @@ import type {
   UiLang,
   Variant,
 } from "@shared/domain";
+import { Presence } from "@/components/motion/Presence";
+import { Reveal } from "@/components/motion/Reveal";
+import { Stagger } from "@/components/motion/Stagger";
 import { Button } from "@/components/ui/Button";
 import { ChoiceGroup } from "@/components/ui/ChoiceGroup";
 import { Field } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
+import { Segmented } from "@/components/ui/Segmented";
 import { Select } from "@/components/ui/Select";
 import { TextInput } from "@/components/ui/TextInput";
 import { AppUpdate } from "@/features/update/AppUpdate";
+import { UpdateRow } from "@/features/update/UpdateRow";
 import { InterestPicker } from "@/features/onboarding/InterestPicker";
 import { ReminderPicker } from "@/features/onboarding/ReminderPicker";
 import { errorMessage } from "@/lib/errors";
@@ -67,7 +72,8 @@ function Section({
   children: ReactNode;
 }): ReactNode {
   return (
-    <section
+    <Reveal
+      as="section"
       aria-labelledby={id}
       className="flex flex-col gap-6 border-t border-line pt-10"
     >
@@ -75,7 +81,7 @@ function Section({
         {title}
       </h2>
       {children}
-    </section>
+    </Reveal>
   );
 }
 
@@ -154,8 +160,11 @@ export function SettingsScreen({
 
   return (
     <main className="h-full overflow-y-auto">
-      <div className="mx-auto flex max-w-2xl flex-col gap-10 px-10 pt-16 pb-20">
-        <header className="flex items-baseline justify-between gap-4">
+      <Stagger className="mx-auto flex max-w-2xl flex-col gap-10 px-10 pt-16 pb-20">
+        <Reveal
+          as="header"
+          className="flex items-baseline justify-between gap-4"
+        >
           <h1 className="font-display text-display font-light text-ink">
             {t("settings.title")}
           </h1>
@@ -163,15 +172,23 @@ export function SettingsScreen({
             aria-live="polite"
             className="flex items-center gap-1.5 text-sm text-ink-faint"
           >
-            {saved && (
-              <>
-                <Check aria-hidden className="size-4 text-accent-text" />
-                {t("common.saved")}
-              </>
-            )}
+            <Presence>
+              {saved && (
+                <Reveal
+                  key="saved"
+                  as="span"
+                  kind="fade"
+                  className="flex items-center gap-1.5"
+                >
+                  <Check aria-hidden className="size-4 text-accent-text" />
+                  {t("common.saved")}
+                </Reveal>
+              )}
+            </Presence>
           </p>
-        </header>
-        <nav
+        </Reveal>
+        <Reveal
+          as="nav"
           aria-label={t("settings.sections")}
           className="-mt-4 flex flex-wrap gap-1"
         >
@@ -179,17 +196,21 @@ export function SettingsScreen({
             <a
               key={id}
               href={`#${id}`}
-              className="rounded-sm px-2 py-1 text-sm text-ink-soft no-underline transition-colors duration-150 hover:bg-raised hover:text-ink"
+              className="rounded-sm px-2 py-1 text-sm text-ink-soft no-underline transition-control hover:bg-raised hover:text-ink"
             >
               {t(title)}
             </a>
           ))}
-        </nav>
-        {failure !== null && (
-          <Notice tone="danger">
-            {t("common.error", { message: failure })}
-          </Notice>
-        )}
+        </Reveal>
+        <Presence>
+          {failure !== null && (
+            <Reveal key="failure" kind="fade" index={0}>
+              <Notice tone="danger">
+                {t("common.error", { message: failure })}
+              </Notice>
+            </Reveal>
+          )}
+        </Presence>
 
         <Section id="settings-profile" title={t("settings.profile")}>
           <div className="grid grid-cols-2 gap-5">
@@ -291,10 +312,8 @@ export function SettingsScreen({
         </Section>
 
         <Section id="settings-appearance" title={t("settings.appearance")}>
-          <ChoiceGroup<ThemeChoice>
+          <Segmented<ThemeChoice>
             legend={t("settings.theme")}
-            columns={3}
-            size="sm"
             value={theme}
             onChange={onThemeChange}
             choices={(["system", "light", "dark"] as const).map((value) => ({
@@ -353,73 +372,103 @@ export function SettingsScreen({
 
         <Section id="settings-memory" title={t("settings.memory")}>
           <p className="text-ink-soft">{t("settings.factsBody")}</p>
-          {facts.length === 0 ? (
-            <p className="text-sm text-ink-faint">{t("settings.factsEmpty")}</p>
-          ) : (
-            <ul className="flex flex-col divide-y divide-line">
-              {facts.map((fact) => (
-                <li
-                  key={fact.id}
-                  className="flex items-center justify-between gap-4 py-2.5"
-                >
-                  <span className="text-ink">{fact.text}</span>
-                  <button
-                    type="button"
-                    aria-label={t("settings.forget", { fact: fact.text })}
-                    onClick={() => void forget(fact.id)}
-                    className="grid size-8 shrink-0 place-items-center rounded-sm text-ink-faint hover:bg-raised hover:text-ink"
-                  >
-                    <X aria-hidden className="size-4" />
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
+          <Presence swap>
+            {facts.length === 0 ? (
+              <Reveal key="empty" as="p" className="text-sm text-ink-faint">
+                {t("settings.factsEmpty")}
+              </Reveal>
+            ) : (
+              <Reveal
+                key="facts"
+                as="ul"
+                className="flex flex-col divide-y divide-line"
+              >
+                <Presence>
+                  {facts.map((fact) => (
+                    <Reveal
+                      key={fact.id}
+                      as="li"
+                      kind="fade"
+                      index={0}
+                      layout="position"
+                      className="flex items-center justify-between gap-4 py-2.5"
+                    >
+                      <span className="text-ink">{fact.text}</span>
+                      <button
+                        type="button"
+                        aria-label={t("settings.forget", { fact: fact.text })}
+                        onClick={() => void forget(fact.id)}
+                        className="grid size-8 shrink-0 place-items-center rounded-sm text-ink-faint hover:bg-raised hover:text-ink"
+                      >
+                        <X aria-hidden className="size-4" />
+                      </button>
+                    </Reveal>
+                  ))}
+                </Presence>
+              </Reveal>
+            )}
+          </Presence>
         </Section>
 
         <Section id="settings-data" title={t("settings.data")}>
           <p className="text-ink-soft">{t("settings.deleteAudioBody")}</p>
           <div aria-live="polite">
-            {audio === "idle" && (
-              <Button
-                variant="danger"
-                icon={<Trash2 aria-hidden className="size-4" />}
-                onClick={() => {
-                  setAudio("confirm");
-                }}
-              >
-                {t("settings.deleteAudio")}
-              </Button>
-            )}
-            {audio === "confirm" && (
-              <div className="flex flex-wrap items-center gap-3">
-                <p className="text-ink">{t("settings.confirmDelete")}</p>
-                <Button variant="danger" onClick={() => void removeAudio()}>
-                  {t("settings.confirm")}
-                </Button>
-                <Button
-                  variant="ghost"
-                  onClick={() => {
-                    setAudio("idle");
-                  }}
+            <Presence>
+              {audio === "idle" && (
+                <Reveal key="idle" as="span" kind="fade">
+                  <Button
+                    variant="danger"
+                    icon={<Trash2 aria-hidden className="size-4" />}
+                    onClick={() => {
+                      setAudio("confirm");
+                    }}
+                  >
+                    {t("settings.deleteAudio")}
+                  </Button>
+                </Reveal>
+              )}
+            </Presence>
+            <Presence>
+              {audio === "confirm" && (
+                <Reveal
+                  key="confirm"
+                  className="flex flex-wrap items-center gap-3"
                 >
-                  {t("common.cancel")}
-                </Button>
-              </div>
-            )}
-            {audio === "deleted" && (
-              <p className="flex items-center gap-2 text-ink-soft">
-                <Check aria-hidden className="size-4 text-accent-text" />
-                {t("settings.audioDeleted")}
-              </p>
-            )}
+                  <p className="text-ink">{t("settings.confirmDelete")}</p>
+                  <Button variant="danger" onClick={() => void removeAudio()}>
+                    {t("settings.confirm")}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      setAudio("idle");
+                    }}
+                  >
+                    {t("common.cancel")}
+                  </Button>
+                </Reveal>
+              )}
+            </Presence>
+            <Presence>
+              {audio === "deleted" && (
+                <Reveal
+                  key="deleted"
+                  as="p"
+                  className="flex items-center gap-2 text-ink-soft"
+                >
+                  <Check aria-hidden className="size-4 text-accent-text" />
+                  {t("settings.audioDeleted")}
+                </Reveal>
+              )}
+            </Presence>
           </div>
         </Section>
 
         <Section id="settings-about" title={t("update.about")}>
+          <UpdateRow />
           <AppUpdate />
         </Section>
-      </div>
+      </Stagger>
     </main>
   );
 }

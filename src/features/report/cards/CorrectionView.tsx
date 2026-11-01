@@ -3,11 +3,11 @@ import type { SyntheticEvent, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Lightbulb, Repeat } from "lucide-react";
 import type { CorrectionCard } from "@shared/domain";
+import { Presence } from "@/components/motion/Presence";
+import { Reveal } from "@/components/motion/Reveal";
 import { Button } from "@/components/ui/Button";
 import { Spinner } from "@/components/ui/Spinner";
-import { TextInput } from "@/components/ui/TextInput";
 import { VerdictLine } from "@/components/ui/Verdict";
-import { Waveform } from "@/components/ui/Waveform";
 import { cn } from "@/lib/cn";
 import { errorMessage } from "@/lib/errors";
 import { grade } from "@/lib/grade";
@@ -79,110 +79,160 @@ export function CorrectionView({
   return (
     <div className={cn("flex flex-col", compact ? "gap-4" : "gap-6")}>
       {card.recurrence !== null && (
-        <p className="flex items-center gap-2 text-sm text-partial">
+        <Reveal
+          key="recurrence"
+          as="p"
+          className="flex items-center gap-2 text-sm text-partial"
+        >
           <Repeat aria-hidden className="size-4" />
           {card.recurrence}
-        </p>
+        </Reveal>
       )}
-      <div className="flex max-w-xl flex-col items-end gap-1.5 self-end">
-        <p className="text-xs font-medium text-you">
+
+      <div className="flex flex-col gap-2">
+        <p className="text-sm font-semibold text-ink-soft">
           {t("report.correction.yourSentence")}
         </p>
         <p
           className={cn(
-            "rounded-lg rounded-tr-none border border-dashed border-you-line px-4 py-3 text-you-ink",
-            compact ? "text-base" : "text-lead",
+            "leading-snug text-ink",
+            compact ? "text-lead" : "text-2xl",
           )}
         >
           <Highlighted text={card.original} spans={[card.highlight]} />
         </p>
       </div>
 
-      {phase === "revealed" ? (
-        <div
-          className="flex flex-col gap-3 motion-safe:animate-rise"
-          aria-live="polite"
-        >
-          {outcome !== null && (
-            <VerdictLine tone={outcome}>{t(VERDICT[outcome])}</VerdictLine>
-          )}
-          <div className="relative flex flex-col gap-3 overflow-hidden rounded-xl rounded-tl-none border border-partner-line px-5 py-4 bg-partner-panel">
-            <Waveform
-              bars={14}
-              className="pointer-events-none absolute top-3 right-4 h-8 text-partner/35"
-            />
-            <p className="relative text-xs font-medium text-partner">
-              {t("conversation.partner")} · {t("report.correction.better")}
-            </p>
-            <p
-              className={cn(
-                "relative font-display text-ink",
-                compact ? "text-lg" : "text-2xl",
-              )}
+      <div className="relative">
+        <Presence swap>
+          {phase === "revealed" ? (
+            <Reveal
+              key="revealed"
+              index={0}
+              aria-live="polite"
+              className="flex flex-col gap-4"
             >
-              {card.corrected}
-            </p>
-            <p className="relative border-t border-partner-line pt-3 leading-relaxed text-ink-soft">
-              {card.explanation}
-            </p>
-          </div>
-        </div>
-      ) : (
-        <form
-          onSubmit={(event) => void check(event)}
-          className="flex flex-col gap-3"
-        >
-          <label htmlFor={inputId} className="text-sm text-ink-soft">
-            {t("report.correction.fixPrompt")}
-          </label>
-          <div className="flex gap-2">
-            <TextInput
-              id={inputId}
-              value={attempt}
-              spellCheck={false}
-              className="border-you-line bg-you-soft text-you-ink focus-visible:border-you"
-              onChange={(event) => {
-                setDraft(event.target.value);
-              }}
-            />
-            <Button
-              type="submit"
-              variant="primary"
-              className="h-11"
-              disabled={checking || attempt.trim() === ""}
+              <Presence>
+                {outcome !== null && (
+                  <Reveal key="outcome">
+                    <VerdictLine tone={outcome}>
+                      {t(VERDICT[outcome])}
+                    </VerdictLine>
+                  </Reveal>
+                )}
+              </Presence>
+              <div className="flex flex-col gap-2">
+                <p className="text-sm font-semibold text-ink-soft">
+                  {t("conversation.partner")} · {t("report.correction.better")}
+                </p>
+                <p
+                  className={cn(
+                    "font-medium text-ink",
+                    compact ? "text-lg" : "text-2xl",
+                  )}
+                >
+                  {card.corrected}
+                </p>
+              </div>
+              <div className="flex flex-col gap-1.5 rounded-lg bg-raised px-5 py-4">
+                <p className="text-sm font-semibold text-ink-soft">
+                  {t("report.correction.why")}
+                </p>
+                <p className="leading-relaxed text-ink">{card.explanation}</p>
+              </div>
+            </Reveal>
+          ) : (
+            <Reveal
+              key="ask"
+              as="div"
+              index={0}
+              className="flex flex-col gap-3"
             >
-              {checking ? (
-                <Spinner className="text-on-accent" />
-              ) : (
-                t("report.correction.check")
-              )}
-            </Button>
-          </div>
-          <div aria-live="polite">
-            {phase === "hint" && hint !== null && (
-              <p className="flex items-center gap-2 text-sm text-ink motion-safe:animate-fade">
-                <Lightbulb aria-hidden className="size-4 text-partial" />
-                {t("report.correction.hint", { hint })}
-              </p>
-            )}
-          </div>
-          {failure !== null && (
-            <p role="alert" className="text-sm text-danger">
-              {t("common.error", { message: failure })}
-            </p>
+              <form
+                onSubmit={(event) => void check(event)}
+                className="flex flex-col gap-3"
+              >
+                <label
+                  htmlFor={inputId}
+                  className="text-sm font-semibold text-ink-soft"
+                >
+                  {t("report.correction.fixPrompt")}
+                </label>
+                <div className="flex flex-wrap items-center gap-2 rounded-xl bg-raised p-1.5 pl-5">
+                  <input
+                    id={inputId}
+                    value={attempt}
+                    spellCheck={false}
+                    className="h-11 min-w-48 flex-1 bg-transparent text-lead text-ink focus-visible:outline-none"
+                    onChange={(event) => {
+                      setDraft(event.target.value);
+                    }}
+                  />
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    className="relative"
+                    disabled={checking || attempt.trim() === ""}
+                  >
+                    <Presence swap>
+                      <Reveal
+                        key={checking ? "checking" : "check"}
+                        as="span"
+                        kind="fade"
+                        index={0}
+                      >
+                        {checking ? <Spinner /> : t("report.correction.check")}
+                      </Reveal>
+                    </Presence>
+                  </Button>
+                </div>
+                <div aria-live="polite">
+                  <Presence>
+                    {phase === "hint" && hint !== null && (
+                      <Reveal
+                        key="hint"
+                        as="p"
+                        kind="fade"
+                        index={0}
+                        className="flex items-center gap-2 text-sm text-ink"
+                      >
+                        <Lightbulb
+                          aria-hidden
+                          className="size-4 text-partial"
+                        />
+                        {t("report.correction.hint", { hint })}
+                      </Reveal>
+                    )}
+                  </Presence>
+                </div>
+                <Presence>
+                  {failure !== null && (
+                    <Reveal
+                      key="failure"
+                      as="p"
+                      index={0}
+                      role="alert"
+                      className="text-sm text-danger"
+                    >
+                      {t("common.error", { message: failure })}
+                    </Reveal>
+                  )}
+                </Presence>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStage("revealed");
+                  }}
+                  className="self-start rounded-sm text-sm text-ink-soft underline underline-offset-4 hover:text-ink"
+                >
+                  {t("report.correction.showAnswer")}
+                </button>
+              </form>
+            </Reveal>
           )}
-          <button
-            type="button"
-            onClick={() => {
-              setStage("revealed");
-            }}
-            className="self-start rounded-sm text-sm text-ink-soft underline underline-offset-4 hover:text-ink"
-          >
-            {t("report.correction.showAnswer")}
-          </button>
-        </form>
-      )}
-      <div className="flex justify-end">
+        </Presence>
+      </div>
+      <div className="relative flex justify-end">
         <DisputeButton itemId={card.itemId} />
       </div>
     </div>

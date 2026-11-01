@@ -1,5 +1,11 @@
-import { describe, expect, mock, test } from "bun:test";
-import { render, screen } from "@testing-library/react";
+import { describe, expect, mock, spyOn, test } from "bun:test";
+import {
+  render,
+  screen,
+  waitFor,
+  waitForElementToBeRemoved,
+} from "@testing-library/react";
+import { MotionGlobalConfig } from "motion/react";
 import userEvent from "@testing-library/user-event";
 import type { Settings } from "@shared/domain";
 import { useMockBackend } from "@/test/mockBackend";
@@ -78,5 +84,57 @@ describe("Onboarding", () => {
     ];
     expect(profile.nativeLang).toBe("pt");
     expect(profile.onboarded).toBe(true);
+  });
+
+  test("every step takes the focus as it comes, up to the last", async () => {
+    const user = userEvent.setup();
+    const found: Settings = {
+      ...SETTINGS,
+      providerMode: "claudeCode",
+      claudePath: "claude",
+    };
+    render(<Onboarding settings={found} onDone={mock()} />);
+    await user.selectOptions(screen.getByLabelText("First language"), "fr");
+
+    for (let step = 0; step < 8; step += 1) {
+      const before = screen.getByRole("heading", { level: 1 });
+      await user.click(screen.getByRole("button", { name: /Next/u }));
+      await waitFor(() => {
+        expect(screen.getByRole("heading", { level: 1 })).not.toBe(before);
+      });
+      const now = screen.getByRole("heading", { level: 1 });
+      expect(now).toHaveFocus();
+    }
+    expect(
+      screen.getByRole("button", { name: /Start talking/u }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Next/u })).toBeNull();
+  });
+
+  test("while the last step leaves, the new one holds the focus and the old is inert", async () => {
+    MotionGlobalConfig.skipAnimations = false;
+    const nativeAnimate = Element.prototype.animate;
+    Reflect.deleteProperty(Element.prototype, "animate");
+    spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const user = userEvent.setup();
+      render(<Onboarding settings={SETTINGS} onDone={mock()} />);
+      await user.selectOptions(screen.getByLabelText("First language"), "fr");
+      await user.click(screen.getByRole("button", { name: /Next/u }));
+
+      const next = await screen.findByRole("heading", {
+        name: "What should we call you?",
+      });
+      expect(next).toHaveFocus();
+      const leaving = screen.getByRole("heading", {
+        name: "What's your first language?",
+      });
+      expect(leaving.closest("[inert]")).not.toBeNull();
+      await waitForElementToBeRemoved(leaving);
+      expect(next).toHaveFocus();
+    } finally {
+      MotionGlobalConfig.skipAnimations = true;
+      Element.prototype.animate = nativeAnimate;
+    }
   });
 });

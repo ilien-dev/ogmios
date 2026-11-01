@@ -1,4 +1,6 @@
 import type { ReactNode } from "react";
+import { Presence } from "@/components/motion/Presence";
+import { Reveal } from "@/components/motion/Reveal";
 import { cn } from "@/lib/cn";
 
 interface FieldProps {
@@ -25,17 +27,36 @@ export function Field({
         {label}
       </label>
       {children}
-      {error === null ? (
-        hint !== undefined && (
-          <p id={`${id}-hint`} className="text-sm text-ink-faint">
-            {hint}
-          </p>
-        )
-      ) : (
-        <p id={`${id}-hint`} role="alert" className="text-sm text-danger">
-          {error}
-        </p>
-      )}
+      {/* The id stays on this wrapper: the hint and the error trade places in it, and
+          both exist for a moment while one leaves. */}
+      <div id={`${id}-hint`} className="relative">
+        <Presence swap>
+          {error === null ? (
+            hint !== undefined && (
+              <Reveal
+                key="hint"
+                as="p"
+                kind="fade"
+                index={0}
+                className="text-sm text-ink-faint"
+              >
+                {hint}
+              </Reveal>
+            )
+          ) : (
+            <Reveal
+              key="error"
+              as="p"
+              kind="fade"
+              index={0}
+              role="alert"
+              className="text-sm text-danger"
+            >
+              {error}
+            </Reveal>
+          )}
+        </Presence>
+      </div>
     </div>
   );
 }

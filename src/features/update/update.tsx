@@ -35,7 +35,7 @@ export interface Updates {
   /** The running version; null until it is known. */
   version: string | null;
   state: UpdateState;
-  /** The learner put the card away; the sidebar still points to the release. */
+  /** The learner put the card away; Settings still points to the release. */
   folded: boolean;
   /** Looks for a newer release now, and says so while it does. */
   check: () => void;
@@ -92,8 +92,8 @@ interface UpdateProviderProps {
 }
 
 /**
- * The one place that knows about updates, for the sidebar, the settings and
- * the card. It looks at start-up, every hour and when the window comes back;
+ * The one place that knows about updates, for the bar, Settings and the
+ * card. It looks at start-up, every hour and when the window comes back;
  * a look nobody asked for that fails says nothing and changes nothing.
  * Nothing downloads or restarts unless the learner asks.
  */

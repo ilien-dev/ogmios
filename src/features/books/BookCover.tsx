@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import type { Book } from "@shared/domain";
+import { Presence } from "@/components/motion/Presence";
+import { Reveal } from "@/components/motion/Reveal";
 import { coverUrl } from "./covers";
 
 interface BookCoverProps {
@@ -34,16 +36,29 @@ export function BookCover({ book, className = "" }: BookCoverProps): ReactNode {
       aria-hidden
       className={`@container block aspect-2/3 shrink-0 overflow-hidden rounded-sm bg-book-soft shadow-cover ${className}`}
     >
-      {url === null && (
-        <span className="flex size-full flex-col gap-cover p-cover font-serif text-cover text-book-ink">
-          <span className="text-cover-title font-medium">{book.title}</span>
-          {book.author !== null && <span>{book.author}</span>}
-          <span className="mt-cover line-clamp-12">{book.opening}</span>
-        </span>
-      )}
-      {typeof url === "string" && (
-        <img src={url} alt="" className="size-full object-cover object-top" />
-      )}
+      <Presence>
+        {url === null && (
+          <Reveal
+            key="drawn"
+            as="span"
+            kind="fade"
+            className="flex size-full flex-col gap-cover p-cover font-serif text-cover text-book-ink"
+          >
+            <span className="text-cover-title font-medium">{book.title}</span>
+            {book.author !== null && <span>{book.author}</span>}
+            <span className="mt-cover line-clamp-12">{book.opening}</span>
+          </Reveal>
+        )}
+        {typeof url === "string" && (
+          <Reveal key="scan" as="span" kind="fade" className="block size-full">
+            <img
+              src={url}
+              alt=""
+              className="size-full object-cover object-top"
+            />
+          </Reveal>
+        )}
+      </Presence>
     </span>
   );
 }

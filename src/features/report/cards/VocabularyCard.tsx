@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
+import { Reveal } from "@/components/motion/Reveal";
+import { Stagger } from "@/components/motion/Stagger";
 import type { Step } from "../steps";
 import { CardTitle } from "./CardTitle";
 
@@ -12,26 +14,33 @@ export function VocabularyCard({
 }): ReactNode {
   const { t } = useTranslation();
   return (
-    <div className="flex flex-col gap-10">
-      <CardTitle>{t("report.vocabulary.title")}</CardTitle>
-      <dl className="flex flex-col divide-y divide-line">
+    <div className="flex flex-col gap-8">
+      <Reveal>
+        <CardTitle>{t("report.vocabulary.title")}</CardTitle>
+      </Reveal>
+      <Stagger as="ul" className="flex flex-col gap-4">
         {card.items.map((item) => (
-          <div
+          <Reveal
             key={item.english}
-            className="flex flex-col gap-1 py-4 first:pt-0"
+            as="li"
+            className="flex flex-col gap-1 rounded-lg bg-raised px-5 py-4"
           >
-            <dt className="text-lead font-medium text-ink">{item.english}</dt>
+            <p className="text-lead font-medium text-ink">{item.english}</p>
+
             {item.asked !== null && (
-              <dd className="text-sm text-ink-faint">
+              <Reveal key="asked" as="p" className="text-sm text-ink-faint">
                 {t("report.vocabulary.asked", { text: item.asked })}
-              </dd>
+              </Reveal>
             )}
+
             {item.note !== null && (
-              <dd className="text-ink-soft">{item.note}</dd>
+              <Reveal key="note" as="p" className="text-ink-soft">
+                {item.note}
+              </Reveal>
             )}
-          </div>
+          </Reveal>
         ))}
-      </dl>
+      </Stagger>
     </div>
   );
 }

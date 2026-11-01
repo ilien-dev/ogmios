@@ -7,7 +7,6 @@ import { structuresEn } from "./structures.en";
  */
 export const en = {
   app: {
-    name: "Ogmios",
     loading: "Opening Ogmios…",
     loadFailed: "Ogmios couldn't start: {{message}}",
   },
@@ -33,6 +32,8 @@ export const en = {
     due: "{{count}} due today",
     currentChapter: "Current chapter",
     pickChapter: "Pick a chapter",
+    chapterIs: "Current chapter: {{chapter}}",
+    settingsWaiting: "Settings, an update is waiting",
     groups: {
       conversation: "Conversation",
       book: "Book",
@@ -236,7 +237,6 @@ export const en = {
     inUse: "In use",
     languages: "Languages: {{list}}",
     textOnly: "Text only for now",
-    textOnlyChosen: "Text only. You can add voice later in Settings.",
     unavailable:
       "Voice input isn't available on this system yet. Typing works just as well.",
     progressLabel: "Download progress for {{name}}",
@@ -271,8 +271,6 @@ export const en = {
     continueLast: "Continue the last one",
     anotherTopic: "Another topic",
     customize: "Customize",
-    dueWords_one: "{{count}} word to review today",
-    dueWords_other: "{{count}} words to review today",
     streak_one: "{{count}} day in a row",
     streak_other: "{{count}} days in a row",
     streakNone: "Your streak starts with today's conversation",
@@ -285,10 +283,9 @@ export const en = {
       "Your last conversations sat outside your level. Switch to {{level}}?",
     switchLevel: "Switch",
     today: "Practised today",
-    streakLabel: "Days in a row",
-    wordsLabel: "Words to review today",
-    patternsLabel: "Patterns to practise",
     todayList: "For today",
+    seeMore: "See more",
+    seeLess: "See less",
     focusLead: "Your partner will steer towards what you're working on:",
   },
   setup: {
@@ -313,7 +310,7 @@ export const en = {
   },
   conversation: {
     label: "Conversation",
-    topic: "Topic: {{topic}}",
+    chat: "Messages",
     partner: "Partner",
     you: "You",
     ai: "AI",
@@ -343,11 +340,9 @@ export const en = {
     help: "How do I say…?",
     helpField: "Write it in your language",
     helpAsk: "Show options",
-    helpAsking: "Looking…",
     helpEmpty: "Nothing came back. Try other words.",
     insert: "Insert",
     end: "End",
-    ending: "Ending…",
     speech: "{{spoken}} of {{target}} min spoken",
     speechNoTarget: "{{spoken}} min spoken",
     targetReached: "You reached your goal. Keep going or see feedback?",
@@ -802,7 +797,6 @@ export const en = {
     deleteConfirm:
       "Delete this conversation? It will no longer count towards your progress.",
     deleteYes: "Delete",
-    back: "Back to progress",
   },
   settings: {
     title: "Settings",
@@ -837,7 +831,6 @@ export const en = {
   },
   update: {
     about: "About Ogmios",
-    version: "Version {{version}}",
     short: "v{{version}}",
     checking: "Checking for updates…",
     current: "You have the latest version.",

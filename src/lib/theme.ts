@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { animated } from "./motion";
 
 export type ThemeChoice = "system" | "light" | "dark";
 
@@ -21,6 +22,31 @@ function prefersDark(): boolean {
   );
 }
 
+/** How long colours take to cross; the same as `--duration-theme`. */
+export const THEME_FADE_MS = 300;
+const REDUCED_QUERY = "(prefers-reduced-motion: reduce)";
+let fadeTimer: ReturnType<typeof setTimeout> | undefined;
+
+/**
+ * Lets the colours cross instead of jumping, for as long as they take. A timer
+ * ends it, never an event, so nothing can leave the page in the fade; with
+ * reduced motion, or no animation, the colours simply change.
+ */
+export function fadeTheme(): void {
+  const reduced =
+    typeof globalThis.matchMedia === "function" &&
+    globalThis.matchMedia(REDUCED_QUERY).matches;
+  if (!animated() || reduced) {
+    return;
+  }
+  const root = document.documentElement;
+  root.dataset.themeFading = "";
+  clearTimeout(fadeTimer);
+  fadeTimer = setTimeout(() => {
+    delete root.dataset.themeFading;
+  }, THEME_FADE_MS);
+}
+
 /** Writes the resolved theme to `<html data-theme>`, which the tokens read. */
 export function applyTheme(choice: ThemeChoice): void {
   const dark = choice === "dark" || (choice === "system" && prefersDark());
@@ -41,6 +67,7 @@ export function useTheme(): [ThemeChoice, (choice: ThemeChoice) => void] {
     }
     const query = globalThis.matchMedia(DARK_QUERY);
     const follow = (): void => {
+      fadeTheme();
       applyTheme("system");
     };
     query.addEventListener("change", follow);
@@ -50,6 +77,7 @@ export function useTheme(): [ThemeChoice, (choice: ThemeChoice) => void] {
   }, [choice]);
 
   const choose = (next: ThemeChoice): void => {
+    fadeTheme();
     try {
       localStorage.setItem(KEY, next);
     } catch {

@@ -17,16 +17,27 @@ export type Step =
   | { kind: "challenge"; card: CardOf<"challenge"> }
   | { kind: "closing"; focusPatternId: string | null };
 
+/** A report points at one thing to work on and two small ones, no more. */
+const MAX_MINORS = 2;
+
 export function toSteps(cards: ReportCard[]): Step[] {
   const steps: Step[] = [];
   let focusPatternId: string | null = null;
+  let minors = 0;
   for (const card of cards) {
     if (card.type === "correction") {
       if (card.role === "focus") {
-        focusPatternId = card.patternId;
-        steps.push({ kind: "focus", card });
+        // The rest stay in memory, as the first one stays on screen.
+        if (focusPatternId === null) {
+          focusPatternId = card.patternId;
+          steps.push({ kind: "focus", card });
+        }
         continue;
       }
+      if (minors >= MAX_MINORS) {
+        continue;
+      }
+      minors += 1;
       const previous = steps.at(-1);
       if (previous?.kind === "minors") {
         previous.cards.push(card);

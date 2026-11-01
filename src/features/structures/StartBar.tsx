@@ -33,12 +33,12 @@ export function StartBar({
   return (
     <form
       onSubmit={start}
-      className="shrink-0 border-t border-line bg-surface px-10 py-5"
+      className="shrink-0 bg-surface px-6 py-5 shadow-card nav:px-10"
     >
       <div className="mx-auto flex max-w-3xl flex-col gap-3">
         <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
           <p className="text-sm text-ink-soft">{note}</p>
-          <Button type="submit" variant="primary" disabled={starting}>
+          <Button type="submit" variant="primaryBook" disabled={starting}>
             {t("structures.start")}
           </Button>
         </div>

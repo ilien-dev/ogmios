@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { cn } from "@/lib/cn";
 
 const FULL = 100;
 
@@ -8,6 +9,8 @@ interface ProgressBarProps {
   /** How far, out of `total`. Nothing to count is as far as it goes. */
   value: number;
   total: number;
+  /** Book screens fill in the book's warm colour. */
+  tone?: "accent" | "book";
 }
 
 /**
@@ -20,6 +23,7 @@ export function ProgressBar({
   label,
   value,
   total,
+  tone = "accent",
 }: ProgressBarProps): ReactNode {
   const share = total > 0 ? Math.min(Math.max(value / total, 0), 1) : 1;
   return (
@@ -29,10 +33,13 @@ export function ProgressBar({
       aria-valuemin={0}
       aria-valuemax={FULL}
       aria-valuenow={Math.floor(share * FULL)}
-      className="h-1 w-full overflow-hidden rounded-full bg-line"
+      className="h-1.5 w-full overflow-hidden rounded-full bg-raised"
     >
       <div
-        className="h-full origin-left bg-accent transition-transform duration-300 ease-out-expo motion-reduce:transition-none"
+        className={cn(
+          "h-full origin-left transition-transform duration-300 ease-out-expo motion-reduce:transition-none",
+          tone === "book" ? "bg-book" : "bg-accent",
+        )}
         style={{ transform: `scaleX(${String(share)})` }}
       />
     </div>

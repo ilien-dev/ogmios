@@ -28,4 +28,34 @@ describe("toSteps", () => {
       kinds({ type: "couldHaveSaid", items: [item], nativeRewrite: null }),
     ).toEqual(["couldHaveSaid", "closing"]);
   });
+
+  test("keeps one focus and two small things, however many come", () => {
+    const correction = (role: "focus" | "minor", n: number): ReportCard => ({
+      type: "correction",
+      role,
+      itemId: `i${String(n)}`,
+      patternId: `p${String(n)}`,
+      original: "a",
+      corrected: "b",
+      highlight: "a",
+      explanation: "e",
+      hint: "h",
+      selfCorrect: true,
+      recurrence: null,
+    });
+    const steps = toSteps([
+      correction("focus", 1),
+      correction("focus", 2),
+      correction("minor", 3),
+      correction("minor", 4),
+      correction("minor", 5),
+    ]);
+    expect(steps.map((step) => step.kind)).toEqual([
+      "focus",
+      "minors",
+      "closing",
+    ]);
+    const minors = steps.find((step) => step.kind === "minors");
+    expect(minors?.kind === "minors" ? minors.cards : []).toHaveLength(2);
+  });
 });

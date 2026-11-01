@@ -29,6 +29,15 @@ function cell(lemma: string): string | null {
 describe("WordList", () => {
   useMockBackend();
 
+  test("a tag that arrives on a row fades in with a CSS animation of its own", () => {
+    render(
+      <WordList words={[word("quickly", "adverb")]} onKnown={() => null} />,
+    );
+    expect(screen.getByRole("button", { name: "adverb" })).toHaveClass(
+      "animate-appear",
+    );
+  });
+
   test("a word says what kind of word it is, when that is known and it is one", async () => {
     const marked: string[] = [];
     render(

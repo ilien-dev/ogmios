@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Square, Volume2, VolumeX } from "lucide-react";
+import { Presence } from "@/components/motion/Presence";
+import { Reveal } from "@/components/motion/Reveal";
 import { Spinner } from "@/components/ui/Spinner";
 import { cn } from "@/lib/cn";
 import { formatBytes } from "@/lib/text";
@@ -10,6 +12,25 @@ interface SpeakButtonProps {
   /** English, as it is on the screen. */
   text: string;
   className?: string;
+}
+
+/** The icon of the button, which the next one replaces with a small swell. */
+function Glyph({
+  name,
+  children,
+}: {
+  name: string;
+  children: ReactNode;
+}): ReactNode {
+  return (
+    <span className="relative grid place-items-center">
+      <Presence swap firstStatic>
+        <Reveal key={name} as="span" kind="scale" className="grid">
+          {children}
+        </Reveal>
+      </Presence>
+    </span>
+  );
 }
 
 /**
@@ -44,11 +65,13 @@ export function SpeakButton({ text, className }: SpeakButtonProps): ReactNode {
         }}
         className={shape}
       >
-        {fetching === null ? (
-          <VolumeX aria-hidden className="size-4" />
-        ) : (
-          <Spinner />
-        )}
+        <Glyph name={fetching === null ? "get" : "getting"}>
+          {fetching === null ? (
+            <VolumeX aria-hidden className="size-4" />
+          ) : (
+            <Spinner />
+          )}
+        </Glyph>
       </button>
     );
   }
@@ -66,11 +89,13 @@ export function SpeakButton({ text, className }: SpeakButtonProps): ReactNode {
       }}
       className={cn(shape, mine && "text-accent-text")}
     >
-      {mine ? (
-        <Square aria-hidden className="size-3 fill-current" />
-      ) : (
-        <Volume2 aria-hidden className="size-4" />
-      )}
+      <Glyph name={mine ? "stop" : "listen"}>
+        {mine ? (
+          <Square aria-hidden className="size-3 fill-current" />
+        ) : (
+          <Volume2 aria-hidden className="size-4" />
+        )}
+      </Glyph>
     </button>
   );
 }

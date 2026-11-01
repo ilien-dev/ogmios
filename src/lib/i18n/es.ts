@@ -5,7 +5,6 @@ import { structuresEs } from "./structures.es";
 /** Spanish interface strings. Same keys as `en.ts`, checked by the compiler. */
 export const es: Catalog<typeof en> = {
   app: {
-    name: "Ogmios",
     loading: "Abriendo Ogmios…",
     loadFailed: "Ogmios no pudo arrancar: {{message}}",
   },
@@ -30,6 +29,8 @@ export const es: Catalog<typeof en> = {
     settings: "Ajustes",
     due: "{{count}} pendientes hoy",
     currentChapter: "Capítulo actual",
+    chapterIs: "Capítulo actual: {{chapter}}",
+    settingsWaiting: "Ajustes, hay una actualización pendiente",
     pickChapter: "Elige un capítulo",
     groups: {
       conversation: "Conversación",
@@ -236,7 +237,6 @@ export const es: Catalog<typeof en> = {
     inUse: "En uso",
     languages: "Idiomas: {{list}}",
     textOnly: "Solo texto por ahora",
-    textOnlyChosen: "Solo texto. Puedes añadir la voz luego en Ajustes.",
     unavailable:
       "La entrada de voz aún no está disponible en este sistema. Escribir funciona igual de bien.",
     progressLabel: "Progreso de descarga de {{name}}",
@@ -271,8 +271,6 @@ export const es: Catalog<typeof en> = {
     continueLast: "Continuar la anterior",
     anotherTopic: "Otro tema",
     customize: "Personalizar",
-    dueWords_one: "Hoy te toca repasar {{count}} palabra",
-    dueWords_other: "Hoy te toca repasar {{count}} palabras",
     streak_one: "{{count}} día seguido",
     streak_other: "{{count}} días seguidos",
     streakNone: "Tu racha empieza con la charla de hoy",
@@ -285,10 +283,9 @@ export const es: Catalog<typeof en> = {
       "Tus últimas charlas quedaron fuera de tu nivel. ¿Cambiar a {{level}}?",
     switchLevel: "Cambiar",
     today: "Ya practicaste hoy",
-    streakLabel: "Días seguidos",
-    wordsLabel: "Palabras que vuelven hoy",
-    patternsLabel: "Patrones por practicar",
     todayList: "Para hoy",
+    seeMore: "Ver más",
+    seeLess: "Ver menos",
     focusLead: "Tu compañero llevará la charla hacia lo que estás trabajando:",
   },
   setup: {
@@ -314,7 +311,7 @@ export const es: Catalog<typeof en> = {
   },
   conversation: {
     label: "Charla",
-    topic: "Tema: {{topic}}",
+    chat: "Mensajes",
     partner: "Compañero",
     you: "Tú",
     ai: "IA",
@@ -343,11 +340,9 @@ export const es: Catalog<typeof en> = {
     help: "¿Cómo digo…?",
     helpField: "Escríbelo en tu idioma",
     helpAsk: "Ver opciones",
-    helpAsking: "Buscando…",
     helpEmpty: "No llegó nada. Prueba con otras palabras.",
     insert: "Insertar",
     end: "Terminar",
-    ending: "Terminando…",
     speech: "{{spoken}} de {{target}} min hablados",
     speechNoTarget: "{{spoken}} min hablados",
     targetReached: "Llegaste a tu meta. ¿Seguir o ver feedback?",
@@ -803,7 +798,6 @@ export const es: Catalog<typeof en> = {
     delete: "Eliminar charla: {{topic}}",
     deleteConfirm: "¿Eliminar esta charla? Dejará de contar en tu progreso.",
     deleteYes: "Eliminar",
-    back: "Volver al progreso",
   },
   settings: {
     title: "Ajustes",
@@ -839,7 +833,6 @@ export const es: Catalog<typeof en> = {
   },
   update: {
     about: "Acerca de Ogmios",
-    version: "Versión {{version}}",
     short: "v{{version}}",
     checking: "Buscando actualizaciones…",
     current: "Tienes la última versión.",

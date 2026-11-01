@@ -2,6 +2,9 @@ import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { ArrowDownRight, ArrowUpRight, Minus } from "lucide-react";
 import type { SessionMetrics } from "@shared/domain";
+import { Presence } from "@/components/motion/Presence";
+import { Reveal } from "@/components/motion/Reveal";
+import { Stagger } from "@/components/motion/Stagger";
 import { cn } from "@/lib/cn";
 import { formatNumber } from "@/lib/text";
 import type { Step } from "../steps";
@@ -52,16 +55,16 @@ export function MetricsCard({
   };
 
   return (
-    <div className="flex flex-col gap-10">
-      <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-8">
+      <Reveal className="flex flex-col gap-3">
         <CardTitle>{t("report.metrics.title")}</CardTitle>
         <p className="text-ink-soft">
           {card.previous === null
             ? t("report.metrics.baseline", { modality })
             : t("report.metrics.against", { modality })}
         </p>
-      </div>
-      <dl className="grid grid-cols-2 gap-x-10 gap-y-8">
+      </Reveal>
+      <Stagger as="dl" className="grid grid-cols-2 gap-x-10 gap-y-8">
         {ROWS.map(({ key, higherIsBetter, digits }) => {
           const now = value(card.current, key);
           if (now === null) {
@@ -74,39 +77,45 @@ export function MetricsCard({
           const better = flat ? null : delta > 0 === higherIsBetter;
           const Icon = flat ? Minus : delta > 0 ? ArrowUpRight : ArrowDownRight;
           return (
-            <div key={key} className="flex flex-col gap-1.5">
+            <Reveal key={key} className="flex flex-col gap-1.5">
               <dt className="text-sm text-ink-soft">
                 {t(`report.metrics.${key}`)}
               </dt>
-              <dd className="font-display text-title font-normal text-ink tabular-nums">
+              <dd className="text-title font-semibold text-ink tabular-nums">
                 {show(key, now, digits)}
               </dd>
-              {before !== null && (
-                <dd
-                  className={cn(
-                    "flex items-center gap-1 text-sm",
-                    better === null
-                      ? "text-ink-faint"
-                      : better
-                        ? "text-correct"
-                        : "text-partial",
-                  )}
-                >
-                  <Icon aria-hidden className="size-4" />
-                  {flat
-                    ? t("report.metrics.same")
-                    : t(
-                        delta > 0 ? "report.metrics.up" : "report.metrics.down",
-                        {
-                          previous: show(key, before, digits),
-                        },
-                      )}
-                </dd>
-              )}
-            </div>
+              <Presence>
+                {before !== null && (
+                  <Reveal
+                    key="before"
+                    as="dd"
+                    className={cn(
+                      "flex items-center gap-1 text-sm",
+                      better === null
+                        ? "text-ink-faint"
+                        : better
+                          ? "text-correct"
+                          : "text-partial",
+                    )}
+                  >
+                    <Icon aria-hidden className="size-4" />
+                    {flat
+                      ? t("report.metrics.same")
+                      : t(
+                          delta > 0
+                            ? "report.metrics.up"
+                            : "report.metrics.down",
+                          {
+                            previous: show(key, before, digits),
+                          },
+                        )}
+                  </Reveal>
+                )}
+              </Presence>
+            </Reveal>
           );
         })}
-      </dl>
+      </Stagger>
     </div>
   );
 }

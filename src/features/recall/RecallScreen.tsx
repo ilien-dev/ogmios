@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import type { ReactNode, SyntheticEvent } from "react";
 import { useTranslation } from "react-i18next";
 import type { RecallState, Strength, Ways } from "@shared/domain";
+import { Presence } from "@/components/motion/Presence";
+import { Reveal } from "@/components/motion/Reveal";
 import type { Navigate } from "@/app/routes";
 import { Button } from "@/components/ui/Button";
 import { ChoiceGroup } from "@/components/ui/ChoiceGroup";
@@ -53,26 +55,31 @@ function Today({ state, nativeLang, onStart }: TodayProps): ReactNode {
             ? t("recall.due", { count: state.due })
             : t("recall.nothingDue")}
         </p>
-        {state.due > 0 && (
-          <>
-            <div className="w-full">
-              <ChoiceGroup
-                legend={t("books.sitting.ways")}
-                columns={3}
-                size="sm"
-                choices={WAYS.map((each) => ({
-                  value: each,
-                  label: labels[each],
-                }))}
-                value={ways}
-                onChange={setWays}
-              />
-            </div>
-            <Button type="submit" variant="primary">
-              {t("recall.start")}
-            </Button>
-          </>
-        )}
+        <Presence>
+          {state.due > 0 && (
+            <Reveal
+              key="choose"
+              className="flex w-full flex-col items-start gap-6"
+            >
+              <div className="w-full">
+                <ChoiceGroup
+                  legend={t("books.sitting.ways")}
+                  columns={3}
+                  size="sm"
+                  choices={WAYS.map((each) => ({
+                    value: each,
+                    label: labels[each],
+                  }))}
+                  value={ways}
+                  onChange={setWays}
+                />
+              </div>
+              <Button type="submit" variant="primaryBook">
+                {t("recall.start")}
+              </Button>
+            </Reveal>
+          )}
+        </Presence>
       </form>
       <section className="flex flex-col gap-4">
         <h2 className="text-sm font-medium text-ink-faint">
@@ -131,6 +138,16 @@ function Between({ nativeLang, onStart }: BetweenProps): ReactNode {
 
   const learned =
     state === null ? 0 : state.fresh + state.settling + state.firm;
+  /** Names what the screen says: each of these comes in over the last. */
+  const showing = (): string => {
+    if (failure !== null) {
+      return "failure";
+    }
+    if (state === null) {
+      return "loading";
+    }
+    return learned === 0 ? "empty" : "today";
+  };
   return (
     <main className="h-full overflow-y-auto">
       <div className="mx-auto flex max-w-2xl flex-col gap-12 px-10 py-16">
@@ -140,18 +157,44 @@ function Between({ nativeLang, onStart }: BetweenProps): ReactNode {
           </h1>
           <p className="text-lead text-ink-soft">{t("recall.intro")}</p>
         </header>
-        {failure !== null && (
-          <Notice tone="danger">
-            {t("common.error", { message: failure })}
-          </Notice>
-        )}
-        {state === null && failure === null && <Spinner />}
-        {state !== null && learned === 0 && (
-          <p className="text-ink-soft">{t("recall.empty")}</p>
-        )}
-        {state !== null && learned > 0 && (
-          <Today state={state} nativeLang={nativeLang} onStart={onStart} />
-        )}
+        <div className="relative">
+          <Presence swap>
+            <Reveal key={showing()} className="flex flex-col gap-12">
+              <Presence>
+                {failure !== null && (
+                  <Notice key="failure" tone="danger">
+                    {t("common.error", { message: failure })}
+                  </Notice>
+                )}
+              </Presence>
+              <Presence>
+                {state === null && failure === null && (
+                  <Reveal key="loading" as="span" kind="fade">
+                    <Spinner />
+                  </Reveal>
+                )}
+              </Presence>
+              <Presence>
+                {state !== null && learned === 0 && (
+                  <Reveal key="empty" as="p" className="text-ink-soft">
+                    {t("recall.empty")}
+                  </Reveal>
+                )}
+              </Presence>
+              <Presence>
+                {state !== null && learned > 0 && (
+                  <Reveal key="today" className="flex flex-col gap-12">
+                    <Today
+                      state={state}
+                      nativeLang={nativeLang}
+                      onStart={onStart}
+                    />
+                  </Reveal>
+                )}
+              </Presence>
+            </Reveal>
+          </Presence>
+        </div>
       </div>
     </main>
   );

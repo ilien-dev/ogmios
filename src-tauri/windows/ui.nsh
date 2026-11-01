@@ -25,19 +25,19 @@
 !define OG_LOGO 72
 
 ; The logo's bitmaps are drawn on this same dark (scripts/installer-assets.ps1),
-; so only its teal square shows on the page. All of it is
+; so only its orb shows on the page. All of it is
 ; the dark theme of src/styles/global.css, in the hexadecimal NSIS wants.
-!define OG_BG 0B0B0B
-!define OG_RAISED 1A1A1A
-!define OG_INK EDEDED
-!define OG_SOFT A6A6A6
-!define OG_ACCENT 2DD4BF
-!define OG_ON_ACCENT 04201C
+!define OG_BG 0E0F1A
+!define OG_RAISED 23263A
+!define OG_INK F1F2FA
+!define OG_SOFT A9ACC4
+!define OG_ACCENT 7FDCCB
+!define OG_ON_ACCENT 0E0F1A
 ; The same teal and raised grey as Windows writes a colour: blue first.
-!define OG_ACCENT_BGR 0x00BFD42D
-!define OG_RAISED_BGR 0x001A1A1A
-!define OG_INK_BGR 0x00EDEDED
-!define OG_BG_BGR 0x000B0B0B
+!define OG_ACCENT_BGR 0x00CBDC7F
+!define OG_RAISED_BGR 0x003A2623
+!define OG_INK_BGR 0x00FAF2F1
+!define OG_BG_BGR 0x001A0F0E
 
 Var OgDpi
 Var OgW

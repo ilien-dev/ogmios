@@ -27,7 +27,7 @@ export function SpotErrorChoice({
           onClick={() => {
             onPick(option);
           }}
-          className="rounded-md border border-line-strong px-4 py-3.5 text-left text-lead text-ink transition-colors duration-150 hover:border-ink-faint hover:bg-raised"
+          className="rounded-md border border-line-strong px-4 py-3.5 text-left text-lead text-ink transition-control hover:border-ink-faint hover:bg-raised"
         >
           {option}
         </button>

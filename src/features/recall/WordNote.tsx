@@ -1,6 +1,8 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import type { ReactNode, SyntheticEvent } from "react";
 import { useTranslation } from "react-i18next";
+import { Presence } from "@/components/motion/Presence";
+import { Reveal } from "@/components/motion/Reveal";
 import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
 import { TextInput } from "@/components/ui/TextInput";
@@ -25,6 +27,7 @@ export function WordNote({ wordId, note }: WordNoteProps): ReactNode {
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
+  const fieldId = useId();
 
   const save = async (event: SyntheticEvent): Promise<void> => {
     event.preventDefault();
@@ -41,39 +44,52 @@ export function WordNote({ wordId, note }: WordNoteProps): ReactNode {
   };
 
   return (
-    <form
-      onSubmit={(event) => void save(event)}
-      className="mt-8 flex flex-col gap-3 border-t border-line pt-6"
-    >
-      <div className="flex flex-col gap-1">
-        <p className="text-sm font-medium text-ink">{t("recall.note.title")}</p>
-        <p className="text-sm text-ink-soft">{t("recall.note.hint")}</p>
-      </div>
-      <label htmlFor="word-note" className="sr-only">
-        {t("recall.note.label")}
-      </label>
-      <div className="flex items-center gap-2">
-        <TextInput
-          id="word-note"
-          autoComplete="off"
-          value={text}
-          onChange={(event) => {
-            setText(event.target.value);
-            setSaved(false);
-          }}
-        />
-        <Button type="submit" variant="ghost" size="sm" disabled={busy}>
-          {t("recall.note.save")}
-        </Button>
-      </div>
-      {saved && (
-        <p role="status" className="text-sm text-ink-faint">
-          {t("recall.note.saved")}
-        </p>
-      )}
-      {failure !== null && (
-        <Notice tone="danger">{t("common.error", { message: failure })}</Notice>
-      )}
-    </form>
+    <Reveal className="mt-8 w-full border-t border-line pt-6 text-left">
+      <form
+        onSubmit={(event) => void save(event)}
+        className="flex flex-col gap-3"
+      >
+        <div className="flex flex-col gap-1">
+          <p className="text-sm font-medium text-ink">
+            {t("recall.note.title")}
+          </p>
+          <p className="text-sm text-ink-soft">{t("recall.note.hint")}</p>
+        </div>
+        <label htmlFor={fieldId} className="sr-only">
+          {t("recall.note.label")}
+        </label>
+        <div className="flex items-center gap-2">
+          <TextInput
+            id={fieldId}
+            autoComplete="off"
+            value={text}
+            onChange={(event) => {
+              setText(event.target.value);
+              setSaved(false);
+            }}
+          />
+          <Button type="submit" variant="ghost" size="sm" disabled={busy}>
+            {t("recall.note.save")}
+          </Button>
+        </div>
+        <Presence>
+          {saved && (
+            <Reveal
+              key="saved"
+              as="p"
+              role="status"
+              className="text-sm text-ink-faint"
+            >
+              {t("recall.note.saved")}
+            </Reveal>
+          )}
+          {failure !== null && (
+            <Notice key="failure" tone="danger">
+              {t("common.error", { message: failure })}
+            </Notice>
+          )}
+        </Presence>
+      </form>
+    </Reveal>
   );
 }

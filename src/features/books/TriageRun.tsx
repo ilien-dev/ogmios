@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
+import { useScreenLeaving } from "@/lib/motion";
 import type { BookWord, ChapterWords } from "@shared/domain";
+import { CountUp } from "@/components/motion/CountUp";
+import { Presence } from "@/components/motion/Presence";
+import { Reveal } from "@/components/motion/Reveal";
 import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
 import { errorMessage } from "@/lib/errors";
@@ -11,7 +15,12 @@ import {
   setWordKnown,
   setWordSorted,
 } from "@/lib/ipc";
-import { SittingEnd, SittingFrame, SittingWait } from "./SittingParts";
+import {
+  SittingEnd,
+  SittingFrame,
+  SittingStage,
+  SittingWait,
+} from "./SittingParts";
 import { Tally } from "./Tally";
 
 /** The key a choice answers to, shown on its button. */
@@ -29,6 +38,14 @@ export function Key({ children }: { children: string }): ReactNode {
 /** The words of the chapter still to learn: the ones a sorting goes through. */
 function open(found: ChapterWords): BookWord[] {
   return found.words.filter((word) => !word.done && !word.known);
+}
+
+/** Names what is on the screen: the cards are one step, however many go by. */
+function stageOf(words: BookWord[] | null, word: BookWord | undefined): string {
+  if (words === null) {
+    return "wait";
+  }
+  return word === undefined ? "end" : "cards";
 }
 
 interface TriageRunProps {
@@ -54,6 +71,7 @@ export function TriageRun({
   onDone,
 }: TriageRunProps): ReactNode {
   const { t } = useTranslation();
+  const leaving = useScreenLeaving();
   /** The words to learn, as they stood on the way in or at the last pass. */
   const [words, setWords] = useState<BookWord[] | null>(null);
   /** Whether each word gone through this time was marked as known, in order. */
@@ -147,6 +165,9 @@ export function TriageRun({
   };
 
   useEffect(() => {
+    if (leaving) {
+      return;
+    }
     const onKey = (event: KeyboardEvent): void => {
       if (event.altKey || event.ctrlKey || event.metaKey) {
         return;
@@ -183,8 +204,14 @@ export function TriageRun({
     </Button>
   );
 
-  const failed = failure !== null && (
-    <Notice tone="danger">{t("common.error", { message: failure })}</Notice>
+  const failed = (
+    <Presence>
+      {failure !== null && (
+        <Notice key="failure" tone="danger">
+          {t("common.error", { message: failure })}
+        </Notice>
+      )}
+    </Presence>
   );
 
   const body = (): ReactNode => {
@@ -216,14 +243,22 @@ export function TriageRun({
           }
           other={left > 0 ? back : null}
           notice={
-            <div className="flex flex-col items-start gap-3">
+            <div key="actions" className="flex flex-col items-center gap-3">
               <div className="flex gap-2">
-                {left > 0 && (
-                  <Button variant="ghost" size="sm" onClick={again}>
-                    {t("books.triage.again")}
-                  </Button>
-                )}
-                {marks.length > 0 && undoButton}
+                <Presence>
+                  {left > 0 && (
+                    <Reveal key="again" kind="fade">
+                      <Button variant="ghost" size="sm" onClick={again}>
+                        {t("books.triage.again")}
+                      </Button>
+                    </Reveal>
+                  )}
+                  {marks.length > 0 && (
+                    <Reveal key="undo" kind="fade">
+                      {undoButton}
+                    </Reveal>
+                  )}
+                </Presence>
               </div>
               {failed}
             </div>
@@ -236,28 +271,39 @@ export function TriageRun({
         <div className="flex w-full max-w-lg flex-col items-center gap-8">
           <div className="flex w-full justify-between px-2">
             <Tally dot="bg-known">
-              {t("books.triage.known", { count: known })}
+              <CountUp
+                value={known}
+                format={(count) => t("books.triage.known", { count })}
+              />
             </Tally>
-            <Tally dot="bg-accent-strong">
-              {t("books.triage.toLearn", { count: left })}
+            <Tally dot="bg-book">
+              <CountUp
+                value={left}
+                format={(count) => t("books.triage.toLearn", { count })}
+              />
             </Tally>
           </div>
-          <div
-            key={word.id}
-            className="flex w-full flex-col items-center gap-3 rounded-xl bg-surface px-8 py-12 text-center shadow-card motion-safe:animate-rise"
-          >
-            <p className="text-sm text-ink-faint">
-              {`${String(before + marks.length + 1)} / ${String(words.length)}`}
-            </p>
-            <h1 className="text-5xl font-semibold tracking-tight wrap-anywhere text-ink">
-              {word.lemma}
-            </h1>
-            <p className="text-lead text-ink-soft">
-              {word.translations.join(", ")}
-            </p>
-            <p className="text-sm text-ink-faint">
-              {t("books.triage.times", { count: word.count })}
-            </p>
+          <div className="relative w-full">
+            <Presence swap>
+              <Reveal
+                key={word.id}
+                kind="scale"
+                className="flex w-full flex-col items-center gap-3 rounded-xl bg-surface px-8 py-12 text-center shadow-card"
+              >
+                <p className="text-sm text-ink-faint">
+                  {`${String(before + marks.length + 1)} / ${String(words.length)}`}
+                </p>
+                <h1 className="text-5xl font-semibold tracking-tight wrap-anywhere text-ink">
+                  {word.lemma}
+                </h1>
+                <p className="text-lead text-ink-soft">
+                  {word.translations.join(", ")}
+                </p>
+                <p className="text-sm text-ink-faint">
+                  {t("books.triage.times", { count: word.count })}
+                </p>
+              </Reveal>
+            </Presence>
           </div>
           <div className="grid w-full grid-cols-2 gap-3">
             <Button
@@ -300,7 +346,7 @@ export function TriageRun({
       }
       onClose={onDone}
     >
-      {body()}
+      <SittingStage step={stageOf(words, word)}>{body()}</SittingStage>
     </SittingFrame>
   );
 }

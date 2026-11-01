@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import type { PatternState, PatternView } from "@shared/domain";
 import { cn } from "@/lib/cn";
 import { formatDate } from "@/lib/text";
+import { CountedIn } from "./CountedIn";
 
 /** Active work first, then what is waiting, then what is done. */
 const ORDER: PatternState[] = [
@@ -43,7 +44,7 @@ export function PatternList({
             />
             {t(`patternState.${group.state}`)}
             <span className="text-ink-faint tabular-nums">
-              {group.items.length}
+              <CountedIn value={group.items.length} />
             </span>
           </h3>
           <ul className="flex flex-col divide-y divide-line">
