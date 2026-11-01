@@ -611,7 +611,7 @@ export function SittingItem<Result extends Checked>({
         )}
       </Presence>
 
-      <div aria-live="polite" className="w-full max-w-xl empty:hidden">
+      <div aria-live="polite" className="w-full max-w-xl">
         {result !== null && (
           <Reveal className="flex flex-col items-center gap-5">
             <Verdict result={result} unknown={unknown} heard={heard} />

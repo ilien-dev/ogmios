@@ -33,6 +33,17 @@ type Phase =
   | { name: "running"; drill: Drill }
   | { name: "failed"; message: string };
 
+/**
+ * Names what is on the screen. Each round is its own step: one that came back
+ * while the last was still leaving would keep that one's place in the drill.
+ */
+function stepOf(phase: Phase): string {
+  if (phase.name === "running") {
+    return phase.drill.id;
+  }
+  return phase.name === "failed" ? "landing" : phase.name;
+}
+
 /** §9: short practice rounds on the patterns in memory. */
 export function Practice({
   patternId,
@@ -191,11 +202,7 @@ export function Practice({
   return (
     <div className="relative h-full">
       <Presence swap>
-        <Reveal
-          key={phase.name === "failed" ? "landing" : phase.name}
-          kind="fade"
-          className="h-full"
-        >
+        <Reveal key={stepOf(phase)} kind="fade" className="h-full">
           {body()}
         </Reveal>
       </Presence>

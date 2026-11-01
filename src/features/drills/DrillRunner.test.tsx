@@ -15,6 +15,7 @@ import * as ipc from "@/lib/ipc";
 import { startDrill } from "@/lib/ipc";
 import { useMockBackend } from "@/test/mockBackend";
 import { DrillRunner } from "./DrillRunner";
+import { Practice } from "./Practice";
 
 describe("DrillRunner", () => {
   useMockBackend();
@@ -181,6 +182,36 @@ describe("from one item to the next, with animation on", () => {
       expect(leaving() === null).toBe(true);
     });
     expect(sent).toHaveBeenCalledTimes(2);
+  });
+
+  test("Again starts the new round, though the last is still leaving", async () => {
+    render(
+      <Practice
+        patternId={null}
+        format="transformation"
+        autostart
+        navigate={mock()}
+      />,
+    );
+    await screen.findByRole("textbox");
+    await settled();
+    const user = userEvent.setup({ delay: null });
+
+    while (screen.queryByRole("heading", { name: "Round done" }) === null) {
+      await through(user, "wrong");
+      await settled();
+    }
+    await user.click(screen.getByRole("button", { name: "Another round" }));
+
+    await waitFor(() => {
+      expect(screen.queryByText("1 of 2")).not.toBeNull();
+    });
+    expect(ask()).toHaveValue("");
+    expect(ask()).toHaveFocus();
+    // Happy-dom does not finish this exit; a browser does. Here it is enough
+    // that the old round is out of use.
+    const old = screen.queryByRole("heading", { name: "Round done" });
+    expect(old === null || old.closest("[inert]") !== null).toBe(true);
   });
 
   test("the next item takes input while the last one leaves", async () => {
