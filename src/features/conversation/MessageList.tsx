@@ -65,35 +65,51 @@ function PartnerName(): ReactNode {
   );
 }
 
-function LiveText({
+/** A line of the partner's: its words stay while what is around them changes. */
+function PartnerText({
   text,
+  live,
   first,
 }: {
   text: string;
+  live: boolean;
   first: boolean;
 }): ReactNode {
   const { t } = useTranslation();
   return (
-    <Presence swap>
-      {text === "" ? (
-        <Reveal
-          key="waiting"
-          as="span"
-          kind="fade"
-          className="text-base text-ink-faint motion-safe:animate-pulse-soft"
-        >
-          {first ? t("conversation.starting") : t("conversation.writing")}
-        </Reveal>
-      ) : (
-        <Reveal key="writing" as="span" kind="fade">
-          {text}
-          <span
-            aria-hidden
-            className="ml-0.5 inline-block h-5 w-0.5 translate-y-1 bg-partner motion-safe:animate-caret"
-          />
-        </Reveal>
-      )}
-    </Presence>
+    <>
+      <Presence swap>
+        {text === "" ? (
+          <Reveal
+            key="waiting"
+            as="span"
+            kind="fade"
+            className="text-base text-ink-faint motion-safe:animate-pulse-soft"
+          >
+            {first ? t("conversation.starting") : t("conversation.writing")}
+          </Reveal>
+        ) : (
+          <Reveal key="words" as="span" kind="fade">
+            {text}
+          </Reveal>
+        )}
+      </Presence>
+      <Presence>
+        {live && text !== "" && (
+          <Reveal key="caret" as="span" kind="fade">
+            <span
+              aria-hidden
+              className="ml-0.5 inline-block h-5 w-0.5 translate-y-1 bg-partner motion-safe:animate-caret"
+            />
+          </Reveal>
+        )}
+        {!live && (
+          <Reveal key="listen" as="span" kind="fade" index={0} className="ml-1">
+            <SpeakButton text={text} />
+          </Reveal>
+        )}
+      </Presence>
+    </>
   );
 }
 
@@ -151,24 +167,11 @@ export function MessageList({
                     aria-busy={line.live ? true : undefined}
                     className="rounded-lg rounded-tl-sm bg-partner-soft px-5 py-3.5 text-lead text-ink"
                   >
-                    {line.live ? (
-                      <LiveText
-                        text={line.text}
-                        first={messages.length === 0}
-                      />
-                    ) : (
-                      <>
-                        {line.text}
-                        <Reveal
-                          as="span"
-                          kind="fade"
-                          index={0}
-                          className="ml-1"
-                        >
-                          <SpeakButton text={line.text} />
-                        </Reveal>
-                      </>
-                    )}
+                    <PartnerText
+                      text={line.text}
+                      live={line.live}
+                      first={messages.length === 0}
+                    />
                   </p>
                   <Presence>
                     {line.message !== null &&

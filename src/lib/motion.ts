@@ -1,4 +1,8 @@
-import { MotionGlobalConfig, useReducedMotionConfig } from "motion/react";
+import {
+  MotionGlobalConfig,
+  useIsPresent,
+  useReducedMotionConfig,
+} from "motion/react";
 import type { Variants } from "motion/react";
 import { createContext, useContext } from "react";
 import type { PointerEvent } from "react";
@@ -59,10 +63,12 @@ export const ScreenLeaving = createContext(false);
 
 /**
  * A window listener answers keys wherever the focus is, and `inert` only stops
- * what goes through the screen: each one asks this and stands down.
+ * what goes through the screen: each one asks this and stands down, on a
+ * leaving screen or on a view leaving inside one.
  */
 export function useScreenLeaving(): boolean {
-  return useContext(ScreenLeaving);
+  const present = useIsPresent();
+  return useContext(ScreenLeaving) || !present;
 }
 
 /** Read at render, never at module load: tests flip the flag between renders. */

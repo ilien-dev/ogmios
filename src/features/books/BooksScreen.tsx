@@ -1,4 +1,5 @@
 import { Reveal } from "@/components/motion/Reveal";
+import { Swap } from "@/components/motion/Swap";
 import { Presence } from "@/components/motion/Presence";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
@@ -157,158 +158,166 @@ export function BooksScreen({
     return <KnownWordsScreen onBack={showShelf} />;
   }
 
-  if (books === null) {
-    return (
-      <main className="grid h-full place-items-center">
-        <Presence swap>
-          {failure === null ? (
-            <Reveal key="no-failure" as="span" kind="fade">
-              <Spinner />
-            </Reveal>
-          ) : (
-            <Notice key="failure" tone="danger">
-              {t("common.error", { message: failure })}
-            </Notice>
-          )}
-        </Presence>
-      </main>
-    );
-  }
-
-  // A chapter can finish preparing after the shelf has changed under it.
-  const replaceChapter = (changed: Chapter): void => {
-    setBooks(
-      (current) => current?.map((book) => withChapter(book, changed)) ?? null,
-    );
-  };
-  const open = books.find((book) => book.id === bookId) ?? null;
-  const chapter =
-    open?.chapters.find((candidate) => candidate.id === chapterId) ?? null;
-
-  if (open !== null && chapter !== null && practising) {
-    const sit = (): void => {
-      navigate({
-        name: "books",
-        bookId: open.id,
-        chapterId: chapter.id,
-        practising: true,
-      });
-    };
-    const close = (): void => {
-      navigate({ name: "books", bookId: open.id, chapterId: chapter.id });
-    };
-    if (triage) {
+  const view = (): ReactNode => {
+    if (books === null) {
       return (
-        <TriageRun
-          key={chapter.id}
+        <main className="grid h-full place-items-center">
+          <Presence swap>
+            {failure === null ? (
+              <Reveal key="no-failure" as="span" kind="fade">
+                <Spinner />
+              </Reveal>
+            ) : (
+              <Notice key="failure" tone="danger">
+                {t("common.error", { message: failure })}
+              </Notice>
+            )}
+          </Presence>
+        </main>
+      );
+    }
+
+    // A chapter can finish preparing after the shelf has changed under it.
+    const replaceChapter = (changed: Chapter): void => {
+      setBooks(
+        (current) => current?.map((book) => withChapter(book, changed)) ?? null,
+      );
+    };
+    const open = books.find((book) => book.id === bookId) ?? null;
+    const chapter =
+      open?.chapters.find((candidate) => candidate.id === chapterId) ?? null;
+
+    if (open !== null && chapter !== null && practising) {
+      const sit = (): void => {
+        navigate({
+          name: "books",
+          bookId: open.id,
+          chapterId: chapter.id,
+          practising: true,
+        });
+      };
+      const close = (): void => {
+        navigate({ name: "books", bookId: open.id, chapterId: chapter.id });
+      };
+      if (triage) {
+        return (
+          <TriageRun
+            key={chapter.id}
+            chapterId={chapter.id}
+            onPractise={sit}
+            onDone={close}
+          />
+        );
+      }
+      return (
+        <SittingScreen
+          key={`${chapter.id}-${refresh ? "refresh" : "practice"}`}
           chapterId={chapter.id}
+          nativeLang={nativeLang}
+          refresh={refresh}
+          onClose={close}
           onPractise={sit}
-          onDone={close}
         />
       );
     }
-    return (
-      <SittingScreen
-        key={`${chapter.id}-${refresh ? "refresh" : "practice"}`}
-        chapterId={chapter.id}
-        nativeLang={nativeLang}
-        refresh={refresh}
-        onClose={close}
-        onPractise={sit}
-      />
-    );
-  }
 
-  if (open !== null && chapter !== null && translating) {
-    return (
-      <TranslateScreen
-        key={chapter.id}
-        chapter={chapter}
-        nativeLang={nativeLang}
-        onBack={() => {
-          navigate({ name: "books", bookId: open.id, chapterId: chapter.id });
-        }}
-      />
-    );
-  }
+    if (open !== null && chapter !== null && translating) {
+      return (
+        <TranslateScreen
+          key={chapter.id}
+          chapter={chapter}
+          nativeLang={nativeLang}
+          onBack={() => {
+            navigate({ name: "books", bookId: open.id, chapterId: chapter.id });
+          }}
+        />
+      );
+    }
 
-  if (open !== null && chapter !== null) {
-    return (
-      <ChapterScreen
-        key={chapter.id}
-        book={open}
-        chapter={chapter}
-        onBack={() => {
-          navigate({ name: "books", bookId: open.id });
-        }}
-        onPrepared={replaceChapter}
-        onPractise={() => {
-          navigate({
-            name: "books",
-            bookId: open.id,
-            chapterId: chapter.id,
-            practising: true,
-          });
-        }}
-        onTriage={() => {
-          navigate({
-            name: "books",
-            bookId: open.id,
-            chapterId: chapter.id,
-            practising: true,
-            triage: true,
-          });
-        }}
-        onRefresh={() => {
-          navigate({
-            name: "books",
-            bookId: open.id,
-            chapterId: chapter.id,
-            practising: true,
-            refresh: true,
-          });
-        }}
-        onTranslate={() => {
-          navigate({
-            name: "books",
-            bookId: open.id,
-            chapterId: chapter.id,
-            translating: true,
-          });
-        }}
-        onStructures={() => {
-          navigate({ name: "structures", chapterId: chapter.id });
-        }}
-      />
-    );
-  }
+    if (open !== null && chapter !== null) {
+      return (
+        <ChapterScreen
+          key={chapter.id}
+          book={open}
+          chapter={chapter}
+          onBack={() => {
+            navigate({ name: "books", bookId: open.id });
+          }}
+          onPrepared={replaceChapter}
+          onPractise={() => {
+            navigate({
+              name: "books",
+              bookId: open.id,
+              chapterId: chapter.id,
+              practising: true,
+            });
+          }}
+          onTriage={() => {
+            navigate({
+              name: "books",
+              bookId: open.id,
+              chapterId: chapter.id,
+              practising: true,
+              triage: true,
+            });
+          }}
+          onRefresh={() => {
+            navigate({
+              name: "books",
+              bookId: open.id,
+              chapterId: chapter.id,
+              practising: true,
+              refresh: true,
+            });
+          }}
+          onTranslate={() => {
+            navigate({
+              name: "books",
+              bookId: open.id,
+              chapterId: chapter.id,
+              translating: true,
+            });
+          }}
+          onStructures={() => {
+            navigate({ name: "structures", chapterId: chapter.id });
+          }}
+        />
+      );
+    }
 
-  if (bookId !== null) {
+    if (bookId !== null) {
+      return (
+        <BookDetail
+          key={bookId}
+          book={open}
+          onBack={showShelf}
+          onOpen={(opened) => {
+            navigate({ name: "books", bookId, chapterId: opened.id });
+          }}
+          onRenamed={replaceChapter}
+          onDeleted={() => {
+            setBooks(books.filter((book) => book.id !== bookId));
+            showShelf();
+          }}
+        />
+      );
+    }
+
     return (
-      <BookDetail
-        key={bookId}
-        book={open}
-        onBack={showShelf}
-        onOpen={(opened) => {
-          navigate({ name: "books", bookId, chapterId: opened.id });
-        }}
-        onRenamed={replaceChapter}
-        onDeleted={() => {
-          setBooks(books.filter((book) => book.id !== bookId));
-          showShelf();
-        }}
+      <BookShelf
+        books={books}
+        adding={adding}
+        refusal={refusal}
+        knownCount={knownCount}
+        onAdd={() => void add()}
+        navigate={navigate}
       />
     );
-  }
+  };
 
   return (
-    <BookShelf
-      books={books}
-      adding={adding}
-      refusal={refusal}
-      knownCount={knownCount}
-      onAdd={() => void add()}
-      navigate={navigate}
-    />
+    <Swap as="div" id={books === null ? "loading" : "ready"} className="h-full">
+      {view()}
+    </Swap>
   );
 }

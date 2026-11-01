@@ -11,6 +11,7 @@ import { render, screen } from "@testing-library/react";
 import { MotionGlobalConfig } from "motion/react";
 import type { ReactNode } from "react";
 import { TriageRun } from "@/features/books/TriageRun";
+import { Swap } from "@/components/motion/Swap";
 import { Composer } from "@/features/conversation/Composer";
 import { useMockBackend } from "@/test/mockBackend";
 import type { Route } from "./routes";
@@ -73,6 +74,38 @@ describe("a screen on its way out", () => {
     expect(claimsPushToTalk()).toBe(true);
 
     rerender(<Stage route={ELSEWHERE}>Next</Stage>);
+
+    expect(screen.getByLabelText("Your answer")).toBeInTheDocument();
+    expect(claimsPushToTalk()).toBe(false);
+  });
+
+  test("takes no push-to-talk on a view leaving inside its screen", () => {
+    const conversation = (
+      <Composer
+        sessionId="s1"
+        turnWordGoal={40}
+        scaffolds={[]}
+        voice
+        disabled={false}
+        onSend={mock(() => Promise.resolve(true))}
+      />
+    );
+    const { rerender } = render(
+      <Stage route={HERE}>
+        <Swap as="div" id="talk">
+          {conversation}
+        </Swap>
+      </Stage>,
+    );
+    expect(claimsPushToTalk()).toBe(true);
+
+    rerender(
+      <Stage route={HERE}>
+        <Swap as="div" id="analysis">
+          Next
+        </Swap>
+      </Stage>,
+    );
 
     expect(screen.getByLabelText("Your answer")).toBeInTheDocument();
     expect(claimsPushToTalk()).toBe(false);

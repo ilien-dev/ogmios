@@ -52,8 +52,8 @@ const NOT_DRAWN = new Set(["option"]);
 
 interface Allowance {
   file: string;
-  /** The text of the condition, as the source has it. */
-  when: string;
+  /** The text of each condition, as the source has it. */
+  when: string | readonly string[];
   why: string;
 }
 
@@ -89,14 +89,9 @@ const ALLOWED: readonly Allowance[] = [
     why: "A pill has its label or has not, for as long as the bar shows.",
   },
   {
-    file: "src/features/conversation/MessageList.tsx",
-    when: "line.live",
-    why: "The same bubble and the same words: a reply is one message as it streams.",
-  },
-  {
     file: "src/features/books/WordRow.tsx",
-    when: "word.strength !== null",
-    why: "Inside the done mark of a row: it comes and goes with that mark.",
+    when: ["word.done", "word.strength !== null", "word.half === null"],
+    why: "A word's standing changes on another route; known, its row leaves whole. Rows are thousands: each Presence here costs a mount.",
   },
   {
     file: "src/features/books/SittingItem.tsx",
@@ -116,7 +111,7 @@ const ALLOWED: readonly Allowance[] = [
 ];
 
 /** How many allowances there can be before detection has to get finer. */
-const ALLOWED_CAP = 10;
+const ALLOWED_CAP = 9;
 
 interface Source {
   file: string;
@@ -475,10 +470,15 @@ function auditEarlyReturns(source: Source): Finding[] {
   return findings;
 }
 
-function isAllowed(finding: Finding): boolean {
-  return ALLOWED.some(
-    ({ file, when }) => file === finding.file && when === finding.when,
+function covers(allowance: Allowance, finding: Finding): boolean {
+  return (
+    allowance.file === finding.file &&
+    [allowance.when].flat().includes(finding.when)
   );
+}
+
+function isAllowed(finding: Finding): boolean {
+  return ALLOWED.some((allowance) => covers(allowance, finding));
 }
 
 function described(finding: Finding): string {
@@ -520,10 +520,14 @@ describe("the motion rule", () => {
   test("every allowance still answers a real finding", () => {
     expect(
       ALLOWED.filter(
-        ({ file, when }) =>
-          !findings.some(
-            (finding) => finding.file === file && finding.when === when,
-          ),
+        (allowance) =>
+          ![allowance.when]
+            .flat()
+            .every((when) =>
+              findings.some((finding) =>
+                covers({ ...allowance, when }, finding),
+              ),
+            ),
       ),
     ).toEqual([]);
   });
