@@ -1,7 +1,7 @@
-import { beforeEach, describe, expect, mock, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { PresenceContext } from "motion/react";
+import { MotionGlobalConfig, PresenceContext } from "motion/react";
 import type { ReactNode } from "react";
 import type { PracticeItem, SessionSetup } from "@shared/domain";
 import { SittingItem } from "@/features/books/SittingItem";
@@ -11,6 +11,7 @@ import { ReadAloud } from "@/features/settings/ReadAloud";
 import { setMockLatency } from "@/lib/ipcMock";
 import { mockSpoken, resetMockSpeech } from "@/lib/ipcMockSpeech";
 import { useMockBackend } from "@/test/mockBackend";
+import { SpeakButton } from "./SpeakButton";
 import { SpeechProvider, useReadAloud, useSpeech } from "./speech";
 
 const SETUP: SessionSetup = {
@@ -299,5 +300,43 @@ describe("reading aloud, before the voice is downloaded", () => {
       expect(screen.getByRole("radio", { name: /George/u })).toBeChecked();
     });
     expect(screen.getByRole("radio", { name: "Read it aloud" })).toBeChecked();
+  });
+});
+
+describe("the glyph of the speak button", () => {
+  useMockBackend();
+  const nativeAnimate = Element.prototype.animate;
+  beforeEach(() => {
+    resetMockSpeech(true);
+    MotionGlobalConfig.skipAnimations = false;
+    // Motion then drives opacity itself, which happy-dom can follow.
+    Reflect.deleteProperty(Element.prototype, "animate");
+  });
+  afterEach(() => {
+    MotionGlobalConfig.skipAnimations = true;
+    Element.prototype.animate = nativeAnimate;
+  });
+
+  test("is there on the first mount, and a change swaps it with a swell", async () => {
+    setMockLatency(1);
+    const user = userEvent.setup();
+    render(
+      <SpeechProvider>
+        <SpeakButton text="A sentence long enough to still be heard at the end of this" />
+      </SpeechProvider>,
+    );
+    const button = await screen.findByRole("button", { name: "Listen" });
+    const glyph = button.querySelector("svg")?.parentElement;
+    expect(glyph?.style.opacity).not.toBe("0");
+    expect(glyph?.style.transform ?? "").not.toContain("scale(0");
+
+    await user.click(button);
+    expect(
+      await screen.findByRole("button", { name: "Stop reading" }),
+    ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(button.querySelectorAll("svg")).toHaveLength(1);
+    });
+    expect(button.querySelector("svg.fill-current")).not.toBeNull();
   });
 });

@@ -255,6 +255,34 @@ test("CountUp ends exactly on a value that is not whole", async () => {
   expect(await screen.findByText("2.5")).toBeInTheDocument();
 });
 
+test("CountUp never shows a rounded value on the way to a fractional one", async () => {
+  const seen: string[] = [];
+  const { rerender, container } = render(<CountUp value={0.3} />);
+  rerender(<CountUp value={0.8} />);
+  const watch = setInterval(() => {
+    seen.push(container.textContent ?? "");
+  }, 5);
+  expect(await screen.findByText("0.8")).toBeInTheDocument();
+  clearInterval(watch);
+  expect(seen.filter((text) => text === "0" || text === "1")).toEqual([]);
+});
+
+test("CountUp shows the value it was given after reduced motion ends", () => {
+  const under = (
+    value: number,
+    reducedMotion: "always" | "never",
+  ): ReactNode => (
+    <MotionConfig reducedMotion={reducedMotion}>
+      <CountUp value={value} />
+    </MotionConfig>
+  );
+  const { rerender } = render(under(1, "never"));
+  rerender(under(1, "always"));
+  rerender(under(5, "always"));
+  rerender(under(5, "never"));
+  expect(screen.getByText("5")).toBeInTheDocument();
+});
+
 test("Tilt leans towards the pointer, up to 3 degrees", async () => {
   finePointer(true);
   render(<Tilt className="flex">card</Tilt>);

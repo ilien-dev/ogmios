@@ -23,17 +23,21 @@ export function CountUp({
   useEffect(() => {
     if (still) {
       from.current = value;
+      setCounted(value);
       return;
     }
     if (from.current === value) {
       return;
     }
+    // A whole target counts in whole steps; a fractional one keeps its fraction
+    // all the way, so it never reads a rounded value and then snaps.
+    const whole = Number.isInteger(value) && Number.isInteger(from.current);
     const controls = animate(from.current, value, {
       duration: DURATION.enterSlow,
       ease: EASE_OUT,
       onUpdate: (n) => {
         from.current = n;
-        setCounted(Math.round(n));
+        setCounted(whole ? Math.round(n) : n);
       },
       onComplete: () => {
         from.current = value;

@@ -24,7 +24,7 @@ function Glyph({
 }): ReactNode {
   return (
     <span className="relative grid place-items-center">
-      <Presence swap>
+      <Presence swap firstStatic>
         <Reveal key={name} as="span" kind="scale" className="grid">
           {children}
         </Reveal>
