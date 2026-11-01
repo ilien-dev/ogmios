@@ -1,13 +1,16 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import type { SyntheticEvent, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import type { Goal, Level, Profile, Settings, Variant } from "@shared/domain";
+import { Presence } from "@/components/motion/Presence";
+import { Reveal } from "@/components/motion/Reveal";
 import { Button } from "@/components/ui/Button";
 import { ChoiceGroup } from "@/components/ui/ChoiceGroup";
 import { Field } from "@/components/ui/Field";
 import { Logo } from "@/components/ui/Logo";
 import { Notice } from "@/components/ui/Notice";
+import { Orb } from "@/components/ui/Orb";
 import { Select } from "@/components/ui/Select";
 import { TextInput } from "@/components/ui/TextInput";
 import { ConnectionPanel } from "@/features/settings/ConnectionPanel";
@@ -20,20 +23,9 @@ import { NATIVE_LANGUAGES } from "@/lib/languages";
 import { languageName } from "@/lib/text";
 import { InterestPicker } from "./InterestPicker";
 import { ReminderPicker } from "./ReminderPicker";
-
-const STEPS = [
-  "nativeLang",
-  "name",
-  "goal",
-  "interests",
-  "connection",
-  "voice",
-  "variant",
-  "reminder",
-  "level",
-] as const;
-
-type Step = (typeof STEPS)[number];
+import { STEPS } from "./steps";
+import type { Step } from "./steps";
+import { StepHeader } from "./StepHeader";
 
 /** Steps 1 and 5 of §5: everything else may be skipped. */
 const REQUIRED: ReadonlySet<Step> = new Set(["nativeLang", "connection"]);
@@ -67,7 +59,6 @@ export function Onboarding({
   const [hasKey, setHasKey] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const heading = useRef<HTMLHeadingElement>(null);
   const step = STEPS[index] ?? "nativeLang";
   const last = index === STEPS.length - 1;
 
@@ -82,10 +73,6 @@ export function Onboarding({
       live = false;
     };
   }, []);
-
-  useEffect(() => {
-    heading.current?.focus();
-  }, [index]);
 
   const patch = (next: Partial<Profile>): void => {
     setProfile((held) => ({ ...held, ...next }));
@@ -299,24 +286,17 @@ export function Onboarding({
           </p>
         </div>
 
-        <div
-          key={step}
-          className="mt-14 flex flex-col gap-8 motion-safe:animate-rise"
-        >
-          <header className="flex flex-col gap-3">
-            <h1
-              ref={heading}
-              tabIndex={-1}
-              className="font-display text-display font-light text-balance text-ink focus:outline-none"
-            >
-              {t(`onboarding.${step}.title`)}
-            </h1>
-            <p className="text-lead text-ink-soft">
-              {t(`onboarding.${step}.body`)}
-            </p>
-          </header>
-          {body[step]}
-          {problem !== null && <Notice tone="danger">{problem}</Notice>}
+        {/* The orb stays out of the swap, so it goes on drifting from step to step. */}
+        <Orb size="md" className="mt-10" />
+
+        <div className="relative mt-10">
+          <Presence swap>
+            <Reveal key={step} className="flex flex-col gap-8">
+              <StepHeader step={step} />
+              {body[step]}
+              {problem !== null && <Notice tone="danger">{problem}</Notice>}
+            </Reveal>
+          </Presence>
         </div>
 
         <div className="mt-auto flex items-center gap-2 pt-12">

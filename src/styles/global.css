@@ -126,6 +126,8 @@
   --shadow-you: 0 8px 24px -8px rgb(15 118 110 / 0.3);
 
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  /* How long the colours take to cross when the theme changes. */
+  --duration-theme: 300ms;
 
   --animate-rise: rise 420ms var(--ease-out-expo) both;
   --animate-enter: enter 480ms var(--ease-out-expo) both;
@@ -461,5 +463,22 @@
     * {
       scroll-behavior: auto !important;
     }
+  }
+}
+
+/*
+ * While the theme changes, `data-theme-fading` is on <html> for as long as the
+ * colours take: `fadeTheme` puts it up and a timer takes it down, so it cannot
+ * stay. Outside any layer so that it also wins over `transition-control`. Under
+ * reduced motion `fadeTheme` never puts it up, and this would not apply to it.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  :root[data-theme-fading] *,
+  :root[data-theme-fading] *::before,
+  :root[data-theme-fading] *::after {
+    transition-property:
+      color, background-color, border-color, fill, stroke, box-shadow;
+    transition-duration: var(--duration-theme);
+    transition-timing-function: var(--ease-out-expo);
   }
 }

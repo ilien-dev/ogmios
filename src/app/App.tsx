@@ -27,6 +27,7 @@ import { getProfile, getSettings } from "@/lib/ipc";
 import { useTheme } from "@/lib/theme";
 import type { Route } from "./routes";
 import { chapterOn, showsNav } from "./routes";
+import { BootStage } from "./BootStage";
 import { ScreenStage } from "./ScreenStage";
 import { TopBar } from "./TopBar";
 import { useShelf } from "./useShelf";
@@ -67,25 +68,29 @@ export function App(): ReactNode {
 
   if (boot.state === "loading") {
     return (
-      <div
-        className="flex h-full flex-col items-center justify-center gap-6"
-        aria-busy
-      >
-        <Logo className="size-12" />
-        <p className="flex items-center gap-3 text-sm text-ink-faint">
-          <Spinner />
-          {t("app.loading")}
-        </p>
-      </div>
+      <BootStage name="loading">
+        <div
+          className="flex h-full flex-col items-center justify-center gap-6"
+          aria-busy
+        >
+          <Logo className="size-12" />
+          <p className="flex items-center gap-3 text-sm text-ink-faint">
+            <Spinner />
+            {t("app.loading")}
+          </p>
+        </div>
+      </BootStage>
     );
   }
   if (boot.state === "failed") {
     return (
-      <div className="grid h-full place-items-center p-8">
-        <Notice tone="danger">
-          {t("app.loadFailed", { message: boot.message })}
-        </Notice>
-      </div>
+      <BootStage name="failed">
+        <div className="grid h-full place-items-center p-8">
+          <Notice tone="danger">
+            {t("app.loadFailed", { message: boot.message })}
+          </Notice>
+        </div>
+      </BootStage>
     );
   }
 
@@ -100,13 +105,15 @@ export function App(): ReactNode {
 
   if (profile?.onboarded !== true) {
     return (
-      <Onboarding
-        settings={settings}
-        onDone={(done, nextSettings) => {
-          setBoot({ state: "ready", profile: done, settings: nextSettings });
-          setRoute({ name: "home" });
-        }}
-      />
+      <BootStage name="onboarding">
+        <Onboarding
+          settings={settings}
+          onDone={(done, nextSettings) => {
+            setBoot({ state: "ready", profile: done, settings: nextSettings });
+            setRoute({ name: "home" });
+          }}
+        />
+      </BootStage>
     );
   }
 
@@ -206,20 +213,22 @@ export function App(): ReactNode {
   })();
 
   return (
-    <SpeechProvider>
-      <UpdateProvider>
-        <div className="relative flex h-full flex-col">
-          <TopBar
-            route={route}
-            navigate={setRoute}
-            counts={counts}
-            books={books}
-            current={current}
-          />
-          <ScreenStage route={route}>{screen}</ScreenStage>
-          <UpdateCard shown={showsNav(route)} />
-        </div>
-      </UpdateProvider>
-    </SpeechProvider>
+    <BootStage name="app">
+      <SpeechProvider>
+        <UpdateProvider>
+          <div className="relative flex h-full flex-col">
+            <TopBar
+              route={route}
+              navigate={setRoute}
+              counts={counts}
+              books={books}
+              current={current}
+            />
+            <ScreenStage route={route}>{screen}</ScreenStage>
+            <UpdateCard shown={showsNav(route)} />
+          </div>
+        </UpdateProvider>
+      </SpeechProvider>
+    </BootStage>
   );
 }

@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { Progress, VocabEntry } from "@shared/domain";
+import { Reveal } from "@/components/motion/Reveal";
+import { Stagger } from "@/components/motion/Stagger";
 import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
 import { Spinner } from "@/components/ui/Spinner";
@@ -27,10 +29,10 @@ function Section({
   className?: string;
 }): ReactNode {
   return (
-    <section className={cn("flex flex-col gap-5", className)}>
+    <Reveal as="section" className={cn("flex flex-col gap-5", className)}>
       <h2 className="text-lg font-semibold text-ink">{title}</h2>
       {empty === null ? children : <p className="text-ink-soft">{empty}</p>}
-    </section>
+    </Reveal>
   );
 }
 
@@ -128,12 +130,12 @@ export function ProgressScreen({
 
   return (
     <main className="h-full overflow-y-auto">
-      <div className="mx-auto flex max-w-4xl flex-col gap-16 px-10 pt-16 pb-20">
-        <header className="flex flex-col gap-3">
+      <Stagger className="mx-auto flex max-w-4xl flex-col gap-16 px-10 pt-16 pb-20">
+        <Reveal as="header" className="flex flex-col gap-3">
           <h1 className="font-display text-display font-light text-ink">
             {t("progress.title")}
           </h1>
-        </header>
+        </Reveal>
 
         <div className="grid grid-cols-5 gap-12">
           <Section
@@ -227,7 +229,7 @@ export function ProgressScreen({
             }}
           />
         </Section>
-      </div>
+      </Stagger>
     </main>
   );
 }

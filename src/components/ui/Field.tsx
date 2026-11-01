@@ -27,7 +27,9 @@ export function Field({
         {label}
       </label>
       {children}
-      <div className="relative">
+      {/* The id stays on this wrapper: the hint and the error trade places in it, and
+          both exist for a moment while one leaves. */}
+      <div id={`${id}-hint`} className="relative">
         <Presence swap>
           {error === null ? (
             hint !== undefined && (
@@ -36,7 +38,6 @@ export function Field({
                 as="p"
                 kind="fade"
                 index={0}
-                id={`${id}-hint`}
                 className="text-sm text-ink-faint"
               >
                 {hint}
@@ -48,7 +49,6 @@ export function Field({
               as="p"
               kind="fade"
               index={0}
-              id={`${id}-hint`}
               role="alert"
               className="text-sm text-danger"
             >

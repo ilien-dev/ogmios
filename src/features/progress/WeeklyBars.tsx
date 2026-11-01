@@ -1,5 +1,7 @@
+import { motion } from "motion/react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
+import { DURATION, EASE_OUT, animated, staggerDelay } from "@/lib/motion";
 import { formatWeek, speechDuration } from "@/lib/text";
 
 interface WeeklyBarsProps {
@@ -42,11 +44,20 @@ export function WeeklyBars({ weeks }: WeeklyBarsProps): ReactNode {
             >
               <Spoken minutes={week.minutes} />
             </span>
-            <span
+            <motion.span
+              // Grown from its foot with `transform`, never its height: the
+              // bar has its size from the start, and only its scale arrives.
+              initial={animated() ? { scaleY: 0 } : false}
+              animate={{ scaleY: 1 }}
+              transition={{
+                duration: DURATION.enterSlow,
+                ease: EASE_OUT,
+                delay: staggerDelay(i),
+              }}
               className={
                 i === lastIndex
-                  ? "w-full max-w-9 rounded-t-sm bg-accent"
-                  : "w-full max-w-9 rounded-t-sm bg-accent/55 transition-colors duration-150 group-hover:bg-accent"
+                  ? "w-full max-w-9 origin-bottom rounded-t-sm bg-accent"
+                  : "w-full max-w-9 origin-bottom rounded-t-sm bg-accent/55 transition-colors duration-150 group-hover:bg-accent"
               }
               style={{ height: `${(week.minutes / max) * 80}%` }}
             />

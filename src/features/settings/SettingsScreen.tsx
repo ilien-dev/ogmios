@@ -10,10 +10,14 @@ import type {
   UiLang,
   Variant,
 } from "@shared/domain";
+import { Presence } from "@/components/motion/Presence";
+import { Reveal } from "@/components/motion/Reveal";
+import { Stagger } from "@/components/motion/Stagger";
 import { Button } from "@/components/ui/Button";
 import { ChoiceGroup } from "@/components/ui/ChoiceGroup";
 import { Field } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
+import { Segmented } from "@/components/ui/Segmented";
 import { Select } from "@/components/ui/Select";
 import { TextInput } from "@/components/ui/TextInput";
 import { AppUpdate } from "@/features/update/AppUpdate";
@@ -68,7 +72,8 @@ function Section({
   children: ReactNode;
 }): ReactNode {
   return (
-    <section
+    <Reveal
+      as="section"
       aria-labelledby={id}
       className="flex flex-col gap-6 border-t border-line pt-10"
     >
@@ -76,7 +81,7 @@ function Section({
         {title}
       </h2>
       {children}
-    </section>
+    </Reveal>
   );
 }
 
@@ -155,8 +160,11 @@ export function SettingsScreen({
 
   return (
     <main className="h-full overflow-y-auto">
-      <div className="mx-auto flex max-w-2xl flex-col gap-10 px-10 pt-16 pb-20">
-        <header className="flex items-baseline justify-between gap-4">
+      <Stagger className="mx-auto flex max-w-2xl flex-col gap-10 px-10 pt-16 pb-20">
+        <Reveal
+          as="header"
+          className="flex items-baseline justify-between gap-4"
+        >
           <h1 className="font-display text-display font-light text-ink">
             {t("settings.title")}
           </h1>
@@ -171,8 +179,9 @@ export function SettingsScreen({
               </>
             )}
           </p>
-        </header>
-        <nav
+        </Reveal>
+        <Reveal
+          as="nav"
           aria-label={t("settings.sections")}
           className="-mt-4 flex flex-wrap gap-1"
         >
@@ -185,12 +194,16 @@ export function SettingsScreen({
               {t(title)}
             </a>
           ))}
-        </nav>
-        {failure !== null && (
-          <Notice tone="danger">
-            {t("common.error", { message: failure })}
-          </Notice>
-        )}
+        </Reveal>
+        <Presence>
+          {failure !== null && (
+            <Reveal key="failure" kind="fade" index={0}>
+              <Notice tone="danger">
+                {t("common.error", { message: failure })}
+              </Notice>
+            </Reveal>
+          )}
+        </Presence>
 
         <Section id="settings-profile" title={t("settings.profile")}>
           <div className="grid grid-cols-2 gap-5">
@@ -292,10 +305,8 @@ export function SettingsScreen({
         </Section>
 
         <Section id="settings-appearance" title={t("settings.appearance")}>
-          <ChoiceGroup<ThemeChoice>
+          <Segmented<ThemeChoice>
             legend={t("settings.theme")}
-            columns={3}
-            size="sm"
             value={theme}
             onChange={onThemeChange}
             choices={(["system", "light", "dark"] as const).map((value) => ({
@@ -421,7 +432,7 @@ export function SettingsScreen({
           <UpdateRow />
           <AppUpdate />
         </Section>
-      </div>
+      </Stagger>
     </main>
   );
 }
