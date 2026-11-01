@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useId, useLayoutEffect, useRef, useState } from "react";
 import type { SyntheticEvent, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { ArrowRight, RotateCcw } from "lucide-react";
@@ -67,7 +67,7 @@ function DrillQuestion({
   const fieldId = useId();
   const field = useRef<HTMLTextAreaElement>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     field.current?.focus();
   }, [picked]);
 

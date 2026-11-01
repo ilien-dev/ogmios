@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useId, useLayoutEffect, useRef, useState } from "react";
 import type { ReactNode, SyntheticEvent } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { ArrowRight } from "lucide-react";
@@ -363,8 +363,9 @@ export function SittingItem<Result extends Checked>({
   const heard = answer === null ? null : (shown?.text ?? answer);
   useReadAloud(aloud(item, heard));
 
-  // The keyboard is always where the next Enter belongs.
-  useEffect(() => {
+  // The keyboard is always where the next Enter belongs, from the commit that
+  // shows the field: no key can land anywhere else.
+  useLayoutEffect(() => {
     if (result === null) {
       field.current?.focus();
     } else {

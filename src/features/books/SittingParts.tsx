@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import type { ReactNode, SyntheticEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { X } from "lucide-react";
@@ -189,7 +189,7 @@ export function SittingSizes({
   const [chosen, setChosen] = useState(() => smallest(options.sizes));
   const primary = useRef<HTMLButtonElement>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     primary.current?.focus();
   }, []);
 
@@ -312,7 +312,7 @@ export function SittingEnd({
 }: SittingEndProps): ReactNode {
   const primary = useRef<HTMLButtonElement>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     primary.current?.focus();
   }, []);
 
