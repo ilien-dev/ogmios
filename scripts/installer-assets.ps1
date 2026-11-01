@@ -8,13 +8,13 @@ $tauri = Join-Path $PSScriptRoot "..\src-tauri"
 $icon = [System.Drawing.Bitmap]::FromFile((Join-Path $tauri "icons\icon.png"))
 
 # The dark theme of src/styles/global.css: the page and the accent.
-$dark = [System.Drawing.ColorTranslator]::FromHtml("#0b0b0b")
-$teal = [System.Drawing.ColorTranslator]::FromHtml("#2dd4bf")
+$dark = [System.Drawing.ColorTranslator]::FromHtml("#0e0f1a")
+$teal = [System.Drawing.ColorTranslator]::FromHtml("#7fdccb")
 
 function Hex($colour) { "{0:X2}{1:X2}{2:X2}" -f $colour.R, $colour.G, $colour.B }
 "dark $(Hex $dark)  teal $(Hex $teal)"
 
-# The icon sits on the page's dark colour, so its round corners blend into the
+# The icon sits on the page's dark colour, so the corners around the orb blend into the
 # page. NSIS stretches a bitmap
 # without smoothing it, so there is one per display scale, 72 px at 100 %.
 foreach ($scale in 100, 125, 150, 175, 200) {

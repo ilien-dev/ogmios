@@ -17,13 +17,13 @@ un refactor completo de la interfaz.
   pantalla, incluidas las que no se dibujaron (Progreso, Ejercicios, Traducir, Estructuras, Oído,
   Repaso, Libros, Ajustes, configuración de charla, onboarding, actualización).
 - El compañero es una esfera iridiscente. Libro tiene su gemela cálida. Son la firma del producto.
+- El logotipo, el icono y los instaladores adoptan la esfera (decisión de la persona dueña, 31-oct).
 - Se mantiene la regla de navegación del 31-oct: las funciones principales se ven en Inicio,
   separadas en Conversación y Libro, y nada queda a más de 3 clics.
 
 ## No metas
 
 - Funciones nuevas, cambios en Rust, sidecar, protocolo, datos o comandos IPC.
-- Tocar el logo, el icono o los instaladores.
 - Cambiar el comportamiento de las pantallas: lo que hoy se puede hacer se sigue pudiendo hacer.
 
 ## Lo que sería un fracaso aunque funcione

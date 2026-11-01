@@ -58,9 +58,8 @@
   --color-book-soft: #fcebd8;
   --color-book-ink: #5a3410;
   /* The logo, the same in both themes: dark never redefines these. */
-  --color-logo: #0f766e;
-  --color-logo-first: #ffffff;
-  --color-logo-second: #8eddd1;
+  --color-logo-first: #23233a;
+  --color-logo-second: #5b4bc4;
   --color-danger: oklch(0.52 0.17 25);
   --color-danger-soft: oklch(0.6 0.17 25 / 0.12);
   --color-correct: oklch(0.52 0.14 150);
