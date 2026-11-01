@@ -76,6 +76,7 @@ export function ScanProgress({ progress }: ScanProgressProps): ReactNode {
         label={t("structures.chapter.scanBar")}
         value={progress?.done ?? 0}
         total={Math.max(progress?.total ?? 1, 1)}
+        tone="book"
       />
       <p className="text-sm text-ink-soft tabular-nums">
         {progress === null

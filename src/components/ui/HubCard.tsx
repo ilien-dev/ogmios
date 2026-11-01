@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { ArrowRight } from "lucide-react";
 import { Presence } from "@/components/motion/Presence";
 import { Reveal } from "@/components/motion/Reveal";
+import { Stagger } from "@/components/motion/Stagger";
 import { cn } from "@/lib/cn";
 
 interface HubCardProps {
@@ -30,7 +31,7 @@ export function HubCard({
     <button
       type="button"
       onClick={onClick}
-      className="group flex flex-col gap-1.5 rounded-xl bg-surface px-5 pt-5 pb-4 text-left shadow-card transition-control hover:shadow-float"
+      className="group flex size-full flex-col gap-1.5 rounded-xl bg-surface px-5 pt-5 pb-4 text-left shadow-card transition-control hover:shadow-float"
     >
       <span className="flex items-center gap-2">
         <span className="text-base font-semibold text-ink">{title}</span>
@@ -59,7 +60,10 @@ export function HubCard({
   );
 }
 
-/** The cards of a section, side by side where there is room. */
+/**
+ * The cards of a section, side by side where there is room. Each one goes in a
+ * `Reveal`, and they come in one after the other.
+ */
 export function HubGrid({ children }: { children: ReactNode }): ReactNode {
-  return <div className="grid gap-4 sm:grid-cols-2">{children}</div>;
+  return <Stagger className="grid gap-4 sm:grid-cols-2">{children}</Stagger>;
 }

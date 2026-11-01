@@ -1,5 +1,6 @@
+import { useIsPresent } from "motion/react";
 import { useEffect, useRef, useState } from "react";
-import type { KeyboardEvent, ReactNode, Ref, SyntheticEvent } from "react";
+import type { KeyboardEvent, ReactNode, SyntheticEvent } from "react";
 import { useTranslation } from "react-i18next";
 import type {
   ParagraphReview,
@@ -7,6 +8,7 @@ import type {
   Severity,
   TranslationParagraph,
 } from "@shared/domain";
+import { Reveal } from "@/components/motion/Reveal";
 import { Button } from "@/components/ui/Button";
 import { Spinner } from "@/components/ui/Spinner";
 import { TextArea } from "@/components/ui/TextArea";
@@ -16,6 +18,8 @@ import type { Grade } from "@/lib/grade";
 
 /** One paragraph across both panels: what is written, and what it is from. */
 const ROW = "grid grid-cols-2 gap-x-10 border-b border-line py-6";
+/** A row that is leaving takes no room: it lifts away over the list. */
+const LEAVING = "pointer-events-none absolute inset-x-0 bottom-full";
 export const PROSE = "max-w-prose text-lead";
 /** The marker: gold on the sentence being written, grey on those written. */
 const MARKED = "rounded-sm box-decoration-clone py-0.5";
@@ -122,13 +126,44 @@ export function ReviewState({
   );
 }
 
+interface SessionRowProps {
+  className?: string;
+  /** It has no room, or it is on its way out: there, but not to be read. */
+  away?: string;
+  children: ReactNode;
+  [attribute: `data-${string}`]: boolean | undefined;
+}
+
+/**
+ * A row of the session that comes in with a fade and, leaving, goes up over
+ * the others instead of holding their place while it fades.
+ */
+export function SessionRow({
+  className,
+  away,
+  children,
+  ...rest
+}: SessionRowProps): ReactNode {
+  const present = useIsPresent();
+  return (
+    <Reveal
+      as="li"
+      kind="fade"
+      aria-hidden={away === undefined && present ? undefined : true}
+      className={cn(className, away, !present && LEAVING)}
+      {...rest}
+    >
+      {children}
+    </Reveal>
+  );
+}
+
 interface PastRowProps {
   paragraph: TranslationParagraph;
   failure: string | null;
   onReviewAgain: () => void;
-  /** It has no room, or it is on its way out: there, but not to be read. */
+  /** It has no room: there, to be measured, but not to be read. */
   away?: string;
-  ref?: Ref<HTMLLIElement>;
 }
 
 /**
@@ -143,7 +178,6 @@ export function PastRow({
   failure,
   onReviewAgain,
   away,
-  ref,
 }: PastRowProps): ReactNode {
   // Only a score fits beside the text: what stands in for it goes under it.
   const reviewed = paragraph.review !== null;
@@ -155,11 +189,7 @@ export function PastRow({
     />
   );
   return (
-    <li
-      ref={ref}
-      aria-hidden={away === undefined ? undefined : true}
-      className={cn(ROW, away)}
-    >
+    <SessionRow data-past className={ROW} away={away}>
       <div className="flex min-w-0 items-start gap-4">
         <div className="w-16 shrink-0">{reviewed && state}</div>
         <div className="flex min-w-0 flex-col gap-2">
@@ -172,7 +202,7 @@ export function PastRow({
       <p className={`${PROSE} min-w-0 text-ink-faint`}>
         {(paragraph.source ?? []).join(" ")}
       </p>
-    </li>
+    </SessionRow>
   );
 }
 
@@ -224,7 +254,6 @@ interface WritingRowProps {
   english: boolean;
   /** Keeps one sentence; whether it was kept. */
   onWrite: (sentence: number, text: string) => Promise<boolean>;
-  ref?: Ref<HTMLLIElement>;
 }
 
 /**
@@ -239,7 +268,6 @@ export function WritingRow({
   source,
   english,
   onWrite,
-  ref,
 }: WritingRowProps): ReactNode {
   const { t } = useTranslation();
   /** A sentence already written that is being written again. */
@@ -298,7 +326,10 @@ export function WritingRow({
   );
 
   return (
-    <li ref={ref} className={`${ROW} motion-safe:animate-enter`}>
+    <SessionRow
+      data-writing
+      className={cn(ROW, "rounded-xl border-b-0 bg-surface px-6 shadow-card")}
+    >
       <div className="flex min-w-0 flex-col gap-3">
         {before.length > 0 && (
           <p className={`${PROSE} text-ink`}>
@@ -321,7 +352,12 @@ export function WritingRow({
             <span className="text-sm text-ink-faint">
               {t("books.translate.keys")}
             </span>
-            <Button type="submit" variant="primary" size="sm" disabled={busy}>
+            <Button
+              type="submit"
+              variant="primaryBook"
+              size="sm"
+              disabled={busy}
+            >
               {t("books.translate.next")}
             </Button>
           </div>
@@ -358,6 +394,6 @@ export function WritingRow({
           );
         })}
       </p>
-    </li>
+    </SessionRow>
   );
 }

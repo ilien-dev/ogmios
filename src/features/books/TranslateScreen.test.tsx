@@ -172,10 +172,8 @@ describe("translating a chapter", () => {
     await write(user, ["Siete.", "Ocho."]);
     expect(screen.getByText("Paragraph 4 of 4")).toBeInTheDocument();
     expect(inSight()).toEqual(["Cuatro. Cinco; Seis.", "Siete. Ocho."]);
-    // The first one is on its way out: there, and not to be read.
-    const leaving = document.querySelectorAll('li[aria-hidden="true"]');
-    expect(leaving).toHaveLength(1);
-    expect(leaving[0]?.textContent).toContain("Uno. Dos; Tres.");
+    // The first one lifts away, and without motion it is simply gone.
+    expect(screen.queryByText("Uno. Dos; Tres.")).toBeNull();
   });
 
   test("a review that fails says why and can be asked for again", async () => {

@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft } from "lucide-react";
-import { Button } from "@/components/ui/Button";
+import { Presence } from "@/components/motion/Presence";
+import { Reveal } from "@/components/motion/Reveal";
+import { Stagger } from "@/components/motion/Stagger";
+import { BackLink } from "@/components/ui/BackLink";
 import { Notice } from "@/components/ui/Notice";
 import { errorMessage } from "@/lib/errors";
 import { startStructureSitting, structuresState } from "@/lib/ipc";
@@ -77,73 +79,80 @@ export function ChapterStructuresView({
   return (
     <main className="flex h-full flex-col">
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto flex max-w-3xl flex-col gap-10 px-10 py-16">
-          <header className="flex flex-col gap-3">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="-ml-3 self-start"
-              icon={<ArrowLeft aria-hidden className="size-4" />}
-              onClick={onBack}
-            >
-              {t("structures.title")}
-            </Button>
+        <Stagger className="mx-auto flex max-w-3xl flex-col gap-10 px-6 py-12 nav:py-16">
+          <Reveal as="header" className="flex flex-col gap-3">
+            <BackLink label={t("structures.title")} onClick={onBack} />
             <h1 className="font-display text-display font-light text-ink">
               {t("structures.chapter.screenTitle")}
             </h1>
             <p className="text-lead text-ink-soft">
               {t("structures.chapter.screenIntro")}
             </p>
-          </header>
-          {shown !== null && (
-            <Notice tone="danger">
-              {t("common.error", { message: shown })}
-            </Notice>
-          )}
-          {found === null && unread === null && (
-            <ScanProgress progress={progress} />
-          )}
-          {found !== null && found.structures.length === 0 && (
-            <p className="text-ink-soft">{t("structures.chapter.none")}</p>
-          )}
-          {found !== null && found.structures.length > 0 && (
-            <ul className="flex flex-col divide-y divide-line border-y border-line">
-              {found.structures.map((each) => (
-                <li key={each.key} className="flex flex-col gap-2 px-2 py-4">
-                  <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                    <p>
-                      <span className="font-medium text-ink">
-                        {names.get(each.key) ?? each.key}
-                      </span>
-                      <span className="text-sm text-ink-soft">
-                        {" · "}
-                        {formOf(each.key, t)}
-                      </span>
-                    </p>
-                    <p className="text-sm text-ink-faint tabular-nums">
-                      {t("structures.chapter.count", { count: each.count })}
-                    </p>
-                  </div>
-                  {each.example !== "" && (
-                    <blockquote className="border-l-2 border-line-strong pl-3 text-sm text-ink-soft italic">
-                      {each.example}
-                    </blockquote>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+          </Reveal>
+          <Presence>
+            {shown !== null && (
+              <Notice key="failure" tone="danger">
+                {t("common.error", { message: shown })}
+              </Notice>
+            )}
+            {found === null && unread === null && (
+              <Reveal key="reading" kind="fade">
+                <ScanProgress progress={progress} />
+              </Reveal>
+            )}
+            {found !== null && found.structures.length === 0 && (
+              <Reveal as="p" key="none" kind="fade" className="text-ink-soft">
+                {t("structures.chapter.none")}
+              </Reveal>
+            )}
+            {found !== null && found.structures.length > 0 && (
+              <Reveal key="found">
+                <ul className="flex flex-col divide-y divide-line rounded-xl bg-surface py-1 shadow-card">
+                  {found.structures.map((each) => (
+                    <li
+                      key={each.key}
+                      className="flex flex-col gap-2 px-5 py-4"
+                    >
+                      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                        <p>
+                          <span className="font-medium text-ink">
+                            {names.get(each.key) ?? each.key}
+                          </span>
+                          <span className="text-sm text-ink-soft">
+                            {" · "}
+                            {formOf(each.key, t)}
+                          </span>
+                        </p>
+                        <p className="text-sm text-ink-faint tabular-nums">
+                          {t("structures.chapter.count", { count: each.count })}
+                        </p>
+                      </div>
+                      {each.example !== "" && (
+                        <blockquote className="border-l-2 border-line-strong pl-3 text-sm text-ink-soft italic">
+                          {each.example}
+                        </blockquote>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </Reveal>
+            )}
+          </Presence>
+        </Stagger>
       </div>
-      {keys.length > 0 && (
-        <StartBar
-          size={size}
-          onSize={setSize}
-          note={t("structures.chapter.words")}
-          starting={starting}
-          onStart={() => void start(keys)}
-        />
-      )}
+      <Presence>
+        {keys.length > 0 && (
+          <Reveal key="start" kind="fade" className="shrink-0">
+            <StartBar
+              size={size}
+              onSize={setSize}
+              note={t("structures.chapter.words")}
+              starting={starting}
+              onStart={() => void start(keys)}
+            />
+          </Reveal>
+        )}
+      </Presence>
     </main>
   );
 }

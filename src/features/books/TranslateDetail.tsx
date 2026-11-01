@@ -6,6 +6,8 @@ import type {
   Translation,
   TranslationParagraph,
 } from "@shared/domain";
+import { Presence } from "@/components/motion/Presence";
+import { Reveal } from "@/components/motion/Reveal";
 import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
 import { Spinner } from "@/components/ui/Spinner";
@@ -45,7 +47,7 @@ export function Summary({ translation, failure }: SummaryProps): ReactNode {
       (paragraph) => (paragraph.review?.marks.length ?? 0) === 0,
     );
   return (
-    <section className="flex flex-col gap-6 rounded-lg border border-line bg-surface p-6">
+    <section className="flex flex-col gap-6 rounded-xl bg-surface p-6 shadow-card">
       {score !== null && (
         <p className="flex items-baseline gap-3">
           <Score score={score} />
@@ -54,55 +56,78 @@ export function Summary({ translation, failure }: SummaryProps): ReactNode {
           </span>
         </p>
       )}
-      {summary === null && failure === null && (
-        <p className="flex items-center gap-2 text-ink-soft">
-          <Spinner />
-          {t("books.translate.detail.summarizing")}
-        </p>
-      )}
-      {summary === null && failure !== null && (
-        <Notice tone="danger">
-          {t("books.translate.detail.summaryFailed", { message: failure })}
-        </Notice>
-      )}
-      {clean && (
-        <p className="text-correct">{t("books.translate.detail.clean")}</p>
-      )}
-      {summary !== null && summary.points.length > 0 && (
-        <div className="flex flex-col gap-2">
-          <h2 className={LABEL}>{t("books.translate.detail.summary")}</h2>
-          <ul className="flex max-w-prose list-disc flex-col gap-2 pl-5 text-ink">
-            {summary.points.map((point) => (
-              <li key={point}>{point}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-      {summary !== null && summary.habits.length > 0 && (
-        <div className="flex flex-col gap-3">
-          <h2 className={LABEL}>{t("books.translate.detail.habits")}</h2>
-          <ul className="flex flex-col gap-4">
-            {summary.habits.map((habit) => (
-              <li key={habit.habit} className="flex max-w-prose flex-col gap-1">
-                <span className="font-medium text-ink">{habit.habit}</span>
-                <span className="text-ink-soft">{habit.advice}</span>
-                {habit.examples.length > 0 && (
-                  <span className="flex flex-wrap gap-2 text-sm">
-                    {habit.examples.map((example) => (
-                      <span
-                        key={example}
-                        className={cn(CHIP, SEVERITY_MARK.error)}
-                      >
-                        {example}
-                      </span>
+      <div className="relative">
+        <Presence swap>
+          {summary === null && failure === null && (
+            <Reveal
+              key="summarizing"
+              kind="fade"
+              className="flex items-center gap-2 text-ink-soft"
+            >
+              <Spinner />
+              {t("books.translate.detail.summarizing")}
+            </Reveal>
+          )}
+          {summary === null && failure !== null && (
+            <Notice key="failed" tone="danger">
+              {t("books.translate.detail.summaryFailed", { message: failure })}
+            </Notice>
+          )}
+          {summary !== null && (
+            <Reveal key="summary" kind="fade" className="flex flex-col gap-6">
+              {clean && (
+                <p className="text-correct">
+                  {t("books.translate.detail.clean")}
+                </p>
+              )}
+              {summary.points.length > 0 && (
+                <div className="flex flex-col gap-2">
+                  <h2 className={LABEL}>
+                    {t("books.translate.detail.summary")}
+                  </h2>
+                  <ul className="flex max-w-prose list-disc flex-col gap-2 pl-5 text-ink">
+                    {summary.points.map((point) => (
+                      <li key={point}>{point}</li>
                     ))}
-                  </span>
-                )}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+                  </ul>
+                </div>
+              )}
+              {summary.habits.length > 0 && (
+                <div className="flex flex-col gap-3">
+                  <h2 className={LABEL}>
+                    {t("books.translate.detail.habits")}
+                  </h2>
+                  <ul className="flex flex-col gap-4">
+                    {summary.habits.map((habit) => (
+                      <li
+                        key={habit.habit}
+                        className="flex max-w-prose flex-col gap-1"
+                      >
+                        <span className="font-medium text-ink">
+                          {habit.habit}
+                        </span>
+                        <span className="text-ink-soft">{habit.advice}</span>
+                        {habit.examples.length > 0 && (
+                          <span className="flex flex-wrap gap-2 text-sm">
+                            {habit.examples.map((example) => (
+                              <span
+                                key={example}
+                                className={cn(CHIP, SEVERITY_MARK.error)}
+                              >
+                                {example}
+                              </span>
+                            ))}
+                          </span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </Reveal>
+          )}
+        </Presence>
+      </div>
     </section>
   );
 }
@@ -175,7 +200,10 @@ export function DetailRow({
   const { t } = useTranslation();
   const { review } = paragraph;
   return (
-    <li className="grid grid-cols-2 gap-x-10 border-b border-line py-8">
+    <Reveal
+      as="li"
+      className="grid grid-cols-2 gap-x-10 rounded-xl bg-surface p-6 shadow-card"
+    >
       <div className="flex min-w-0 flex-col gap-4">
         <ReviewState
           review={review}
@@ -220,6 +248,6 @@ export function DetailRow({
           </p>
         </div>
       </div>
-    </li>
+    </Reveal>
   );
 }
