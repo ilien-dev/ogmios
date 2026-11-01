@@ -1,3 +1,4 @@
+import { Presence } from "@/components/motion/Presence";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { ArrowRight } from "lucide-react";
@@ -49,42 +50,44 @@ export function NativeRewriteCard({
           </p>
         </div>
       </Reveal>
-      {rewrite.notes.length > 0 && (
-        <Reveal className="flex flex-col gap-4">
-          <h3 className="text-sm font-semibold text-ink-soft">
-            {t("report.nativeRewrite.changes")}
-          </h3>
-          <Stagger as="ul" className="flex flex-col gap-3">
-            {rewrite.notes.map((note) => (
-              <Reveal
-                key={`${note.from}-${note.to}`}
-                as="li"
-                className="flex flex-col gap-1 rounded-lg bg-raised px-5 py-4"
-              >
-                <p className="flex flex-wrap items-center gap-x-2 text-ink">
-                  <span className="text-ink-soft">
-                    <span className="sr-only">
-                      {t("report.nativeRewrite.original")}:{" "}
+      <Presence>
+        {rewrite.notes.length > 0 && (
+          <Reveal key="notes" className="flex flex-col gap-4">
+            <h3 className="text-sm font-semibold text-ink-soft">
+              {t("report.nativeRewrite.changes")}
+            </h3>
+            <Stagger as="ul" className="flex flex-col gap-3">
+              {rewrite.notes.map((note) => (
+                <Reveal
+                  key={`${note.from}-${note.to}`}
+                  as="li"
+                  className="flex flex-col gap-1 rounded-lg bg-raised px-5 py-4"
+                >
+                  <p className="flex flex-wrap items-center gap-x-2 text-ink">
+                    <span className="text-ink-soft">
+                      <span className="sr-only">
+                        {t("report.nativeRewrite.original")}:{" "}
+                      </span>
+                      {note.from}
                     </span>
-                    {note.from}
-                  </span>
-                  <ArrowRight
-                    aria-hidden
-                    className="size-4 shrink-0 text-correct"
-                  />
-                  <span className="font-medium">
-                    <span className="sr-only">
-                      {t("report.nativeRewrite.rewritten")}:{" "}
+                    <ArrowRight
+                      aria-hidden
+                      className="size-4 shrink-0 text-correct"
+                    />
+                    <span className="font-medium">
+                      <span className="sr-only">
+                        {t("report.nativeRewrite.rewritten")}:{" "}
+                      </span>
+                      {note.to}
                     </span>
-                    {note.to}
-                  </span>
-                </p>
-                <p className="text-sm text-ink-soft">{note.why}</p>
-              </Reveal>
-            ))}
-          </Stagger>
-        </Reveal>
-      )}
+                  </p>
+                  <p className="text-sm text-ink-soft">{note.why}</p>
+                </Reveal>
+              ))}
+            </Stagger>
+          </Reveal>
+        )}
+      </Presence>
     </div>
   );
 }

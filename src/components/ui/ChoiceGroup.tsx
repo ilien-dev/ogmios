@@ -100,17 +100,31 @@ export function ChoiceGroup<T extends string>({
             <span className="flex flex-col gap-0.5">
               <span className="flex items-center gap-2 text-sm font-medium text-ink">
                 {choice.label}
-                {choice.badge !== undefined && (
-                  <span className="rounded-full bg-accent-soft px-2 py-0.5 text-xs font-medium text-accent-text">
-                    {choice.badge}
-                  </span>
-                )}
+                <Presence>
+                  {choice.badge !== undefined && (
+                    <Reveal
+                      key="badge"
+                      as="span"
+                      kind="fade"
+                      className="rounded-full bg-accent-soft px-2 py-0.5 text-xs font-medium text-accent-text"
+                    >
+                      {choice.badge}
+                    </Reveal>
+                  )}
+                </Presence>
               </span>
-              {choice.description !== undefined && (
-                <span className="text-sm text-ink-soft">
-                  {choice.description}
-                </span>
-              )}
+              <Presence>
+                {choice.description !== undefined && (
+                  <Reveal
+                    key="description"
+                    as="span"
+                    kind="fade"
+                    className="text-sm text-ink-soft"
+                  >
+                    {choice.description}
+                  </Reveal>
+                )}
+              </Presence>
             </span>
           </label>
         ))}

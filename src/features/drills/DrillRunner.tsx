@@ -18,6 +18,18 @@ import type { Grade } from "@/lib/grade";
 import { answerDrill } from "@/lib/ipc";
 import { SpotErrorChoice } from "./SpotErrorChoice";
 
+function CheckingIcon({ checking }: { checking: boolean }): ReactNode {
+  return (
+    <Presence>
+      {checking && (
+        <Reveal key="checking" as="span" kind="fade" className="inline-flex">
+          <Spinner className="text-on-accent" />
+        </Reveal>
+      )}
+    </Presence>
+  );
+}
+
 interface Answered {
   item: DrillItem;
   response: string;
@@ -99,25 +111,29 @@ function DrillQuestion({
         <p className="text-sm font-medium text-ink-faint">
           {t(`drillFormat.${item.format}`)}
         </p>
-        {item.focus !== "" && (
-          <p className="text-ink-soft">
-            {t("drills.focus", { pattern: item.focus })}
-          </p>
-        )}
+        <Presence>
+          {item.focus !== "" && (
+            <Reveal key="focus" as="p" className="text-ink-soft">
+              {t("drills.focus", { pattern: item.focus })}
+            </Reveal>
+          )}
+        </Presence>
       </div>
 
-      {thread.length > 0 && (
-        <ol className="flex flex-col gap-6">
-          {thread.map((entry) => (
-            <li key={entry.item.index} className="flex flex-col gap-3">
-              <p className="text-lead text-ink-soft">{entry.item.prompt}</p>
-              <p className="max-w-lg self-end rounded-xl rounded-br-sm bg-raised px-4 py-3 text-ink-soft">
-                {entry.response}
-              </p>
-            </li>
-          ))}
-        </ol>
-      )}
+      <Presence>
+        {thread.length > 0 && (
+          <Reveal key="thread" as="ol" className="flex flex-col gap-6">
+            {thread.map((entry) => (
+              <li key={entry.item.index} className="flex flex-col gap-3">
+                <p className="text-lead text-ink-soft">{entry.item.prompt}</p>
+                <p className="max-w-lg self-end rounded-xl rounded-br-sm bg-raised px-4 py-3 text-ink-soft">
+                  {entry.response}
+                </p>
+              </li>
+            ))}
+          </Reveal>
+        )}
+      </Presence>
 
       <div className="flex flex-col gap-3">
         <h1 className="text-lead font-medium text-balance text-ink">
@@ -175,11 +191,7 @@ function DrillQuestion({
                         type="submit"
                         variant="primary"
                         disabled={checking || response.trim() === ""}
-                        icon={
-                          checking ? (
-                            <Spinner className="text-on-accent" />
-                          ) : undefined
-                        }
+                        icon={<CheckingIcon checking={checking} />}
                       >
                         {checking ? t("drills.checking") : t("drills.check")}
                       </Button>
@@ -201,37 +213,59 @@ function DrillQuestion({
       </Presence>
 
       <div aria-live="polite">
-        {current !== undefined && verdict !== null && (
-          <Reveal className="flex flex-col gap-5">
-            <div className="flex flex-col gap-2">
-              <VerdictLine tone={verdict}>{t(VERDICT[verdict])}</VerdictLine>
-              {!current.result.correct && (
-                <p className="text-ink">
-                  {t("drills.expected", { text: current.result.expected })}
-                </p>
-              )}
-              <p className="text-ink-soft">{current.result.explanation}</p>
-            </div>
-            <div>
-              <Button
-                variant="primary"
-                onClick={onNext}
-                icon={
-                  current.result.retry === null ? undefined : (
-                    <RotateCcw aria-hidden className="size-4" />
-                  )
-                }
-              >
-                {current.result.retry === null
-                  ? t("drills.next")
-                  : t("drills.retry")}
-                {current.result.retry === null && (
-                  <ArrowRight aria-hidden className="size-4" />
-                )}
-              </Button>
-            </div>
-          </Reveal>
-        )}
+        <Presence>
+          {current !== undefined && verdict !== null && (
+            <Reveal key="verdict" className="flex flex-col gap-5">
+              <div className="flex flex-col gap-2">
+                <VerdictLine tone={verdict}>{t(VERDICT[verdict])}</VerdictLine>
+                <Presence>
+                  {!current.result.correct && (
+                    <Reveal key="correct" as="p" className="text-ink">
+                      {t("drills.expected", { text: current.result.expected })}
+                    </Reveal>
+                  )}
+                </Presence>
+                <p className="text-ink-soft">{current.result.explanation}</p>
+              </div>
+              <div>
+                <Button
+                  variant="primary"
+                  onClick={onNext}
+                  icon={
+                    <Presence>
+                      {current.result.retry !== null && (
+                        <Reveal
+                          key="retry"
+                          as="span"
+                          kind="fade"
+                          className="inline-flex"
+                        >
+                          <RotateCcw aria-hidden className="size-4" />
+                        </Reveal>
+                      )}
+                    </Presence>
+                  }
+                >
+                  {current.result.retry === null
+                    ? t("drills.next")
+                    : t("drills.retry")}
+                  <Presence>
+                    {current.result.retry === null && (
+                      <Reveal
+                        key="next"
+                        as="span"
+                        kind="fade"
+                        className="inline-flex"
+                      >
+                        <ArrowRight aria-hidden className="size-4" />
+                      </Reveal>
+                    )}
+                  </Presence>
+                </Button>
+              </div>
+            </Reveal>
+          )}
+        </Presence>
       </div>
     </section>
   );
@@ -356,7 +390,7 @@ export function DrillRunner({
 
   const bar =
     item === undefined ? null : (
-      <div className="flex items-center gap-5">
+      <Reveal key="segments" kind="fade" className="flex items-center gap-5">
         <ol aria-hidden className="flex flex-1 gap-1.5">
           {queue.map((entry, i) => (
             <li
@@ -369,7 +403,7 @@ export function DrillRunner({
           ))}
         </ol>
         <p className="text-sm text-ink-faint tabular-nums">{label}</p>
-      </div>
+      </Reveal>
     );
 
   return (

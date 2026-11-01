@@ -1,3 +1,4 @@
+import { Presence } from "@/components/motion/Presence";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
@@ -58,9 +59,13 @@ export function DisputeNote(props: DisputeNoteProps): ReactNode {
         props.state.status === "upheld" ? "text-correct" : "text-ink-soft",
       )}
     >
-      {props.state.status === "upheld" && (
-        <Check aria-hidden className="mt-0.5 size-4 shrink-0" />
-      )}
+      <Presence>
+        {props.state.status === "upheld" && (
+          <Reveal key="upheld" as="span" kind="fade">
+            <Check aria-hidden className="mt-0.5 size-4 shrink-0" />
+          </Reveal>
+        )}
+      </Presence>
       {wording(t, props)}
     </Reveal>
   );

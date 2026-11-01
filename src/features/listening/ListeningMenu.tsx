@@ -146,44 +146,55 @@ export function ListeningMenu({
             <Reveal key="loaded" kind="fade">
               <Stagger className="flex flex-col gap-10">
                 <Standing state={state} />
-                {on === null ? (
-                  <Reveal
-                    as="section"
-                    className="flex flex-col items-start gap-4"
-                  >
-                    <Notice>{t("listening.noBook")}</Notice>
-                    <Button
-                      onClick={() => {
-                        navigate({ name: "books", bookId: null });
-                      }}
+                <Presence swap>
+                  {on === null ? (
+                    <Reveal
+                      key="no-on"
+                      as="section"
+                      className="flex flex-col items-start gap-4"
                     >
-                      {t("listening.toBooks")}
-                    </Button>
-                  </Reveal>
-                ) : (
-                  <OnChapter
-                    on={on}
-                    books={books}
-                    pace={picked ?? state.pace}
-                    busy={busy}
-                    onPace={setPicked}
-                    onChapter={(next) => {
-                      navigate({ name: "listening", chapterId: next });
-                    }}
-                    onDictation={() =>
-                      void run(async () => {
-                        const sitting = await startDictation(
-                          on.chapter.id,
-                          picked ?? state.pace,
-                        );
-                        navigate({ name: "listening", running: sitting.id });
-                      })
-                    }
-                    onListen={() => {
-                      navigate({ name: "listening", reading: on.chapter.id });
-                    }}
-                  />
-                )}
+                      <Notice>{t("listening.noBook")}</Notice>
+                      <Button
+                        onClick={() => {
+                          navigate({ name: "books", bookId: null });
+                        }}
+                      >
+                        {t("listening.toBooks")}
+                      </Button>
+                    </Reveal>
+                  ) : (
+                    <Reveal key="on">
+                      <OnChapter
+                        on={on}
+                        books={books}
+                        pace={picked ?? state.pace}
+                        busy={busy}
+                        onPace={setPicked}
+                        onChapter={(next) => {
+                          navigate({ name: "listening", chapterId: next });
+                        }}
+                        onDictation={() =>
+                          void run(async () => {
+                            const sitting = await startDictation(
+                              on.chapter.id,
+                              picked ?? state.pace,
+                            );
+                            navigate({
+                              name: "listening",
+                              running: sitting.id,
+                            });
+                          })
+                        }
+                        onListen={() => {
+                          navigate({
+                            name: "listening",
+                            reading: on.chapter.id,
+                          });
+                        }}
+                      />
+                    </Reveal>
+                  )}
+                </Presence>
                 <Presence>
                   {state.paused.length > 0 && (
                     <Reveal key="paused">
@@ -204,7 +215,13 @@ export function ListeningMenu({
                     </Reveal>
                   )}
                 </Presence>
-                {state.missed.length > 0 && <Escaping state={state} />}
+                <Presence>
+                  {state.missed.length > 0 && (
+                    <Reveal key="missed">
+                      <Escaping state={state} />
+                    </Reveal>
+                  )}
+                </Presence>
               </Stagger>
             </Reveal>
           )}

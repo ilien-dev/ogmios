@@ -1,10 +1,9 @@
 import type { ReactNode } from "react";
+import { Swap } from "@/components/motion/Swap";
 import { useTranslation } from "react-i18next";
 import { ChevronRight, Plus } from "lucide-react";
 import type { Book } from "@shared/domain";
 import { READY } from "@shared/domain";
-import { Presence } from "@/components/motion/Presence";
-import { Reveal } from "@/components/motion/Reveal";
 import { Tilt } from "@/components/motion/Tilt";
 import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
@@ -13,6 +12,8 @@ import { ProgressBar } from "@/components/ui/ProgressBar";
 import { Spinner } from "@/components/ui/Spinner";
 import type { Navigate } from "@/app/routes";
 import { BookCover } from "./BookCover";
+import { Reveal } from "@/components/motion/Reveal";
+import { Presence } from "@/components/motion/Presence";
 
 interface BookCardProps {
   book: Book;
@@ -105,11 +106,13 @@ export function BookShelf({
             size="lg"
             disabled={adding}
             icon={
-              adding ? (
-                <Spinner className="size-5" />
-              ) : (
-                <Plus aria-hidden className="size-5" />
-              )
+              <Swap id={adding ? "adding" : "add"}>
+                {adding ? (
+                  <Spinner className="size-5" />
+                ) : (
+                  <Plus aria-hidden className="size-5" />
+                )}
+              </Swap>
             }
             onClick={onAdd}
           >
@@ -125,24 +128,26 @@ export function BookShelf({
           </Presence>
         </Reveal>
 
-        {books.length === 0 ? (
-          <Reveal as="p" index={2} className="text-ink-soft">
-            {t("books.empty")}
-          </Reveal>
-        ) : (
-          <ul className="flex flex-col gap-3">
-            <Presence>
-              {books.map((book, index) => (
-                <BookCard
-                  key={book.id}
-                  book={book}
-                  index={index + 2}
-                  navigate={navigate}
-                />
-              ))}
-            </Presence>
-          </ul>
-        )}
+        <Presence swap>
+          {books.length === 0 ? (
+            <Reveal key="no-books" as="p" index={2} className="text-ink-soft">
+              {t("books.empty")}
+            </Reveal>
+          ) : (
+            <Reveal key="books" as="ul" className="flex flex-col gap-3">
+              <Presence>
+                {books.map((book, index) => (
+                  <BookCard
+                    key={book.id}
+                    book={book}
+                    index={index + 2}
+                    navigate={navigate}
+                  />
+                ))}
+              </Presence>
+            </Reveal>
+          )}
+        </Presence>
 
         <Presence>
           {knownCount > 0 && (

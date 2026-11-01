@@ -1,3 +1,5 @@
+import { Reveal } from "@/components/motion/Reveal";
+import { Presence } from "@/components/motion/Presence";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -158,13 +160,17 @@ export function BooksScreen({
   if (books === null) {
     return (
       <main className="grid h-full place-items-center">
-        {failure === null ? (
-          <Spinner />
-        ) : (
-          <Notice tone="danger">
-            {t("common.error", { message: failure })}
-          </Notice>
-        )}
+        <Presence swap>
+          {failure === null ? (
+            <Reveal key="no-failure" as="span" kind="fade">
+              <Spinner />
+            </Reveal>
+          ) : (
+            <Notice key="failure" tone="danger">
+              {t("common.error", { message: failure })}
+            </Notice>
+          )}
+        </Presence>
       </main>
     );
   }

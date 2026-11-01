@@ -81,13 +81,17 @@ export function TranslateStart({
       <Presence swap>
         {found === null ? (
           <Reveal key="loading" kind="fade">
-            {failure === null ? (
-              <Spinner />
-            ) : (
-              <Notice tone="danger">
-                {t("common.error", { message: failure })}
-              </Notice>
-            )}
+            <Presence swap>
+              {failure === null ? (
+                <Reveal key="no-failure" as="span" kind="fade">
+                  <Spinner />
+                </Reveal>
+              ) : (
+                <Notice key="failure" tone="danger">
+                  {t("common.error", { message: failure })}
+                </Notice>
+              )}
+            </Presence>
           </Reveal>
         ) : (
           <Reveal key="start" kind="fade">

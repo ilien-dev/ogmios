@@ -63,8 +63,8 @@ export function SittingFrame({
           <X aria-hidden className="size-5" />
         </button>
         <div className="min-w-0 flex-1">
-          {bar}
           <Presence>
+            {bar}
             {bar === null && progress !== null && (
               <Reveal key="bar" kind="fade">
                 <ProgressBar
@@ -223,36 +223,38 @@ export function SittingSizes({
         <h1 className="font-display text-display font-light text-ink">
           {t("books.sitting.size")}
         </h1>
-        {directions.length > 1 && (
-          <div className="w-full">
-            <ChoiceGroup
-              legend={t("books.sitting.ways")}
-              columns={3}
-              size="sm"
-              choices={directions.map((each) => ({
-                value: each,
-                label: labels[each],
-              }))}
-              value={ways}
-              onChange={(next) => {
-                // A size the other way may not have: back to its smallest.
-                setWays(next);
-                setChosen(smallest(offered[next]));
-              }}
-            />
-            <Presence>
-              {options.extra.includes(ways) && (
-                <Reveal
-                  key="extra"
-                  as="p"
-                  className="mt-2 text-sm text-ink-soft"
-                >
-                  {t("books.sitting.extra")}
-                </Reveal>
-              )}
-            </Presence>
-          </div>
-        )}
+        <Presence>
+          {directions.length > 1 && (
+            <Reveal key="directions" className="w-full">
+              <ChoiceGroup
+                legend={t("books.sitting.ways")}
+                columns={3}
+                size="sm"
+                choices={directions.map((each) => ({
+                  value: each,
+                  label: labels[each],
+                }))}
+                value={ways}
+                onChange={(next) => {
+                  // A size the other way may not have: back to its smallest.
+                  setWays(next);
+                  setChosen(smallest(offered[next]));
+                }}
+              />
+              <Presence>
+                {options.extra.includes(ways) && (
+                  <Reveal
+                    key="extra"
+                    as="p"
+                    className="mt-2 text-sm text-ink-soft"
+                  >
+                    {t("books.sitting.extra")}
+                  </Reveal>
+                )}
+              </Presence>
+            </Reveal>
+          )}
+        </Presence>
         <div className="w-full">
           <ChoiceGroup
             legend={t("books.sitting.size")}
@@ -343,11 +345,15 @@ export function SittingEnd({
           <Button ref={primary} variant="primaryBook" onClick={first.onChoose}>
             {first.label}
           </Button>
-          {other !== null && (
-            <Button variant="ghost" onClick={other.onChoose}>
-              {other.label}
-            </Button>
-          )}
+          <Presence>
+            {other !== null && (
+              <Reveal key="other" as="span" kind="fade">
+                <Button variant="ghost" onClick={other.onChoose}>
+                  {other.label}
+                </Button>
+              </Reveal>
+            )}
+          </Presence>
         </div>
         <div aria-live="polite">
           <Presence>{notice}</Presence>

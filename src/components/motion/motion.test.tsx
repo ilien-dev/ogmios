@@ -7,10 +7,12 @@ import {
   waitForElementToBeRemoved,
 } from "@testing-library/react";
 import { MotionConfig, MotionGlobalConfig } from "motion/react";
+import { useContext } from "react";
 import type { ReactNode } from "react";
 import {
   REVEAL,
   STAGGER_LIMIT,
+  StaggerIndex,
   animated,
   staggerDelay,
 } from "../../lib/motion";
@@ -20,6 +22,7 @@ import { Magnetic } from "./Magnetic";
 import { Presence } from "./Presence";
 import { Reveal } from "./Reveal";
 import { Stagger } from "./Stagger";
+import { Swap as NamedSwap } from "./Swap";
 import { Tilt } from "./Tilt";
 
 const nativeAnimate = Element.prototype.animate;
@@ -107,6 +110,31 @@ test("Presence swap puts the new element in at once", async () => {
   expect(screen.getByText("new")).toBeInTheDocument();
   await waitForElementToBeRemoved(() => screen.queryByText("old"));
   expect(screen.getByText("new")).toBeInTheDocument();
+});
+
+test("Swap brings the new name in at once and lets the old one leave", async () => {
+  const { rerender } = render(<NamedSwap id="a">first</NamedSwap>);
+  rerender(<NamedSwap id="b">second</NamedSwap>);
+  expect(screen.getByText("second")).toBeInTheDocument();
+  expect(screen.getByText("first")).toBeInTheDocument();
+  await waitForElementToBeRemoved(() => screen.queryByText("first"));
+});
+
+test("what comes in inside a Reveal owes nothing to that Reveal's place in a cascade", () => {
+  const inner: number[] = [];
+  function Position(): ReactNode {
+    inner.push(useContext(StaggerIndex));
+    return null;
+  }
+  render(
+    <Stagger>
+      <Reveal>one</Reveal>
+      <Reveal>
+        <Position />
+      </Reveal>
+    </Stagger>,
+  );
+  expect(inner).toEqual([0]);
 });
 
 test("with animations skipped, Presence renders in place", () => {

@@ -1,3 +1,4 @@
+import { Reveal } from "@/components/motion/Reveal";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
@@ -103,19 +104,21 @@ export function TranslateSession({
               data-writing
               className="flex flex-wrap items-center gap-3 py-6 text-ink-soft"
             >
-              {run.unprepared ? (
-                <>
-                  {t("books.translate.prepareFailed")}
-                  <Button size="sm" onClick={run.prepareAgain}>
-                    {t("common.retry")}
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <Spinner />
-                  {t("books.translate.preparing", { language: native })}
-                </>
-              )}
+              <Presence swap>
+                {run.unprepared ? (
+                  <Reveal key="unprepared">
+                    {t("books.translate.prepareFailed")}
+                    <Button size="sm" onClick={run.prepareAgain}>
+                      {t("common.retry")}
+                    </Button>
+                  </Reveal>
+                ) : (
+                  <Reveal key="no-unprepared">
+                    <Spinner />
+                    {t("books.translate.preparing", { language: native })}
+                  </Reveal>
+                )}
+              </Presence>
             </SessionRow>
           )}
           {being !== undefined && being.source !== null && (

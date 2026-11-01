@@ -55,26 +55,28 @@ function Today({ state, nativeLang, onStart }: TodayProps): ReactNode {
             ? t("recall.due", { count: state.due })
             : t("recall.nothingDue")}
         </p>
-        {state.due > 0 && (
-          <>
-            <div className="w-full">
-              <ChoiceGroup
-                legend={t("books.sitting.ways")}
-                columns={3}
-                size="sm"
-                choices={WAYS.map((each) => ({
-                  value: each,
-                  label: labels[each],
-                }))}
-                value={ways}
-                onChange={setWays}
-              />
-            </div>
-            <Button type="submit" variant="primaryBook">
-              {t("recall.start")}
-            </Button>
-          </>
-        )}
+        <Presence>
+          {state.due > 0 && (
+            <Reveal key="due">
+              <div className="w-full">
+                <ChoiceGroup
+                  legend={t("books.sitting.ways")}
+                  columns={3}
+                  size="sm"
+                  choices={WAYS.map((each) => ({
+                    value: each,
+                    label: labels[each],
+                  }))}
+                  value={ways}
+                  onChange={setWays}
+                />
+              </div>
+              <Button type="submit" variant="primaryBook">
+                {t("recall.start")}
+              </Button>
+            </Reveal>
+          )}
+        </Presence>
       </form>
       <section className="flex flex-col gap-4">
         <h2 className="text-sm font-medium text-ink-faint">
@@ -155,22 +157,38 @@ function Between({ nativeLang, onStart }: BetweenProps): ReactNode {
         <div className="relative">
           <Presence swap>
             <Reveal key={showing()} className="flex flex-col gap-12">
-              {failure !== null && (
-                <Notice tone="danger">
-                  {t("common.error", { message: failure })}
-                </Notice>
-              )}
-              {state === null && failure === null && <Spinner />}
-              {state !== null && learned === 0 && (
-                <p className="text-ink-soft">{t("recall.empty")}</p>
-              )}
-              {state !== null && learned > 0 && (
-                <Today
-                  state={state}
-                  nativeLang={nativeLang}
-                  onStart={onStart}
-                />
-              )}
+              <Presence>
+                {failure !== null && (
+                  <Notice key="failure" tone="danger">
+                    {t("common.error", { message: failure })}
+                  </Notice>
+                )}
+              </Presence>
+              <Presence>
+                {state === null && failure === null && (
+                  <Reveal key="failure" as="span" kind="fade">
+                    <Spinner />
+                  </Reveal>
+                )}
+              </Presence>
+              <Presence>
+                {state !== null && learned === 0 && (
+                  <Reveal key="learned" as="p" className="text-ink-soft">
+                    {t("recall.empty")}
+                  </Reveal>
+                )}
+              </Presence>
+              <Presence>
+                {state !== null && learned > 0 && (
+                  <Reveal key="learned">
+                    <Today
+                      state={state}
+                      nativeLang={nativeLang}
+                      onStart={onStart}
+                    />
+                  </Reveal>
+                )}
+              </Presence>
             </Reveal>
           </Presence>
         </div>

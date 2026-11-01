@@ -294,35 +294,53 @@ export function Onboarding({
             <Reveal key={step} className="flex flex-col gap-8">
               <StepHeader step={step} />
               {body[step]}
-              {problem !== null && <Notice tone="danger">{problem}</Notice>}
+              <Presence>
+                {problem !== null && (
+                  <Notice key="problem" tone="danger">
+                    {problem}
+                  </Notice>
+                )}
+              </Presence>
             </Reveal>
           </Presence>
         </div>
 
         <div className="mt-auto flex items-center gap-2 pt-12">
-          {index > 0 && (
-            <Button
-              variant="ghost"
-              icon={<ArrowLeft aria-hidden className="size-4" />}
-              onClick={() => {
-                setProblem(null);
-                setIndex((held) => held - 1);
-              }}
-            >
-              {t("common.back")}
-            </Button>
-          )}
+          <Presence>
+            {index > 0 && (
+              <Reveal key="index" as="span" kind="fade">
+                <Button
+                  variant="ghost"
+                  icon={<ArrowLeft aria-hidden className="size-4" />}
+                  onClick={() => {
+                    setProblem(null);
+                    setIndex((held) => held - 1);
+                  }}
+                >
+                  {t("common.back")}
+                </Button>
+              </Reveal>
+            )}
+          </Presence>
           <div className="ml-auto flex items-center gap-2">
-            {step === "voice" && (
-              <Button variant="ghost" onClick={advance}>
-                {t("voice.textOnly")}
-              </Button>
-            )}
-            {!REQUIRED.has(step) && !last && step !== "voice" && (
-              <Button variant="ghost" onClick={advance}>
-                {t("common.skip")}
-              </Button>
-            )}
+            <Presence>
+              {step === "voice" && (
+                <Reveal key="voice" as="span" kind="fade">
+                  <Button variant="ghost" onClick={advance}>
+                    {t("voice.textOnly")}
+                  </Button>
+                </Reveal>
+              )}
+            </Presence>
+            <Presence>
+              {!REQUIRED.has(step) && !last && step !== "voice" && (
+                <Reveal key="voice" as="span" kind="fade">
+                  <Button variant="ghost" onClick={advance}>
+                    {t("common.skip")}
+                  </Button>
+                </Reveal>
+              )}
+            </Presence>
             <Button type="submit" variant="primary" disabled={saving}>
               {last ? t("onboarding.finish") : t("common.next")}
               <ArrowRight aria-hidden className="size-4" />

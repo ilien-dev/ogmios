@@ -190,16 +190,23 @@ borrarlos.
 
 ### 6.1 Pantalla de inicio
 
-Es la pantalla principal de la sección **Conversación** (§17). Un botón grande
-**"Empezar charla"** con un tema sugerido ya cargado. Debajo, dos tarjetas:
+Inicio es una pantalla propia, de tres columnas: **Conversación**, el centro y **Libro**. Todo lo
+principal se ve aquí sin desplazarse en el tamaño por defecto de la ventana (1100×760).
 
-- **Ejercicios de 2 min:** abre los drills (§9); dice cuántos patrones hay pendientes.
-- **Progreso:** abre el mapa de progreso (§11); dice la racha.
+- **Centro:** la esfera, el saludo y un tema sugerido ya cargado, con la línea de foco debajo
+  ("Estás trabajando: present perfect"). Un botón grande **"Empezar charla"** y, a su lado,
+  "Otro tema", "Personalizar" (abre el setup completo) y "Continuar la anterior" si existe. Un clic
+  empieza.
+- **Para hoy:** bajo las acciones, una sola línea discreta con el reto, la rotación o el cambio de
+  nivel, en ese orden. Si hay más de una, "Ver más" despliega las demás ahí mismo: ninguna se pierde.
+- **Conversación:** Charla, Ejercicios (de 2 min, §9) y Progreso (§11). **Libro:** las seis entradas
+  de §17, con su esfera cálida pequeña. Cada entrada lleva un dato solo si ya se conoce: patrones
+  pendientes, racha, palabras por repasar, capítulo actual.
+- **Encabezado:** logo, racha y Ajustes.
 
-Y bajo ellas, en pequeño, el foco actual ("Estás trabajando: present perfect"), las palabras
-por repasar hoy, el reto y las sugerencias de modo y de nivel.
-
-Un clic empieza. "Personalizar" abre el setup completo.
+Por debajo de 1000 px de ancho el centro va arriba con una esfera más pequeña, y Conversación y
+Libro quedan debajo, lado a lado, en filas compactas. Solo el tamaño mínimo (720×560) puede necesitar
+desplazamiento.
 
 ### 6.2 Setup de sesión
 
@@ -376,7 +383,7 @@ Repaso de cada patrón activo a los 1 → 3 → 7 → 21 días. Un patrón venci
 
 ### 9.4 Repaso de palabras
 
-Las palabras aprendidas vuelven con los días en **Repaso diario**, una tarjeta de la sección
+Las palabras aprendidas vuelven con los días en **Repaso diario**, una entrada de la sección
 Libro (§17). Entran las
 terminadas en un capítulo de un libro y las pedidas con "¿Cómo digo…?"; nunca las marcadas como
 "ya la sé". Las que usó el compañero no entran: no tienen traducción con la que preguntarlas.
@@ -544,7 +551,7 @@ menú con todo el catálogo), **Del capítulo** (solo si hay un capítulo abiert
 
 ### 9.8 Oído
 
-**Oído**, una tarjeta de la sección Libro (§17), entrena el oído con el libro que se está leyendo. Todo lo
+**Oído**, una entrada de la sección Libro (§17), entrena el oído con el libro que se está leyendo. Todo lo
 decide el código: no se le pide nada al modelo y no gasta tokens. Necesita la voz descargada (§12);
 sin ella, la sección solo ofrece descargarla.
 
@@ -867,22 +874,29 @@ básico no reciben frases: no hay grabaciones abiertas que las respalden.
 
 ## 17. Interfaz
 
-- **Barra lateral fija a la izquierda**, siempre desplegada: nada queda a más de 3 clics de Inicio y
-  cada función vive en un solo lugar. Cada entrada dice cuánto tiene pendiente hoy.
-  - **Inicio** (§6.1): pantalla propia, no pertenece a ningún grupo.
+- **Sin barra lateral.** Las funciones principales se ven en Inicio (§6.1), repartidas en dos
+  secciones, y nada queda a más de 3 clics. Cada función vive en un solo lugar.
   - **Conversación:** Charla (abre el setup, §6.2), Ejercicios (de 2 min) y Progreso.
-  - **Libro:** selector del capítulo actual (elegir uno lo abre), Vocabulario, Traducir, Estructuras
-    (§9.7), Oído (§9.8), Repaso diario (§9.4) y Libros (la estantería). Sin capítulo, Vocabulario,
-    Traducir y Oído llevan a Libros; Estructuras funciona sin libro.
-  - **Ajustes**, al fondo, con saltos a cada sección arriba de su pantalla.
-  - Las pantallas que ocupan toda la ventana (una charla, un reporte recién terminado, una
-    sesión en curso) no muestran la barra.
-- **Atrás.** Entre secciones no existe: la barra lo sustituye. El detalle interno lleva un enlace a
-  su padre, siempre el mismo sin importar por dónde se llegó (Progreso › reporte, Libros › libro ›
-  capítulo, Libros › palabras conocidas, Estructuras › todas).
+  - **Libro:** Vocabulario, Traducir, Estructuras (§9.7), Oído (§9.8), Repaso diario (§9.4) y Libros
+    (la estantería). Sin capítulo, Vocabulario, Traducir y Oído llevan a Libros; Estructuras funciona
+    sin libro.
+  - **Ajustes**, desde Inicio o desde la barra de arriba, con saltos a cada sección arriba de su
+    pantalla.
+- **Barra superior.** Fuera de Inicio: `←` a Inicio, las entradas de la sección actual como píldoras
+  (3 en Conversación, 6 en Libro) y Ajustes. La píldora activa se desliza a la nueva. Por debajo de
+  1000 px las píldoras muestran solo su icono y conservan su nombre accesible. En Libro, el título
+  del capítulo actual abre el selector de capítulo (elegir uno lo abre). Cruzar de sección cuesta 2
+  clics: `←` y la entrada. Las pantallas que ocupan toda la ventana (una charla, un reporte recién
+  terminado, una sesión en curso) no muestran la barra y traen su propia salida.
+- **Actualizaciones.** La tarjeta y su barra de carga flotan abajo a la derecha solo mientras hay algo
+  que atender. La versión, buscar actualizaciones y reabrir una descartada viven en una fila de
+  Ajustes; mientras haya una descartada, el botón de Ajustes lleva un punto discreto.
+- **Atrás.** Entre secciones es `←`. El detalle interno lleva un enlace a su padre, siempre el mismo
+  sin importar por dónde se llegó (Progreso › reporte, Libros › libro › capítulo, Libros › palabras
+  conocidas, Estructuras › todas).
 - **Voces.** Cada fuente de texto tiene su color y su forma, y nada más los usa: lo que escribe o
   dice el usuario es verde azulado, en burbujas a la derecha (lo que escribió antes, citado, va
-  con borde punteado); lo que escribe el modelo es violeta, a la izquierda con su avatar; el texto
+  con borde punteado); lo que escribe el modelo es violeta, a la izquierda con su esfera; el texto
   de un libro es ámbar y en serif; Ogmios habla en tinta gris, con «Ogmios:» delante.
 - **Estructuras** abre una pantalla principal con tarjetas que llevan a lo suyo.
   - **Eliminar un libro:** desde su pantalla, con confirmación. Sale de la estantería y se borra su
@@ -893,9 +907,20 @@ básico no reciben frases: no hay grabaciones abiertas que las respalden.
     dejan de ser de su capítulo.
 - **Tailwind CSS** para todo el diseño; tokens de color, espaciado y tipografía definidos en el tema
   de Tailwind (tema claro y oscuro).
-- Estilo «Grafito»: neutros grises, radios pequeños (4–8 px), titulares ligeros en Urbanist sobre
-  Geist; Geist Mono solo para cifras. Acentos: verde azulado (Conversación, el usuario), ámbar (Libro, el
-  libro), violeta (el compañero), naranja (lo que está en foco).
+- Estilo «Aura»: aire y calma. Neutros fríos con un matiz violeta, en claro y oscuro; radios grandes
+  (controles en píldora, tarjetas de 18–32 px); sombras suaves en vez de bordes, y la línea solo separa
+  filas. Plus Jakarta Sans para la interfaz y los títulos; Newsreader solo para el texto de los libros.
+  El compañero es una esfera iridiscente y Libro tiene su gemela cálida. El gradiente vive solo en la
+  esfera, su resplandor y la acción principal de cada pantalla; lo demás es plano. Sin imágenes
+  generadas. Acentos: verde azulado (Conversación, el usuario), ámbar (Libro, el libro), violeta (el
+  compañero), naranja (lo que está en foco).
+- **Regla de movimiento.** Todo lo que entra o sale de la interfaz se anima al entrar y al salir, sin
+  excepción: pantallas, secciones, tarjetas, filas, mensajes, avisos, errores, estados vacíos y de
+  carga. Nada aparece ni desaparece de golpe. Entradas de 200 a 450 ms, salidas de 120 a 220 ms, y
+  ninguna bloquea el teclado ni los clics: el ítem siguiente acepta respuesta sin esperar la salida del
+  anterior. En listas largas la cascada cubre lo visible y el resto entra con un fundido, sin
+  retraso. Con `prefers-reduced-motion` todo se queda como un fundido corto: salen desplazamientos,
+  parallax, seguimiento del cursor y deriva de la esfera. `scripts/motion-coverage.test.ts` lo vigila.
 - Accesibilidad: todo usable con teclado (atajo global para el micrófono), contraste AA,
   lectores de pantalla en el reporte.
 - i18next con `en` y `es` desde el día uno; ningún texto de UI fijo en componentes.

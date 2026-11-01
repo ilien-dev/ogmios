@@ -159,17 +159,17 @@ export function useReadAloud(text: string | null, key = ""): void {
   const silenced = useRef(false);
 
   useLayoutEffect(() => {
+    silenced.current = !present;
     if (!present) {
-      silenced.current = true;
       hush();
     }
   }, [present, hush]);
 
   useEffect(() => {
-    if (auto && text !== null) {
+    if (auto && text !== null && present) {
       say(text);
     }
-  }, [auto, text, key, say]);
+  }, [auto, text, key, say, present]);
 
   useEffect(
     () => () => {

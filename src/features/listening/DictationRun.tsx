@@ -1,3 +1,5 @@
+import { Reveal } from "@/components/motion/Reveal";
+import { Swap } from "@/components/motion/Swap";
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
@@ -82,162 +84,182 @@ export function DictationRun({
     setBusy(false);
   };
 
-  if (sitting === null) {
-    return (
-      <main className="grid h-full place-items-center px-10">
-        {failure === null ? (
-          <Spinner />
-        ) : (
-          <Notice tone="danger">
-            {t("common.error", { message: failure })}
-          </Notice>
-        )}
-      </main>
-    );
-  }
-
-  const { summary, chapterId } = sitting;
-  if (summary !== null) {
-    return (
-      <DictationEnd
-        summary={summary}
-        again={chapterId !== null}
-        starting={busy}
-        onAgain={(pace) =>
-          void run(async () => {
-            if (chapterId !== null) {
-              const started = await startDictation(chapterId, pace);
-              onAgain(started.id);
-            }
-          })
-        }
-        onDone={onLeave}
-      />
-    );
-  }
-
-  const { item } = sitting;
-  const pace = picked ?? sitting.pace;
-  /** Stops what is being heard: the sentence on the screen is left behind. */
-  const hush = (): void => {
-    turns.next();
-    setPlaying(false);
-    void ttsStop().catch(() => null);
-  };
-  const listen = (): void => {
-    if (item === null || result !== null || playing) {
-      return;
+  const view = (): ReactNode => {
+    if (sitting === null) {
+      return (
+        <main className="grid h-full place-items-center px-10">
+          <Presence swap>
+            {failure === null ? (
+              <Reveal key="no-failure" as="span" kind="fade">
+                <Spinner />
+              </Reveal>
+            ) : (
+              <Notice key="failure" tone="danger">
+                {t("common.error", { message: failure })}
+              </Notice>
+            )}
+          </Presence>
+        </main>
+      );
     }
-    const mine = turns.now();
-    setPlaying(true);
-    setFailure(null);
-    hearDictation(sittingId, item.index, pace)
-      .then((heard) => {
-        if (turns.now() === mine) {
-          setPlaying(false);
-          setSitting(heard);
-        }
-      })
-      .catch((error: unknown) => {
-        if (turns.now() === mine) {
-          setPlaying(false);
-          setFailure(errorMessage(error));
+
+    const { summary, chapterId } = sitting;
+    if (summary !== null) {
+      return (
+        <DictationEnd
+          summary={summary}
+          again={chapterId !== null}
+          starting={busy}
+          onAgain={(pace) =>
+            void run(async () => {
+              if (chapterId !== null) {
+                const started = await startDictation(chapterId, pace);
+                onAgain(started.id);
+              }
+            })
+          }
+          onDone={onLeave}
+        />
+      );
+    }
+
+    const { item } = sitting;
+    const pace = picked ?? sitting.pace;
+    /** Stops what is being heard: the sentence on the screen is left behind. */
+    const hush = (): void => {
+      turns.next();
+      setPlaying(false);
+      void ttsStop().catch(() => null);
+    };
+    const listen = (): void => {
+      if (item === null || result !== null || playing) {
+        return;
+      }
+      const mine = turns.now();
+      setPlaying(true);
+      setFailure(null);
+      hearDictation(sittingId, item.index, pace)
+        .then((heard) => {
+          if (turns.now() === mine) {
+            setPlaying(false);
+            setSitting(heard);
+          }
+        })
+        .catch((error: unknown) => {
+          if (turns.now() === mine) {
+            setPlaying(false);
+            setFailure(errorMessage(error));
+          }
+        });
+    };
+    const check = (text: string): void => {
+      if (item === null || busy) {
+        return;
+      }
+      const written = text.trim();
+      hush();
+      void run(async () => {
+        setResult(await answerDictation(sittingId, item.index, written, pace));
+        setSent(written);
+      });
+    };
+    const next = (): void => {
+      // Enter on the way on is one step: a second one finds it running.
+      if (busy) {
+        return;
+      }
+      hush();
+      void run(async () => {
+        setSitting(await getDictation(sittingId));
+        setResult(null);
+        setSent("");
+      });
+    };
+    /** Pauses the dictation, or finishes it and shows how it went. */
+    const leave = (finished: boolean): void => {
+      hush();
+      void run(async () => {
+        await closeDictation(sittingId, finished);
+        // One with nothing answered is not kept: there is nothing to show.
+        if (finished && sitting.done + (result === null ? 0 : 1) > 0) {
+          setSitting(await getDictation(sittingId));
+        } else {
+          onLeave();
         }
       });
-  };
-  const check = (text: string): void => {
-    if (item === null || busy) {
-      return;
-    }
-    const written = text.trim();
-    hush();
-    void run(async () => {
-      setResult(await answerDictation(sittingId, item.index, written, pace));
-      setSent(written);
-    });
-  };
-  const next = (): void => {
-    // Enter on the way on is one step: a second one finds it running.
-    if (busy) {
-      return;
-    }
-    hush();
-    void run(async () => {
-      setSitting(await getDictation(sittingId));
-      setResult(null);
-      setSent("");
-    });
-  };
-  /** Pauses the dictation, or finishes it and shows how it went. */
-  const leave = (finished: boolean): void => {
-    hush();
-    void run(async () => {
-      await closeDictation(sittingId, finished);
-      // One with nothing answered is not kept: there is nothing to show.
-      if (finished && sitting.done + (result === null ? 0 : 1) > 0) {
-        setSitting(await getDictation(sittingId));
-      } else {
-        onLeave();
-      }
-    });
+    };
+
+    const answered = sitting.done + (result === null ? 0 : 1);
+    return (
+      <RunFrame
+        barLabel={t("listening.run.progress")}
+        value={answered}
+        total={sitting.total}
+        count={t("listening.run.count", {
+          current: Math.min(sitting.done + 1, sitting.total),
+          total: sitting.total,
+        })}
+        failure={failure}
+        busy={busy}
+        pause={t("listening.run.pause")}
+        finish={t("listening.run.finish")}
+        onPause={() => {
+          leave(false);
+        }}
+        onFinish={() => {
+          leave(true);
+        }}
+      >
+        <SittingStage step={item === null ? "none" : String(item.index)}>
+          {item !== null && (
+            <div className="mx-auto grid w-full max-w-5xl grid-cols-5 items-start gap-10 p-6 nav:px-10">
+              <div className="col-span-3">
+                <DictationWriting
+                  item={item}
+                  result={result}
+                  sent={sent}
+                  checking={busy && result === null}
+                  last={
+                    answered >= sitting.total && result?.verdict !== "wrong"
+                  }
+                  onCheck={check}
+                  onListen={listen}
+                  onNext={next}
+                />
+              </div>
+              <div className="col-span-2">
+                <Presence>
+                  {result === null && (
+                    <DictationPlayer
+                      key="player"
+                      item={item}
+                      pace={pace}
+                      playing={playing}
+                      onPace={setPicked}
+                      onListen={listen}
+                      onStop={() => {
+                        void ttsStop().catch(() => null);
+                      }}
+                    />
+                  )}
+                </Presence>
+              </div>
+            </div>
+          )}
+        </SittingStage>
+      </RunFrame>
+    );
   };
 
-  const answered = sitting.done + (result === null ? 0 : 1);
   return (
-    <RunFrame
-      barLabel={t("listening.run.progress")}
-      value={answered}
-      total={sitting.total}
-      count={t("listening.run.count", {
-        current: Math.min(sitting.done + 1, sitting.total),
-        total: sitting.total,
-      })}
-      failure={failure}
-      busy={busy}
-      pause={t("listening.run.pause")}
-      finish={t("listening.run.finish")}
-      onPause={() => {
-        leave(false);
-      }}
-      onFinish={() => {
-        leave(true);
-      }}
+    <Swap
+      as="div"
+      id={
+        sitting === null ? "loading" : sitting.summary === null ? "run" : "end"
+      }
+      className="h-full"
     >
-      {item !== null && (
-        <SittingStage step={String(item.index)}>
-          <div className="mx-auto grid w-full max-w-5xl grid-cols-5 items-start gap-10 p-6 nav:px-10">
-            <div className="col-span-3">
-              <DictationWriting
-                item={item}
-                result={result}
-                sent={sent}
-                checking={busy && result === null}
-                last={answered >= sitting.total && result?.verdict !== "wrong"}
-                onCheck={check}
-                onListen={listen}
-                onNext={next}
-              />
-            </div>
-            <div className="col-span-2">
-              <Presence>
-                {result === null && (
-                  <DictationPlayer
-                    key="player"
-                    item={item}
-                    pace={pace}
-                    playing={playing}
-                    onPace={setPicked}
-                    onListen={listen}
-                    onStop={() => {
-                      void ttsStop().catch(() => null);
-                    }}
-                  />
-                )}
-              </Presence>
-            </div>
-          </div>
-        </SittingStage>
-      )}
-    </RunFrame>
+      {view()}
+    </Swap>
   );
 }

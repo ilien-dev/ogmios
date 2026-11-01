@@ -8,6 +8,8 @@ import { Notice } from "@/components/ui/Notice";
 import type { Navigate } from "@/app/routes";
 import { errorMessage } from "@/lib/errors";
 import { formatDate } from "@/lib/text";
+import { Reveal } from "@/components/motion/Reveal";
+import { Presence } from "@/components/motion/Presence";
 
 interface SessionListProps {
   sessions: SessionSummary[];
@@ -91,33 +93,40 @@ export function SessionList({
           );
           return (
             <li key={session.id} className="flex items-center gap-1">
-              {session.hasReport ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    navigate({
-                      name: "report",
-                      sessionId: session.id,
-                      report: null,
-                      origin: "progress",
-                    });
-                  }}
-                  className="flex min-w-0 flex-1 items-center gap-4 px-2 py-4 text-left hover:bg-raised"
-                >
-                  {summary}
-                  <span className="flex items-center gap-1 text-sm text-accent-text">
-                    {t("progress.viewReport")}
-                    <ChevronRight aria-hidden className="size-4" />
-                  </span>
-                </button>
-              ) : (
-                <div className="flex min-w-0 flex-1 items-center gap-4 px-2 py-4">
-                  {summary}
-                  <span className="text-sm text-ink-faint">
-                    {t("progress.noReport")}
-                  </span>
-                </div>
-              )}
+              <Presence swap>
+                {session.hasReport ? (
+                  <Reveal key="hasReport">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigate({
+                          name: "report",
+                          sessionId: session.id,
+                          report: null,
+                          origin: "progress",
+                        });
+                      }}
+                      className="flex min-w-0 flex-1 items-center gap-4 px-2 py-4 text-left hover:bg-raised"
+                    >
+                      {summary}
+                      <span className="flex items-center gap-1 text-sm text-accent-text">
+                        {t("progress.viewReport")}
+                        <ChevronRight aria-hidden className="size-4" />
+                      </span>
+                    </button>
+                  </Reveal>
+                ) : (
+                  <Reveal
+                    key="no-hasReport"
+                    className="flex min-w-0 flex-1 items-center gap-4 px-2 py-4"
+                  >
+                    {summary}
+                    <span className="text-sm text-ink-faint">
+                      {t("progress.noReport")}
+                    </span>
+                  </Reveal>
+                )}
+              </Presence>
               <Button
                 variant="ghost"
                 size="sm"
@@ -132,9 +141,13 @@ export function SessionList({
           );
         })}
       </ul>
-      {failure !== null && (
-        <Notice tone="danger">{t("common.error", { message: failure })}</Notice>
-      )}
+      <Presence>
+        {failure !== null && (
+          <Notice key="failure" tone="danger">
+            {t("common.error", { message: failure })}
+          </Notice>
+        )}
+      </Presence>
     </div>
   );
 }

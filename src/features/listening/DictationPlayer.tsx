@@ -1,12 +1,14 @@
 import type { ReactNode } from "react";
+import { Swap } from "@/components/motion/Swap";
 import { useTranslation } from "react-i18next";
 import { Square, Volume2 } from "lucide-react";
 import type { DictationItem, Pace } from "@shared/listening";
-import { Reveal } from "@/components/motion/Reveal";
 import { Button } from "@/components/ui/Button";
 import { Key } from "@/features/books/TriageRun";
 import { cn } from "@/lib/cn";
 import { PaceChoice } from "./PaceChoice";
+import { Reveal } from "@/components/motion/Reveal";
+import { Presence } from "@/components/motion/Presence";
 
 /** Listening to a sentence more often than this is help. */
 const FREE_LISTENS = 2;
@@ -51,16 +53,24 @@ export function DictationPlayer({
         size="lg"
         aria-keyshortcuts={t("listening.run.playKey")}
         icon={
-          playing ? (
-            <Square aria-hidden className="size-4 fill-current" />
-          ) : (
-            <Volume2 aria-hidden className="size-5" />
-          )
+          <Swap id={playing ? "stop" : "listen"}>
+            {playing ? (
+              <Square aria-hidden className="size-4 fill-current" />
+            ) : (
+              <Volume2 aria-hidden className="size-5" />
+            )}
+          </Swap>
         }
         onClick={playing ? onStop : onListen}
       >
         {label}
-        {!playing && <Key>{t("listening.run.playKey")}</Key>}
+        <Presence>
+          {!playing && (
+            <Reveal key="playing" as="span" kind="fade">
+              <Key>{t("listening.run.playKey")}</Key>
+            </Reveal>
+          )}
+        </Presence>
       </Button>
       <PaceChoice value={pace} onChange={onPace} />
       <p

@@ -172,12 +172,14 @@ export function SettingsScreen({
             aria-live="polite"
             className="flex items-center gap-1.5 text-sm text-ink-faint"
           >
-            {saved && (
-              <>
-                <Check aria-hidden className="size-4 text-accent-text" />
-                {t("common.saved")}
-              </>
-            )}
+            <Presence>
+              {saved && (
+                <Reveal key="saved" as="span" kind="fade">
+                  <Check aria-hidden className="size-4 text-accent-text" />
+                  {t("common.saved")}
+                </Reveal>
+              )}
+            </Presence>
           </p>
         </Reveal>
         <Reveal
@@ -365,66 +367,89 @@ export function SettingsScreen({
 
         <Section id="settings-memory" title={t("settings.memory")}>
           <p className="text-ink-soft">{t("settings.factsBody")}</p>
-          {facts.length === 0 ? (
-            <p className="text-sm text-ink-faint">{t("settings.factsEmpty")}</p>
-          ) : (
-            <ul className="flex flex-col divide-y divide-line">
-              {facts.map((fact) => (
-                <li
-                  key={fact.id}
-                  className="flex items-center justify-between gap-4 py-2.5"
-                >
-                  <span className="text-ink">{fact.text}</span>
-                  <button
-                    type="button"
-                    aria-label={t("settings.forget", { fact: fact.text })}
-                    onClick={() => void forget(fact.id)}
-                    className="grid size-8 shrink-0 place-items-center rounded-sm text-ink-faint hover:bg-raised hover:text-ink"
+          <Presence swap>
+            {facts.length === 0 ? (
+              <Reveal key="no-facts" as="p" className="text-sm text-ink-faint">
+                {t("settings.factsEmpty")}
+              </Reveal>
+            ) : (
+              <Reveal
+                key="facts"
+                as="ul"
+                className="flex flex-col divide-y divide-line"
+              >
+                {facts.map((fact) => (
+                  <li
+                    key={fact.id}
+                    className="flex items-center justify-between gap-4 py-2.5"
                   >
-                    <X aria-hidden className="size-4" />
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
+                    <span className="text-ink">{fact.text}</span>
+                    <button
+                      type="button"
+                      aria-label={t("settings.forget", { fact: fact.text })}
+                      onClick={() => void forget(fact.id)}
+                      className="grid size-8 shrink-0 place-items-center rounded-sm text-ink-faint hover:bg-raised hover:text-ink"
+                    >
+                      <X aria-hidden className="size-4" />
+                    </button>
+                  </li>
+                ))}
+              </Reveal>
+            )}
+          </Presence>
         </Section>
 
         <Section id="settings-data" title={t("settings.data")}>
           <p className="text-ink-soft">{t("settings.deleteAudioBody")}</p>
           <div aria-live="polite">
-            {audio === "idle" && (
-              <Button
-                variant="danger"
-                icon={<Trash2 aria-hidden className="size-4" />}
-                onClick={() => {
-                  setAudio("confirm");
-                }}
-              >
-                {t("settings.deleteAudio")}
-              </Button>
-            )}
-            {audio === "confirm" && (
-              <div className="flex flex-wrap items-center gap-3">
-                <p className="text-ink">{t("settings.confirmDelete")}</p>
-                <Button variant="danger" onClick={() => void removeAudio()}>
-                  {t("settings.confirm")}
-                </Button>
-                <Button
-                  variant="ghost"
-                  onClick={() => {
-                    setAudio("idle");
-                  }}
+            <Presence>
+              {audio === "idle" && (
+                <Reveal key="idle" as="span" kind="fade">
+                  <Button
+                    variant="danger"
+                    icon={<Trash2 aria-hidden className="size-4" />}
+                    onClick={() => {
+                      setAudio("confirm");
+                    }}
+                  >
+                    {t("settings.deleteAudio")}
+                  </Button>
+                </Reveal>
+              )}
+            </Presence>
+            <Presence>
+              {audio === "confirm" && (
+                <Reveal
+                  key="confirm"
+                  className="flex flex-wrap items-center gap-3"
                 >
-                  {t("common.cancel")}
-                </Button>
-              </div>
-            )}
-            {audio === "deleted" && (
-              <p className="flex items-center gap-2 text-ink-soft">
-                <Check aria-hidden className="size-4 text-accent-text" />
-                {t("settings.audioDeleted")}
-              </p>
-            )}
+                  <p className="text-ink">{t("settings.confirmDelete")}</p>
+                  <Button variant="danger" onClick={() => void removeAudio()}>
+                    {t("settings.confirm")}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      setAudio("idle");
+                    }}
+                  >
+                    {t("common.cancel")}
+                  </Button>
+                </Reveal>
+              )}
+            </Presence>
+            <Presence>
+              {audio === "deleted" && (
+                <Reveal
+                  key="deleted"
+                  as="p"
+                  className="flex items-center gap-2 text-ink-soft"
+                >
+                  <Check aria-hidden className="size-4 text-accent-text" />
+                  {t("settings.audioDeleted")}
+                </Reveal>
+              )}
+            </Presence>
           </div>
         </Section>
 

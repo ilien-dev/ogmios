@@ -3,13 +3,14 @@ import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { DictationSummary, Pace } from "@shared/listening";
 import { PACES } from "@shared/listening";
-import { Reveal } from "@/components/motion/Reveal";
 import { Stagger } from "@/components/motion/Stagger";
 import { Button } from "@/components/ui/Button";
 import { Orb } from "@/components/ui/Orb";
 import { GRADE_TEXT } from "@/components/ui/Verdict";
 import { cn } from "@/lib/cn";
 import { PaceChoice } from "./PaceChoice";
+import { Reveal } from "@/components/motion/Reveal";
+import { Presence } from "@/components/motion/Presence";
 
 /** The pace a hint points at, from the one a dictation went at. */
 function hinted(summary: DictationSummary): Pace {
@@ -96,33 +97,41 @@ export function DictationEnd({
                   pace: t(`listening.pace.${summary.understood}`).toLowerCase(),
                 })}
           </p>
-          {summary.hint !== null && (
-            <p className="text-ink-soft">
-              {t(`listening.summary.hint.${summary.hint}`)}
-            </p>
-          )}
+          <Presence>
+            {summary.hint !== null && (
+              <Reveal key="hint" as="p" className="text-ink-soft">
+                {t(`listening.summary.hint.${summary.hint}`)}
+              </Reveal>
+            )}
+          </Presence>
         </Reveal>
-        {again && (
-          <Reveal className="flex flex-col items-start gap-2">
-            <p className="text-sm text-ink-faint">
-              {t("listening.summary.next")}
-            </p>
-            <PaceChoice value={pace} onChange={setPace} />
-          </Reveal>
-        )}
-        <Reveal className="flex gap-2">
+        <Presence>
           {again && (
-            <Button
-              ref={first}
-              variant="primaryBook"
-              disabled={starting}
-              onClick={() => {
-                onAgain(pace);
-              }}
-            >
-              {t("listening.summary.again")}
-            </Button>
+            <Reveal key="again" className="flex flex-col items-start gap-2">
+              <p className="text-sm text-ink-faint">
+                {t("listening.summary.next")}
+              </p>
+              <PaceChoice value={pace} onChange={setPace} />
+            </Reveal>
           )}
+        </Presence>
+        <Reveal className="flex gap-2">
+          <Presence>
+            {again && (
+              <Reveal key="again" as="span" kind="fade">
+                <Button
+                  ref={first}
+                  variant="primaryBook"
+                  disabled={starting}
+                  onClick={() => {
+                    onAgain(pace);
+                  }}
+                >
+                  {t("listening.summary.again")}
+                </Button>
+              </Reveal>
+            )}
+          </Presence>
           <Button
             ref={again ? undefined : first}
             variant="ghost"

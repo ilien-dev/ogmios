@@ -68,7 +68,10 @@ function body(
         </p>
       );
     case "failed":
-      return state.version === null ? null : (
+      if (state.version === null) {
+        return null;
+      }
+      return (
         <>
           <p className="font-semibold text-danger">
             {t("update.downloadFailed")}

@@ -245,18 +245,22 @@ export function ChapterScreen({
                   className="flex flex-col items-start gap-4"
                 >
                   <Notice tone="danger">{failure.message}</Notice>
-                  {failure.retry !== null && !preparing && (
-                    <Button
-                      variant="primaryBook"
-                      onClick={() => {
-                        if (failure.retry !== null) {
-                          void prepare(failure.retry);
-                        }
-                      }}
-                    >
-                      {t("common.retry")}
-                    </Button>
-                  )}
+                  <Presence>
+                    {failure.retry !== null && !preparing && (
+                      <Reveal key="preparing" as="span" kind="fade">
+                        <Button
+                          variant="primaryBook"
+                          onClick={() => {
+                            if (failure.retry !== null) {
+                              void prepare(failure.retry);
+                            }
+                          }}
+                        >
+                          {t("common.retry")}
+                        </Button>
+                      </Reveal>
+                    )}
+                  </Presence>
                 </Reveal>
               )}
               {preparing && (
@@ -269,7 +273,13 @@ export function ChapterScreen({
                     <Spinner />
                     {t("books.chapter.preparing")}
                   </p>
-                  {progress !== null && <PreparingBar progress={progress} />}
+                  <Presence>
+                    {progress !== null && (
+                      <Reveal key="progress">
+                        <PreparingBar progress={progress} />
+                      </Reveal>
+                    )}
+                  </Presence>
                 </Reveal>
               )}
               {!preparing && words === null && (
@@ -282,22 +292,27 @@ export function ChapterScreen({
                   key="words"
                   className="flex flex-col gap-6 rounded-xl bg-surface p-6 shadow-card nav:p-8"
                 >
-                  {writing !== null && writing.done < writing.total && (
-                    <div className="flex w-full flex-col gap-2">
-                      <p className="text-sm text-ink-faint">
-                        {t("books.sentences.writing", {
-                          done: writing.done,
-                          total: writing.total,
-                        })}
-                      </p>
-                      <ProgressBar
-                        label={t("books.sentences.bar")}
-                        value={writing.done}
-                        total={writing.total}
-                        tone="book"
-                      />
-                    </div>
-                  )}
+                  <Presence>
+                    {writing !== null && writing.done < writing.total && (
+                      <Reveal
+                        key="total"
+                        className="flex w-full flex-col gap-2"
+                      >
+                        <p className="text-sm text-ink-faint">
+                          {t("books.sentences.writing", {
+                            done: writing.done,
+                            total: writing.total,
+                          })}
+                        </p>
+                        <ProgressBar
+                          label={t("books.sentences.bar")}
+                          value={writing.done}
+                          total={writing.total}
+                          tone="book"
+                        />
+                      </Reveal>
+                    )}
+                  </Presence>
                   <WordList
                     words={words}
                     onKnown={(word, known) => void setKnown(word, known)}

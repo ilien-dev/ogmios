@@ -5,12 +5,13 @@ import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Flag, Sparkles, TrendingUp } from "lucide-react";
 import type { HomeState } from "@shared/domain";
-import { Presence } from "@/components/motion/Presence";
 import { Button } from "@/components/ui/Button";
 import type { Navigate } from "@/app/routes";
 import { DURATION, EASE_OUT, REVEAL, animated } from "@/lib/motion";
 import type { TodayKind } from "./homeLayout";
 import { todayLines } from "./homeLayout";
+import { Reveal } from "@/components/motion/Reveal";
+import { Presence } from "@/components/motion/Presence";
 
 const ICONS = { challenge: Flag, rotation: Sparkles, level: TrendingUp };
 
@@ -62,17 +63,21 @@ function Line({ kind, home, topic, navigate }: LineProps): ReactNode {
     <p className="flex min-w-0 items-center gap-2 text-left text-sm text-ink-soft">
       <Icon aria-hidden className="size-4 shrink-0 text-ink-faint" />
       <span className="min-w-0">{text}</span>
-      {action !== null && (
-        <button
-          type="button"
-          onClick={() => {
-            navigate({ name: "setup", preset: action.preset });
-          }}
-          className="shrink-0 rounded-sm px-2 py-1 font-medium text-accent-text underline-offset-4 transition-control hover:underline"
-        >
-          {action.label}
-        </button>
-      )}
+      <Presence>
+        {action !== null && (
+          <Reveal key="action" as="span" kind="fade">
+            <button
+              type="button"
+              onClick={() => {
+                navigate({ name: "setup", preset: action.preset });
+              }}
+              className="shrink-0 rounded-sm px-2 py-1 font-medium text-accent-text underline-offset-4 transition-control hover:underline"
+            >
+              {action.label}
+            </button>
+          </Reveal>
+        )}
+      </Presence>
     </p>
   );
 }
@@ -119,19 +124,23 @@ export function TodayLine({
     <section aria-label={t("home.todayList")} className="w-full">
       <div className="flex flex-wrap items-center justify-center gap-x-2">
         <Line kind={first} {...shared} />
-        {rest.length > 0 && (
-          <Button
-            variant="ghost"
-            size="sm"
-            aria-expanded={open}
-            aria-controls="today-more"
-            onClick={() => {
-              setOpen((held) => !held);
-            }}
-          >
-            {t(open ? "home.seeLess" : "home.seeMore")}
-          </Button>
-        )}
+        <Presence>
+          {rest.length > 0 && (
+            <Reveal key="rest" as="span" kind="fade">
+              <Button
+                variant="ghost"
+                size="sm"
+                aria-expanded={open}
+                aria-controls="today-more"
+                onClick={() => {
+                  setOpen((held) => !held);
+                }}
+              >
+                {t(open ? "home.seeLess" : "home.seeMore")}
+              </Button>
+            </Reveal>
+          )}
+        </Presence>
       </div>
       <div id="today-more">
         <Presence>

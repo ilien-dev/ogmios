@@ -172,9 +172,17 @@ export function HelpPopover({
                       <p className="text-sm font-medium text-ink">
                         {option.english}
                       </p>
-                      {option.note !== null && (
-                        <p className="text-sm text-ink-soft">{option.note}</p>
-                      )}
+                      <Presence>
+                        {option.note !== null && (
+                          <Reveal
+                            key="note"
+                            as="p"
+                            className="text-sm text-ink-soft"
+                          >
+                            {option.note}
+                          </Reveal>
+                        )}
+                      </Presence>
                     </div>
                     <Button
                       size="sm"

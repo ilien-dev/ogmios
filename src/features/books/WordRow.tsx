@@ -1,8 +1,11 @@
 import type { ReactNode } from "react";
+import { Presence } from "@/components/motion/Presence";
+import { Swap } from "@/components/motion/Swap";
 import { useTranslation } from "react-i18next";
 import { Check, CircleCheck, CircleDashedCheck } from "lucide-react";
 import type { BookWord } from "@shared/domain";
 import { Reveal } from "@/components/motion/Reveal";
+import { STAGGER_LIMIT } from "@/lib/motion";
 import { Button } from "@/components/ui/Button";
 import { StrengthMark } from "@/features/recall/StrengthMark";
 import { SpeakButton } from "@/features/speech/SpeakButton";
@@ -30,7 +33,12 @@ export function WordRow({ word, index, onKnown }: WordRowProps): ReactNode {
         : t("books.chapter.halfProduction");
   }
   return (
-    <Reveal as="tr" kind="fade" index={index} layout="position">
+    <Reveal
+      as="tr"
+      kind="fade"
+      index={index}
+      layout={index < STAGGER_LIMIT ? "position" : false}
+    >
       <th scope="row" className="px-2 py-3 font-medium text-ink">
         <span className="flex flex-col items-start gap-1">
           <span className="whitespace-nowrap">
@@ -47,40 +55,51 @@ export function WordRow({ word, index, onKnown }: WordRowProps): ReactNode {
         {word.count}
       </td>
       <td className="px-2 py-1 text-right">
-        {word.done ? (
-          <span className="mr-2 inline-flex items-center gap-2">
-            {word.strength !== null && (
-              <StrengthMark strength={word.strength} />
-            )}
-            <CircleCheck
-              role="img"
-              aria-label={t("books.chapter.done")}
-              className="size-4 text-accent-text"
-            />
-          </span>
-        ) : (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="px-2 text-ink-faint"
-            aria-label={t("books.chapter.know", { word: word.lemma })}
-            title={half}
-            icon={
-              word.half === null ? (
-                <Check aria-hidden className="size-4" />
-              ) : (
-                <CircleDashedCheck
-                  role="img"
-                  aria-label={half}
-                  className="size-4 text-accent-text"
-                />
-              )
-            }
-            onClick={() => {
-              onKnown(word, true);
-            }}
-          />
-        )}
+        <Presence swap>
+          {word.done ? (
+            <Reveal
+              key="done"
+              as="span"
+              kind="fade"
+              className="mr-2 inline-flex items-center gap-2"
+            >
+              {word.strength !== null && (
+                <StrengthMark strength={word.strength} />
+              )}
+              <CircleCheck
+                role="img"
+                aria-label={t("books.chapter.done")}
+                className="size-4 text-accent-text"
+              />
+            </Reveal>
+          ) : (
+            <Reveal key="open" as="span" kind="fade" className="inline-flex">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="px-2 text-ink-faint"
+                aria-label={t("books.chapter.know", { word: word.lemma })}
+                title={half}
+                icon={
+                  <Swap id={word.half === null ? "open" : "half"}>
+                    {word.half === null ? (
+                      <Check aria-hidden className="size-4" />
+                    ) : (
+                      <CircleDashedCheck
+                        role="img"
+                        aria-label={half}
+                        className="size-4 text-accent-text"
+                      />
+                    )}
+                  </Swap>
+                }
+                onClick={() => {
+                  onKnown(word, true);
+                }}
+              />
+            </Reveal>
+          )}
+        </Presence>
       </td>
     </Reveal>
   );

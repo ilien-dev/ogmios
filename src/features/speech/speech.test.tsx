@@ -1,14 +1,17 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { PresenceContext } from "motion/react";
+import type { ReactNode } from "react";
 import type { PracticeItem, SessionSetup } from "@shared/domain";
 import { SittingItem } from "@/features/books/SittingItem";
 import type { Checked } from "@/features/books/SittingItem";
 import { Conversation } from "@/features/conversation/Conversation";
 import { ReadAloud } from "@/features/settings/ReadAloud";
+import { setMockLatency } from "@/lib/ipcMock";
 import { mockSpoken, resetMockSpeech } from "@/lib/ipcMockSpeech";
 import { useMockBackend } from "@/test/mockBackend";
-import { SpeechProvider } from "./speech";
+import { SpeechProvider, useReadAloud, useSpeech } from "./speech";
 
 const SETUP: SessionSetup = {
   topic: "A small win at work",
@@ -175,6 +178,81 @@ describe("reading aloud, with the voice downloaded", () => {
     await user.click(heading);
     await waitFor(() => {
       expect(mockSpoken()).toEqual(["tumble"]);
+    });
+  });
+});
+
+function Reader({ text }: { text: string | null }): ReactNode {
+  useReadAloud(text);
+  return null;
+}
+
+function Speaking(): ReactNode {
+  return <output aria-label="speaking">{useSpeech().speaking}</output>;
+}
+
+const PRESENCE = {
+  id: "screen",
+  initial: false,
+  custom: undefined,
+  onExitComplete: () => null,
+  register: () => () => null,
+} as const;
+const STAYING = { ...PRESENCE, isPresent: true };
+const LEAVING = { ...PRESENCE, isPresent: false };
+
+/** A reader in a screen that is staying, or already on its way out. */
+function reader(
+  present: boolean,
+  text: string | null,
+  shown = true,
+): ReactNode {
+  return (
+    <SpeechProvider>
+      <Speaking />
+      <PresenceContext.Provider value={present ? STAYING : LEAVING}>
+        {shown && <Reader text={text} />}
+      </PresenceContext.Provider>
+    </SpeechProvider>
+  );
+}
+
+describe("reading aloud, on a screen that leaves", () => {
+  useMockBackend();
+  beforeEach(() => {
+    resetMockSpeech(true);
+  });
+
+  async function voiceLoaded(): Promise<void> {
+    await act(async () => {
+      await new Promise((settled) => {
+        setTimeout(settled, 0);
+      });
+    });
+  }
+
+  test("a reply that lands during the exit is not read over the next screen", async () => {
+    const { rerender } = render(reader(true, null));
+    await voiceLoaded();
+    rerender(reader(false, "A reply that came too late"));
+    await voiceLoaded();
+    expect(mockSpoken()).toEqual([]);
+  });
+
+  test("a screen that stays after all goes on reading, and stops on leaving", async () => {
+    setMockLatency(1);
+    const line = "A sentence long enough to still be heard at the end of this";
+    const { rerender } = render(reader(false, null));
+    await voiceLoaded();
+    rerender(reader(true, null));
+    rerender(reader(true, line));
+    await waitFor(() => {
+      expect(mockSpoken()).toEqual([line]);
+    });
+    expect(screen.getByLabelText("speaking")).toHaveTextContent(line);
+    rerender(reader(true, line, false));
+    await waitFor(() => {
+      expect(screen.getByLabelText("speaking")).toBeEmptyDOMElement();
     });
   });
 });

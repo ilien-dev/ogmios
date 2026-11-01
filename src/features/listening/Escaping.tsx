@@ -1,8 +1,9 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { ListeningState } from "@shared/listening";
-import { Reveal } from "@/components/motion/Reveal";
 import { Stagger } from "@/components/motion/Stagger";
+import { Reveal } from "@/components/motion/Reveal";
+import { Presence } from "@/components/motion/Presence";
 
 const CHIP = "rounded-full bg-raised px-3 py-1 text-sm text-ink-soft";
 
@@ -26,29 +27,31 @@ export function Escaping({ state }: { state: ListeningState }): ReactNode {
           ))}
         </Stagger>
       </div>
-      {state.reinforced.length > 0 && (
-        <div className="flex flex-col gap-3">
-          <h2 className="text-sm font-medium text-ink-faint">
-            {t("listening.reinforced.title")}
-          </h2>
-          <Stagger as="ul" className="flex flex-wrap gap-2">
-            {state.reinforced.map((word) => (
-              <Reveal
-                as="li"
-                key={word}
-                kind="scale"
-                className={CHIP}
-                lang="en"
-              >
-                <span className="font-medium text-ink">{word}</span>
-              </Reveal>
-            ))}
-          </Stagger>
-          <p className="text-sm text-ink-faint">
-            {t("listening.reinforced.hint")}
-          </p>
-        </div>
-      )}
+      <Presence>
+        {state.reinforced.length > 0 && (
+          <Reveal key="reinforced" className="flex flex-col gap-3">
+            <h2 className="text-sm font-medium text-ink-faint">
+              {t("listening.reinforced.title")}
+            </h2>
+            <Stagger as="ul" className="flex flex-wrap gap-2">
+              {state.reinforced.map((word) => (
+                <Reveal
+                  as="li"
+                  key={word}
+                  kind="scale"
+                  className={CHIP}
+                  lang="en"
+                >
+                  <span className="font-medium text-ink">{word}</span>
+                </Reveal>
+              ))}
+            </Stagger>
+            <p className="text-sm text-ink-faint">
+              {t("listening.reinforced.hint")}
+            </p>
+          </Reveal>
+        )}
+      </Presence>
     </section>
   );
 }

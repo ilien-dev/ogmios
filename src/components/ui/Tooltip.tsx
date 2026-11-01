@@ -6,7 +6,7 @@ import { cn } from "@/lib/cn";
 
 /** `className` and the rest go to what is hovered, not to the tooltip. */
 interface TooltipProps extends Omit<ComponentProps<"button">, "type"> {
-  /** What the tooltip says: a few words. */
+  /** What the tooltip says: a few words. Empty, there is no tooltip. */
   hint: string;
 }
 
@@ -28,6 +28,13 @@ export function Tooltip({
   const hide = (): void => {
     setOpen(false);
   };
+  if (hint === "") {
+    return (
+      <span className={className} lang={rest.lang}>
+        {children}
+      </span>
+    );
+  }
   return (
     <span className="relative inline-flex">
       <button

@@ -1,3 +1,6 @@
+import { Reveal } from "@/components/motion/Reveal";
+import { Swap } from "@/components/motion/Swap";
+import { Presence } from "@/components/motion/Presence";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -220,90 +223,110 @@ export function ConnectionPanel({
         ]}
       />
 
-      {settings.providerMode === "apiKey" ? (
-        hasKey ? (
-          <div className="flex items-center justify-between gap-4 rounded-md border border-line bg-raised px-4 py-3">
-            <p className="flex items-center gap-2 text-sm text-ink-soft">
-              <KeyRound aria-hidden className="size-4 text-accent-text" />
-              {t("connection.keyStored")}
-            </p>
-            <Button size="sm" variant="ghost" onClick={() => void clearKey()}>
-              {t("connection.removeKey")}
-            </Button>
-          </div>
-        ) : (
-          <div className="flex items-end gap-2">
-            <Field
-              id="api-key"
-              label={t("connection.apiKeyField")}
-              className="flex-1"
+      <Presence swap>
+        {settings.providerMode === "apiKey" ? (
+          hasKey ? (
+            <Reveal
+              key="hasKey"
+              className="flex items-center justify-between gap-4 rounded-md border border-line bg-raised px-4 py-3"
             >
-              <TextInput
-                id="api-key"
-                type="password"
-                autoComplete="off"
-                spellCheck={false}
-                placeholder={t("connection.apiKeyPlaceholder")}
-                value={key}
-                onChange={(event) => {
-                  setKey(event.target.value);
-                }}
-                onKeyDown={(event) => {
-                  // The panel sits inside onboarding's form: Enter saves the
-                  // key rather than moving on to the next step.
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    void submitKey();
-                  }
-                }}
-              />
-            </Field>
-            <Button
-              variant="primary"
-              className="h-11"
-              disabled={key.trim() === "" || savingKey}
-              onClick={() => void submitKey()}
-            >
-              {t("connection.saveKey")}
-            </Button>
-          </div>
-        )
-      ) : (
-        <div className="flex flex-col gap-3">
-          <Notice
-            icon={
-              <TriangleAlert aria-hidden className="size-4 text-accent-text" />
-            }
-          >
-            {t("connection.risk")}
-          </Notice>
-          <div className="flex flex-wrap items-center gap-3">
-            <Button
-              icon={
-                detect === "running" ? (
-                  <Spinner />
-                ) : (
-                  <Search aria-hidden className="size-4" />
-                )
-              }
-              disabled={detect === "running"}
-              onClick={() => void findClaude()}
-            >
-              {detect === "running"
-                ? t("connection.detecting")
-                : t("connection.detect")}
-            </Button>
-            {settings.claudePath !== null && (
-              <p className="min-w-0 truncate text-sm text-ink-soft">
-                {t("connection.found", { path: settings.claudePath })}
+              <p className="flex items-center gap-2 text-sm text-ink-soft">
+                <KeyRound aria-hidden className="size-4 text-accent-text" />
+                {t("connection.keyStored")}
               </p>
-            )}
-          </div>
-          {detect === "missing" && (
-            <Notice tone="danger">{t("connection.notFound")}</Notice>
-          )}
-        </div>
-      )}
+              <Button size="sm" variant="ghost" onClick={() => void clearKey()}>
+                {t("connection.removeKey")}
+              </Button>
+            </Reveal>
+          ) : (
+            <Reveal key="no-hasKey" className="flex items-end gap-2">
+              <Field
+                id="api-key"
+                label={t("connection.apiKeyField")}
+                className="flex-1"
+              >
+                <TextInput
+                  id="api-key"
+                  type="password"
+                  autoComplete="off"
+                  spellCheck={false}
+                  placeholder={t("connection.apiKeyPlaceholder")}
+                  value={key}
+                  onChange={(event) => {
+                    setKey(event.target.value);
+                  }}
+                  onKeyDown={(event) => {
+                    // The panel sits inside onboarding's form: Enter saves the
+                    // key rather than moving on to the next step.
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      void submitKey();
+                    }
+                  }}
+                />
+              </Field>
+              <Button
+                variant="primary"
+                className="h-11"
+                disabled={key.trim() === "" || savingKey}
+                onClick={() => void submitKey()}
+              >
+                {t("connection.saveKey")}
+              </Button>
+            </Reveal>
+          )
+        ) : (
+          <Reveal key="no-apiKey" className="flex flex-col gap-3">
+            <Notice
+              icon={
+                <TriangleAlert
+                  aria-hidden
+                  className="size-4 text-accent-text"
+                />
+              }
+            >
+              {t("connection.risk")}
+            </Notice>
+            <div className="flex flex-wrap items-center gap-3">
+              <Button
+                icon={
+                  <Swap id={detect === "running" ? "running" : "detect"}>
+                    {detect === "running" ? (
+                      <Spinner />
+                    ) : (
+                      <Search aria-hidden className="size-4" />
+                    )}
+                  </Swap>
+                }
+                disabled={detect === "running"}
+                onClick={() => void findClaude()}
+              >
+                {detect === "running"
+                  ? t("connection.detecting")
+                  : t("connection.detect")}
+              </Button>
+              <Presence>
+                {settings.claudePath !== null && (
+                  <Reveal
+                    key="claudePath"
+                    as="p"
+                    className="min-w-0 truncate text-sm text-ink-soft"
+                  >
+                    {t("connection.found", { path: settings.claudePath })}
+                  </Reveal>
+                )}
+              </Presence>
+            </div>
+            <Presence>
+              {detect === "missing" && (
+                <Notice key="missing" tone="danger">
+                  {t("connection.notFound")}
+                </Notice>
+              )}
+            </Presence>
+          </Reveal>
+        )}
+      </Presence>
 
       <Field
         id="model"
@@ -337,40 +360,57 @@ export function ConnectionPanel({
         </Select>
       </Field>
 
-      {efforts.length > 0 && (
-        <Field
-          id="effort"
-          label={t("connection.effort")}
-          hint={t("connection.effortHint")}
-        >
-          <Select
-            id="effort"
-            aria-describedby="effort-hint"
-            value={settings.effort ?? ""}
-            onChange={(event) => {
-              const chosen = event.target.value;
-              void update({
-                ...settings,
-                effort: efforts.find((level) => level === chosen) ?? null,
-              });
-            }}
-          >
-            <option value="">{t("connection.effortAuto")}</option>
-            {efforts.map((level) => (
-              <option key={level} value={level}>
-                {t(`connection.effortLevel.${level}`)}
-              </option>
-            ))}
-          </Select>
-        </Field>
-      )}
+      <Presence>
+        {efforts.length > 0 && (
+          <Reveal key="efforts">
+            <Field
+              id="effort"
+              label={t("connection.effort")}
+              hint={t("connection.effortHint")}
+            >
+              <Select
+                id="effort"
+                aria-describedby="effort-hint"
+                value={settings.effort ?? ""}
+                onChange={(event) => {
+                  const chosen = event.target.value;
+                  void update({
+                    ...settings,
+                    effort: efforts.find((level) => level === chosen) ?? null,
+                  });
+                }}
+              >
+                <option value="">{t("connection.effortAuto")}</option>
+                {efforts.map((level) => (
+                  <option key={level} value={level}>
+                    {t(`connection.effortLevel.${level}`)}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          </Reveal>
+        )}
+      </Presence>
 
       <div className="flex flex-col gap-3">
         <div>
           <Button
             disabled={!ready || check.state === "running"}
             onClick={() => void runCheck()}
-            icon={check.state === "running" ? <Spinner /> : undefined}
+            icon={
+              <Presence>
+                {check.state === "running" && (
+                  <Reveal
+                    key="running"
+                    as="span"
+                    kind="fade"
+                    className="inline-flex"
+                  >
+                    <Spinner />
+                  </Reveal>
+                )}
+              </Presence>
+            }
           >
             {check.state === "running"
               ? t("connection.checking")
@@ -378,24 +418,38 @@ export function ConnectionPanel({
           </Button>
         </div>
         <div aria-live="polite">
-          {check.state === "ok" && (
-            <p className="flex items-center gap-2 text-sm text-ink">
-              <CircleCheck aria-hidden className="size-4 text-accent-text" />
-              {t("connection.checkOk")}
-            </p>
-          )}
-          {check.state === "failed" && (
-            <p className="flex items-center gap-2 text-sm text-danger">
-              <CircleAlert aria-hidden className="size-4" />
-              {t("connection.checkFailed", { message: check.message })}
-            </p>
-          )}
+          <Presence>
+            {check.state === "ok" && (
+              <Reveal
+                key="ok"
+                as="p"
+                className="flex items-center gap-2 text-sm text-ink"
+              >
+                <CircleCheck aria-hidden className="size-4 text-accent-text" />
+                {t("connection.checkOk")}
+              </Reveal>
+            )}
+          </Presence>
+          <Presence>
+            {check.state === "failed" && (
+              <Reveal
+                key="failed"
+                as="p"
+                className="flex items-center gap-2 text-sm text-danger"
+              >
+                <CircleAlert aria-hidden className="size-4" />
+                {t("connection.checkFailed", { message: check.message })}
+              </Reveal>
+            )}
+          </Presence>
         </div>
-        {failure !== null && (
-          <Notice tone="danger">
-            {t("common.error", { message: failure })}
-          </Notice>
-        )}
+        <Presence>
+          {failure !== null && (
+            <Notice key="failure" tone="danger">
+              {t("common.error", { message: failure })}
+            </Notice>
+          )}
+        </Presence>
       </div>
     </div>
   );

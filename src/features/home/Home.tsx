@@ -4,8 +4,6 @@ import { useTranslation } from "react-i18next";
 import { Settings } from "lucide-react";
 import type { HomeState, Streak } from "@shared/domain";
 import { CountUp } from "@/components/motion/CountUp";
-import { Presence } from "@/components/motion/Presence";
-import { Reveal } from "@/components/motion/Reveal";
 import { Stagger } from "@/components/motion/Stagger";
 import { Logo } from "@/components/ui/Logo";
 import { Notice } from "@/components/ui/Notice";
@@ -20,6 +18,8 @@ import { homeState } from "@/lib/ipc";
 import { HomeCenter } from "./HomeCenter";
 import { HomeColumn } from "./HomeColumn";
 import type { EntryData } from "./HomeColumn";
+import { Reveal } from "@/components/motion/Reveal";
+import { Presence } from "@/components/motion/Presence";
 
 function StreakLine({ streak }: { streak: Streak }): ReactNode {
   const { t } = useTranslation();
@@ -180,13 +180,17 @@ export function Home({ navigate, current, counts }: HomeProps): ReactNode {
           kind="fade"
           className="grid h-full place-items-center"
         >
-          {failure === null ? (
-            <Spinner />
-          ) : (
-            <Notice tone="danger">
-              {t("common.error", { message: failure })}
-            </Notice>
-          )}
+          <Presence swap>
+            {failure === null ? (
+              <Reveal key="no-failure" as="span" kind="fade">
+                <Spinner />
+              </Reveal>
+            ) : (
+              <Notice key="failure" tone="danger">
+                {t("common.error", { message: failure })}
+              </Notice>
+            )}
+          </Presence>
         </Reveal>
       ) : (
         <Reveal

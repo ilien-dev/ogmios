@@ -1,3 +1,4 @@
+import { Presence } from "@/components/motion/Presence";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { ArrowDownRight, ArrowUpRight, Minus } from "lucide-react";
@@ -83,28 +84,34 @@ export function MetricsCard({
               <dd className="text-title font-semibold text-ink tabular-nums">
                 {show(key, now, digits)}
               </dd>
-              {before !== null && (
-                <dd
-                  className={cn(
-                    "flex items-center gap-1 text-sm",
-                    better === null
-                      ? "text-ink-faint"
-                      : better
-                        ? "text-correct"
-                        : "text-partial",
-                  )}
-                >
-                  <Icon aria-hidden className="size-4" />
-                  {flat
-                    ? t("report.metrics.same")
-                    : t(
-                        delta > 0 ? "report.metrics.up" : "report.metrics.down",
-                        {
-                          previous: show(key, before, digits),
-                        },
-                      )}
-                </dd>
-              )}
+              <Presence>
+                {before !== null && (
+                  <Reveal
+                    key="before"
+                    as="dd"
+                    className={cn(
+                      "flex items-center gap-1 text-sm",
+                      better === null
+                        ? "text-ink-faint"
+                        : better
+                          ? "text-correct"
+                          : "text-partial",
+                    )}
+                  >
+                    <Icon aria-hidden className="size-4" />
+                    {flat
+                      ? t("report.metrics.same")
+                      : t(
+                          delta > 0
+                            ? "report.metrics.up"
+                            : "report.metrics.down",
+                          {
+                            previous: show(key, before, digits),
+                          },
+                        )}
+                  </Reveal>
+                )}
+              </Presence>
             </Reveal>
           );
         })}

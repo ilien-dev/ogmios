@@ -1,3 +1,4 @@
+import { Presence } from "@/components/motion/Presence";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Flag } from "lucide-react";
@@ -24,16 +25,20 @@ export function ChallengeCard({
         <Flag aria-hidden className="mt-1.5 size-5 shrink-0 text-accent-text" />
         {card.text}
       </Reveal>
-      {card.previousAchieved !== null && (
-        <VerdictLine
-          tone={card.previousAchieved ? "right" : "partial"}
-          className="font-normal"
-        >
-          {card.previousAchieved
-            ? t("report.challenge.achieved")
-            : t("report.challenge.missed")}
-        </VerdictLine>
-      )}
+      <Presence>
+        {card.previousAchieved !== null && (
+          <Reveal key="previousAchieved">
+            <VerdictLine
+              tone={card.previousAchieved ? "right" : "partial"}
+              className="font-normal"
+            >
+              {card.previousAchieved
+                ? t("report.challenge.achieved")
+                : t("report.challenge.missed")}
+            </VerdictLine>
+          </Reveal>
+        )}
+      </Presence>
     </Stagger>
   );
 }

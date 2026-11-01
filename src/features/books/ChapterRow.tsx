@@ -75,20 +75,25 @@ export function ChapterRow({
                 >
                   {name}
                 </button>
-                {chapter.readiness !== null && (
-                  <span
-                    className={cn(
-                      "shrink-0 text-sm tabular-nums",
-                      chapter.readiness === READY
-                        ? "font-medium text-accent-text"
-                        : "text-ink-soft",
-                    )}
-                  >
-                    {chapter.readiness === READY
-                      ? t("books.ready")
-                      : t("books.readiness", { percent: chapter.readiness })}
-                  </span>
-                )}
+                <Presence>
+                  {chapter.readiness !== null && (
+                    <Reveal
+                      key="readiness"
+                      as="span"
+                      kind="fade"
+                      className={cn(
+                        "shrink-0 text-sm tabular-nums",
+                        chapter.readiness === READY
+                          ? "font-medium text-accent-text"
+                          : "text-ink-soft",
+                      )}
+                    >
+                      {chapter.readiness === READY
+                        ? t("books.ready")
+                        : t("books.readiness", { percent: chapter.readiness })}
+                    </Reveal>
+                  )}
+                </Presence>
                 <span className="shrink-0 text-sm text-ink-faint tabular-nums">
                   {t("books.wordCount", { count: chapter.words })}
                 </span>

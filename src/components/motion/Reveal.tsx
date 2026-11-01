@@ -20,9 +20,15 @@ type RevealTag =
   | "main"
   | "aside"
   | "header"
-  | "nav";
+  | "nav"
+  | "ul"
+  | "ol"
+  | "dd"
+  | "blockquote"
+  | "mark";
 
-interface RevealProps extends HTMLMotionProps<"div"> {
+interface RevealProps extends Omit<HTMLMotionProps<"div">, "children"> {
+  children?: ReactNode;
   as?: RevealTag;
   kind?: RevealKind;
   /** Position in a cascade; inside a `Stagger`, it comes from there. */
@@ -33,6 +39,7 @@ export function Reveal({
   as = "div",
   kind = "rise",
   index,
+  children,
   ...rest
 }: RevealProps): ReactNode {
   const inherited = useContext(StaggerIndex);
@@ -55,6 +62,9 @@ export function Reveal({
       animate="shown"
       exit="gone"
       inert={!isPresent}
-    />
+    >
+      {/* What comes in later inside this one owes nothing to its place here. */}
+      <StaggerIndex.Provider value={0}>{children}</StaggerIndex.Provider>
+    </Tag>
   );
 }

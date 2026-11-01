@@ -3,8 +3,6 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { StructuresState } from "@shared/structures";
 import type { Navigate } from "@/app/routes";
-import { Presence } from "@/components/motion/Presence";
-import { Reveal } from "@/components/motion/Reveal";
 import { Stagger } from "@/components/motion/Stagger";
 import { HubCard, HubGrid } from "@/components/ui/HubCard";
 import { Orb } from "@/components/ui/Orb";
@@ -12,6 +10,8 @@ import { SittingWait } from "@/features/books/SittingParts";
 import { chapterName } from "@/features/books/chapterName";
 import { errorMessage } from "@/lib/errors";
 import { structuresState } from "@/lib/ipc";
+import { Reveal } from "@/components/motion/Reveal";
+import { Presence } from "@/components/motion/Presence";
 
 interface StructuresHubProps {
   navigate: Navigate;
@@ -45,42 +45,46 @@ function Cards({ state, navigate }: CardsProps): ReactNode {
           }}
         />
       </Reveal>
-      {chapter !== null && (
-        <Reveal>
-          <HubCard
-            title={t("structures.hub.chapterTitle")}
-            text={t("structures.hub.chapterText")}
-            status={`${chapter.bookTitle} · ${chapterName(chapter.chapter, t)}`}
-            onClick={() => {
-              navigate({ name: "structures", chapterId: chapter.chapter.id });
-            }}
-          />
-        </Reveal>
-      )}
-      {only !== undefined && (
-        <Reveal>
-          <HubCard
-            title={t("structures.hub.pausedTitle")}
-            text={t("structures.hub.pausedText")}
-            status={
-              paused.length === 1
-                ? t("structures.hub.pausedOne", {
-                    done: only.done,
-                    total: only.total,
-                  })
-                : t("structures.hub.pausedMany", { count: paused.length })
-            }
-            due
-            onClick={() => {
-              navigate(
+      <Presence>
+        {chapter !== null && (
+          <Reveal key="chapter">
+            <HubCard
+              title={t("structures.hub.chapterTitle")}
+              text={t("structures.hub.chapterText")}
+              status={`${chapter.bookTitle} · ${chapterName(chapter.chapter, t)}`}
+              onClick={() => {
+                navigate({ name: "structures", chapterId: chapter.chapter.id });
+              }}
+            />
+          </Reveal>
+        )}
+      </Presence>
+      <Presence>
+        {only !== undefined && (
+          <Reveal key="only">
+            <HubCard
+              title={t("structures.hub.pausedTitle")}
+              text={t("structures.hub.pausedText")}
+              status={
                 paused.length === 1
-                  ? { name: "structures", running: only.id }
-                  : { name: "structures", catalog: true },
-              );
-            }}
-          />
-        </Reveal>
-      )}
+                  ? t("structures.hub.pausedOne", {
+                      done: only.done,
+                      total: only.total,
+                    })
+                  : t("structures.hub.pausedMany", { count: paused.length })
+              }
+              due
+              onClick={() => {
+                navigate(
+                  paused.length === 1
+                    ? { name: "structures", running: only.id }
+                    : { name: "structures", catalog: true },
+                );
+              }}
+            />
+          </Reveal>
+        )}
+      </Presence>
     </HubGrid>
   );
 }

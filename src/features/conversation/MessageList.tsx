@@ -73,21 +73,27 @@ function LiveText({
   first: boolean;
 }): ReactNode {
   const { t } = useTranslation();
-  if (text === "") {
-    return (
-      <span className="text-base text-ink-faint motion-safe:animate-pulse-soft">
-        {first ? t("conversation.starting") : t("conversation.writing")}
-      </span>
-    );
-  }
   return (
-    <>
-      {text}
-      <span
-        aria-hidden
-        className="ml-0.5 inline-block h-5 w-0.5 translate-y-1 bg-partner motion-safe:animate-caret"
-      />
-    </>
+    <Presence swap>
+      {text === "" ? (
+        <Reveal
+          key="waiting"
+          as="span"
+          kind="fade"
+          className="text-base text-ink-faint motion-safe:animate-pulse-soft"
+        >
+          {first ? t("conversation.starting") : t("conversation.writing")}
+        </Reveal>
+      ) : (
+        <Reveal key="writing" as="span" kind="fade">
+          {text}
+          <span
+            aria-hidden
+            className="ml-0.5 inline-block h-5 w-0.5 translate-y-1 bg-partner motion-safe:animate-caret"
+          />
+        </Reveal>
+      )}
+    </Presence>
   );
 }
 
@@ -164,14 +170,20 @@ export function MessageList({
                       </>
                     )}
                   </p>
-                  {line.message !== null &&
-                    line.message === last &&
-                    streaming === null &&
-                    lengthHint !== "" && (
-                      <p className="text-xs text-ink-soft">
-                        {t("conversation.app", { text: lengthHint })}
-                      </p>
-                    )}
+                  <Presence>
+                    {line.message !== null &&
+                      line.message === last &&
+                      streaming === null &&
+                      lengthHint !== "" && (
+                        <Reveal
+                          key="lengthHint"
+                          as="p"
+                          className="text-xs text-ink-soft"
+                        >
+                          {t("conversation.app", { text: lengthHint })}
+                        </Reveal>
+                      )}
+                  </Presence>
                 </div>
               </Reveal>
             ),

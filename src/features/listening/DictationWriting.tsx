@@ -2,8 +2,6 @@ import { useLayoutEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { DictationItem, DictationResult } from "@shared/listening";
-import { Presence } from "@/components/motion/Presence";
-import { Reveal } from "@/components/motion/Reveal";
 import { Button } from "@/components/ui/Button";
 import { TextArea } from "@/components/ui/TextArea";
 import { GRADE_TEXT, VerdictLine } from "@/components/ui/Verdict";
@@ -11,6 +9,8 @@ import { Key } from "@/features/books/TriageRun";
 import { SpeakButton } from "@/features/speech/SpeakButton";
 import { cn } from "@/lib/cn";
 import { VERDICT_GRADE } from "@/lib/grade";
+import { Reveal } from "@/components/motion/Reveal";
+import { Presence } from "@/components/motion/Presence";
 
 interface DictationWritingProps {
   item: DictationItem;
@@ -68,11 +68,17 @@ export function DictationWriting({
                   onCheck(text);
                 }}
               >
-                {item.retry && (
-                  <p className="text-sm text-ink-soft">
-                    {t("listening.run.retry")}
-                  </p>
-                )}
+                <Presence>
+                  {item.retry && (
+                    <Reveal
+                      key="retry"
+                      as="p"
+                      className="text-sm text-ink-soft"
+                    >
+                      {t("listening.run.retry")}
+                    </Reveal>
+                  )}
+                </Presence>
                 <TextArea
                   ref={field}
                   aria-label={t("listening.run.field")}
@@ -136,18 +142,31 @@ export function DictationWriting({
                     total: result.words.length,
                   })}
                 </VerdictLine>
-                {sent !== "" && (
-                  <p className="text-ink-soft" lang="en">
-                    {sent}
-                  </p>
-                )}
-                {result.verdict === "partial" && (
-                  <p className="text-sm text-partial">
-                    {result.slowed
-                      ? t("listening.run.why.slowed")
-                      : t("listening.run.why.listens")}
-                  </p>
-                )}
+                <Presence>
+                  {sent !== "" && (
+                    <Reveal
+                      key="sent"
+                      as="p"
+                      className="text-ink-soft"
+                      lang="en"
+                    >
+                      {sent}
+                    </Reveal>
+                  )}
+                </Presence>
+                <Presence>
+                  {result.verdict === "partial" && (
+                    <Reveal
+                      key="partial"
+                      as="p"
+                      className="text-sm text-partial"
+                    >
+                      {result.slowed
+                        ? t("listening.run.why.slowed")
+                        : t("listening.run.why.listens")}
+                    </Reveal>
+                  )}
+                </Presence>
               </div>
               <div className="flex flex-col gap-1">
                 <p className="text-sm text-ink-faint">

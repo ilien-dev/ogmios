@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Swap } from "@/components/motion/Swap";
 import { useTranslation } from "react-i18next";
 import { Eye, EyeOff, Pause, Play, SkipBack, SkipForward } from "lucide-react";
 import type { Pace } from "@shared/listening";
@@ -49,11 +50,13 @@ export function ListenPlayer({
           playing ? t("listening.reading.pause") : t("listening.reading.play")
         }
         icon={
-          playing ? (
-            <Pause aria-hidden className="size-4" />
-          ) : (
-            <Play aria-hidden className="size-4" />
-          )
+          <Swap id={playing ? "pause" : "play"}>
+            {playing ? (
+              <Pause aria-hidden className="size-4" />
+            ) : (
+              <Play aria-hidden className="size-4" />
+            )}
+          </Swap>
         }
         disabled={total === 0}
         onClick={playing ? onPause : onPlay}
@@ -82,11 +85,13 @@ export function ListenPlayer({
         variant="ghost"
         aria-pressed={hidden}
         icon={
-          hidden ? (
-            <Eye aria-hidden className="size-4" />
-          ) : (
-            <EyeOff aria-hidden className="size-4" />
-          )
+          <Swap id={hidden ? "show" : "hide"}>
+            {hidden ? (
+              <Eye aria-hidden className="size-4" />
+            ) : (
+              <EyeOff aria-hidden className="size-4" />
+            )}
+          </Swap>
         }
         onClick={() => {
           onHidden(!hidden);

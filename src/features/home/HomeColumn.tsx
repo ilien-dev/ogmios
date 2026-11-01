@@ -1,12 +1,12 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Presence } from "@/components/motion/Presence";
-import { Reveal } from "@/components/motion/Reveal";
 import { Tilt } from "@/components/motion/Tilt";
 import { Orb } from "@/components/ui/Orb";
 import type { Entry, Place } from "@/app/places";
 import type { Section } from "@/app/routes";
 import { cn } from "@/lib/cn";
+import { Reveal } from "@/components/motion/Reveal";
+import { Presence } from "@/components/motion/Presence";
 
 const ICON = {
   conversation: "bg-you-soft text-you",
@@ -98,7 +98,13 @@ export function HomeColumn({
       className={cn("flex min-w-0 flex-col gap-2", className)}
     >
       <div className="flex min-h-8 items-center gap-2 pl-1">
-        {section === "book" && <Orb size="xs" section="book" />}
+        <Presence>
+          {section === "book" && (
+            <Reveal key="book">
+              <Orb size="xs" section="book" />
+            </Reveal>
+          )}
+        </Presence>
         <h2
           id={titleId}
           className={cn("text-sm font-semibold", TITLE[section])}

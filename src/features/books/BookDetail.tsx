@@ -78,9 +78,17 @@ export function BookDetail({
               <h1 className="font-display text-title font-light text-ink">
                 {book.title}
               </h1>
-              {book.author !== null && (
-                <p className="text-lead text-ink-soft">{book.author}</p>
-              )}
+              <Presence>
+                {book.author !== null && (
+                  <Reveal
+                    key="author"
+                    as="p"
+                    className="text-lead text-ink-soft"
+                  >
+                    {book.author}
+                  </Reveal>
+                )}
+              </Presence>
             </div>
           </div>
         </Reveal>

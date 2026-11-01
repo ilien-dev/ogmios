@@ -90,20 +90,24 @@ export function AttemptRow({
               kind="fade"
               className="flex flex-wrap items-center gap-2"
             >
-              {attempt.finished ? (
-                <Button size="sm" onClick={onOpen}>
-                  {t("books.translate.view")}
-                </Button>
-              ) : (
-                <>
-                  <Button size="sm" variant="primaryBook" onClick={onOpen}>
-                    {t("books.translate.continue")}
-                  </Button>
-                  <Button size="sm" onClick={onEnd}>
-                    {t("books.translate.end")}
-                  </Button>
-                </>
-              )}
+              <Presence swap>
+                {attempt.finished ? (
+                  <Reveal key="finished" as="span" kind="fade">
+                    <Button size="sm" onClick={onOpen}>
+                      {t("books.translate.view")}
+                    </Button>
+                  </Reveal>
+                ) : (
+                  <Reveal key="no-finished">
+                    <Button size="sm" variant="primaryBook" onClick={onOpen}>
+                      {t("books.translate.continue")}
+                    </Button>
+                    <Button size="sm" onClick={onEnd}>
+                      {t("books.translate.end")}
+                    </Button>
+                  </Reveal>
+                )}
+              </Presence>
               <button
                 type="button"
                 aria-label={t("books.translate.delete")}

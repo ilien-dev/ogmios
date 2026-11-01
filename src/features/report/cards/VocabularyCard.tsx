@@ -1,3 +1,4 @@
+import { Presence } from "@/components/motion/Presence";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Reveal } from "@/components/motion/Reveal";
@@ -26,12 +27,20 @@ export function VocabularyCard({
             className="flex flex-col gap-1 rounded-lg bg-raised px-5 py-4"
           >
             <p className="text-lead font-medium text-ink">{item.english}</p>
-            {item.asked !== null && (
-              <p className="text-sm text-ink-faint">
-                {t("report.vocabulary.asked", { text: item.asked })}
-              </p>
-            )}
-            {item.note !== null && <p className="text-ink-soft">{item.note}</p>}
+            <Presence>
+              {item.asked !== null && (
+                <Reveal key="asked" as="p" className="text-sm text-ink-faint">
+                  {t("report.vocabulary.asked", { text: item.asked })}
+                </Reveal>
+              )}
+            </Presence>
+            <Presence>
+              {item.note !== null && (
+                <Reveal key="note" as="p" className="text-ink-soft">
+                  {item.note}
+                </Reveal>
+              )}
+            </Presence>
           </Reveal>
         ))}
       </Stagger>

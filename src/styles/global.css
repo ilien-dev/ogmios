@@ -54,12 +54,9 @@
   --color-partner: #5b21b6;
   --color-partner-soft: #ece9fb;
   --color-partner-line: #d4cef4;
-  --color-partner-glow: #cfc6f6;
   --color-book: #a3540f;
   --color-book-soft: #fcebd8;
   --color-book-ink: #5a3410;
-  --color-hero-glow: #8eddd1;
-  --color-hero-mid: #cdede8;
   /* The logo, the same in both themes: dark never redefines these. */
   --color-logo: #0f766e;
   --color-logo-first: #ffffff;
@@ -129,10 +126,6 @@
   /* How long the colours take to cross when the theme changes. */
   --duration-theme: 300ms;
 
-  --animate-rise: rise 420ms var(--ease-out-expo) both;
-  --animate-enter: enter 480ms var(--ease-out-expo) both;
-  --animate-lift: lift 320ms var(--ease-out-expo) both;
-  --animate-fade: fade 300ms var(--ease-out-expo) both;
   --animate-point: point 900ms var(--ease-out-expo) both;
   --animate-caret: caret 1s steps(2, start) infinite;
   --animate-pulse-soft: pulse-soft 1.6s ease-in-out infinite;
@@ -140,45 +133,6 @@
   --animate-orb-spin: orb-spin 6s linear infinite;
   --animate-orb-pulse: orb-pulse 1.6s ease-in-out infinite;
 
-  @keyframes rise {
-    from {
-      opacity: 0;
-      transform: translateY(0.5rem);
-    }
-    to {
-      opacity: 1;
-      transform: none;
-    }
-  }
-  /* A paragraph coming in from below, and one leaving upwards. */
-  @keyframes enter {
-    from {
-      opacity: 0;
-      transform: translateY(2.5rem);
-    }
-    to {
-      opacity: 1;
-      transform: none;
-    }
-  }
-  @keyframes lift {
-    from {
-      opacity: 1;
-      transform: none;
-    }
-    to {
-      opacity: 0;
-      transform: translateY(-2.5rem);
-    }
-  }
-  @keyframes fade {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
-  }
   /* What an answer should have been, pointed out: it swells once. */
   @keyframes point {
     0% {
@@ -261,44 +215,6 @@
     scale 120ms var(--ease-out-expo);
 }
 
-/* The panel of today's topic: a teal light from its top right corner. */
-@utility bg-hero {
-  background: radial-gradient(
-    120% 170% at 100% 0%,
-    var(--color-hero-glow) 0%,
-    var(--color-hero-mid) 40%,
-    var(--color-surface) 75%
-  );
-}
-
-/* What the partner proposes, in a violet light of its own. */
-@utility bg-partner-panel {
-  background: radial-gradient(
-    130% 170% at 100% 0%,
-    var(--color-partner-glow) 0%,
-    var(--color-partner-soft) 45%,
-    var(--color-surface) 85%
-  );
-}
-
-/* A header where the learner is at work: a faint teal from its top left. */
-@utility bg-glow {
-  background: radial-gradient(
-    60% 220% at 0% 0%,
-    var(--color-accent-soft) 0%,
-    transparent 70%
-  );
-}
-
-/* The thin line under a conversation's header: its two voices. */
-@utility bg-voices {
-  background: linear-gradient(
-    90deg,
-    var(--color-partner) 30%,
-    var(--color-you) 70%
-  );
-}
-
 @layer base {
   :root {
     color-scheme: light;
@@ -327,12 +243,9 @@
     --color-partner: #c4b5fd;
     --color-partner-soft: #26244a;
     --color-partner-line: #3f3b72;
-    --color-partner-glow: #3a2f7a;
     --color-book: #f2be8a;
     --color-book-soft: #3c2a1a;
     --color-book-ink: #f6ddbf;
-    --color-hero-glow: #0f5f57;
-    --color-hero-mid: #0b2b28;
     --color-danger: oklch(0.74 0.14 25);
     --color-danger-soft: oklch(0.7 0.15 25 / 0.14);
     --color-correct: oklch(0.78 0.15 150);

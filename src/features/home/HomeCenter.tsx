@@ -4,13 +4,13 @@ import { useTranslation } from "react-i18next";
 import { History, Mic, Shuffle, SlidersHorizontal } from "lucide-react";
 import type { HomeState, SessionSetup } from "@shared/domain";
 import { Magnetic } from "@/components/motion/Magnetic";
-import { Presence } from "@/components/motion/Presence";
-import { Reveal } from "@/components/motion/Reveal";
 import { Button } from "@/components/ui/Button";
 import { Orb } from "@/components/ui/Orb";
 import type { Navigate } from "@/app/routes";
 import { useWideHome } from "./homeLayout";
 import { TodayLine } from "./TodayLine";
+import { Reveal } from "@/components/motion/Reveal";
+import { Presence } from "@/components/motion/Presence";
 
 function quickSetup(home: HomeState, topic: string): SessionSetup {
   const last = home.lastSetup;
@@ -82,12 +82,18 @@ export function HomeCenter({
             </Reveal>
           </Presence>
         </div>
-        {focus !== null && (
-          <p className="max-w-prose text-sm text-balance text-ink-soft">
-            {t("home.focusLead")}{" "}
-            <span className="font-medium text-ink">{focus.description}</span>
-          </p>
-        )}
+        <Presence>
+          {focus !== null && (
+            <Reveal
+              key="focus"
+              as="p"
+              className="max-w-prose text-sm text-balance text-ink-soft"
+            >
+              {t("home.focusLead")}{" "}
+              <span className="font-medium text-ink">{focus.description}</span>
+            </Reveal>
+          )}
+        </Presence>
         <div className="flex flex-wrap items-center justify-center gap-2 nav:flex-col">
           <Magnetic>
             <Button
@@ -106,16 +112,20 @@ export function HomeCenter({
             </Button>
           </Magnetic>
           <div className="flex flex-wrap items-center justify-center gap-2">
-            {topics.length > 1 && (
-              <Button
-                icon={<Shuffle aria-hidden className="size-4" />}
-                onClick={() => {
-                  setTopicIndex((held) => held + 1);
-                }}
-              >
-                {t("home.anotherTopic")}
-              </Button>
-            )}
+            <Presence>
+              {topics.length > 1 && (
+                <Reveal key="topics" as="span" kind="fade">
+                  <Button
+                    icon={<Shuffle aria-hidden className="size-4" />}
+                    onClick={() => {
+                      setTopicIndex((held) => held + 1);
+                    }}
+                  >
+                    {t("home.anotherTopic")}
+                  </Button>
+                </Reveal>
+              )}
+            </Presence>
             <Button
               icon={<SlidersHorizontal aria-hidden className="size-4" />}
               onClick={() => {
@@ -124,22 +134,26 @@ export function HomeCenter({
             >
               {t("home.customize")}
             </Button>
-            {continueTopic !== null && (
-              <Button
-                icon={<History aria-hidden className="size-4" />}
-                onClick={() => {
-                  navigate({
-                    name: "conversation",
-                    setup: {
-                      ...quickSetup(home, continueTopic),
-                      continuePrevious: true,
-                    },
-                  });
-                }}
-              >
-                {t("home.continueLast")}
-              </Button>
-            )}
+            <Presence>
+              {continueTopic !== null && (
+                <Reveal key="continueTopic" as="span" kind="fade">
+                  <Button
+                    icon={<History aria-hidden className="size-4" />}
+                    onClick={() => {
+                      navigate({
+                        name: "conversation",
+                        setup: {
+                          ...quickSetup(home, continueTopic),
+                          continuePrevious: true,
+                        },
+                      });
+                    }}
+                  >
+                    {t("home.continueLast")}
+                  </Button>
+                </Reveal>
+              )}
+            </Presence>
           </div>
         </div>
         <TodayLine home={home} topic={topic} navigate={navigate} />

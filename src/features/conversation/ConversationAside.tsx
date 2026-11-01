@@ -72,19 +72,24 @@ export function ConversationAside({
               }
             />
           </p>
-          {target !== null && (
-            <span
-              aria-hidden
-              className="h-1 w-20 overflow-hidden rounded-full bg-raised"
-            >
-              <span
-                className="block h-full origin-left rounded-full bg-you transition-transform duration-500 ease-out-expo"
-                style={{
-                  transform: `scaleX(${Math.min(1, minutes / target)})`,
-                }}
-              />
-            </span>
-          )}
+          <Presence>
+            {target !== null && (
+              <Reveal
+                key="target"
+                as="span"
+                kind="fade"
+                aria-hidden
+                className="h-1 w-20 overflow-hidden rounded-full bg-raised"
+              >
+                <span
+                  className="block h-full origin-left rounded-full bg-you transition-transform duration-500 ease-out-expo"
+                  style={{
+                    transform: `scaleX(${Math.min(1, minutes / target)})`,
+                  }}
+                />
+              </Reveal>
+            )}
+          </Presence>
         </div>
         <div className="relative min-h-10 max-w-60">
           <Presence swap>

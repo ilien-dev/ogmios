@@ -7,7 +7,6 @@ import { structuresEn } from "./structures.en";
  */
 export const en = {
   app: {
-    name: "Ogmios",
     loading: "Opening Ogmios…",
     loadFailed: "Ogmios couldn't start: {{message}}",
   },
@@ -238,7 +237,6 @@ export const en = {
     inUse: "In use",
     languages: "Languages: {{list}}",
     textOnly: "Text only for now",
-    textOnlyChosen: "Text only. You can add voice later in Settings.",
     unavailable:
       "Voice input isn't available on this system yet. Typing works just as well.",
     progressLabel: "Download progress for {{name}}",
@@ -313,7 +311,6 @@ export const en = {
   conversation: {
     label: "Conversation",
     chat: "Messages",
-    topic: "Topic: {{topic}}",
     partner: "Partner",
     you: "You",
     ai: "AI",
@@ -343,11 +340,9 @@ export const en = {
     help: "How do I say…?",
     helpField: "Write it in your language",
     helpAsk: "Show options",
-    helpAsking: "Looking…",
     helpEmpty: "Nothing came back. Try other words.",
     insert: "Insert",
     end: "End",
-    ending: "Ending…",
     speech: "{{spoken}} of {{target}} min spoken",
     speechNoTarget: "{{spoken}} min spoken",
     targetReached: "You reached your goal. Keep going or see feedback?",
@@ -802,7 +797,6 @@ export const en = {
     deleteConfirm:
       "Delete this conversation? It will no longer count towards your progress.",
     deleteYes: "Delete",
-    back: "Back to progress",
   },
   settings: {
     title: "Settings",

@@ -1,3 +1,5 @@
+import { Presence } from "@/components/motion/Presence";
+import { Swap } from "@/components/motion/Swap";
 import { useIsPresent } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import type { KeyboardEvent, ReactNode, SyntheticEvent } from "react";
@@ -105,24 +107,34 @@ export function ReviewState({
   onReviewAgain,
 }: ReviewStateProps): ReactNode {
   const { t } = useTranslation();
-  if (review !== null) {
-    return <Score score={review.score} />;
-  }
-  if (failure === null) {
+  const view = (): ReactNode => {
+    if (review !== null) {
+      return <Score score={review.score} />;
+    }
+    if (failure === null) {
+      return (
+        <span className="flex items-center gap-2 text-sm text-ink-faint">
+          <Spinner />
+          {t("books.translate.reviewing")}
+        </span>
+      );
+    }
     return (
-      <span className="flex items-center gap-2 text-sm text-ink-faint">
-        <Spinner />
-        {t("books.translate.reviewing")}
+      <span className="flex flex-col items-start gap-2 text-sm text-ink-faint">
+        {t("books.translate.reviewFailed", { message: failure })}
+        <Button size="sm" onClick={onReviewAgain}>
+          {t("common.retry")}
+        </Button>
       </span>
     );
-  }
+  };
+
   return (
-    <span className="flex flex-col items-start gap-2 text-sm text-ink-faint">
-      {t("books.translate.reviewFailed", { message: failure })}
-      <Button size="sm" onClick={onReviewAgain}>
-        {t("common.retry")}
-      </Button>
-    </span>
+    <Swap
+      id={review === null ? (failure === null ? "waiting" : "failed") : "score"}
+    >
+      {view()}
+    </Swap>
   );
 }
 
@@ -331,11 +343,13 @@ export function WritingRow({
       className={cn(ROW, "rounded-xl border-b-0 bg-surface px-6 shadow-card")}
     >
       <div className="flex min-w-0 flex-col gap-3">
-        {before.length > 0 && (
-          <p className={`${PROSE} text-ink`}>
-            {before.map((text, offset) => rewrite(offset, text))}
-          </p>
-        )}
+        <Presence>
+          {before.length > 0 && (
+            <Reveal key="before" as="p" className={`${PROSE} text-ink`}>
+              {before.map((text, offset) => rewrite(offset, text))}
+            </Reveal>
+          )}
+        </Presence>
         <form onSubmit={onSubmit} className="flex max-w-prose flex-col gap-2">
           <TextArea
             ref={field}
@@ -362,11 +376,13 @@ export function WritingRow({
             </Button>
           </div>
         </form>
-        {after.length > 0 && (
-          <p className={`${PROSE} text-ink`}>
-            {after.map((text, offset) => rewrite(at + 1 + offset, text))}
-          </p>
-        )}
+        <Presence>
+          {after.length > 0 && (
+            <Reveal key="after" as="p" className={`${PROSE} text-ink`}>
+              {after.map((text, offset) => rewrite(at + 1 + offset, text))}
+            </Reveal>
+          )}
+        </Presence>
       </div>
       <p className={`${PROSE} min-w-0 text-ink`}>
         {source.map((text, index) => {
@@ -377,19 +393,30 @@ export function WritingRow({
           // The sentences of a paragraph never change places.
           return (
             <span key={index}>
-              {index === at ? (
-                <mark className={cn(MARKED, "bg-accent/40 text-ink")}>
-                  {sentence}
-                </mark>
-              ) : (
-                <span
-                  className={
-                    written ? cn(MARKED, "bg-raised text-ink-faint") : undefined
-                  }
-                >
-                  {sentence}
-                </span>
-              )}{" "}
+              <Presence swap>
+                {index === at ? (
+                  <Reveal
+                    key="at"
+                    as="mark"
+                    className={cn(MARKED, "bg-accent/40 text-ink")}
+                  >
+                    {sentence}
+                  </Reveal>
+                ) : (
+                  <Reveal
+                    key="no-at"
+                    as="span"
+                    kind="fade"
+                    className={
+                      written
+                        ? cn(MARKED, "bg-raised text-ink-faint")
+                        : undefined
+                    }
+                  >
+                    {sentence}
+                  </Reveal>
+                )}
+              </Presence>{" "}
             </span>
           );
         })}

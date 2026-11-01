@@ -354,16 +354,20 @@ export function Composer({
         >
           {t("conversation.meter", { count: words, goal: turnWordGoal })}
         </p>
-        {voice && (
-          <MicButton
-            status={recorder.status}
-            level={recorder.level}
-            disabled={disabled}
-            onPress={press}
-            onRelease={release}
-            onKeyboardToggle={toggle}
-          />
-        )}
+        <Presence>
+          {voice && (
+            <Reveal key="voice">
+              <MicButton
+                status={recorder.status}
+                level={recorder.level}
+                disabled={disabled}
+                onPress={press}
+                onRelease={release}
+                onKeyboardToggle={toggle}
+              />
+            </Reveal>
+          )}
+        </Presence>
         <Button
           type="submit"
           variant={voice ? "secondary" : "primary"}

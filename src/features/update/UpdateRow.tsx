@@ -2,10 +2,10 @@ import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { ArrowUpCircle, RefreshCw } from "lucide-react";
-import { Presence } from "@/components/motion/Presence";
-import { Reveal } from "@/components/motion/Reveal";
 import { Spinner } from "@/components/ui/Spinner";
 import { offered, useUpdate } from "./update";
+import { Reveal } from "@/components/motion/Reveal";
+import { Presence } from "@/components/motion/Presence";
 
 const ANSWER_MS = 4000;
 
@@ -39,11 +39,18 @@ export function UpdateRow(): ReactNode {
     if (newer !== null) {
       return (
         <Reveal key="newer" kind="fade" className="flex items-center gap-1">
-          {version !== null && (
-            <span className="px-3 text-sm text-ink-soft">
-              {t("update.short", { version })}
-            </span>
-          )}
+          <Presence>
+            {version !== null && (
+              <Reveal
+                key="version"
+                as="span"
+                kind="fade"
+                className="px-3 text-sm text-ink-soft"
+              >
+                {t("update.short", { version })}
+              </Reveal>
+            )}
+          </Presence>
           <button
             type="button"
             onClick={unfold}
@@ -67,7 +74,13 @@ export function UpdateRow(): ReactNode {
           aria-live="polite"
           className="flex min-h-9 items-center gap-2 px-3 text-xs text-ink-faint"
         >
-          {state.kind === "checking" && <Spinner className="size-3" />}
+          <Presence>
+            {state.kind === "checking" && (
+              <Reveal key="checking" as="span" kind="fade">
+                <Spinner className="size-3" />
+              </Reveal>
+            )}
+          </Presence>
           {t(
             state.kind === "checking"
               ? "update.checking"

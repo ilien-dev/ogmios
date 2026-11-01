@@ -1,3 +1,4 @@
+import { Presence } from "@/components/motion/Presence";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { CircleCheck } from "lucide-react";
@@ -19,13 +20,17 @@ export function Standing({ state }: { state: ListeningState }): ReactNode {
       >
         <span className="flex w-28 shrink-0 items-center gap-2 font-medium text-ink">
           {name}
-          {standing.held && (
-            <CircleCheck
-              role="img"
-              aria-label={t("listening.standing.held")}
-              className="size-4 text-accent-text"
-            />
-          )}
+          <Presence>
+            {standing.held && (
+              <Reveal key="held" as="span" kind="fade">
+                <CircleCheck
+                  role="img"
+                  aria-label={t("listening.standing.held")}
+                  className="size-4 text-accent-text"
+                />
+              </Reveal>
+            )}
+          </Presence>
         </span>
         <span className="min-w-0 flex-1">
           <ProgressBar
@@ -52,20 +57,26 @@ export function Standing({ state }: { state: ListeningState }): ReactNode {
         <p className="text-sm text-ink-faint">
           {t("listening.understood.label")}
         </p>
-        {state.understood === null ? (
-          <>
-            <p className="font-display text-title font-normal text-ink-soft">
-              {t("listening.understood.none")}
-            </p>
-            <p className="text-sm text-ink-soft">
-              {t("listening.understood.noneHint")}
-            </p>
-          </>
-        ) : (
-          <p className="font-display text-display font-light text-accent-text">
-            {t(`listening.pace.${state.understood}`)}
-          </p>
-        )}
+        <Presence swap>
+          {state.understood === null ? (
+            <Reveal key="no-understood">
+              <p className="font-display text-title font-normal text-ink-soft">
+                {t("listening.understood.none")}
+              </p>
+              <p className="text-sm text-ink-soft">
+                {t("listening.understood.noneHint")}
+              </p>
+            </Reveal>
+          ) : (
+            <Reveal
+              key="understood"
+              as="p"
+              className="font-display text-display font-light text-accent-text"
+            >
+              {t(`listening.pace.${state.understood}`)}
+            </Reveal>
+          )}
+        </Presence>
       </div>
       <ul
         aria-label={t("listening.standing.title")}

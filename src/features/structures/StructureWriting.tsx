@@ -6,8 +6,6 @@ import type {
   StructureResult,
   StructureWord,
 } from "@shared/structures";
-import { Presence } from "@/components/motion/Presence";
-import { Reveal } from "@/components/motion/Reveal";
 import { Button } from "@/components/ui/Button";
 import { TextArea } from "@/components/ui/TextArea";
 import { Tooltip } from "@/components/ui/Tooltip";
@@ -17,6 +15,8 @@ import { Key } from "@/features/books/TriageRun";
 import { cn } from "@/lib/cn";
 import { VERDICT_GRADE } from "@/lib/grade";
 import { goalOf, sampleOf, topicName } from "./structureText";
+import { Reveal } from "@/components/motion/Reveal";
+import { Presence } from "@/components/motion/Presence";
 
 /**
  * The word a sentence is asked to use, in the colour of its kind. Asked, it
@@ -37,13 +37,6 @@ function AskedWord({ word }: { word: StructureWord }): ReactNode {
     "rounded-sm px-2.5 py-1 text-base font-medium",
     kind === null ? TAG.expression : TAG[kind],
   );
-  if (hint === "") {
-    return (
-      <span className={chip} lang="en">
-        {word.english}
-      </span>
-    );
-  }
   return (
     <Tooltip hint={hint} className={chip} lang="en" tabIndex={-1}>
       {word.english}
@@ -111,7 +104,7 @@ export function StructureWriting({
   return (
     <div className="flex flex-col gap-6">
       <p className="self-start rounded-full bg-surface px-3 py-1 text-sm font-medium text-ink-soft shadow-card">
-        {goal === "" ? item.name : <Tooltip hint={goal}>{item.name}</Tooltip>}
+        <Tooltip hint={goal}>{item.name}</Tooltip>
         {` · ${tags.join(" · ")}`}
       </p>
       <div className="flex flex-col gap-2">
@@ -123,41 +116,45 @@ export function StructureWriting({
                 topic: topicName(item.topic, t),
               })}
         </h1>
-        {goal !== "" && (
-          <div className="flex flex-col gap-1">
-            <p className="text-ink-soft">{goal}</p>
-            <p className="text-sm text-ink-faint">
-              {t("structures.run.like", { sample })}
-            </p>
-          </div>
-        )}
+        <Presence>
+          {goal !== "" && (
+            <Reveal key="goal" className="flex flex-col gap-1">
+              <p className="text-ink-soft">{goal}</p>
+              <p className="text-sm text-ink-faint">
+                {t("structures.run.like", { sample })}
+              </p>
+            </Reveal>
+          )}
+        </Presence>
       </div>
-      {item.word !== null && (
-        <div className="flex flex-wrap items-center gap-3">
-          <p className="flex flex-wrap items-center gap-2 text-sm text-ink-soft">
-            {t("structures.run.useWord")}
-            <AskedWord word={item.word} />
-            <span className="text-ink-faint">
-              {t(`structures.run.source.${item.word.source}`)}
-            </span>
-          </p>
-          <Presence>
-            {result === null && (
-              <Reveal key="drop" as="span" kind="fade">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={checking}
-                  title={t("structures.run.dropWordHint")}
-                  onClick={onDropWord}
-                >
-                  {t("structures.run.dropWord")}
-                </Button>
-              </Reveal>
-            )}
-          </Presence>
-        </div>
-      )}
+      <Presence>
+        {item.word !== null && (
+          <Reveal key="word" className="flex flex-wrap items-center gap-3">
+            <p className="flex flex-wrap items-center gap-2 text-sm text-ink-soft">
+              {t("structures.run.useWord")}
+              <AskedWord word={item.word} />
+              <span className="text-ink-faint">
+                {t(`structures.run.source.${item.word.source}`)}
+              </span>
+            </p>
+            <Presence>
+              {result === null && (
+                <Reveal key="drop" as="span" kind="fade">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={checking}
+                    title={t("structures.run.dropWordHint")}
+                    onClick={onDropWord}
+                  >
+                    {t("structures.run.dropWord")}
+                  </Button>
+                </Reveal>
+              )}
+            </Presence>
+          </Reveal>
+        )}
+      </Presence>
       <div className="relative">
         <Presence swap>
           {result === null && (
@@ -204,7 +201,13 @@ export function StructureWriting({
                     {checking
                       ? t("structures.run.checking")
                       : t("structures.run.check")}
-                    {!checking && <Key>{t("structures.run.checkKey")}</Key>}
+                    <Presence>
+                      {!checking && (
+                        <Reveal key="checking" as="span" kind="fade">
+                          <Key>{t("structures.run.checkKey")}</Key>
+                        </Reveal>
+                      )}
+                    </Presence>
                   </Button>
                   <Button
                     variant="ghost"
@@ -235,18 +238,26 @@ export function StructureWriting({
                   {sent === "" ? t("structures.run.nothing") : sent}
                 </p>
                 <p className="text-ink">{result.explanation}</p>
-                {!result.usedWord && item.word !== null && sent !== "" && (
-                  <p className="text-sm text-partial">
-                    {t("structures.run.missingWord", {
-                      word: item.word.english,
-                    })}
-                  </p>
-                )}
-                {peeked && result.verdict === "partial" && (
-                  <p className="text-sm text-partial">
-                    {t("structures.run.peeked")}
-                  </p>
-                )}
+                <Presence>
+                  {!result.usedWord && item.word !== null && sent !== "" && (
+                    <Reveal key="sent" as="p" className="text-sm text-partial">
+                      {t("structures.run.missingWord", {
+                        word: item.word.english,
+                      })}
+                    </Reveal>
+                  )}
+                </Presence>
+                <Presence>
+                  {peeked && result.verdict === "partial" && (
+                    <Reveal
+                      key="partial"
+                      as="p"
+                      className="text-sm text-partial"
+                    >
+                      {t("structures.run.peeked")}
+                    </Reveal>
+                  )}
+                </Presence>
               </div>
               <div className="flex flex-col gap-1">
                 <p className="text-sm text-ink-faint">

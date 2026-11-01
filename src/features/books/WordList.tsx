@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import type { BookWord } from "@shared/domain";
 import { Presence } from "@/components/motion/Presence";
 import { Reveal } from "@/components/motion/Reveal";
+import { STAGGER_LIMIT } from "@/lib/motion";
 import { Button } from "@/components/ui/Button";
 import { Tally } from "./Tally";
 import { WordRow } from "./WordRow";
@@ -50,11 +51,15 @@ export function WordList({
             <Tally dot="bg-line-strong">
               {t("books.chapter.wordCount", { count: open })}
             </Tally>
-            {onTriage !== undefined && (
-              <Button size="sm" onClick={onTriage}>
-                {t("books.triage.start")}
-              </Button>
-            )}
+            <Presence>
+              {onTriage !== undefined && (
+                <Reveal key="onTriage" as="span" kind="fade">
+                  <Button size="sm" onClick={onTriage}>
+                    {t("books.triage.start")}
+                  </Button>
+                </Reveal>
+              )}
+            </Presence>
           </Reveal>
         )}
       </Presence>
@@ -109,7 +114,7 @@ export function WordList({
                       as="li"
                       kind="fade"
                       index={index}
-                      layout="position"
+                      layout={index < STAGGER_LIMIT ? "position" : false}
                       className="flex items-center gap-4 px-2 py-1"
                     >
                       <span className="font-medium">{word.lemma}</span>

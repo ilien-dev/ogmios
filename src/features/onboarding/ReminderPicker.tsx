@@ -1,3 +1,5 @@
+import { Reveal } from "@/components/motion/Reveal";
+import { Presence } from "@/components/motion/Presence";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { ChoiceGroup } from "@/components/ui/ChoiceGroup";
@@ -34,22 +36,28 @@ export function ReminderPicker({
           { value: "none", label: t("onboarding.reminder.none") },
         ]}
       />
-      {value !== null && (
-        <Field
-          id="reminder-time"
-          label={t("onboarding.reminder.field")}
-          className="max-w-40"
-        >
-          <TextInput
-            id="reminder-time"
-            type="time"
-            value={value}
-            onChange={(event) => {
-              onChange(event.target.value === "" ? null : event.target.value);
-            }}
-          />
-        </Field>
-      )}
+      <Presence>
+        {value !== null && (
+          <Reveal key="value">
+            <Field
+              id="reminder-time"
+              label={t("onboarding.reminder.field")}
+              className="max-w-40"
+            >
+              <TextInput
+                id="reminder-time"
+                type="time"
+                value={value}
+                onChange={(event) => {
+                  onChange(
+                    event.target.value === "" ? null : event.target.value,
+                  );
+                }}
+              />
+            </Field>
+          </Reveal>
+        )}
+      </Presence>
     </div>
   );
 }

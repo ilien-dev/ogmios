@@ -91,7 +91,13 @@ function Context({ parts, blanked }: ContextProps): ReactNode {
       {placed(parts).map(({ key, part }) =>
         part.marked ? word(key, part) : <span key={key}>{part.text}</span>,
       )}
-      {!blanked && <SpeakButton text={whole(parts)} className="ml-1" />}
+      <Presence>
+        {!blanked && (
+          <Reveal key="blanked" as="span" kind="fade">
+            <SpeakButton text={whole(parts)} className="ml-1" />
+          </Reveal>
+        )}
+      </Presence>
     </p>
   );
 }
@@ -135,23 +141,33 @@ function Verdict({ result, unknown, heard }: VerdictProps): ReactNode {
       <VerdictLine tone={tone}>
         {result.correct ? t("books.sitting.right") : miss}
       </VerdictLine>
-      {result.accepted.length > 0 && (
-        <p className="text-ink">
-          {t("books.sitting.accepted", { text: result.accepted.join(", ") })}
-          {heard !== null && <SpeakButton text={heard} className="ml-1" />}
-        </p>
-      )}
-      {exact !== null && (
-        <p className="text-ink-soft">
-          {t("books.sitting.exact")}{" "}
-          <strong
-            data-exact
-            className="inline-block rounded-sm bg-partial-soft px-1.5 font-medium text-partial motion-safe:animate-point"
-          >
-            {exact}
-          </strong>
-        </p>
-      )}
+      <Presence>
+        {result.accepted.length > 0 && (
+          <Reveal key="accepted" as="p" className="text-ink">
+            {t("books.sitting.accepted", { text: result.accepted.join(", ") })}
+            <Presence>
+              {heard !== null && (
+                <Reveal key="heard" as="span" kind="fade">
+                  <SpeakButton text={heard} className="ml-1" />
+                </Reveal>
+              )}
+            </Presence>
+          </Reveal>
+        )}
+      </Presence>
+      <Presence>
+        {exact !== null && (
+          <Reveal key="exact" as="p" className="text-ink-soft">
+            {t("books.sitting.exact")}{" "}
+            <strong
+              data-exact
+              className="inline-block rounded-sm bg-partial-soft px-1.5 font-medium text-partial motion-safe:animate-point"
+            >
+              {exact}
+            </strong>
+          </Reveal>
+        )}
+      </Presence>
     </div>
   );
 }
@@ -171,20 +187,26 @@ function Clue({ clue, blanked }: ClueProps): ReactNode {
   const { t } = useTranslation();
   return (
     <Reveal data-hint className="flex flex-col gap-2">
-      {clue.context !== null && (
-        <Context parts={clue.context} blanked={blanked} />
-      )}
-      {clue.mask !== null && (
-        <p className="text-ink-soft">
-          <span className="sr-only">{t("books.sitting.hintIs")} </span>
-          <span
-            data-mask
-            className="font-mono text-lead tracking-widest whitespace-pre text-ink"
-          >
-            {clue.mask}
-          </span>
-        </p>
-      )}
+      <Presence>
+        {clue.context !== null && (
+          <Reveal key="context">
+            <Context parts={clue.context} blanked={blanked} />
+          </Reveal>
+        )}
+      </Presence>
+      <Presence>
+        {clue.mask !== null && (
+          <Reveal key="mask" as="p" className="text-ink-soft">
+            <span className="sr-only">{t("books.sitting.hintIs")} </span>
+            <span
+              data-mask
+              className="font-mono text-lead tracking-widest whitespace-pre text-ink"
+            >
+              {clue.mask}
+            </span>
+          </Reveal>
+        )}
+      </Presence>
     </Reveal>
   );
 }
@@ -239,16 +261,20 @@ function Whole({ sentence, onBad, busy }: WholeProps): ReactNode {
         {sentence.book
           ? t("books.sitting.fromBook")
           : t("books.sitting.fromClaude")}
-        {onBad !== null && (
-          <button
-            type="button"
-            disabled={busy}
-            onClick={onBad}
-            className="rounded-sm underline-offset-4 hover:text-ink hover:underline"
-          >
-            {t("books.sitting.badSentence")}
-          </button>
-        )}
+        <Presence>
+          {onBad !== null && (
+            <Reveal key="onBad" as="span" kind="fade">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={onBad}
+                className="rounded-sm underline-offset-4 hover:text-ink hover:underline"
+              >
+                {t("books.sitting.badSentence")}
+              </button>
+            </Reveal>
+          )}
+        </Presence>
       </p>
     </div>
   );
@@ -487,15 +513,25 @@ export function SittingItem<Result extends Checked>({
         <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2">
           <h1 className="font-display text-display font-light text-balance text-ink">
             {item.prompt}
-            {!toEnglish && <SpeakButton text={item.prompt} className="ml-2" />}
+            <Presence>
+              {!toEnglish && (
+                <Reveal key="toEnglish" as="span" kind="fade">
+                  <SpeakButton text={item.prompt} className="ml-2" />
+                </Reveal>
+              )}
+            </Presence>
           </h1>
           {/* Shift+Tab from the answer still lands on leaving the practice. */}
           <PartOfSpeechTag kind={item.partOfSpeech} offTabPath />
           <VerbFormTag form={item.verbForm} />
         </div>
-        {item.context !== null && (
-          <Context parts={item.context} blanked={toEnglish} />
-        )}
+        <Presence>
+          {item.context !== null && (
+            <Reveal key="context">
+              <Context parts={item.context} blanked={toEnglish} />
+            </Reveal>
+          )}
+        </Presence>
         <Presence>
           {clue !== null && result === null && (
             <Clue key="clue" clue={clue} blanked={toEnglish} />
@@ -573,31 +609,39 @@ export function SittingItem<Result extends Checked>({
                   {t("books.sitting.dontKnow")}
                   <Key>{t("books.sitting.dontKnowKey")}</Key>
                 </Button>
-                {hint !== null && (
-                  <Button
-                    variant="ghost"
-                    className="bg-raised"
-                    disabled={checking || hinting || !canHint}
-                    aria-keyshortcuts={t("books.sitting.hintKey")}
-                    onClick={() => void help()}
-                  >
-                    {lettered
-                      ? t("books.sitting.hintMore")
-                      : t("books.sitting.hint")}
-                    <Key>{t("books.sitting.hintKey")}</Key>
-                  </Button>
-                )}
-                {know !== null && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-ink-faint"
-                    disabled={checking}
-                    onClick={() => void skip(know)}
-                  >
-                    {t("books.sitting.know")}
-                  </Button>
-                )}
+                <Presence>
+                  {hint !== null && (
+                    <Reveal key="hint" as="span" kind="fade">
+                      <Button
+                        variant="ghost"
+                        className="bg-raised"
+                        disabled={checking || hinting || !canHint}
+                        aria-keyshortcuts={t("books.sitting.hintKey")}
+                        onClick={() => void help()}
+                      >
+                        {lettered
+                          ? t("books.sitting.hintMore")
+                          : t("books.sitting.hint")}
+                        <Key>{t("books.sitting.hintKey")}</Key>
+                      </Button>
+                    </Reveal>
+                  )}
+                </Presence>
+                <Presence>
+                  {know !== null && (
+                    <Reveal key="know" as="span" kind="fade">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-ink-faint"
+                        disabled={checking}
+                        onClick={() => void skip(know)}
+                      >
+                        {t("books.sitting.know")}
+                      </Button>
+                    </Reveal>
+                  )}
+                </Presence>
               </Reveal>
             )}
           </Presence>
@@ -613,51 +657,59 @@ export function SittingItem<Result extends Checked>({
       </Presence>
 
       <div aria-live="polite" className="w-full max-w-xl">
-        {result !== null && (
-          <Reveal className="flex flex-col items-center gap-5">
-            <Verdict result={result} unknown={unknown} heard={heard} />
-            {shown !== null && (
-              <Whole
-                sentence={shown}
-                busy={checking}
-                onBad={discardable ? () => void skip(() => bad(result)) : null}
-              />
-            )}
-            <div className="flex flex-wrap items-center justify-center gap-3">
-              <Button
-                ref={onward}
-                variant="primaryBook"
-                onClick={() => {
-                  onNext(result.step);
-                }}
-              >
-                {t("books.sitting.next")}
-                <ArrowRight aria-hidden className="size-4" />
-              </Button>
+        <Presence>
+          {result !== null && (
+            <Reveal key="result" className="flex flex-col items-center gap-5">
+              <Verdict result={result} unknown={unknown} heard={heard} />
               <Presence>
-                {disputable && onDispute !== null && (
-                  <Reveal key="dispute" as="span" kind="fade">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-ink-faint"
-                      onClick={() => {
-                        onDispute(result);
-                        // The button goes; Enter still means "next".
-                        onward.current?.focus();
-                      }}
-                    >
-                      {t("books.sitting.wasRight")}
-                    </Button>
+                {shown !== null && (
+                  <Reveal key="shown">
+                    <Whole
+                      sentence={shown}
+                      busy={checking}
+                      onBad={
+                        discardable ? () => void skip(() => bad(result)) : null
+                      }
+                    />
                   </Reveal>
                 )}
               </Presence>
-            </div>
-            <Presence>
-              {dispute !== null && <DisputeNote key="note" state={dispute} />}
-            </Presence>
-          </Reveal>
-        )}
+              <div className="flex flex-wrap items-center justify-center gap-3">
+                <Button
+                  ref={onward}
+                  variant="primaryBook"
+                  onClick={() => {
+                    onNext(result.step);
+                  }}
+                >
+                  {t("books.sitting.next")}
+                  <ArrowRight aria-hidden className="size-4" />
+                </Button>
+                <Presence>
+                  {disputable && onDispute !== null && (
+                    <Reveal key="dispute" as="span" kind="fade">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-ink-faint"
+                        onClick={() => {
+                          onDispute(result);
+                          // The button goes; Enter still means "next".
+                          onward.current?.focus();
+                        }}
+                      >
+                        {t("books.sitting.wasRight")}
+                      </Button>
+                    </Reveal>
+                  )}
+                </Presence>
+              </div>
+              <Presence>
+                {dispute !== null && <DisputeNote key="note" state={dispute} />}
+              </Presence>
+            </Reveal>
+          )}
+        </Presence>
         <Presence>{notice}</Presence>
       </div>
     </section>

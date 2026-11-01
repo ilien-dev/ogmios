@@ -2,11 +2,11 @@ import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { CircleCheck } from "lucide-react";
 import type { Book, BookWord } from "@shared/domain";
-import { Presence } from "@/components/motion/Presence";
-import { Reveal } from "@/components/motion/Reveal";
 import { Button } from "@/components/ui/Button";
 import { Orb } from "@/components/ui/Orb";
 import { ProgressBar } from "@/components/ui/ProgressBar";
+import { Reveal } from "@/components/motion/Reveal";
+import { Presence } from "@/components/motion/Presence";
 
 interface ChapterAsideProps {
   book: Book;
@@ -57,16 +57,24 @@ function Actions(props: ChapterAsideProps): ReactNode {
           {t("books.ready")}
         </p>
         <div className="flex flex-wrap justify-center gap-2">
-          {refreshable && (
-            <Button onClick={props.onRefresh}>
-              {t("books.refresh.start")}
-            </Button>
-          )}
-          {refreshable && (
-            <Button onClick={props.onPractise}>
-              {t("books.chapter.practise")}
-            </Button>
-          )}
+          <Presence>
+            {refreshable && (
+              <Reveal key="refreshable" as="span" kind="fade">
+                <Button onClick={props.onRefresh}>
+                  {t("books.refresh.start")}
+                </Button>
+              </Reveal>
+            )}
+          </Presence>
+          <Presence>
+            {refreshable && (
+              <Reveal key="refreshable" as="span" kind="fade">
+                <Button onClick={props.onPractise}>
+                  {t("books.chapter.practise")}
+                </Button>
+              </Reveal>
+            )}
+          </Presence>
           <Button onClick={props.onTranslate}>
             {t("books.translate.start")}
           </Button>

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Swap } from "@/components/motion/Swap";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { Chapter, Translation } from "@shared/domain";
@@ -150,37 +151,52 @@ export function TranslateScreen({
   const [opened, setOpened] = useState<Translation | null>(null);
   const native = languageName(nativeLang, i18n.language);
 
-  if (opened !== null) {
+  const view = (): ReactNode => {
+    if (opened !== null) {
+      return (
+        <Run
+          opened={opened}
+          native={native}
+          onFinished={setOpened}
+          onLeave={() => {
+            setOpened(null);
+          }}
+        />
+      );
+    }
+
     return (
-      <Run
-        key={`${opened.attemptId}-${String(opened.finished)}`}
-        opened={opened}
-        native={native}
-        onFinished={setOpened}
-        onLeave={() => {
-          setOpened(null);
-        }}
-      />
+      <main className="h-full overflow-y-auto">
+        <Stagger className="mx-auto flex max-w-2xl flex-col gap-8 px-6 py-12 nav:py-16">
+          <Reveal as="header" className="flex flex-col gap-3">
+            <BackLink label={chapterName(chapter, t)} onClick={onBack} />
+            <h1 className="font-display text-display font-light text-ink">
+              {t("books.translate.title")}
+            </h1>
+          </Reveal>
+          <Reveal>
+            <TranslateStart
+              chapterId={chapter.id}
+              native={native}
+              onOpen={setOpened}
+            />
+          </Reveal>
+        </Stagger>
+      </main>
     );
-  }
+  };
 
   return (
-    <main className="h-full overflow-y-auto">
-      <Stagger className="mx-auto flex max-w-2xl flex-col gap-8 px-6 py-12 nav:py-16">
-        <Reveal as="header" className="flex flex-col gap-3">
-          <BackLink label={chapterName(chapter, t)} onClick={onBack} />
-          <h1 className="font-display text-display font-light text-ink">
-            {t("books.translate.title")}
-          </h1>
-        </Reveal>
-        <Reveal>
-          <TranslateStart
-            chapterId={chapter.id}
-            native={native}
-            onOpen={setOpened}
-          />
-        </Reveal>
-      </Stagger>
-    </main>
+    <Swap
+      as="div"
+      id={
+        opened === null
+          ? "attempts"
+          : `${opened.attemptId}-${String(opened.finished)}`
+      }
+      className="h-full"
+    >
+      {view()}
+    </Swap>
   );
 }

@@ -127,11 +127,17 @@ export function ChapterStructuresView({
                           {t("structures.chapter.count", { count: each.count })}
                         </p>
                       </div>
-                      {each.example !== "" && (
-                        <blockquote className="border-l-2 border-line-strong pl-3 text-sm text-ink-soft italic">
-                          {each.example}
-                        </blockquote>
-                      )}
+                      <Presence>
+                        {each.example !== "" && (
+                          <Reveal
+                            key="example"
+                            as="blockquote"
+                            className="border-l-2 border-line-strong pl-3 text-sm text-ink-soft italic"
+                          >
+                            {each.example}
+                          </Reveal>
+                        )}
+                      </Presence>
                     </li>
                   ))}
                 </ul>
