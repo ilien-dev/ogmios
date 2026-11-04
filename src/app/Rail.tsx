@@ -126,7 +126,7 @@ function SectionSwitch({ section, navigate }: SwitchProps): ReactNode {
               navigate(own === "book" ? { name: "book" } : { name: "home" });
             }}
             className={cn(
-              "relative flex w-18 flex-col items-center gap-1 rounded-md py-2.5 text-xs font-semibold transition-control",
+              "relative flex w-20 flex-col items-center gap-1 rounded-md py-2.5 text-xs font-semibold transition-control",
               on
                 ? own === "book"
                   ? "text-book"
@@ -189,7 +189,7 @@ export function Rail({
           key="rail"
           as="aside"
           kind="fade"
-          className="relative z-20 flex w-24 shrink-0 flex-col items-center gap-4 overflow-y-auto border-r border-line bg-surface px-2 py-5"
+          className="relative z-20 flex w-26 shrink-0 flex-col items-center gap-4 overflow-x-hidden overflow-y-auto border-r border-line bg-surface px-2 py-5"
         >
           <Logo className="size-10 shrink-0" />
           <SectionSwitch section={section} navigate={navigate} />

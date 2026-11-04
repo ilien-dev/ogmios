@@ -30,11 +30,29 @@ describe("BookHome", () => {
     await i18n.changeLanguage("en");
   });
 
+  test("while the shelf is read, it does not say there is no book", () => {
+    render(
+      <BookHome
+        loaded={false}
+        books={[]}
+        current={null}
+        counts={{}}
+        nativeLang="es"
+        navigate={mock()}
+      />,
+    );
+
+    expect(
+      screen.queryByRole("heading", { name: "Add your first book" }),
+    ).toBeNull();
+  });
+
   test("with no book, it asks for one and leads to the shelf", async () => {
     const user = userEvent.setup();
     const navigate = mock();
     render(
       <BookHome
+        loaded
         books={[]}
         current={null}
         counts={{}}
@@ -56,6 +74,7 @@ describe("BookHome", () => {
     const { books, current } = await shelf();
     render(
       <BookHome
+        loaded
         books={books}
         current={current}
         counts={{}}
@@ -94,6 +113,7 @@ describe("BookHome", () => {
     const { books, current } = await shelf();
     render(
       <BookHome
+        loaded
         books={books}
         current={current}
         counts={{}}
@@ -118,6 +138,7 @@ describe("BookHome", () => {
     const { books, current } = await shelf();
     render(
       <BookHome
+        loaded
         books={books}
         current={current}
         counts={{ recall: 7 }}
@@ -140,6 +161,7 @@ describe("BookHome", () => {
     const learned = state.fresh + state.settling + state.firm;
     render(
       <BookHome
+        loaded
         books={books}
         current={current}
         counts={{}}
@@ -162,6 +184,7 @@ describe("BookHome", () => {
     const { books, current } = await shelf();
     render(
       <BookHome
+        loaded
         books={books}
         current={current}
         counts={{ recall: 2 }}

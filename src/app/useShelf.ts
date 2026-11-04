@@ -11,9 +11,11 @@ interface Shelf {
   books: Book[];
   /** The chapter opened last. */
   currentId: string | null;
+  /** The shelf has been read once: an empty one is really empty. */
+  loaded: boolean;
 }
 
-const EMPTY: Shelf = { counts: {}, books: [], currentId: null };
+const EMPTY: Shelf = { counts: {}, books: [], currentId: null, loaded: false };
 
 /**
  * What is due and the chapter the learner is on change behind every screen:
@@ -34,6 +36,7 @@ export function useShelf(route: Route, enabled: boolean): Shelf {
             counts: { drills: home.dueReviews, recall: home.dueWords },
             books,
             currentId: structures.chapter?.chapter.id ?? null,
+            loaded: true,
           });
         }
       })

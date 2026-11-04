@@ -14,6 +14,7 @@ import { Presence } from "@/components/motion/Presence";
 import { Reveal } from "@/components/motion/Reveal";
 import { Stagger } from "@/components/motion/Stagger";
 import { Button } from "@/components/ui/Button";
+import { Spinner } from "@/components/ui/Spinner";
 import type { Entry } from "@/app/places";
 import type { Navigate } from "@/app/routes";
 import { cn } from "@/lib/cn";
@@ -231,7 +232,10 @@ function Translate({
   const { t } = useTranslation();
   const native = nativeLang.toUpperCase();
   return (
-    <section aria-labelledby="book-home-translate" className={PANEL}>
+    <section
+      aria-labelledby="book-home-translate"
+      className={cn(PANEL, "flex flex-1 flex-col")}
+    >
       <h2
         id="book-home-translate"
         className="mb-3 text-lg font-semibold text-ink"
@@ -248,7 +252,7 @@ function Translate({
             translating: true,
           });
         }}
-        className="group flex w-full flex-wrap items-center justify-between gap-3 rounded-md bg-sunken p-4 text-left transition-control hover:bg-raised"
+        className="group flex w-full flex-1 flex-wrap items-center justify-between gap-3 rounded-md bg-sunken p-4 text-left transition-control hover:bg-raised"
       >
         <span className="flex flex-col gap-2">
           <span className="flex items-center gap-2 text-sm font-bold">
@@ -441,6 +445,8 @@ function Words({ learned, known }: WordsProps): ReactNode {
 }
 
 interface BookHomeProps {
+  /** The shelf has been read: until then, no book is not yet no books. */
+  loaded: boolean;
   books: readonly Book[];
   /** The chapter the learner is on. */
   current: Current | null;
@@ -456,6 +462,7 @@ interface BookHomeProps {
  * learner has. Each is one press from what it shows.
  */
 export function BookHome({
+  loaded,
   books,
   current,
   counts,
@@ -484,6 +491,15 @@ export function BookHome({
   }, []);
 
   const book = current?.book ?? books.find((one) => one.chapters.length > 0);
+  if (book === undefined && !loaded) {
+    return (
+      <main className="grid h-full place-items-center">
+        <Reveal as="span" kind="fade">
+          <Spinner />
+        </Reveal>
+      </main>
+    );
+  }
   if (book === undefined) {
     return (
       <main className="grid h-full place-items-center p-8">
@@ -588,7 +604,7 @@ export function BookHome({
             <Legend />
             <Selected book={book} chapter={selected} navigate={navigate} />
           </Reveal>
-          <Reveal className="nav:col-span-2">
+          <Reveal className="flex nav:col-span-2">
             <Translate
               book={book}
               chapter={selected}

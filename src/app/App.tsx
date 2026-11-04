@@ -42,7 +42,7 @@ export function App(): ReactNode {
   const [route, setRoute] = useState<Route>({ name: "book" });
   const [theme, setTheme] = useTheme();
   const onboarded = boot.state === "ready" && boot.profile?.onboarded === true;
-  const { counts, books, currentId } = useShelf(route, onboarded);
+  const { counts, books, currentId, loaded } = useShelf(route, onboarded);
 
   useEffect(() => {
     let live = true;
@@ -125,6 +125,7 @@ export function App(): ReactNode {
       case "book":
         return (
           <BookHome
+            loaded={loaded}
             books={books}
             current={current}
             counts={counts}
