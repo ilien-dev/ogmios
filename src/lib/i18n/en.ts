@@ -34,16 +34,16 @@ export const en = {
     pickChapter: "Pick a chapter",
     chapterIs: "Current chapter: {{chapter}}",
     settingsWaiting: "Settings, an update is waiting",
+    sections: "Sections",
     groups: {
       conversation: "Conversation",
       book: "Book",
     },
     entries: {
-      home: "Home",
       conversation: "Chat",
       drills: "Drills",
       progress: "Progress",
-      vocabulary: "Vocabulary",
+      chapters: "Chapters",
       translate: "Translate",
       structures: "Structures",
       listening: "Listening",
@@ -727,6 +727,59 @@ export const en = {
       unreadable: "This file couldn't be read as an EPUB or PDF book.",
       scanned:
         "This PDF is a scan: its pages are images with no text, so Ogmios can't read it.",
+    },
+  },
+  bookHome: {
+    position: "Chapter {{at}} of {{of}}",
+    shelf: "Change book",
+    chapters: {
+      title: "Vocabulary by chapter",
+      hint: "Pick a bar",
+    },
+    bar: {
+      ready: "{{chapter}}, {{words}} words long, ready to read",
+      learning: "{{chapter}}, {{words}} words long, {{readiness}}% ready",
+      unprepared: "{{chapter}}, {{words}} words long, not prepared yet",
+    },
+    legend: {
+      ready: "Ready to read",
+      learning: "Learning",
+      unprepared: "Not prepared",
+    },
+    state: {
+      ready: "Ready to read",
+      learning: "{{readiness}}% of its words ready",
+      unprepared: "Its words are not taken out yet",
+    },
+    study: "Study its words",
+    prepare: "Prepare it",
+    translate: {
+      title: "Translate",
+      how: "Into your language first, then back into English",
+    },
+    review: {
+      title: "Daily review",
+      strength: "{{firm}} firm, {{settling}} settling, {{fresh}} new",
+      start_one: "Review {{count}} word",
+      start_other: "Review {{count}} words",
+      open: "Open the review",
+    },
+    words: {
+      title: "Your words",
+      total_one: "word",
+      total_other: "words",
+      learned_one: "{{count}} learned here",
+      learned_other: "{{count}} learned here",
+      known_one: "{{count}} known before",
+      known_other: "{{count}} known before",
+      dots: "{{learned}} learned here and {{known}} known before",
+      unit_one: "Each dot is {{count}} word",
+      unit_other: "Each dot is about {{count}} words",
+    },
+    empty: {
+      title: "Add your first book",
+      body: "Its chapters show up here, with how ready you are to read each one.",
+      action: "Add a book",
     },
   },
   recall: {

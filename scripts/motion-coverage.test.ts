@@ -98,11 +98,6 @@ const ALLOWED: readonly Allowance[] = [
     why: "The glow is part of an orb that follows: decided at mount by its props.",
   },
   {
-    file: "src/app/TopBar.tsx",
-    when: "text !== undefined",
-    why: "A pill has its label or has not, for as long as the bar shows.",
-  },
-  {
     file: "src/features/books/WordRow.tsx",
     when: ["word.done", "word.strength !== null", "word.half === null"],
     why: "A word's standing changes on another route; known, its row leaves whole. Rows are thousands: each Presence here costs a mount.",

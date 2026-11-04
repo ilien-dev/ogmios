@@ -3,6 +3,8 @@ import type { DrillFormat, Report, SessionSetup, Ways } from "@shared/domain";
 /** Every screen the app can show, with what it needs to render. */
 export type Route =
   | { name: "home" }
+  /** The book section's own screen: its chapters at a glance. */
+  | { name: "book" }
   | { name: "setup"; preset: Partial<SessionSetup> | null }
   | { name: "conversation"; setup: SessionSetup }
   | {
@@ -100,12 +102,15 @@ export function showsNav(route: Route): boolean {
 /** The two things the app is for. */
 export type Section = "conversation" | "book";
 
-/** The section a screen is under; Home and Settings stand outside both. */
+/**
+ * The section a screen is under; Settings stands outside both. Home is where
+ * the partner waits, so it is the conversation's own screen.
+ */
 export function sectionOf(route: Route): Section | null {
   switch (route.name) {
-    case "home":
     case "settings":
       return null;
+    case "book":
     case "books":
     case "recall":
     case "structures":

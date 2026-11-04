@@ -65,6 +65,7 @@ describe("screenKey", () => {
 
   test("books and a chapter of the same book have different keys", () => {
     const keys = [
+      screenKey({ name: "book" }),
       screenKey({ name: "books", bookId: null }),
       screenKey({ name: "books", bookId: null, known: true }),
       screenKey({ name: "books", bookId: "b" }),
@@ -82,8 +83,9 @@ describe("screenKey", () => {
 
 describe("sectionOf", () => {
   const SECTIONS: Array<[Route, "conversation" | "book" | null]> = [
-    [{ name: "home" }, null],
+    [{ name: "home" }, "conversation"],
     [{ name: "settings" }, null],
+    [{ name: "book" }, "book"],
     [{ name: "setup", preset: null }, "conversation"],
     [PRACTICE, "conversation"],
     [{ name: "progress" }, "conversation"],

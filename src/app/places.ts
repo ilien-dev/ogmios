@@ -1,7 +1,7 @@
 import {
   BarChart3,
-  BookMarked,
   BookOpen,
+  ChartColumn,
   Ear,
   Languages,
   Layers,
@@ -15,11 +15,10 @@ import type { Route } from "./routes";
 
 /** Every place the navigation leads to. */
 export type Entry =
-  | "home"
   | "conversation"
   | "drills"
   | "progress"
-  | "vocabulary"
+  | "chapters"
   | "translate"
   | "structures"
   | "listening"
@@ -37,20 +36,24 @@ export const CONVERSATION_PLACES: readonly Place[] = [
   { entry: "progress", icon: BarChart3 },
 ];
 
+/** The first three are what the section is for; the rest come after a rule. */
 export const BOOK_PLACES: readonly Place[] = [
-  { entry: "vocabulary", icon: BookMarked },
+  { entry: "chapters", icon: ChartColumn },
   { entry: "translate", icon: Languages },
+  { entry: "recall", icon: Repeat },
   { entry: "structures", icon: Layers },
   { entry: "listening", icon: Ear },
-  { entry: "recall", icon: Repeat },
   { entry: "books", icon: BookOpen },
 ];
+
+/** How many of a section's places lead it, before the rule. */
+export const LEADING_PLACES = 3;
 
 /** The place a screen belongs to, the one marked while it shows. */
 export function entryOf(route: Route): Entry | "settings" {
   switch (route.name) {
-    case "home":
-      return "home";
+    case "book":
+      return "chapters";
     case "practice":
       return "drills";
     case "report":
@@ -59,7 +62,7 @@ export function entryOf(route: Route): Entry | "settings" {
       if (route.chapterId === undefined) {
         return "books";
       }
-      return route.translating === true ? "translate" : "vocabulary";
+      return route.translating === true ? "translate" : "chapters";
     case "progress":
     case "recall":
     case "structures":
@@ -78,7 +81,7 @@ export function bookRoutes(
   current: Current | null,
 ): Partial<Record<Entry, Route>> {
   if (current === null) {
-    return { vocabulary: SHELF, translate: SHELF, listening: SHELF };
+    return { translate: SHELF, listening: SHELF };
   }
   const chapter = {
     name: "books",
@@ -86,7 +89,6 @@ export function bookRoutes(
     chapterId: current.chapter.id,
   } as const;
   return {
-    vocabulary: chapter,
     translate: { ...chapter, translating: true },
     listening: { name: "listening", chapterId: current.chapter.id },
   };
@@ -95,13 +97,14 @@ export function bookRoutes(
 /** Where a place leads from anywhere, on the current chapter. */
 export function placeTarget(entry: Entry, current: Current | null): Route {
   switch (entry) {
-    case "home":
     case "progress":
     case "structures":
     case "recall":
       return { name: entry };
     case "conversation":
-      return { name: "setup", preset: null };
+      return { name: "home" };
+    case "chapters":
+      return { name: "book" };
     case "drills":
       return {
         name: "practice",

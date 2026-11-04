@@ -1,15 +1,8 @@
 import { describe, expect, mock, test } from "bun:test";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useMemo } from "react";
-import type { ReactNode } from "react";
 import type { HomeState } from "@shared/domain";
-import type { Entry } from "@/app/places";
-import { currentOf } from "@/features/books/currentChapter";
-import type { Current } from "@/features/books/currentChapter";
-import { UpdateContext, useUpdate } from "@/features/update/update";
 import { i18n } from "@/lib/i18n/i18n";
-import { listBooks } from "@/lib/ipc";
 import { setMockHome } from "@/lib/ipcMockHome";
 import { useMockBackend } from "@/test/mockBackend";
 import { Home } from "./Home";
@@ -23,40 +16,18 @@ const NO_LINES = {
 
 interface Shown {
   navigate?: ReturnType<typeof mock>;
-  current?: Current | null;
-  counts?: Partial<Record<Entry, number>>;
 }
 
-function show({ navigate = mock(), current = null, counts = {} }: Shown = {}) {
-  return render(<Home navigate={navigate} current={current} counts={counts} />);
+function show({ navigate = mock() }: Shown = {}) {
+  return render(<Home navigate={navigate} />);
 }
 
 function started(name = "Start conversation"): Promise<HTMLElement> {
   return screen.findByRole("button", { name });
 }
 
-async function chapterOnTheShelf(): Promise<Current> {
-  const books = await listBooks();
-  const current = currentOf(books, books[0]?.chapters[0]?.id ?? null);
-  if (current === null) {
-    throw new Error("The mock shelf has no chapter.");
-  }
-  return current;
-}
-
 describe("Home", () => {
   useMockBackend();
-
-  test("every place shows at once: 3 of conversation, 6 of book, and Settings", async () => {
-    show();
-    await started();
-
-    const conversation = screen.getByRole("region", { name: "Conversation" });
-    const book = screen.getByRole("region", { name: "Book" });
-    expect(within(conversation).getAllByRole("button")).toHaveLength(3);
-    expect(within(book).getAllByRole("button")).toHaveLength(6);
-    expect(screen.getByRole("button", { name: "Settings" })).toBeEnabled();
-  });
 
   test("opens on the start button, with the focus line under the topic", async () => {
     show();
@@ -173,87 +144,23 @@ describe("Home", () => {
     ).not.toBeInTheDocument();
   });
 
-  test("with no books, Book leads to the shelf", async () => {
-    const user = userEvent.setup();
-    const navigate = mock();
-    show({ navigate });
-    await started();
-
-    await user.click(screen.getByRole("button", { name: "Vocabulary" }));
-    expect(navigate).toHaveBeenCalledWith({ name: "books", bookId: null });
-  });
-
-  test("on a chapter, Book leads to it and names it", async () => {
-    const user = userEvent.setup();
-    const navigate = mock();
-    const current = await chapterOnTheShelf();
-    show({ navigate, current });
-    await started();
-
-    const vocabulary = screen.getByRole("button", { name: /^Vocabulary/u });
-    expect(vocabulary).toHaveTextContent(current.chapter.title);
-    await user.click(vocabulary);
-    expect(navigate).toHaveBeenCalledWith({
-      name: "books",
-      bookId: current.book.id,
-      chapterId: current.chapter.id,
-    });
-  });
-
-  test("the numbers show only what exists", async () => {
-    show({ counts: { drills: 2, recall: 5 } });
-    await started();
-
-    const named = (name: RegExp): HTMLElement =>
-      screen.getByRole("button", { name });
-    expect(named(/^Drills/u)).toHaveTextContent("2 due today");
-    expect(named(/^Daily review/u)).toHaveTextContent("5 due today");
-    expect(named(/^Progress/u)).toHaveTextContent("4 days in a row");
-    expect(screen.getAllByText("4 days in a row")).toHaveLength(2);
-  });
-
-  test("nothing due and no streak say nothing on the places", async () => {
+  test("with no streak, Home says it starts today", async () => {
     setMockHome({
       streak: { days: 0, freezesLeft: 2, practicedToday: false },
     });
-    show({ counts: { drills: 0, recall: 0 } });
+    show();
     await started();
 
-    for (const name of ["Drills", "Daily review", "Progress", "Vocabulary"]) {
-      expect(screen.getByRole("button", { name })).toBeInTheDocument();
-    }
     expect(
       screen.getByText("Your streak starts with today's conversation"),
     ).toBeInTheDocument();
   });
 
-  test("Settings says when an update is waiting", async () => {
-    function Waiting({ children }: { children: ReactNode }) {
-      const updates = useUpdate();
-      const value = useMemo(
-        () => ({
-          ...updates,
-          folded: true,
-          state: { kind: "available" as const, version: "9.9.9" },
-        }),
-        [updates],
-      );
-      return (
-        <UpdateContext.Provider value={value}>
-          {children}
-        </UpdateContext.Provider>
-      );
-    }
-    render(
-      <Waiting>
-        <Home navigate={mock()} current={null} counts={{}} />
-      </Waiting>,
-    );
+  test("the streak shows over the partner", async () => {
+    show();
     await started();
 
-    expect(
-      screen.getByRole("button", { name: "Settings, an update is waiting" }),
-    ).toBeEnabled();
+    expect(screen.getByText("4 days in a row")).toBeInTheDocument();
   });
 
   test("todayLines keeps challenge, rotation, level", () => {
@@ -277,12 +184,7 @@ describe("Home", () => {
 
     expect(await started("Empezar charla")).toBeEnabled();
     expect(screen.getByRole("button", { name: "Ver más" })).toBeEnabled();
-    expect(
-      screen.getByRole("region", { name: "Conversación" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: /^Progreso/u }),
-    ).toHaveTextContent("4 días seguidos");
+    expect(screen.getByText("4 días seguidos")).toBeInTheDocument();
   });
 
   test("a load that fails says so", async () => {
