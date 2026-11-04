@@ -5,6 +5,7 @@ import type { Profile, Settings } from "@shared/domain";
 import { Logo } from "@/components/ui/Logo";
 import { Notice } from "@/components/ui/Notice";
 import { Spinner } from "@/components/ui/Spinner";
+import { BookHome } from "@/features/books/BookHome";
 import { BooksScreen } from "@/features/books/BooksScreen";
 import { currentOf } from "@/features/books/currentChapter";
 import { Conversation } from "@/features/conversation/Conversation";
@@ -17,7 +18,6 @@ import { RecallScreen } from "@/features/recall/RecallScreen";
 import { ReportScreen } from "@/features/report/ReportScreen";
 import { SettingsScreen } from "@/features/settings/SettingsScreen";
 import { SpeechProvider } from "@/features/speech/speech";
-import { UpdateCard } from "@/features/update/UpdateCard";
 import { UpdateProvider } from "@/features/update/update";
 import { Setup } from "@/features/setup/Setup";
 import { StructuresScreen } from "@/features/structures/StructuresScreen";
@@ -26,10 +26,9 @@ import { setUiLang } from "@/lib/i18n/i18n";
 import { getProfile, getSettings } from "@/lib/ipc";
 import { useTheme } from "@/lib/theme";
 import type { Route } from "./routes";
-import { chapterOn, showsNav } from "./routes";
+import { chapterOn } from "./routes";
 import { BootStage } from "./BootStage";
-import { ScreenStage } from "./ScreenStage";
-import { TopBar } from "./TopBar";
+import { Shell } from "./Shell";
 import { useShelf } from "./useShelf";
 
 type Boot =
@@ -40,10 +39,10 @@ type Boot =
 export function App(): ReactNode {
   const { t } = useTranslation();
   const [boot, setBoot] = useState<Boot>({ state: "loading" });
-  const [route, setRoute] = useState<Route>({ name: "home" });
+  const [route, setRoute] = useState<Route>({ name: "book" });
   const [theme, setTheme] = useTheme();
   const onboarded = boot.state === "ready" && boot.profile?.onboarded === true;
-  const { counts, books, currentId } = useShelf(route, onboarded);
+  const { counts, books, currentId, loaded } = useShelf(route, onboarded);
 
   useEffect(() => {
     let live = true;
@@ -110,7 +109,7 @@ export function App(): ReactNode {
           settings={settings}
           onDone={(done, nextSettings) => {
             setBoot({ state: "ready", profile: done, settings: nextSettings });
-            setRoute({ name: "home" });
+            setRoute({ name: "book" });
           }}
         />
       </BootStage>
@@ -122,7 +121,18 @@ export function App(): ReactNode {
   const screen = (() => {
     switch (route.name) {
       case "home":
-        return <Home navigate={setRoute} current={current} counts={counts} />;
+        return <Home navigate={setRoute} />;
+      case "book":
+        return (
+          <BookHome
+            loaded={loaded}
+            books={books}
+            current={current}
+            counts={counts}
+            nativeLang={profile.nativeLang}
+            navigate={setRoute}
+          />
+        );
       case "setup":
         return (
           <Setup profile={profile} preset={route.preset} navigate={setRoute} />
@@ -216,17 +226,15 @@ export function App(): ReactNode {
     <BootStage name="app">
       <SpeechProvider>
         <UpdateProvider>
-          <div className="relative flex h-full flex-col">
-            <TopBar
-              route={route}
-              navigate={setRoute}
-              counts={counts}
-              books={books}
-              current={current}
-            />
-            <ScreenStage route={route}>{screen}</ScreenStage>
-            <UpdateCard shown={showsNav(route)} />
-          </div>
+          <Shell
+            route={route}
+            navigate={setRoute}
+            counts={counts}
+            books={books}
+            current={current}
+          >
+            {screen}
+          </Shell>
         </UpdateProvider>
       </SpeechProvider>
     </BootStage>

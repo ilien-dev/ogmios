@@ -106,7 +106,7 @@ export function ChoiceGroup<T extends string>({
                       key="badge"
                       as="span"
                       kind="fade"
-                      className="rounded-full bg-accent-soft px-2 py-0.5 text-xs font-medium text-accent-text"
+                      className="rounded-sm bg-accent-soft px-2 py-0.5 text-xs font-medium text-accent-text"
                     >
                       {choice.badge}
                     </Reveal>

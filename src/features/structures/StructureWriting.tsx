@@ -103,7 +103,7 @@ export function StructureWriting({
   ];
   return (
     <div className="flex flex-col gap-6">
-      <p className="self-start rounded-full bg-surface px-3 py-1 text-sm font-medium text-ink-soft shadow-card">
+      <p className="self-start rounded-sm bg-surface px-3 py-1 text-sm font-medium text-ink-soft shadow-card">
         <Tooltip hint={goal}>{item.name}</Tooltip>
         {` · ${tags.join(" · ")}`}
       </p>

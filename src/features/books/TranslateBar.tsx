@@ -24,7 +24,7 @@ export function TranslateBar({
     : paragraphs.find((each) => each.index === current);
   return (
     <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-      <span className="rounded-full bg-surface px-4 py-1.5 text-sm font-medium text-ink shadow-card">
+      <span className="rounded-md bg-surface px-4 py-1.5 text-sm font-medium text-ink shadow-card">
         {way}
       </span>
       <div className="w-48">

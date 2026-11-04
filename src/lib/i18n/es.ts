@@ -32,16 +32,16 @@ export const es: Catalog<typeof en> = {
     chapterIs: "Capítulo actual: {{chapter}}",
     settingsWaiting: "Ajustes, hay una actualización pendiente",
     pickChapter: "Elige un capítulo",
+    sections: "Secciones",
     groups: {
       conversation: "Conversación",
       book: "Libro",
     },
     entries: {
-      home: "Inicio",
       conversation: "Charla",
       drills: "Ejercicios",
       progress: "Progreso",
-      vocabulary: "Vocabulario",
+      chapters: "Capítulos",
       translate: "Traducir",
       structures: "Estructuras",
       listening: "Oído",
@@ -728,6 +728,60 @@ export const es: Catalog<typeof en> = {
       unreadable: "Este archivo no se pudo leer como libro EPUB o PDF.",
       scanned:
         "Este PDF es un escaneo: sus páginas son imágenes sin texto, así que Ogmios no puede leerlo.",
+    },
+  },
+  bookHome: {
+    position: "Capítulo {{at}} de {{of}}",
+    shelf: "Cambiar libro",
+    chapters: {
+      title: "Vocabulario por capítulo",
+      hint: "Toca una barra",
+    },
+    bar: {
+      ready: "{{chapter}}, {{words}} palabras de largo, listo para leer",
+      learning:
+        "{{chapter}}, {{words}} palabras de largo, {{readiness}} % listo",
+      unprepared: "{{chapter}}, {{words}} palabras de largo, sin preparar",
+    },
+    legend: {
+      ready: "Listo para leer",
+      learning: "Aprendiendo",
+      unprepared: "Sin preparar",
+    },
+    state: {
+      ready: "Listo para leer",
+      learning: "{{readiness}} % de sus palabras listas",
+      unprepared: "Aún no se han sacado sus palabras",
+    },
+    study: "Estudiar sus palabras",
+    prepare: "Prepararlo",
+    translate: {
+      title: "Traducir",
+      how: "Primero a tu idioma y después de vuelta al inglés",
+    },
+    review: {
+      title: "Repaso diario",
+      strength: "{{firm}} firmes, {{settling}} asentándose, {{fresh}} nuevas",
+      start_one: "Repasar {{count}} palabra",
+      start_other: "Repasar {{count}} palabras",
+      open: "Abrir el repaso",
+    },
+    words: {
+      title: "Tus palabras",
+      total_one: "palabra",
+      total_other: "palabras",
+      learned_one: "{{count}} aprendida aquí",
+      learned_other: "{{count}} aprendidas aquí",
+      known_one: "{{count}} que ya sabías",
+      known_other: "{{count}} que ya sabías",
+      dots: "{{learned}} aprendidas aquí y {{known}} que ya sabías",
+      unit_one: "Cada punto es {{count}} palabra",
+      unit_other: "Cada punto son unas {{count}} palabras",
+    },
+    empty: {
+      title: "Añade tu primer libro",
+      body: "Aquí aparecerán sus capítulos y qué tan listo estás para leer cada uno.",
+      action: "Añadir libro",
     },
   },
   recall: {

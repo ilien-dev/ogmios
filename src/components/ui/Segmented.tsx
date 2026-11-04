@@ -25,12 +25,12 @@ export function Segmented<T extends string>({
   return (
     <fieldset className="flex flex-col gap-3">
       <legend className="mb-3 text-sm font-medium text-ink">{legend}</legend>
-      <div className="flex w-fit gap-1 rounded-full bg-sunken p-1">
+      <div className="flex w-fit gap-1 rounded-lg bg-sunken p-1">
         {choices.map((choice) => (
           <label
             key={choice.value}
             className={cn(
-              "relative flex h-9 min-w-24 cursor-pointer items-center justify-center rounded-full px-4 text-sm font-medium transition-control has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-accent-strong",
+              "relative flex h-9 min-w-24 cursor-pointer items-center justify-center rounded-md px-4 text-sm font-medium transition-control has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-accent-strong",
               choice.value === value
                 ? "text-ink"
                 : "text-ink-soft hover:text-ink",
@@ -42,7 +42,7 @@ export function Segmented<T extends string>({
                 data-pill
                 layoutId={`${name}-pill`}
                 transition={{ type: "spring", stiffness: 420, damping: 36 }}
-                className="absolute inset-0 rounded-full bg-surface shadow-card"
+                className="absolute inset-0 rounded-md bg-surface shadow-card"
               />
             )}
             <input

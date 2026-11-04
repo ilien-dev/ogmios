@@ -31,9 +31,9 @@ const VARIANTS: Record<Variant, string> = {
 };
 
 const SIZES: Record<Size, string> = {
-  sm: "h-8 gap-1.5 rounded-full px-3 text-sm",
-  md: "h-11 gap-2 rounded-full px-5 text-sm",
-  lg: "h-14 gap-3 rounded-full px-7 text-base",
+  sm: "h-8 gap-1.5 rounded-md px-3 text-sm",
+  md: "h-11 gap-2 rounded-md px-5 text-sm",
+  lg: "h-14 gap-3 rounded-md px-7 text-base",
 };
 
 interface ButtonProps extends ComponentProps<"button"> {

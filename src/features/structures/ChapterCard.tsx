@@ -48,7 +48,7 @@ export function ChapterCard({
               {found.structures.map((each) => (
                 <li
                   key={each.key}
-                  className="rounded-full bg-raised px-3 py-1 text-sm text-ink-soft"
+                  className="rounded-sm bg-raised px-3 py-1 text-sm text-ink-soft"
                 >
                   <span className="font-medium text-ink">
                     {names.get(each.key) ?? each.key}
