@@ -543,7 +543,7 @@ export function SittingItem<Result extends Checked>({
         <label htmlFor={fieldId} className="sr-only">
           {t("books.sitting.answer")}
         </label>
-        <div className="flex items-center gap-2 rounded-full bg-surface py-1.5 pr-1.5 pl-6 shadow-card transition-shadow duration-150 focus-within:shadow-glow-book">
+        <div className="flex items-center gap-2 rounded-lg bg-surface py-1.5 pr-1.5 pl-6 shadow-card transition-shadow duration-150 focus-within:shadow-glow-book">
           <input
             ref={field}
             id={fieldId}

@@ -54,7 +54,7 @@ export function UpdateRow(): ReactNode {
           <button
             type="button"
             onClick={unfold}
-            className="flex h-9 items-center gap-2 rounded-full px-3 text-sm font-medium text-accent-text transition-control hover:bg-raised"
+            className="flex h-9 items-center gap-2 rounded-md px-3 text-sm font-medium text-accent-text transition-control hover:bg-raised"
           >
             <ArrowUpCircle aria-hidden className="size-4" />
             {t("update.hint", { version: newer })}
@@ -100,7 +100,7 @@ export function UpdateRow(): ReactNode {
             setAsked(true);
             check();
           }}
-          className="flex h-9 items-center gap-2 rounded-full px-3 text-sm text-ink-soft transition-control hover:bg-raised hover:text-ink"
+          className="flex h-9 items-center gap-2 rounded-md px-3 text-sm text-ink-soft transition-control hover:bg-raised hover:text-ink"
         >
           <RefreshCw aria-hidden className="size-4" />
           {t("update.check")}

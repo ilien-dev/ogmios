@@ -21,7 +21,7 @@ export function PaceChoice({
     <div
       role="group"
       aria-label={t("listening.pace.label")}
-      className="inline-flex shrink-0 gap-1 rounded-full bg-raised p-1"
+      className="inline-flex shrink-0 gap-1 rounded-lg bg-raised p-1"
     >
       {PACES.map((pace) => (
         <button
@@ -33,7 +33,7 @@ export function PaceChoice({
             onChange(pace);
           }}
           className={cn(
-            "h-9 rounded-full px-4 text-sm transition-control disabled:cursor-not-allowed disabled:text-ink-faint",
+            "h-9 rounded-md px-4 text-sm transition-control disabled:cursor-not-allowed disabled:text-ink-faint",
             pace === value
               ? "bg-surface font-medium text-ink shadow-card"
               : "text-ink-soft hover:text-ink",

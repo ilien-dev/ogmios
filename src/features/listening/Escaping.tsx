@@ -5,7 +5,7 @@ import { Presence } from "@/components/motion/Presence";
 import { Reveal } from "@/components/motion/Reveal";
 import { Stagger } from "@/components/motion/Stagger";
 
-const CHIP = "rounded-full bg-raised px-3 py-1 text-sm text-ink-soft";
+const CHIP = "rounded-sm bg-raised px-3 py-1 text-sm text-ink-soft";
 
 /** The words that escape the ear, and the ones the dictations bring back. */
 export function Escaping({ state }: { state: ListeningState }): ReactNode {
