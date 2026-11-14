@@ -48,13 +48,22 @@ impl Used {
         Ok(Self { native, answers })
     }
 
-    /// The translations the word of `key` is `shown` as, the one the
-    /// learner answers with most first.
-    pub fn order(&self, key: &str, part: Option<PartOfSpeech>, shown: Vec<String>) -> Vec<String> {
-        match self.answers.get(key) {
-            Some(answers) => preferred(shown, answers, (&self.native, inflects(part))),
+    /// The translations the chapter's word `id`, of `key`, was prepared
+    /// with ([`extracted`]), the one the learner answers with most first.
+    pub fn order(
+        &self,
+        conn: &Connection,
+        (key, id): (&str, &str),
+        part: Option<PartOfSpeech>,
+    ) -> Result<Vec<String>> {
+        let shown = extracted(conn, id)?;
+        Ok(match self.answers.get(key) {
+            Some(answers) => {
+                let forms = in_forms(conn, id)?;
+                preferred(shown, &forms, answers, (&self.native, inflects(part)))
+            }
             None => shown,
-        }
+        })
     }
 }
 
@@ -308,6 +317,28 @@ pub fn extracted(conn: &Connection, word_id: &str) -> Result<Vec<String>> {
     Ok(rows.collect::<rusqlite::Result<_>>()?)
 }
 
+/// Every form each translation a chapter's word was prepared with was said
+/// in for the form the word is called by: "chorreó" and "chorreaba" for
+/// "chorrear", of "trickled". An answer in one of them is that translation.
+fn in_forms(conn: &Connection, word_id: &str) -> Result<HashMap<String, Vec<String>>> {
+    let mut stmt = conn.prepare_cached(
+        "SELECT text, in_form, in_form_also FROM word_translations
+         WHERE word_id = ?1 AND source = 'extraction' AND in_form IS NOT NULL",
+    )?;
+    let rows = stmt
+        .query_map([word_id], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))?
+        .collect::<rusqlite::Result<Vec<(String, String, Option<String>)>>>()?;
+    let mut forms = HashMap::new();
+    for (text, in_form, also) in rows {
+        let mut all = vec![in_form];
+        if let Some(also) = also {
+            all.extend(serde_json::from_str::<Vec<String>>(&also)?);
+        }
+        forms.insert(text, all);
+    }
+    Ok(forms)
+}
+
 /// What each translation a chapter's word was prepared with is in the form
 /// the word is called by, of those a model has said it of.
 pub fn said_in_form(conn: &Connection, word_id: &str) -> Result<HashMap<String, String>> {
@@ -360,7 +391,7 @@ pub fn known(conn: &Connection) -> Result<Vec<KnownWord>> {
             .query_row([&word.key], |row| Ok((row.get(0)?, row.get(1)?)))
             .optional()?;
         if let Some((id, part)) = first {
-            word.translations = used.order(&word.key, part, extracted(conn, &id)?);
+            word.translations = used.order(conn, (&word.key, &id), part)?;
         }
     }
     Ok(words)
@@ -397,7 +428,7 @@ pub fn learned(conn: &Connection) -> Result<Vec<Learned>> {
     let used = Used::load(conn, None)?;
     rows.into_iter()
         .map(|(lemma, done_at, id, key, part)| {
-            let shown = used.order(&key, part, extracted(conn, &id)?);
+            let shown = used.order(conn, (&key, &id), part)?;
             Ok(Learned {
                 lemma,
                 translation: shown.into_iter().next(),
@@ -448,7 +479,7 @@ pub fn list(conn: &Connection, chapter_id: &str) -> Result<Vec<BookWord>> {
         .into_iter()
         .map(|(key, called_by_base, mut word)| {
             word.half = halves.get(&word.id).copied();
-            let shown = used.order(&key, word.part_of_speech, extracted(conn, &word.id)?);
+            let shown = used.order(conn, (&key, &word.id), word.part_of_speech)?;
             let said = said_in_form(conn, &word.id)?;
             word.translations = as_called(&shown, &said, called_by_base).unwrap_or(shown);
             Ok(word)
@@ -761,6 +792,54 @@ pub mod tests {
         recalled("right", "pista");
         recalled("right", "la pista");
         assert_eq!(shown(&chapters[1]), ["pista", "indicio"]);
+    }
+
+    #[test]
+    fn an_answer_in_the_form_the_word_is_called_by_says_which_translation_is_used() {
+        let conn = open_in_memory().expect("db");
+        crate::db::profile::save_profile(&conn, &crate::db::profile::tests::profile())
+            .expect("profile");
+        let chapters = book(&conn, "b", &["one"]);
+        let trickled = Word {
+            base: Some("trickle".into()),
+            verb_form: Some(VerbForm::Past),
+            part_of_speech: Some(PartOfSpeech::Verb),
+            ..word("trickled", &["gotear", "chorrear", "escurrirse"], 1)
+        };
+        finish(&conn, &chapters[0], Depth::Most, &[trickled], Utc::now()).expect("finish");
+        let id = list(&conn, &chapters[0]).expect("list").remove(0).id;
+        let asked: Vec<String> = ["gotear", "chorrear", "escurrirse"]
+            .map(String::from)
+            .into();
+        let said: Vec<String> = ["goteó", "chorreó", "se escurrió"].map(String::from).into();
+        assert!(put_in_form(&conn, &id, &asked, &said).expect("in form"));
+        let also = [["goteaba"], ["chorreaba"], ["se escurría"]]
+            .map(|each| each.map(String::from).to_vec());
+        assert!(put_also(&conn, &id, &asked, &also).expect("also"));
+
+        // Answers kept before an answer in the past counted for anything.
+        let sitting = crate::db::practice::start(&conn, &chapters[0], Ways::Both, Utc::now())
+            .expect("sitting");
+        for answer in ["chorreo", "chorreaba"] {
+            crate::db::practice::record(
+                &conn,
+                &sitting,
+                (&id, Direction::Recognition),
+                (answer, true),
+                Utc::now(),
+            )
+            .expect("answer");
+        }
+
+        let listed = list(&conn, &chapters[0]).expect("list").remove(0);
+        assert_eq!(listed.translations, ["chorreó", "goteó", "se escurrió"]);
+        let row = crate::db::practice::word(&conn, &id).expect("word");
+        assert_eq!(row.shown_as(), ["chorreó", "goteó", "se escurrió"]);
+        assert_eq!(
+            row.translations,
+            ["gotear", "chorrear", "escurrirse"],
+            "all still accepted"
+        );
     }
 
     #[test]

@@ -7,6 +7,8 @@
 //! A word's standing is never stored. It is read off its answers, oldest
 //! first ([`owed`]), so undoing a miss later is changing that one answer.
 
+use std::collections::HashMap;
+
 use rust_stemmers::{Algorithm, Stemmer};
 
 use super::spelling::{self, Spelling};
@@ -686,30 +688,38 @@ pub fn off_base(
 /// The translations a word is `shown` as, the one the learner answers with
 /// most first. Each of their right `answers` English → native counts for the
 /// first translation it is as written ([`accepts`]), or else for the first
-/// it says in another form ([`accepts_native`]). An answer that is none of
-/// them, one a dispute upheld, counts for nothing and is never listed. As
-/// often as each other, two keep the order the chapter was prepared with.
-/// The answers were checked when they were given: spelling is lenient here.
-pub fn preferred(shown: Vec<String>, answers: &[String], native: (&str, bool)) -> Vec<String> {
-    let said = |answer: &str| {
-        let written = |each: &String| {
-            let one = std::slice::from_ref(each);
-            accepts(answer, one, articles(native.0), Spelling::Lenient)
-        };
-        let meant = |each: &String| {
-            accepts_native(
-                answer,
-                std::slice::from_ref(each),
-                native,
-                Spelling::Lenient,
-            )
-        };
-        let exact = shown.iter().position(written);
-        exact.or_else(|| shown.iter().position(meant))
+/// it says in another form ([`accepts_native`]): the translation itself or
+/// one of the `forms` it was said in for the form the word is asked in
+/// ("chorreó" and "chorreaba" for "chorrear", of "trickled"). An answer
+/// that is none of them, one a dispute upheld, counts for nothing and is
+/// never listed. As often as each other, two keep the order the chapter was
+/// prepared with. The answers were checked when they were given: spelling
+/// is lenient here.
+pub fn preferred(
+    shown: Vec<String>,
+    forms: &HashMap<String, Vec<String>>,
+    answers: &[String],
+    native: (&str, bool),
+) -> Vec<String> {
+    let said: Vec<Vec<String>> = shown
+        .iter()
+        .map(|each| {
+            let mut all = vec![each.clone()];
+            all.extend(forms.get(each).into_iter().flatten().cloned());
+            all
+        })
+        .collect();
+    let meant = |answer: &str| {
+        let written =
+            |all: &Vec<String>| accepts(answer, all, articles(native.0), Spelling::Lenient);
+        let another = |all: &Vec<String>| accepts_native(answer, all, native, Spelling::Lenient);
+        said.iter()
+            .position(written)
+            .or_else(|| said.iter().position(another))
     };
     let mut uses = vec![0_u32; shown.len()];
     for answer in answers {
-        if let Some(count) = said(answer).and_then(|at| uses.get_mut(at)) {
+        if let Some(count) = meant(answer).and_then(|at| uses.get_mut(at)) {
             *count = count.saturating_add(1);
         }
     }
@@ -1590,7 +1600,8 @@ mod tests {
             texts.iter().map(|each| (*each).to_owned()).collect()
         };
         let clue = || list(&["pista", "indicio"]);
-        let noun = |answers: &[&str]| preferred(clue(), &list(answers), ("es", false));
+        let none = HashMap::new();
+        let noun = |answers: &[&str]| preferred(clue(), &none, &list(answers), ("es", false));
         assert_eq!(noun(&[]), ["pista", "indicio"], "as it was prepared");
         assert_eq!(noun(&["indicio"]), ["indicio", "pista"]);
         assert_eq!(
@@ -1609,12 +1620,41 @@ mod tests {
         // A verb in another form counts for the translation it is a form of,
         // and one written as a translation for that one before any other.
         let rest = list(&["descansar", "reposar", "descanso"]);
-        let verb = |answers: &[&str]| preferred(rest.clone(), &list(answers), ("es", true));
+        let verb = |answers: &[&str]| preferred(rest.clone(), &none, &list(answers), ("es", true));
         assert_eq!(verb(&["reposaba", "reposó"])[0], "reposar");
         assert_eq!(
             verb(&["descanso", "descanso", "descansar"]),
             ["descanso", "descansar", "reposar"]
         );
+    }
+
+    #[test]
+    fn an_answer_in_the_form_the_word_is_asked_in_counts_for_its_translation() {
+        let list = |texts: &[&str]| -> Vec<String> {
+            texts.iter().map(|each| (*each).to_owned()).collect()
+        };
+        // "trickled": no answer in the past is a form of "chorrear" its
+        // roots can tell, "chorreó" least of all, nor "chorreo" without its
+        // accent. What each translation is in that form says it.
+        let shown = list(&["gotear", "chorrear", "escurrirse"]);
+        let forms: HashMap<String, Vec<String>> = [
+            ("gotear", ["goteó", "goteaba"]),
+            ("chorrear", ["chorreó", "chorreaba"]),
+            ("escurrirse", ["se escurrió", "se escurría"]),
+        ]
+        .into_iter()
+        .map(|(text, said)| (text.to_owned(), list(&said)))
+        .collect();
+        let past =
+            |answers: &[&str]| preferred(shown.clone(), &forms, &list(answers), ("es", true));
+        assert_eq!(past(&["chorreo"]), ["chorrear", "gotear", "escurrirse"]);
+        assert_eq!(past(&["chorreó", "chorreaba"])[0], "chorrear");
+        assert_eq!(
+            past(&["se escurria", "goteo", "se escurrió"])[0],
+            "escurrirse"
+        );
+        // Still nothing that is none of them is counted or listed.
+        assert_eq!(past(&["mostrado", "derramó"]), shown);
     }
 
     #[test]
