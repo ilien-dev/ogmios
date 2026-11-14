@@ -64,6 +64,11 @@ fn setup(app: &mut tauri::App) -> std::result::Result<(), Box<dyn std::error::Er
     let data_dir = app.path().app_data_dir()?;
     std::fs::create_dir_all(&data_dir)?;
     let conn = db::open(&data_dir.join("ogmios.sqlite"))?;
+    // Hints kept before they had to leave out a tense their form does not
+    // show lose it before anything is practised (`db::sentences::unaid`).
+    if let Some(profile) = db::profile::get_profile(&conn)? {
+        db::sentences::unaid(&conn, &profile.native_lang)?;
+    }
     let agent = agent::Agent::new(agent::locate_sidecar()).in_dir(data_dir.join("agent"));
     let stt = stt::Dictation::new(&data_dir);
     let tts = tts::Speech::new(&data_dir);

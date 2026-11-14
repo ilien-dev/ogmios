@@ -8,6 +8,7 @@ use rusqlite::{params, Connection, OptionalExtension, Row};
 
 use super::practice::NOT_KNOWN;
 use super::{new_id, ts};
+use crate::books::sentences::{other_hints, unaided};
 use crate::books::vocab;
 use crate::domain::{PartOfSpeech, VerbForm};
 use crate::error::Result;
@@ -258,6 +259,47 @@ pub fn regloss(conn: &Connection, sentence: &Sentence, labels: &Labels) -> Resul
         ],
     )?;
     Ok(())
+}
+
+/// Gives every sentence kept its hint and its other hints without the words
+/// of the learner's `lang` for English ones outside its form
+/// (`books::sentences::unaided`): a sentence glossed before this was asked
+/// for is asked as one glossed now. Changes nothing the second time; how
+/// many sentences it changed.
+pub fn unaid(conn: &Connection, lang: &str) -> Result<usize> {
+    let mut stmt = conn.prepare(
+        "SELECT id, form, hint, COALESCE(hints, '[]'), hints IS NULL FROM word_sentences
+         WHERE hint != ''",
+    )?;
+    let rows = stmt
+        .query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                list(row, 3)?,
+                row.get::<_, bool>(4)?,
+            ))
+        })?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    let mut changed = 0_usize;
+    for (id, form, hint, hints, unlabelled) in rows {
+        let new_hint = unaided(&hint, &form, lang);
+        let new_hints = other_hints(&hints, (&new_hint, &form, lang), &[]);
+        if new_hint == hint && new_hints == hints {
+            continue;
+        }
+        // One not labelled yet stays so: the next run labels it.
+        let json = (!unlabelled)
+            .then(|| serde_json::to_string(&new_hints))
+            .transpose()?;
+        conn.execute(
+            "UPDATE word_sentences SET hint = ?2, hints = ?3 WHERE id = ?1",
+            params![id, new_hint, json],
+        )?;
+        changed += 1;
+    }
+    Ok(changed)
 }
 
 /// The other words the learner has that are shown as one of these
