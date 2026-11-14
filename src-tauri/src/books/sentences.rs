@@ -190,6 +190,48 @@ pub fn unaided(hint: &str, form: &str, lang: &str) -> String {
     words[from..].join(" ")
 }
 
+/// What English → native asks of a word in a sentence.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AskedAlone {
+    /// What an answer is judged against, the form asked for first.
+    pub judged: Vec<String>,
+    /// What is shown as accepted.
+    pub accepted: Vec<String>,
+    /// The form the sentence gives the word, when it is none of those.
+    pub note: Option<String>,
+}
+
+/// What English → native asks of a word whose sentence `said` it in these
+/// translations, the hint first. A verb taken `alone` is asked for in that
+/// form: "freezes" is "se congela", whatever its sentence makes of it. The
+/// form the sentence gives it ("se congele" in "before she freezes") is
+/// right too, and pointed out when it is not one of them. Without that,
+/// what the sentence says is asked for, as it is. Unless `lead`, the
+/// sentence's form stays first in what is judged: a verb called by its base
+/// form is taken alone as an infinitive, which asks for no form of its own.
+pub fn asked_alone(alone: Option<&[String]>, said: &[String], lead: bool) -> AskedAlone {
+    let Some(alone) = alone else {
+        return AskedAlone {
+            judged: said.to_vec(),
+            accepted: said.to_vec(),
+            note: None,
+        };
+    };
+    let held = |list: &[String], text: &str| list.iter().any(|each| tokens(each) == tokens(text));
+    let (first, then) = if lead { (alone, said) } else { (said, alone) };
+    let mut judged = first.to_vec();
+    for each in then {
+        if !held(&judged, each) {
+            judged.push(each.clone());
+        }
+    }
+    AskedAlone {
+        judged,
+        accepted: alone.to_vec(),
+        note: said.first().filter(|hint| !held(alone, hint)).cloned(),
+    }
+}
+
 /// Whether a sentence has the word in another form than its base form:
 /// "receded" for "recede".
 pub fn inflected(form: &str, lemma: &str) -> bool {
@@ -529,6 +571,71 @@ mod tests {
         let kept = ["me había empeñado en", "me había asegurado de"];
         assert_eq!(judged("me aseguré de", &kept), Verdict::RightBase);
         assert_eq!(judged("me olvidé de", &hints), Verdict::Miss);
+    }
+
+    #[test]
+    fn a_verb_is_asked_as_it_is_alone_and_its_sentence_form_is_pointed_out() {
+        let said = list(&["se congele", "se hiele"]);
+        let alone = list(&["se congela", "se hiela"]);
+        let asked = asked_alone(Some(&alone), &said, true);
+        assert_eq!(asked.accepted, alone);
+        assert_eq!(asked.judged[..2], alone[..]);
+        assert_eq!(asked.note.as_deref(), Some("se congele"));
+        // "freezes" in "before she freezes": any of the two is right.
+        let base = list(&["congelarse", "helarse"]);
+        let spelling = Spelling::of(false);
+        let judged = |answer: &str| {
+            let verdict = recognition(
+                answer,
+                (&base, &base),
+                (&asked.judged, true),
+                (("es", true), spelling),
+            );
+            in_form(verdict, answer, &asked.judged, ("es", spelling))
+        };
+        assert_eq!(judged("se congela"), Verdict::Right);
+        assert_eq!(judged("Se hiela."), Verdict::Right);
+        assert_eq!(judged("se congele"), Verdict::Right);
+        assert_eq!(judged("congelarse"), Verdict::WrongForm);
+        // The sentence has it as it is alone: nothing to point out.
+        let same = asked_alone(Some(&alone), &list(&["se congela"]), true);
+        assert_eq!((same.note, same.judged), (None, alone.clone()));
+        // Not taken alone: what the sentence says, as before.
+        let before = asked_alone(None, &said, true);
+        assert_eq!((before.accepted, before.note), (said, None));
+    }
+
+    #[test]
+    fn a_verb_called_by_its_base_form_keeps_any_form_its_sentence_allows() {
+        // "freeze" in "they freeze at night": taken alone, "congelarse".
+        let base = list(&["congelarse", "helarse"]);
+        let asked = asked_alone(Some(&base), &list(&["se congelan"]), false);
+        assert_eq!(asked.accepted, base);
+        assert_eq!(asked.note.as_deref(), Some("se congelan"));
+        let spelling = Spelling::of(false);
+        let judged = |answer: &str| {
+            let verdict = recognition(
+                answer,
+                (&base, &base),
+                (&asked.judged, false),
+                (("es", true), spelling),
+            );
+            in_form(verdict, answer, &asked.judged, ("es", spelling))
+        };
+        // Right in any form, as before: the base form asks for none.
+        for answer in [
+            "congelarse",
+            "se congelan",
+            "se congela",
+            "congelan",
+            "helarse",
+        ] {
+            let verdict = judged(answer);
+            assert!(
+                matches!(verdict, Verdict::Right | Verdict::RightBase),
+                "{answer}: {verdict:?}"
+            );
+        }
     }
 
     #[test]

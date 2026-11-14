@@ -53,6 +53,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("inform.sql"),
     include_str!("archive.sql"),
     include_str!("discard.sql"),
+    include_str!("alone.sql"),
 ];
 
 pub fn open(path: &Path) -> Result<Connection> {
@@ -677,6 +678,43 @@ mod tests {
         let shelf = books::list_books(&conn).expect("list");
         let ids: Vec<&str> = shelf.iter().map(|book| book.id.as_str()).collect();
         assert_eq!(ids, ["b"]);
+    }
+
+    #[test]
+    fn migration_thirty_one_has_a_present_or_a_past_said_again_in_the_indicative() {
+        let conn = Connection::open_in_memory().expect("open");
+        for sql in &MIGRATIONS[..30] {
+            conn.execute_batch(sql).expect("migration");
+        }
+        conn.pragma_update(None, "user_version", 30)
+            .expect("version");
+        conn.execute_batch(
+            r#"INSERT INTO books VALUES ('b', 'Alice', NULL, 'epub', 'h', 'f', '2026-01-01');
+             INSERT INTO book_chapters (id, book_id, idx, title, words, text)
+               VALUES ('c', 'b', 0, 'I', 2, 'text');
+             INSERT INTO chapter_words
+               (id, chapter_id, key, lemma, forms, sentence, occurrences, depth, created_at,
+                part_of_speech, transitive, base, verb_form)
+             VALUES ('freezes', 'c', 'freezes', 'freezes', '["freezes"]',
+                     'Get her in before she freezes.', 1, 'most',
+                     '2026-01-01', 'verb', 0, 'freeze', 'present'),
+                    ('sworn', 'c', 'sworn', 'sworn', '["sworn"]',
+                     'Within these walls, sworn into servitude, they lived.', 1, 'most',
+                     '2026-01-01', 'verb', 0, 'swear', 'pastParticiple');
+             INSERT INTO word_translations (word_id, text, source, in_form)
+               VALUES ('freezes', 'congelarse', 'extraction', 'se congele'),
+                      ('sworn', 'jurar', 'extraction', 'jurado');"#,
+        )
+        .expect("rows");
+
+        migrate(&conn).expect("migrate");
+        let word = |id: &str| practice::word(&conn, id).expect("word");
+        assert_eq!(word("freezes").in_form, None);
+        assert_eq!(word("sworn").in_form, Some(vec!["jurado".to_owned()]));
+        let waiting = words::unlabelled(&conn).expect("unlabelled");
+        let ids: Vec<&str> = waiting.iter().map(|each| each.id.as_str()).collect();
+        assert_eq!(ids, ["freezes"]);
+        assert_eq!(waiting[0].translations, ["congelarse"]);
     }
 
     #[test]

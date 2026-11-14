@@ -23,7 +23,7 @@ use crate::books::practice::{
     off_base, pace, progress, progress_over, seed, session_questions, sizes, SIZES,
 };
 use crate::books::sentences::{
-    choose, in_form, inflected, or_other, production, recognition, Banked, Verdict,
+    asked_alone, choose, in_form, inflected, or_other, production, recognition, Banked, Verdict,
 };
 use crate::books::spelling::Spelling;
 use crate::db::practice::{self, SittingRow, WordRow};
@@ -110,16 +110,20 @@ pub(super) fn in_place(sentence: &Sentence, direction: Direction) -> Option<Vec<
 /// in the learner's language. The sentence itself is kept back for the
 /// first hint ([`hinted`]): only a word that `needs_context` to be told
 /// from another sense shows it from the start ([`in_place`]). A verb comes
-/// with the form it has in the sentence ([`verb_form`]).
+/// with the form it has in the sentence ([`verb_form`]). Native → English,
+/// a verb is shown as it is taken `alone`, not in the mood, tense or
+/// agreement its sentence gives it: "se congela", never "se congele", for
+/// "freezes" in "before she freezes" (`db::practice::WordRow::alone`).
 pub(super) fn asked_with(
     (word_id, part_of_speech): (String, Option<PartOfSpeech>),
     sentence: &Sentence,
     direction: Direction,
-    needs_context: bool,
+    (needs_context, alone): (bool, Option<&[String]>),
 ) -> PracticeItem {
-    let prompt = match direction {
-        Direction::Recognition => small(&sentence.form),
-        Direction::Production => small(&sentence.hint),
+    let prompt = match (direction, alone) {
+        (Direction::Recognition, _) => small(&sentence.form),
+        (Direction::Production, Some(alone)) => small(&alone.join(", ")),
+        (Direction::Production, None) => small(&sentence.hint),
     };
     PracticeItem {
         word_id,
@@ -168,12 +172,15 @@ fn in_sentence(
 ) -> Result<PracticeItem> {
     Ok(
         match next_sentence(conn, (&word.key, &word.sentence), drawn_for)? {
-            Some(sentence) => asked_with(
-                (word.id, word.part_of_speech),
-                &sentence,
-                direction,
-                word.needs_context,
-            ),
+            Some(sentence) => {
+                let alone = word.alone_in(&sentence.form).map(<[String]>::to_vec);
+                asked_with(
+                    (word.id, word.part_of_speech),
+                    &sentence,
+                    direction,
+                    (word.needs_context, alone.as_deref()),
+                )
+            }
             None => item(word, direction),
         },
     )
@@ -238,6 +245,12 @@ pub(super) struct Meaning<'a> {
     /// The English base form: what the form of a sentence is another form
     /// of.
     pub lemma: &'a str,
+    /// What the word is called: its base form, or the form of a verb that
+    /// is a word of its own.
+    pub called: &'a str,
+    /// The word taken alone in the learner's language, in the form it is
+    /// called by (`db::practice::WordRow::alone`).
+    pub alone: Option<&'a [String]>,
     /// Every accepted translation, in its base form.
     pub translations: &'a [String],
     /// The ones it is shown as.
@@ -261,6 +274,8 @@ impl<'a> Meaning<'a> {
     pub(super) fn of(conn: &Connection, word: &'a WordRow) -> Result<Self> {
         Ok(Self {
             lemma: word.base.as_deref().unwrap_or(&word.lemma),
+            called: &word.lemma,
+            alone: word.alone(),
             translations: &word.translations,
             shown: &word.shown,
             forms: english(word),
@@ -299,7 +314,9 @@ impl Judged {
 /// Judges an answer given to a word in a sentence of its bank
 /// (`books::sentences`). English → native, what is asked for is the word's
 /// translations in the form the sentence has it in, never its base forms,
-/// and a verb is held to a gerund or an infinitive (`in_form`).
+/// and a verb is held to a gerund or an infinitive (`in_form`). A verb is
+/// asked for as it is taken alone, and the form its sentence gives it is
+/// pointed out beside it (`books::sentences::asked_alone`).
 /// Native → English, the forms of every sentence of
 /// the bank are forms of the word too: any of them is the word, and only
 /// the one of this sentence fills its blank. An answer that is neither, and
@@ -315,7 +332,15 @@ pub(super) fn judged(
 ) -> Result<Judged> {
     Ok(match direction {
         Direction::Recognition => {
-            let hints = [std::slice::from_ref(&sentence.hint), &sentence.hints].concat();
+            let said = [std::slice::from_ref(&sentence.hint), &sentence.hints].concat();
+            let alone = meaning
+                .alone
+                .filter(|_| !inflected(&sentence.form, meaning.called));
+            // A verb called by its base form keeps the sentence's form first:
+            // its infinitive asks for no form of its own.
+            let lead = meaning.called != meaning.lemma;
+            let asked = asked_alone(alone, &said, lead);
+            let hints = asked.judged;
             let verdict = recognition(
                 answer,
                 (meaning.translations, meaning.shown),
@@ -327,10 +352,15 @@ pub(super) fn judged(
             } else {
                 verdict
             };
+            let exact = if alone.is_some() {
+                asked.note
+            } else {
+                (verdict == Verdict::RightBase).then(|| sentence.hint.clone())
+            };
             Judged {
-                exact: (verdict == Verdict::RightBase).then(|| sentence.hint.clone()),
+                exact,
                 verdict,
-                accepted: hints,
+                accepted: asked.accepted,
             }
         }
         Direction::Production => {
@@ -534,7 +564,11 @@ pub(super) fn clue(
 ) -> (String, Option<Vec<SentencePart>>) {
     let (answer, context) = match (sentence, direction) {
         (Some(sentence), Direction::Recognition) => {
-            (sentence.hint.clone(), in_place(sentence, direction))
+            let alone = word.alone_in(&sentence.form).and_then(<[String]>::first);
+            (
+                alone.unwrap_or(&sentence.hint).clone(),
+                in_place(sentence, direction),
+            )
         }
         (Some(sentence), Direction::Production) => {
             (sentence.form.clone(), in_place(sentence, direction))

@@ -381,6 +381,17 @@ describe("labelling words stored without their kind", () => {
     expect(user).not.toContain("<translations>");
   });
 
+  test("a verb is put in its own form, not in the mood or tense its sentence gives it", () => {
+    const prompt = vocabLabelSystemPrompt();
+    expect(prompt).toContain(
+      "never a mood or a tense the rest of its sentence gives it",
+    );
+    expect(prompt).toContain(
+      '"se congela" for "freezes" in "before she freezes"',
+    );
+    expect(prompt).toContain('never "se congele"');
+  });
+
   test("a verb in another form comes with the translations to put in it", () => {
     expect(vocabLabelSystemPrompt()).toContain(
       '"jurado" for "jurar" when the word is "sworn"',
