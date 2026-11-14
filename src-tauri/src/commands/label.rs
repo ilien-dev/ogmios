@@ -57,7 +57,8 @@ pub fn label_all(ctx: Ctx<'_>, model: &mut dyn Model) -> Result<u32> {
             let kind = (label.part_of_speech, label.transitive);
             let kind = words::label(&conn, &label.id, kind, label.verb_form)?;
             let form = words::put_in_form(&conn, &label.id, &asked.translations, &label.in_form)?;
-            if kind || form {
+            let also = words::put_also(&conn, &label.id, &asked.translations, &label.in_form_also)?;
+            if kind || form || also {
                 labelled = labelled.saturating_add(1);
             }
         }
@@ -113,6 +114,7 @@ mod tests {
                     transitive: true,
                     verb_form: Some(VerbForm::Past),
                     in_form: word.translations.iter().map(|t| format!("{t}do")).collect(),
+                    in_form_also: word.translations.iter().map(|_| Vec::new()).collect(),
                 })
                 .collect();
             labels.push(WordLabel {
@@ -121,6 +123,7 @@ mod tests {
                 transitive: false,
                 verb_form: None,
                 in_form: Vec::new(),
+                in_form_also: Vec::new(),
             });
             Ok(VocabLabels { labels })
         }

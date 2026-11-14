@@ -11,6 +11,7 @@ import { Notice } from "@/components/ui/Notice";
 import { errorMessage } from "@/lib/errors";
 import {
   getChapterWords,
+  labelWords,
   restartSorting,
   setWordKnown,
   setWordSorted,
@@ -22,6 +23,7 @@ import {
   SittingWait,
 } from "./SittingParts";
 import { Tally } from "./Tally";
+import { TriageCard } from "./TriageCard";
 
 /** The key a choice answers to, shown on its button. */
 export function Key({ children }: { children: string }): ReactNode {
@@ -38,6 +40,17 @@ export function Key({ children }: { children: string }): ReactNode {
 /** The words of the chapter still to learn: the ones a sorting goes through. */
 function open(found: ChapterWords): BookWord[] {
   return found.words.filter((word) => !word.done && !word.known);
+}
+
+/** The cards as they are, each with what Rust says it is shown as now. */
+export function renewed(shown: BookWord[], found: ChapterWords): BookWord[] {
+  const now = new Map(found.words.map((each) => [each.id, each]));
+  return shown.map((word) => {
+    const fresh = now.get(word.id);
+    return fresh === undefined
+      ? word
+      : { ...word, translations: fresh.translations, verbForm: fresh.verbForm };
+  });
 }
 
 /** Names what is on the screen: the cards are one step, however many go by. */
@@ -58,7 +71,8 @@ interface TriageRunProps {
 
 /**
  * The chapter's open words as cards, one at a time, to clear the list fast:
- * the word, its translations under it, and two keys. A (or ←) marks the word
+ * the word, its translations under it in the form the book has it in
+ * (`TriageCard`), and two keys. A (or ←) marks the word
  * as known, D (or →) leaves it to learn, and each is kept at once: leaving
  * keeps every mark, and the next sorting starts at the first word that has
  * none. Z (or Backspace) goes back a word and takes its mark with it; Escape
@@ -102,6 +116,17 @@ export function TriageRun({
           setFailure(errorMessage(error));
         }
       });
+    // A verb whose translations were never put in its form is shown in its
+    // base form until a labelling run says them: the cards take them once it
+    // is over, the marks untouched. A run already under way is waited for.
+    const relabel = async (): Promise<void> => {
+      await labelWords().catch(() => 0);
+      const found = await getChapterWords(chapterId).catch(() => null);
+      if (found !== null && live) {
+        setWords((shown) => shown && renewed(shown, found));
+      }
+    };
+    void relabel();
     return () => {
       live = false;
     };
@@ -290,18 +315,10 @@ export function TriageRun({
                 kind="scale"
                 className="flex w-full flex-col items-center gap-3 rounded-xl bg-surface px-8 py-12 text-center shadow-card"
               >
-                <p className="text-sm text-ink-faint">
-                  {`${String(before + marks.length + 1)} / ${String(words.length)}`}
-                </p>
-                <h1 className="text-5xl font-semibold tracking-tight wrap-anywhere text-ink">
-                  {word.lemma}
-                </h1>
-                <p className="text-lead text-ink-soft">
-                  {word.translations.join(", ")}
-                </p>
-                <p className="text-sm text-ink-faint">
-                  {t("books.triage.times", { count: word.count })}
-                </p>
+                <TriageCard
+                  word={word}
+                  position={`${String(before + marks.length + 1)} / ${String(words.length)}`}
+                />
               </Reveal>
             </Presence>
           </div>

@@ -697,6 +697,8 @@ export const en = {
       noneLeft: "Nothing left to learn here.",
       finished: "You already went through this whole list.",
       again: "Another pass",
+      inBook: "See it in the book",
+      hideBook: "Hide the sentence",
     },
     sentences: {
       writing: "Preparing the book's sentences: {{done}} of {{total}} words",

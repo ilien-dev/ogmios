@@ -523,6 +523,11 @@ const wordLabelSchema = z.object({
    * order they came; empty when none was given.
    */
   inForm: z.array(z.string()),
+  /**
+   * For each of those, the other forms that say the same: the other past of
+   * a past ("juraba" beside "juró"); empty for any other form.
+   */
+  inFormAlso: z.array(z.array(z.string())),
 });
 
 /** The model's labels; a word without one is asked about again. */

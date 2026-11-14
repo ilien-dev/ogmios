@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use chrono::{DateTime, Utc};
 use rusqlite::{params, Connection};
 
-use super::words::Used;
+use super::words::{as_called, Used};
 use super::{found, new_id, parse_ts, ts};
 use crate::books::practice::{Answer, Asked, SessionWord};
 use crate::books::sentences::inflected;
@@ -64,6 +64,11 @@ pub struct WordRow {
     /// another form than its base form is shown as. None for any other
     /// word, and until a model said them all (`db::words::put_in_form`).
     pub in_form: Option<Vec<String>>,
+    /// The other forms its translations say the same in, beside
+    /// [`Self::in_form`]: "juraba" beside "juró", empty for a form that has
+    /// no other (`db::words::put_also`). None while that is none, and until
+    /// a model was asked for them.
+    pub also: Option<Vec<String>>,
     /// English answers a dispute upheld, accepted beside the base form and
     /// the forms of the book. They are not forms: nothing marks or blanks
     /// them in the sentence.
@@ -185,27 +190,50 @@ pub fn word(conn: &Connection, id: &str) -> Result<WordRow> {
         |row| Ok((row.get(0)?, row.get(1)?)),
     )?;
     let mut stmt = conn.prepare(
-        "SELECT text, source = 'extraction', in_form FROM word_translations
+        "SELECT text, source = 'extraction', in_form, in_form_also FROM word_translations
          WHERE word_id = ?1 ORDER BY rowid",
     )?;
-    let accepted = stmt
-        .query_map([id], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))?
-        .collect::<rusqlite::Result<Vec<(String, bool, Option<String>)>>>()?;
+    let rows = stmt
+        .query_map([id], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+        })?
+        .collect::<rusqlite::Result<Vec<(String, bool, Option<String>, Option<String>)>>>()?;
+    // Unasked while any translation shown in its form was not asked.
+    let mut also: Option<Vec<String>> = Some(Vec::new());
+    for (_, extracted, in_form, forms) in &rows {
+        if !*extracted || in_form.is_none() {
+            continue;
+        }
+        let Some(forms) = forms else {
+            also = None;
+            continue;
+        };
+        let forms: Vec<String> = serde_json::from_str(forms)?;
+        if let Some(kept) = also.as_mut() {
+            for each in forms {
+                if !kept.contains(&each) {
+                    kept.push(each);
+                }
+            }
+        }
+    }
+    let accepted: Vec<(String, bool, Option<String>)> = rows
+        .into_iter()
+        .map(|(text, extracted, in_form, _)| (text, extracted, in_form))
+        .collect();
     let shown = accepted
         .iter()
         .filter(|(_, extracted, _)| *extracted)
         .map(|(text, ..)| text.clone())
         .collect();
     let shown = Used::load(conn, Some(&key))?.order(&key, part_of_speech, shown);
-    let said: HashMap<&str, &str> = accepted
+    let said: HashMap<String, String> = accepted
         .iter()
-        .filter_map(|(text, _, in_form)| Some((text.as_str(), in_form.as_deref()?)))
+        .filter(|(_, extracted, _)| *extracted)
+        .filter_map(|(text, _, in_form)| Some((text.clone(), in_form.clone()?)))
         .collect();
-    let in_form: Option<Vec<String>> = shown
-        .iter()
-        .map(|text| said.get(text.as_str()).map(|each| (*each).to_owned()))
-        .collect();
-    let in_form = in_form.filter(|_| base.is_some() && !shown.is_empty());
+    let in_form = as_called(&shown, &said, base.is_none());
+    let also = also.filter(|_| in_form.is_some());
     let translations = accepted.iter().map(|(text, ..)| text.clone()).collect();
     let mut stmt =
         conn.prepare("SELECT text FROM word_english WHERE word_id = ?1 ORDER BY rowid")?;
@@ -226,6 +254,7 @@ pub fn word(conn: &Connection, id: &str) -> Result<WordRow> {
         translations,
         shown,
         in_form,
+        also,
         english,
     })
 }

@@ -46,6 +46,8 @@ function word(lemma: string, known = false): BookWord {
     id: lemma,
     lemma,
     partOfSpeech: null,
+    verbForm: null,
+    sentence: `A sentence with ${lemma}.`,
     translations: [`${lemma}-es`],
     count: 1,
     done: false,

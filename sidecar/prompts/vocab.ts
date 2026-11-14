@@ -40,7 +40,7 @@ For each item:
 - ${PART_OF_SPEECH_RULE}
 - ${TRANSITIVE_RULE}
 - ${VERB_FORM_RULE}
-- translations: every natural ${native} translation of the item in the sense it has in that sentence, base form, lowercase, at least one. A learner's typed answer is checked against this list, so include the common synonyms and nothing that fits only another sense.
+- translations: every natural ${native} translation of the item in the sense it has in that sentence, base form, lowercase, at least one. A learner's typed answer is checked against this list, so include the common synonyms and nothing that fits only another sense. Each translates the item alone, never a word of the sentence beside it: "corretear" for "scampered" in "she scampered down the tree", never "bajar correteando", which says "down" too. When the words beside it are what gives it its meaning, they belong to the item: a phrasal verb.
 - properNoun: true for a name of a person, place, brand or title. Otherwise false.
 - needsContext: true when the item has several unrelated meanings and the learner could not tell which one is meant without the sentence. Otherwise false.
 
@@ -69,7 +69,8 @@ For each word:
 - ${PART_OF_SPEECH_RULE}
 - ${TRANSITIVE_RULE}
 - ${VERB_FORM_RULE}
-- inForm: when the word comes with translations, those translations, one for each and in the same order, each put in the form the word has: the learner sees them and has to type the word in that form, so "jurado" for "jurar" when the word is "sworn", "juró" for "swore", "jurando" for "swearing", "jura" for "swears". A participle is given on its own, masculine singular, without an auxiliary; a past or a present takes the person its sentence gives it, in the indicative and in the tense of the English word itself, never a mood or a tense the rest of its sentence gives it: "se congela" for "freezes" in "before she freezes", never "se congele". The learner meets the word as the book writes it and has to know what it says on its own. Written in the language the translations are in, never in English. Empty when the word comes without translations.
+- inForm: when the word comes with translations, those translations, one for each and in the same order, each put in the form the word has: the learner sees them and has to type the word in that form, so "jurado" for "jurar" when the word is "sworn", "juró" for "swore", "jurando" for "swearing", "jura" for "swears". A participle is given on its own, masculine singular, without an auxiliary; a past or a present takes the person its sentence gives it, in the indicative and in the tense of the English word itself, never a mood or a tense the rest of its sentence gives it: "se congela" for "freezes" in "before she freezes", never "se congele". The learner meets the word as the book writes it and has to know what it says on its own: put the translation in that form and add nothing the word does not say, no word its sentence has beside it. Written in the language the translations are in, never in English. Empty when the word comes without translations.
+- inFormAlso: for each of inForm, in the same order, the other forms of that same translation that say what the English word says, in the same person and the indicative: the learner's answer is right only in one of these or in inForm. For a past, the other past of the language: "juraba" beside "juró", "era" and "fue" for "was". Never another tense, another person or a base form. An empty list for any form that has no other, a participle, a gerund or a present. Empty when the word comes without translations.
 
 Answer with one label per word.`;
 }
@@ -98,7 +99,7 @@ function judgeTask(params: VocabJudgeParams, native: string): string {
     return `The learner was shown the ${native} translation of the word, and the sentence with the word taken out, and typed an English word into the blank. The blank is filled by "${params.blank}". Decide whether their answer fills it just as well: an English word or expression with the same meaning, in the form the sentence needs there (the same tense, person and number). Another form of the right word does not fill the blank and is not right.`;
   }
   return params.direction === "recognition"
-    ? `The learner was shown the English word and typed a translation in ${native}. Decide whether their answer is a right ${native} translation of the word in the sense it has in the sentence.`
+    ? `The learner was shown the English word and typed a translation in ${native}. Decide whether their answer is a right ${native} translation of the word in the sense it has in the sentence. When the accepted translations are a verb in another form than its infinitive, the word was asked for in that form: a right answer has the tense, the person and the mood of one of them, and another form of a right verb is not right.`
     : `The learner was shown the ${native} translations, and the sentence with the word taken out, and typed an English word. Decide whether their answer is right: another form of the word, or an English word or expression with the same meaning that fits the sentence in its place.`;
 }
 

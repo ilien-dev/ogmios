@@ -193,6 +193,47 @@ pub fn accepts(answer: &str, accepted: &[String], articles: &[&str], spelling: S
             .any(|translation| normal(translation, articles, spelling) == given)
 }
 
+/// Whether `answer` is one of a verb's `forms`, as [`accepts`] reads it
+/// under the learner's `spelling`: lenient, an accent is never asked for.
+/// A reflexive pronoun leading either is left out: "congela" is "se
+/// congela". A `participle` is right in any gender and number: "jurada" is
+/// "jurado".
+pub fn in_forms(
+    answer: &str,
+    forms: &[String],
+    (lang, participle): (&str, bool),
+    spelling: Spelling,
+) -> bool {
+    let articles = articles(lang);
+    let pronouns = listed(&REFLEXIVES, &primary(lang));
+    let bare = |text: &str| {
+        let mut words = normal(text, articles, spelling);
+        if words.len() > 1 && pronouns.contains(&words[0].as_str()) {
+            words.remove(0);
+        }
+        if participle {
+            for word in &mut words {
+                *word = masculine(word);
+            }
+        }
+        words
+    };
+    let given = bare(answer);
+    !given.is_empty() && forms.iter().any(|form| bare(form) == given)
+}
+
+/// A participle in its masculine singular: "jurado" for "juradas".
+fn masculine(word: &str) -> String {
+    for (ending, into) in [("as", "o"), ("os", "o"), ("a", "o")] {
+        if let Some(stem) = word.strip_suffix(ending) {
+            if stem.ends_with("ad") || stem.ends_with("id") {
+                return format!("{stem}{into}");
+            }
+        }
+    }
+    word.to_owned()
+}
+
 /// The forms of "to be" that may lead an answer in the learner's language,
 /// without their accents: "estar apoyado" says what "apoyado" says.
 const COPULAS: [(&str, &[&str]); 4] = [
@@ -1760,6 +1801,34 @@ mod tests {
             &forms,
             Spelling::Lenient
         ));
+    }
+
+    #[test]
+    fn a_participle_is_in_its_form_in_any_gender_and_number() {
+        let sworn = ["jurado".to_owned()];
+        let lenient = Spelling::Lenient;
+        assert!(in_forms("juradas", &sworn, ("es", true), lenient));
+        assert!(in_forms("jurada", &sworn, ("es", true), lenient));
+        assert!(!in_forms("jurada", &sworn, ("es", false), lenient));
+        assert!(!in_forms("juraba", &sworn, ("es", true), lenient));
+    }
+
+    #[test]
+    fn a_verb_is_in_its_forms_with_its_accents_only_if_the_spelling_asks_for_them() {
+        let forms = [
+            "juró".to_owned(),
+            "juraba".to_owned(),
+            "se dejó caer".to_owned(),
+        ];
+        let es = ("es", false);
+        let (lenient, strict) = (Spelling::Lenient, Spelling::Strict);
+        assert!(in_forms("juró", &forms, es, lenient));
+        assert!(in_forms("JURABA", &forms, es, lenient));
+        assert!(in_forms("juro", &forms, es, lenient), "a US keyboard");
+        assert!(!in_forms("juro", &forms, es, strict));
+        assert!(!in_forms("jura", &forms, es, lenient));
+        assert!(in_forms("dejo caer", &forms, es, lenient));
+        assert!(!in_forms("", &forms, es, lenient));
     }
 
     #[test]

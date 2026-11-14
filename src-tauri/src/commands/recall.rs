@@ -220,6 +220,8 @@ fn check(
                 rivals: sentences::rivals(conn, &word.key, shown)?,
                 inflects: false,
                 verb: false,
+                also: None,
+                participle: false,
             };
             judged(conn, &meaning, sentence, (direction, answer), how)
         }

@@ -479,6 +479,10 @@ pub struct WordLabel {
     /// The translations it was given, each in the form of the word, in the
     /// order they came; empty when none was given.
     pub in_form: Vec<String>,
+    /// For each of those, the other forms that say the same: the other
+    /// past of a past ("juraba" beside "juró"); empty for any other form.
+    #[serde(default)]
+    pub in_form_also: Vec<Vec<String>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

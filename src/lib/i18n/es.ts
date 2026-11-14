@@ -697,6 +697,8 @@ export const es: Catalog<typeof en> = {
       noneLeft: "No queda ninguna por aprender.",
       finished: "Ya repasaste toda esta lista.",
       again: "Otra pasada",
+      inBook: "Verla en el libro",
+      hideBook: "Ocultar la frase",
     },
     sentences: {
       writing:

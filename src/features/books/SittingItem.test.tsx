@@ -183,13 +183,13 @@ describe("a hint on a word", () => {
     cleanup();
   });
 
-  test("a verb asked on its own in another form is asked for in its base form, and its sentence stays hidden", async () => {
+  test("a verb called by its base form is asked for in that form on its own, and its sentence stays hidden", async () => {
     const user = userEvent.setup();
     const asked: number[] = [];
     render(
       <SittingItem
         nativeLang="es"
-        item={BARE}
+        item={{ ...BARE, verbForm: "base" }}
         check={(_answer, second) =>
           Promise.resolve(
             second

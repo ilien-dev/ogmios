@@ -8,19 +8,45 @@ use chrono::{DateTime, Utc};
 use rusqlite::Connection;
 use tauri::AppHandle;
 
-use super::practice::{blanked, english, judged, step, Meaning};
+use super::practice::{asked_off, blanked, english, judged, step, Meaning};
 use super::profile::{agent, require_profile};
 use super::run;
 use crate::agent::protocol::{VocabJudgeParams, VocabVerdict};
 use crate::books::practice::{
     accepts, accepts_english, accepts_native, articles, inflects, off_base,
 };
-use crate::books::sentences::{or_other, Verdict};
-use crate::db::practice::{self, AnswerRow};
+use crate::books::sentences::{inflected, or_other, Verdict};
+use crate::db::practice::{self, AnswerRow, WordRow};
 use crate::db::{profile, sentences};
 use crate::domain::{Direction, DisputeResult};
 use crate::error::{Error, Result};
 use crate::Ctx;
+
+/// What an answer is judged against: English → native, a verb the book has
+/// in another form than its base form, asked on its own or with a sentence
+/// that has it in that form, is asked for in that form and in the other
+/// forms it says the same in, so the model is shown those, beside what a
+/// dispute upheld. Any other word, or a sentence with another form of it,
+/// its translations.
+fn judged_against(word: &WordRow, direction: Direction, form: Option<&str>) -> Vec<String> {
+    let alone = form.is_none_or(|form| !inflected(form, &word.lemma));
+    let said = word.in_form.as_deref().filter(|_| alone);
+    let Some(said) = said.filter(|_| direction == Direction::Recognition) else {
+        return word.translations.clone();
+    };
+    let upheld = word
+        .translations
+        .iter()
+        .filter(|each| !word.shown.contains(each));
+    let also = word.also.as_deref().unwrap_or_default();
+    let mut forms: Vec<String> = Vec::new();
+    for each in said.iter().chain(also).chain(upheld) {
+        if !forms.contains(each) {
+            forms.push(each.clone());
+        }
+    }
+    forms
+}
 
 /// The answer, if it can be disputed: a miss the learner typed in a sitting
 /// of "Practice", not judged before. "I don't know" is no answer to stand
@@ -35,7 +61,8 @@ use crate::Ctx;
 /// asked in a sentence: it was a miss only because the sentence has the
 /// word in another form, and the model would take it for right. Nor a
 /// translation of a verb asked on its own, in another form than its base
-/// form: upheld, it would be accepted as it is from then on.
+/// form: upheld, it would be accepted as it is from then on. Nor another
+/// form of one the book has in another form: that form is what was asked.
 fn disputable(conn: &Connection, answer_id: i64) -> Result<AnswerRow> {
     let answer = practice::answer(conn, answer_id)?;
     if practice::sitting(conn, &answer.sitting_id)?.refresh {
@@ -92,6 +119,13 @@ fn disputable(conn: &Connection, answer_id: i64) -> Result<AnswerRow> {
         {
             return Err(Error::Invalid(
                 "another form of the translation is not its base form".into(),
+            ));
+        }
+        if accepts_native(&answer.answer, &word.translations, native, spelling)
+            && asked_off(&word, &answer.answer, (&native_lang, spelling))
+        {
+            return Err(Error::Invalid(
+                "another form of the word is not the form it is called by".into(),
             ));
         }
     }
@@ -157,6 +191,8 @@ pub fn dispute(
             .map(|id| sentences::text(&conn, id))
             .transpose()?
             .flatten();
+        let asked_in = shown.as_ref().map(|(_, form)| form.as_str());
+        let translations = judged_against(&word, answer.direction, asked_in);
         let (sentence, form) = match shown {
             Some((sentence, form)) => (sentence, Some(form)),
             None => (word.sentence, None),
@@ -173,7 +209,7 @@ pub fn dispute(
             lemma,
             sentence,
             blank,
-            translations: word.translations,
+            translations,
             answer: answer.answer,
             strict_spelling: profile::spelling(&conn)?.is_strict(),
         }
