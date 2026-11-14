@@ -9,6 +9,7 @@ import type {
   AnalysisProgress,
   AnswerResult,
   Book,
+  BookDeletion,
   Chapter,
   ChapterProgress,
   ChapterWords,
@@ -208,6 +209,9 @@ export async function pickBookFile(label: string): Promise<string | null> {
 /** The same file twice resolves to the book already there. */
 export const importBook = (path: string): Promise<Book> =>
   call("import_book", { path });
+/** What deleting the book would do to its words. */
+export const bookDeletion = (id: string): Promise<BookDeletion> =>
+  call("book_deletion", { id });
 export const deleteBook = (id: string): Promise<void> =>
   call("delete_book", { id });
 /** The book's cover as image bytes; empty when it has none yet. */

@@ -1,13 +1,17 @@
 import { describe, expect, test } from "bun:test";
 import type { ReactNode } from "react";
 import { useState } from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { Route } from "@/app/routes";
 import { i18n } from "@/lib/i18n/i18n";
 import { listBooks } from "@/lib/ipc";
 import { setMockLatency } from "@/lib/ipcMock";
-import { clearMockBooks, setMockBookPick } from "@/lib/ipcMockBooks";
+import {
+  clearMockBooks,
+  setMockBookDeletion,
+  setMockBookPick,
+} from "@/lib/ipcMockBooks";
 import { seedMockReadiness } from "@/lib/ipcMockChapters";
 import { setMockWordKnown } from "@/lib/ipcMockWords";
 import { useMockBackend } from "@/test/mockBackend";
@@ -316,8 +320,9 @@ describe("BooksScreen", () => {
     ).toBeInTheDocument();
   });
 
-  test("deleting asks first, then the book is gone", async () => {
+  test("deleting says first what happens to the words, then the book is gone", async () => {
     const user = userEvent.setup();
+    setMockBookDeletion({ kept: 12, shared: 3, discarded: 20 });
     render(<Shelf />);
     await user.click(
       await screen.findByRole("button", {
@@ -326,23 +331,62 @@ describe("BooksScreen", () => {
     );
 
     await user.click(screen.getByRole("button", { name: "Delete book" }));
-    expect(
-      screen.getByText(
-        "Delete this book and its chapters? The words you learned in it are kept.",
-      ),
-    ).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    const dialog = await screen.findByRole("dialog", {
+      name: "Delete Alice's Adventures in Wonderland?",
+    });
+    for (const line of [
+      "12 words you have already practised, with their right and missed answers. They will come back in the daily review.",
+      "3 more are also in other books and do not change.",
+      "20 analysed words you never answered in any exercise.",
+      "Your learned words are not lost: they stop being practised by chapter and move to the daily review.",
+    ]) {
+      expect(within(dialog).getByText(line)).toBeInTheDocument();
+    }
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).toBeNull();
+    });
     expect(
       screen.getByRole("heading", { name: "Alice's Adventures in Wonderland" }),
     ).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Delete book" }));
-    await user.click(screen.getByRole("button", { name: "Delete" }));
+    await user.click(
+      within(await screen.findByRole("dialog")).getByRole("button", {
+        name: "Delete book",
+      }),
+    );
     expect(
       await screen.findByText(
         "No books yet. Add an EPUB or a PDF to see its chapters.",
       ),
     ).toBeInTheDocument();
+  });
+
+  test("a book with nothing practised says so, and Escape keeps it", async () => {
+    const user = userEvent.setup();
+    setMockBookDeletion({ kept: 0, shared: 0, discarded: 0 });
+    render(<Shelf />);
+    await user.click(
+      await screen.findByRole("button", {
+        name: /Alice's Adventures in Wonderland/u,
+      }),
+    );
+
+    await user.click(screen.getByRole("button", { name: "Delete book" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      within(dialog).getByText(
+        "You have not practised any word of this book yet.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).queryByText("What you never practised goes"),
+    ).toBeNull();
+    await user.keyboard("{Escape}");
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).toBeNull();
+    });
   });
 
   test("a move between shelf, book and chapter shows content at once, seeded from the shelf the app holds", async () => {

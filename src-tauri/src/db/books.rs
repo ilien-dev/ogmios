@@ -8,7 +8,7 @@ use rusqlite::{params, Connection, OptionalExtension};
 use super::{found, new_id, ts};
 use crate::books::practice::readiness;
 use crate::books::ParsedBook;
-use crate::domain::{Book, Chapter, Depth};
+use crate::domain::{Book, BookDeletion, Chapter, Depth};
 use crate::error::Result;
 use crate::metrics::count_words;
 
@@ -181,11 +181,88 @@ pub fn file_name(conn: &Connection, id: &str) -> Result<String> {
     )
 }
 
-/// Takes the book off the shelf. Its rows stay, so what was learned in it
-/// still counts everywhere; the practice left half way in it by ear or on
-/// structures belongs to no chapter any more, as if the chapter were gone.
-/// Run it inside a transaction.
+/// A word of a chapter nobody ever answered in an exercise or finished.
+const UNANSWERED: &str = "w.learned_at IS NULL
+     AND NOT EXISTS (SELECT 1 FROM word_answers a WHERE a.word_id = w.id)";
+
+/// A word deleting its book discards: nobody answered or finished it, and
+/// the learner does not know it (a known word keeps its translations).
+const DISCARDED: &str = "w.learned_at IS NULL
+     AND NOT EXISTS (SELECT 1 FROM word_answers a WHERE a.word_id = w.id)
+     AND w.key NOT IN (SELECT key FROM known_words)";
+
+/// What deleting the book would do to its words ([`BookDeletion`]).
+pub fn deletion(conn: &Connection, id: &str) -> Result<BookDeletion> {
+    let chapters: u32 = conn.query_row(
+        "SELECT COUNT(*) FROM book_chapters WHERE book_id = ?1",
+        [id],
+        |row| row.get(0),
+    )?;
+    if chapters == 0 {
+        get_book(conn, id)?;
+    }
+    let (kept, shared, discarded) = conn.query_row(
+        &format!(
+            "WITH mine AS (
+               SELECT DISTINCT w.key FROM chapter_words w
+               JOIN book_chapters c ON c.id = w.chapter_id
+               WHERE c.book_id = ?1 AND w.key NOT IN (SELECT key FROM known_words)
+             ),
+             elsewhere AS (
+               SELECT w.key FROM chapter_words w
+               JOIN book_chapters c ON c.id = w.chapter_id
+               WHERE c.book_id != ?1
+                 AND c.book_id NOT IN (SELECT book_id FROM archived_books)
+             ),
+             answered AS (
+               SELECT w.key FROM chapter_words w WHERE NOT ({UNANSWERED})
+               UNION SELECT key FROM word_events
+             )
+             SELECT
+               COALESCE(SUM(key NOT IN elsewhere AND key IN answered), 0),
+               COALESCE(SUM(key IN elsewhere), 0),
+               COALESCE(SUM(key NOT IN elsewhere AND key NOT IN answered), 0)
+             FROM mine"
+        ),
+        [id],
+        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+    )?;
+    Ok(BookDeletion {
+        chapters,
+        kept,
+        shared,
+        discarded,
+    })
+}
+
+/// Takes the book off the shelf. The words answered or finished in it stay,
+/// so what was learned still counts everywhere and comes back in the daily
+/// recall; the ones nobody answered go, and a chapter that loses any is to
+/// be prepared again, should the book come back. The practice left half way
+/// in it by ear or on structures belongs to no chapter any more, as if the
+/// chapter were gone. Run it inside a transaction.
 pub fn archive_book(conn: &Connection, id: &str, now: DateTime<Utc>) -> Result<()> {
+    let losing = format!(
+        "SELECT w.chapter_id FROM chapter_words w
+         JOIN book_chapters c ON c.id = w.chapter_id
+         WHERE c.book_id = ?1 AND {DISCARDED}"
+    );
+    conn.execute(
+        &format!("UPDATE book_chapters SET prepared = NULL WHERE id IN ({losing})"),
+        [id],
+    )?;
+    conn.execute(
+        &format!("DELETE FROM chapter_chunks WHERE chapter_id IN ({losing})"),
+        [id],
+    )?;
+    conn.execute(
+        &format!(
+            "DELETE FROM chapter_words AS w
+             WHERE w.chapter_id IN (SELECT id FROM book_chapters WHERE book_id = ?1)
+               AND {DISCARDED}"
+        ),
+        [id],
+    )?;
     for sittings in ["dictation_sittings", "structure_sittings"] {
         conn.execute(
             &format!(
@@ -344,5 +421,110 @@ mod tests {
             .expect("sitting");
         assert_eq!(of, None);
         assert_eq!(words::unlabelled(&conn).expect("unlabelled").len(), 3);
+    }
+
+    /// One answer to the word with this key in this chapter.
+    fn answer(conn: &Connection, chapter_id: &str, key: &str) {
+        conn.execute(
+            "INSERT OR IGNORE INTO practice_sittings (id, chapter_id, started_at)
+             VALUES ('sit-' || ?1, ?1, '2026-03-01T10:00:00.000Z')",
+            [chapter_id],
+        )
+        .expect("sitting");
+        conn.execute(
+            "INSERT INTO word_answers (word_id, direction, sitting_id, answer, correct, created_at)
+             SELECT id, 'recognition', 'sit-' || ?1, 'x', 0, '2026-03-01T10:00:00.000Z'
+             FROM chapter_words WHERE chapter_id = ?1 AND key = ?2",
+            [chapter_id, key],
+        )
+        .expect("answer");
+    }
+
+    #[test]
+    fn deleting_a_book_keeps_the_answered_words_for_the_recall_and_discards_the_rest() {
+        use crate::db::words::tests::{book, mark_known, word};
+        use crate::db::{recall, words};
+
+        let conn = open_in_memory().expect("db");
+        let gone = book(&conn, "gone", &["one", "two"]);
+        let kept = book(&conn, "kept", &["three"]);
+        let first = [
+            word("peep", &["asomarse"], 1),
+            word("tide", &["marea"], 1),
+            word("bank", &["orilla"], 1),
+            word("husk", &["cáscara"], 1),
+            word("dread", &["pavor"], 1),
+        ];
+        words::finish(&conn, &gone[0], Depth::Most, &first, Utc::now()).expect("words");
+        let second = [word("sliver", &["astilla"], 1)];
+        words::finish(&conn, &gone[1], Depth::Most, &second, Utc::now()).expect("words");
+        words::store_chunk(&conn, &gone[1], Depth::Most, (0, 2), &[]).expect("chunk");
+        words::finish(
+            &conn,
+            &kept[0],
+            Depth::Most,
+            &[word("bank", &["banco"], 1)],
+            Utc::now(),
+        )
+        .expect("words");
+        conn.execute(
+            "UPDATE chapter_words SET done_at = '2026-03-01T10:00:00.000Z',
+               learned_at = '2026-03-01T10:00:00.000Z'
+             WHERE chapter_id = ?1 AND key = 'peep'",
+            [&gone[0]],
+        )
+        .expect("learned");
+        answer(&conn, &gone[0], "peep");
+        // Answered once, missed, and never finished: still kept.
+        answer(&conn, &gone[0], "tide");
+        mark_known(&conn, "dread");
+
+        // What the learner is told before deleting it, by word.
+        assert_eq!(
+            deletion(&conn, "gone").expect("deletion"),
+            BookDeletion {
+                chapters: 2,
+                kept: 2,
+                shared: 1,
+                discarded: 2,
+            }
+        );
+        assert!(matches!(deletion(&conn, "nope"), Err(Error::NotFound(_))));
+
+        archive_book(&conn, "gone", Utc::now()).expect("delete");
+
+        let left: Vec<String> = conn
+            .prepare(
+                "SELECT w.key FROM chapter_words w JOIN book_chapters c ON c.id = w.chapter_id
+                 WHERE c.book_id = 'gone' ORDER BY w.key",
+            )
+            .expect("stmt")
+            .query_map([], |row| row.get(0))
+            .expect("rows")
+            .collect::<rusqlite::Result<_>>()
+            .expect("keys");
+        // A known word keeps its row, and with it its translations.
+        assert_eq!(left, ["dread", "peep", "tide"]);
+        let mut asked: Vec<String> = recall::words(&conn)
+            .expect("recall")
+            .into_iter()
+            .map(|word| word.key)
+            .collect();
+        asked.sort();
+        assert_eq!(asked, ["peep", "tide"]);
+        // The other book still has its own copy of the shared word.
+        let shelved = get_book(&conn, "kept").expect("kept");
+        assert_eq!(shelved.chapters[0].prepared, Some(Depth::Most));
+
+        // Added again, a chapter that lost words is to be prepared again, so
+        // preparing brings them back.
+        assert!(restore_book(&conn, "gone").expect("restore"));
+        let back = get_book(&conn, "gone").expect("back");
+        let prepared: Vec<Option<Depth>> = back.chapters.iter().map(|c| c.prepared).collect();
+        assert_eq!(prepared, [None, None]);
+        let chunks: i64 = conn
+            .query_row("SELECT COUNT(*) FROM chapter_chunks", [], |row| row.get(0))
+            .expect("count");
+        assert_eq!(chunks, 0);
     }
 }

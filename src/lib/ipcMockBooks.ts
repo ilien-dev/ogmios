@@ -3,7 +3,13 @@
  * dialog cannot open outside Tauri, so `pick_book_file` answers with a path
  * the tests choose; a file named after a refusal is refused that way.
  */
-import type { Book, BookRefusal, Chapter, Depth } from "@shared/domain";
+import type {
+  Book,
+  BookDeletion,
+  BookRefusal,
+  Chapter,
+  Depth,
+} from "@shared/domain";
 
 type Outline = Array<[title: string, words: number]>;
 
@@ -108,6 +114,7 @@ export function resetMockBooks(seeded: boolean): void {
   opened = null;
   books = seeded ? [ALICE] : [];
   pick = DEFAULT_PICK;
+  fates = FATES;
 }
 
 /** A chapter of any book on the shelf. */
@@ -153,6 +160,17 @@ export function allMockChapters(): Chapter[] {
 /** Takes every book off the shelf. */
 export function clearMockBooks(): void {
   books = [];
+}
+
+type WordFates = Omit<BookDeletion, "chapters">;
+
+/** What deleting any book does to its words, until a test says otherwise. */
+const FATES: WordFates = { kept: 18, shared: 4, discarded: 26 };
+let fates: WordFates = FATES;
+
+/** What deleting a book says it does to its words. */
+export function setMockBookDeletion(next: WordFates): void {
+  fates = next;
 }
 
 /**
@@ -233,6 +251,12 @@ export function bookCommands(
         }));
         const renamed = findMockChapter(id);
         return renamed === undefined ? undefined : sent(renamed);
+      }),
+    book_deletion: (args) =>
+      after(120, (): BookDeletion => {
+        const id = text(args, "id");
+        const found = books.find((candidate) => candidate.id === id);
+        return { chapters: found?.chapters.length ?? 0, ...fates };
       }),
     delete_book: (args) =>
       // Off the shelf; the same file added again puts it back.

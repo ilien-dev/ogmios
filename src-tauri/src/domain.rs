@@ -597,6 +597,20 @@ pub struct Book {
     pub chapters: Vec<Chapter>,
 }
 
+/// What deleting a book does to its words, counted once each by key and
+/// leaving out the ones the learner knows. A word another book on the shelf
+/// has too is `shared`: nothing changes for it. Of the rest, one answered at
+/// least once in any exercise is `kept`, with its history, for the daily
+/// recall; one never answered is `discarded`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BookDeletion {
+    pub chapters: u32,
+    pub kept: u32,
+    pub shared: u32,
+    pub discarded: u32,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Chapter {

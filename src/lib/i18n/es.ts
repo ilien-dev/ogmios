@@ -494,9 +494,28 @@ export const es: Catalog<typeof en> = {
     renameLabel: "Nombre del capítulo",
     missing: "Este libro ya no está aquí.",
     delete: "Eliminar libro",
-    deleteConfirm:
-      "¿Eliminar este libro y sus capítulos? Las palabras que aprendiste en él se conservan.",
     deleteYes: "Eliminar",
+    deleting: {
+      title: "¿Eliminar {{title}}?",
+      lead_one: "Desaparece de tu biblioteca con su capítulo.",
+      lead_other: "Desaparece de tu biblioteca con sus {{count}} capítulos.",
+      keptTitle: "Se queda lo que aprendiste",
+      kept_one:
+        "{{count}} palabra que ya repasaste, con sus aciertos y fallos. Te llegará en el repaso diario.",
+      kept_other:
+        "{{count}} palabras que ya repasaste, con sus aciertos y fallos. Te llegarán en el repaso diario.",
+      keptNone: "Aún no has repasado ninguna palabra de este libro.",
+      shared_one: "{{count}} más también está en otros libros y no cambia.",
+      shared_other: "{{count}} más también están en otros libros y no cambian.",
+      discardedTitle: "Se descarta lo que nunca repasaste",
+      discarded_one:
+        "{{count}} palabra analizada que no contestaste en ningún ejercicio.",
+      discarded_other:
+        "{{count}} palabras analizadas que no contestaste en ningún ejercicio.",
+      chaptersTitle: "Ya no podrás practicar sus capítulos",
+      chapters:
+        "Tus palabras aprendidas no se pierden: solo dejan de practicarse por capítulo y pasan al repaso diario.",
+    },
     known: {
       title: "Palabras que ya sabes",
       intro:

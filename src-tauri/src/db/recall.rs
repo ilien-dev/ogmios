@@ -86,12 +86,20 @@ struct Found {
 }
 
 /// The words finished in a chapter, once each: as the first chapter that
-/// finished them has them.
+/// finished them has them. A deleted book keeps only the words answered in
+/// it (`books::archive_book`): the ones never finished come here too, as
+/// learned when the book was deleted.
 fn book_words(conn: &Connection) -> Result<Vec<Found>> {
     let mut stmt = conn.prepare(&format!(
-        "SELECT w.key, w.id, w.lemma, w.forms, w.learned_at FROM chapter_words w
-         WHERE w.learned_at IS NOT NULL AND {NOT_KNOWN}
-         ORDER BY w.learned_at, w.id"
+        "SELECT w.key, w.id, w.lemma, w.forms, COALESCE(w.learned_at, a.archived_at) AS since
+         FROM chapter_words w
+         JOIN book_chapters c ON c.id = w.chapter_id
+         LEFT JOIN archived_books a ON a.book_id = c.book_id
+         WHERE (w.learned_at IS NOT NULL
+             OR (a.book_id IS NOT NULL
+                 AND EXISTS (SELECT 1 FROM word_answers x WHERE x.word_id = w.id)))
+           AND {NOT_KNOWN}
+         ORDER BY since, w.id"
     ))?;
     let rows = stmt
         .query_map([], |row| {

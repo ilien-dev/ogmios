@@ -106,6 +106,7 @@ fn with_commands(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::W
         commands::drill::answer_drill,
         commands::book::list_books,
         commands::book::import_book,
+        commands::book::book_deletion,
         commands::book::delete_book,
         commands::book::book_cover,
         commands::book::book_pdf,

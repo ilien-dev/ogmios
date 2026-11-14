@@ -899,12 +899,14 @@ básico no reciben frases: no hay grabaciones abiertas que las respalden.
   con borde punteado); lo que escribe el modelo es violeta, a la izquierda con su esfera; el texto
   de un libro es ámbar y en serif; Ogmios habla en tinta gris, con «Ogmios:» delante.
 - **Estructuras** abre una pantalla principal con tarjetas que llevan a lo suyo.
-  - **Eliminar un libro:** desde su pantalla, con confirmación. Sale de la estantería y se borra su
-    archivo, pero sus filas se quedan: las palabras aprendidas en él siguen aprendidas (repaso
-    diario, palabras de repaso en los otros libros, nunca se extraen otra vez) y lo pendiente no
-    se ofrece en ningún sitio. Añadir el mismo archivo otra vez lo devuelve como estaba, sin
-    analizar nada de nuevo; solo los dictados y ejercicios de estructuras que quedaron en pausa
-    dejan de ser de su capítulo.
+  - **Eliminar un libro:** desde su pantalla, uno a la vez. Antes de borrar, un diálogo dice qué
+    pasa con sus palabras, contadas una vez por palabra y sin las que ya sabe: las que contestó al
+    menos una vez en cualquier ejercicio se quedan con sus estadísticas y llegan en el repaso
+    diario; las que también están en otro libro de la estantería no cambian; las analizadas que
+    nunca contestó se descartan. Sale de la estantería y se borra su archivo. Por dentro se
+    archiva: añadir el mismo archivo otra vez lo devuelve con lo que se quedó, y los capítulos que
+    perdieron palabras quedan por preparar. Los dictados y ejercicios de estructuras que quedaron
+    en pausa dejan de ser de su capítulo.
 - **Tailwind CSS** para todo el diseño; tokens de color, espaciado y tipografía definidos en el tema
   de Tailwind (tema claro y oscuro).
 - Estilo «Aura»: aire y calma. Neutros fríos con un matiz violeta, en claro y oscuro; radios grandes

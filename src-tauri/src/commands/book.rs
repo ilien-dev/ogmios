@@ -12,7 +12,7 @@ use super::run;
 use crate::books::{epub, is_image, pdf, refused, ParsedBook, UNREADABLE};
 use crate::db::books::{self, NewBook};
 use crate::db::new_id;
-use crate::domain::{Book, Chapter};
+use crate::domain::{Book, BookDeletion, Chapter};
 use crate::error::Result;
 use crate::Ctx;
 
@@ -96,9 +96,14 @@ pub fn import(ctx: Ctx<'_>, path: &Path) -> Result<Book> {
     stored
 }
 
-/// Deletes the book: it leaves the shelf and its copy of the file goes. Its
-/// rows are kept (`db::books::archive_book`), so the words learned in it
-/// stay learned.
+/// What deleting the book would do to its words.
+pub fn deletion(ctx: Ctx<'_>, id: &str) -> Result<BookDeletion> {
+    books::deletion(&*ctx.conn()?, id)
+}
+
+/// Deletes the book: it leaves the shelf and its copy of the file goes. The
+/// words answered in it are kept (`db::books::archive_book`), so what was
+/// learned stays learned; the rest go.
 pub fn remove(ctx: Ctx<'_>, id: &str) -> Result<()> {
     let mut conn = ctx.conn()?;
     books::get_book(&conn, id)?;
@@ -184,6 +189,11 @@ pub async fn list_books(app: AppHandle) -> Result<Vec<Book>> {
 #[tauri::command]
 pub async fn import_book(app: AppHandle, path: String) -> Result<Book> {
     run(app, move |_, ctx| import(ctx, Path::new(&path))).await
+}
+
+#[tauri::command]
+pub async fn book_deletion(app: AppHandle, id: String) -> Result<BookDeletion> {
+    run(app, move |_, ctx| deletion(ctx, &id)).await
 }
 
 #[tauri::command]

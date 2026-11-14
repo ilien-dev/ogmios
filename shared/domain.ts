@@ -445,6 +445,20 @@ export interface Book {
   chapters: Chapter[];
 }
 
+/**
+ * What deleting a book does to its words, counted once each by key and
+ * leaving out the ones the learner knows. A word another book on the shelf
+ * has too is `shared`: nothing changes for it. Of the rest, one answered at
+ * least once in any exercise is `kept`, with its history, for the daily
+ * recall; one never answered is `discarded`.
+ */
+export interface BookDeletion {
+  chapters: number;
+  kept: number;
+  shared: number;
+  discarded: number;
+}
+
 export interface Chapter {
   id: string;
   index: number;
