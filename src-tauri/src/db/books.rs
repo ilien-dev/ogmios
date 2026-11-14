@@ -8,7 +8,7 @@ use rusqlite::{params, Connection, OptionalExtension};
 use super::{found, new_id, ts};
 use crate::books::practice::readiness;
 use crate::books::ParsedBook;
-use crate::domain::{Book, BookDeletion, Chapter, Depth};
+use crate::domain::{ArchivedBook, Book, BookDeletion, Chapter, Depth};
 use crate::error::Result;
 use crate::metrics::count_words;
 
@@ -198,9 +198,10 @@ pub fn deletion(conn: &Connection, id: &str) -> Result<BookDeletion> {
         [id],
         |row| row.get(0),
     )?;
-    if chapters == 0 {
-        get_book(conn, id)?;
-    }
+    found(
+        conn.query_row("SELECT 1 FROM books WHERE id = ?1", [id], |_| Ok(())),
+        "book",
+    )?;
     let (kept, shared, discarded) = conn.query_row(
         &format!(
             "WITH mine AS (
@@ -227,12 +228,92 @@ pub fn deletion(conn: &Connection, id: &str) -> Result<BookDeletion> {
         [id],
         |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
     )?;
+    let (purged, elsewhere) = conn.query_row(
+        &format!(
+            "WITH mine AS ({MINE}),
+             others AS ({OTHERS})
+             SELECT COALESCE(SUM(key NOT IN others), 0), COALESCE(SUM(key IN others), 0)
+             FROM mine"
+        ),
+        [id],
+        |row| Ok((row.get(0)?, row.get(1)?)),
+    )?;
     Ok(BookDeletion {
         chapters,
         kept,
         shared,
         discarded,
+        purged,
+        elsewhere,
     })
+}
+
+/// The keys of a book's words, once each, leaving out the known ones.
+const MINE: &str = "SELECT DISTINCT w.key FROM chapter_words w
+     JOIN book_chapters c ON c.id = w.chapter_id
+     WHERE c.book_id = ?1 AND w.key NOT IN (SELECT key FROM known_words)";
+
+/// The keys of every other book's words, archived or not.
+const OTHERS: &str = "SELECT w.key FROM chapter_words w
+     JOIN book_chapters c ON c.id = w.chapter_id
+     WHERE c.book_id != ?1";
+
+/// Deletes the book for good, with every row of it. The words no other book
+/// has, archived or not, go with their history, their note and their
+/// sentences, so the daily recall forgets them; the known ones stay known.
+/// The practice left half way in it by ear or on structures belongs to no
+/// chapter any more. Run it inside a transaction.
+pub fn purge_book(conn: &Connection, id: &str) -> Result<()> {
+    found(
+        conn.query_row("SELECT 1 FROM books WHERE id = ?1", [id], |_| Ok(())),
+        "book",
+    )?;
+    for table in ["word_events", "word_notes", "word_sentences"] {
+        conn.execute(
+            &format!(
+                "DELETE FROM {table}
+                 WHERE key IN ({MINE}) AND key NOT IN ({OTHERS})"
+            ),
+            [id],
+        )?;
+    }
+    conn.execute("DELETE FROM books WHERE id = ?1", [id])?;
+    Ok(())
+}
+
+/// The books deleted with their words kept, the latest first.
+pub fn list_archived(conn: &Connection) -> Result<Vec<ArchivedBook>> {
+    let mut stmt = conn.prepare(
+        "SELECT b.id, b.title, b.author, a.archived_at FROM books b
+         JOIN archived_books a ON a.book_id = b.id
+         ORDER BY a.archived_at DESC, b.id",
+    )?;
+    let rows = stmt
+        .query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, Option<String>>(2)?,
+                row.get::<_, String>(3)?,
+            ))
+        })?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    rows.into_iter()
+        .map(|(id, title, author, archived_at)| {
+            let words =
+                conn.query_row(&format!("SELECT COUNT(*) FROM ({MINE})"), [&id], |row| {
+                    row.get(0)
+                })?;
+            Ok(ArchivedBook {
+                opening: opening(conn, &id)?,
+                id,
+                title,
+                author,
+                archived_at,
+                words,
+            })
+        })
+        .collect()
 }
 
 /// Takes the book off the shelf. The words answered or finished in it stay,
@@ -487,6 +568,8 @@ mod tests {
                 kept: 2,
                 shared: 1,
                 discarded: 2,
+                purged: 4,
+                elsewhere: 1,
             }
         );
         assert!(matches!(deletion(&conn, "nope"), Err(Error::NotFound(_))));
@@ -526,5 +609,89 @@ mod tests {
             .query_row("SELECT COUNT(*) FROM chapter_chunks", [], |row| row.get(0))
             .expect("count");
         assert_eq!(chunks, 0);
+    }
+
+    #[test]
+    fn a_book_deleted_for_good_takes_the_words_only_it_had_with_their_history() {
+        use crate::db::words::tests::{book, mark_known, word};
+        use crate::db::{recall, words};
+
+        let conn = open_in_memory().expect("db");
+        let gone = book(&conn, "gone", &["one"]);
+        let kept = book(&conn, "kept", &["two"]);
+        let archived = book(&conn, "archived", &["three"]);
+        let list = [
+            word("peep", &["asomarse"], 1),
+            word("tide", &["marea"], 1),
+            word("bank", &["orilla"], 1),
+            word("husk", &["cáscara"], 1),
+            word("dread", &["pavor"], 1),
+        ];
+        words::finish(&conn, &gone[0], Depth::Most, &list, Utc::now()).expect("words");
+        let banco = [word("bank", &["banco"], 1)];
+        words::finish(&conn, &kept[0], Depth::Most, &banco, Utc::now()).expect("words");
+        let vaina = [word("husk", &["vaina"], 1)];
+        words::finish(&conn, &archived[0], Depth::Most, &vaina, Utc::now()).expect("words");
+        conn.execute(
+            "UPDATE chapter_words SET done_at = '2026-03-01T10:00:00.000Z',
+               learned_at = '2026-03-01T10:00:00.000Z'
+             WHERE key IN ('peep', 'bank', 'husk')",
+            [],
+        )
+        .expect("learned");
+        answer(&conn, &gone[0], "tide");
+        conn.execute_batch(
+            "INSERT INTO word_events (key, kind, created_at)
+               VALUES ('peep', 'right', '2026-03-02T10:00:00.000Z'),
+                      ('bank', 'right', '2026-03-02T10:00:00.000Z');
+             INSERT INTO word_notes VALUES ('peep', 'a bird peeps', '2026-03-02T10:00:00.000Z');",
+        )
+        .expect("history");
+        mark_known(&conn, "dread");
+        archive_book(&conn, "archived", Utc::now()).expect("archive");
+
+        // Only peep and tide are this book's alone: bank is on the shelf,
+        // husk in an archived book, and dread is known.
+        let told = deletion(&conn, "gone").expect("deletion");
+        assert_eq!((told.purged, told.elsewhere), (2, 2));
+
+        purge_book(&conn, "gone").expect("purge");
+
+        assert!(matches!(file_name(&conn, "gone"), Err(Error::NotFound(_))));
+        let count =
+            |sql: &str| -> i64 { conn.query_row(sql, [], |row| row.get(0)).expect("count") };
+        assert_eq!(
+            count("SELECT COUNT(*) FROM word_events WHERE key = 'peep'"),
+            0
+        );
+        assert_eq!(count("SELECT COUNT(*) FROM word_notes"), 0);
+        assert_eq!(
+            count("SELECT COUNT(*) FROM word_events WHERE key = 'bank'"),
+            1
+        );
+        assert_eq!(
+            count("SELECT COUNT(*) FROM known_words WHERE key = 'dread'"),
+            1
+        );
+        let mut asked: Vec<String> = recall::words(&conn)
+            .expect("recall")
+            .into_iter()
+            .map(|word| word.key)
+            .collect();
+        asked.sort();
+        assert_eq!(asked, ["bank", "husk"]);
+
+        // An archived book is listed with the words it keeps, and can be
+        // deleted for good too.
+        let listed = list_archived(&conn).expect("archived");
+        let shown: Vec<(&str, u32)> = listed.iter().map(|b| (b.id.as_str(), b.words)).collect();
+        assert_eq!(shown, [("archived", 1)]);
+        purge_book(&conn, "archived").expect("purge archived");
+        assert_eq!(list_archived(&conn).expect("archived"), []);
+        assert_eq!(
+            count("SELECT COUNT(*) FROM chapter_words WHERE key = 'husk'"),
+            0
+        );
+        assert!(matches!(purge_book(&conn, "nope"), Err(Error::NotFound(_))));
     }
 }

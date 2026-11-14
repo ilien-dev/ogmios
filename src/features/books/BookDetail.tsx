@@ -11,10 +11,11 @@ import { BackLink } from "@/components/ui/BackLink";
 import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
 import { errorMessage } from "@/lib/errors";
-import { bookDeletion, deleteBook } from "@/lib/ipc";
+import { bookDeletion, deleteBook, purgeBook } from "@/lib/ipc";
 import { BookCover } from "./BookCover";
 import { ChapterRow } from "./ChapterRow";
 import { DeleteBookDialog } from "./DeleteBookDialog";
+import type { DeleteWay } from "./DeleteBookDialog";
 
 interface BookDetailProps {
   /** Null when the book was deleted while it was open. */
@@ -68,11 +69,11 @@ export function BookDetail({
     }
   };
 
-  const remove = async (): Promise<void> => {
+  const remove = async (way: DeleteWay): Promise<void> => {
     setDeleting(true);
     setFailure(null);
     try {
-      await deleteBook(book.id);
+      await (way === "archive" ? deleteBook(book.id) : purgeBook(book.id));
       setConfirming(false);
       onDeleted();
     } catch (error) {
@@ -165,7 +166,7 @@ export function BookDetail({
         onCancel={() => {
           setConfirming(false);
         }}
-        onConfirm={() => void remove()}
+        onConfirm={(way) => void remove(way)}
       />
     </main>
   );

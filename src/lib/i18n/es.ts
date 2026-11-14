@@ -515,6 +515,36 @@ export const es: Catalog<typeof en> = {
       chaptersTitle: "Ya no podrás practicar sus capítulos",
       chapters:
         "Tus palabras aprendidas no se pierden: solo dejan de practicarse por capítulo y pasan al repaso diario.",
+      purgeTitle: "¿Borrar {{title}} para siempre?",
+      how: "Cómo eliminarlo",
+      archive: "Archivar",
+      archiveHint:
+        "Sale de tu biblioteca; lo que repasaste sigue en el repaso diario.",
+      purge: "Borrar para siempre",
+      purgeHint: "Se va con todo su vocabulario y sus estadísticas.",
+      purgedTitle: "Se borra su vocabulario",
+      purged_one:
+        "{{count}} palabra que solo está en este libro se borra, con sus aciertos, fallos y su repaso diario.",
+      purged_other:
+        "{{count}} palabras que solo están en este libro se borran, con sus aciertos, fallos y su repaso diario.",
+      purgedNone: "Ninguna palabra es solo de este libro.",
+      elsewhereTitle: "Se queda lo que tienen otros libros",
+      elsewhere_one:
+        "{{count}} palabra también está en otro libro y no cambia.",
+      elsewhere_other:
+        "{{count}} palabras también están en otros libros y no cambian.",
+      known: "Las que marcaste como «Ya la sé» siguen sabidas.",
+      undone: "No se puede deshacer.",
+      archiveConfirm: "Archivar libro",
+      purgeConfirm: "Borrar para siempre",
+    },
+    archived: {
+      title: "Archivados",
+      intro:
+        "Ya no se pueden abrir. Lo que repasaste en ellos sigue en tu repaso diario.",
+      words_one: "{{count}} palabra en tu repaso diario",
+      words_other: "{{count}} palabras en tu repaso diario",
+      purge: "Borrar {{title}} para siempre",
     },
     known: {
       title: "Palabras que ya sabes",

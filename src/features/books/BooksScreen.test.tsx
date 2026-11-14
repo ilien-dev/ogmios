@@ -320,9 +320,15 @@ describe("BooksScreen", () => {
     ).toBeInTheDocument();
   });
 
-  test("deleting says first what happens to the words, then the book is gone", async () => {
+  test("archiving says first what happens to the words, then lists the book as archived", async () => {
     const user = userEvent.setup();
-    setMockBookDeletion({ kept: 12, shared: 3, discarded: 20 });
+    setMockBookDeletion({
+      kept: 12,
+      shared: 3,
+      discarded: 20,
+      purged: 30,
+      elsewhere: 5,
+    });
     render(<Shelf />);
     await user.click(
       await screen.findByRole("button", {
@@ -334,6 +340,9 @@ describe("BooksScreen", () => {
     const dialog = await screen.findByRole("dialog", {
       name: "Delete Alice's Adventures in Wonderland?",
     });
+    expect(
+      within(dialog).getByRole("radio", { name: /Archive/u }),
+    ).toBeChecked();
     for (const line of [
       "12 words you have already practised, with their right and missed answers. They will come back in the daily review.",
       "3 more are also in other books and do not change.",
@@ -353,7 +362,7 @@ describe("BooksScreen", () => {
     await user.click(screen.getByRole("button", { name: "Delete book" }));
     await user.click(
       within(await screen.findByRole("dialog")).getByRole("button", {
-        name: "Delete book",
+        name: "Archive book",
       }),
     );
     expect(
@@ -361,11 +370,88 @@ describe("BooksScreen", () => {
         "No books yet. Add an EPUB or a PDF to see its chapters.",
       ),
     ).toBeInTheDocument();
+    const archived = await screen.findByRole("region", { name: "Archived" });
+    // The title, and the page its cover shows without one.
+    expect(
+      within(archived).getAllByText("Alice's Adventures in Wonderland").length,
+    ).toBeGreaterThan(0);
+    expect(
+      within(archived).getByText("12 words in your daily review"),
+    ).toBeInTheDocument();
+    // It no longer opens: the row has nothing to open it with.
+    expect(
+      within(archived).queryByRole("button", {
+        name: /^Alice's Adventures in Wonderland/u,
+      }),
+    ).toBeNull();
+
+    // An archived book can still be deleted for good.
+    await user.click(
+      within(archived).getByRole("button", {
+        name: "Delete Alice's Adventures in Wonderland for good",
+      }),
+    );
+    const purging = await screen.findByRole("dialog", {
+      name: "Delete Alice's Adventures in Wonderland for good?",
+    });
+    expect(within(purging).queryByRole("radio")).toBeNull();
+    await user.click(
+      within(purging).getByRole("button", { name: "Delete for good" }),
+    );
+    await waitFor(() => {
+      expect(screen.queryByRole("region", { name: "Archived" })).toBeNull();
+    });
+  });
+
+  test("deleting for good says which words go with their history, and leaves nothing archived", async () => {
+    const user = userEvent.setup();
+    setMockBookDeletion({
+      kept: 12,
+      shared: 3,
+      discarded: 20,
+      purged: 30,
+      elsewhere: 5,
+    });
+    render(<Shelf />);
+    await user.click(
+      await screen.findByRole("button", {
+        name: /Alice's Adventures in Wonderland/u,
+      }),
+    );
+
+    await user.click(screen.getByRole("button", { name: "Delete book" }));
+    const dialog = await screen.findByRole("dialog");
+    await user.click(
+      within(dialog).getByRole("radio", { name: /Delete for good/u }),
+    );
+    for (const line of [
+      "30 words only this book has go, with their right and missed answers and their daily review.",
+      "5 words are also in other books and do not change.",
+      "The words you marked as known stay known.",
+      "This cannot be undone.",
+    ]) {
+      expect(await within(dialog).findByText(line)).toBeInTheDocument();
+    }
+    await user.click(
+      within(dialog).getByRole("button", { name: "Delete for good" }),
+    );
+    expect(
+      await screen.findByText(
+        "No books yet. Add an EPUB or a PDF to see its chapters.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Archived" })).toBeNull();
   });
 
   test("a book with nothing practised says so, and Escape keeps it", async () => {
     const user = userEvent.setup();
-    setMockBookDeletion({ kept: 0, shared: 0, discarded: 0 });
+    setMockBookDeletion({
+      kept: 0,
+      shared: 0,
+      discarded: 0,
+      purged: 0,
+      elsewhere: 0,
+    });
     render(<Shelf />);
     await user.click(
       await screen.findByRole("button", {

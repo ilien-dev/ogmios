@@ -447,16 +447,34 @@ export interface Book {
 
 /**
  * What deleting a book does to its words, counted once each by key and
- * leaving out the ones the learner knows. A word another book on the shelf
- * has too is `shared`: nothing changes for it. Of the rest, one answered at
- * least once in any exercise is `kept`, with its history, for the daily
- * recall; one never answered is `discarded`.
+ * leaving out the ones the learner knows. Archived, a word another book on
+ * the shelf has too is `shared`: nothing changes for it. Of the rest, one
+ * answered at least once in any exercise is `kept`, with its history, for
+ * the daily recall; one never answered is `discarded`. Deleted for good,
+ * the words no other book has, archived or not, are `purged` with their
+ * history and their recall; the `elsewhere` ones stay as they are.
  */
 export interface BookDeletion {
   chapters: number;
   kept: number;
   shared: number;
   discarded: number;
+  purged: number;
+  elsewhere: number;
+}
+
+/**
+ * A book deleted with its words kept: off the shelf and never opened again,
+ * listed only to say that what was learned in it is still in the daily
+ * recall. `words` is how many, by key, leaving out the known ones.
+ */
+export interface ArchivedBook {
+  id: string;
+  title: string;
+  author: string | null;
+  opening: string;
+  archivedAt: string;
+  words: number;
 }
 
 export interface Chapter {

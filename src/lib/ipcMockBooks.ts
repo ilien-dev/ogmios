@@ -4,6 +4,7 @@
  * the tests choose; a file named after a refusal is refused that way.
  */
 import type {
+  ArchivedBook,
   Book,
   BookDeletion,
   BookRefusal,
@@ -115,6 +116,7 @@ export function resetMockBooks(seeded: boolean): void {
   books = seeded ? [ALICE] : [];
   pick = DEFAULT_PICK;
   fates = FATES;
+  archived = [];
 }
 
 /** A chapter of any book on the shelf. */
@@ -165,8 +167,16 @@ export function clearMockBooks(): void {
 type WordFates = Omit<BookDeletion, "chapters">;
 
 /** What deleting any book does to its words, until a test says otherwise. */
-const FATES: WordFates = { kept: 18, shared: 4, discarded: 26 };
+const FATES: WordFates = {
+  kept: 18,
+  shared: 4,
+  discarded: 26,
+  purged: 40,
+  elsewhere: 8,
+};
 let fates: WordFates = FATES;
+/** The books deleted with their words kept, the latest first. */
+let archived: ArchivedBook[] = [];
 
 /** What deleting a book says it does to its words. */
 export function setMockBookDeletion(next: WordFates): void {
@@ -205,6 +215,11 @@ class BookRefusedError extends Error {
 /** One named argument of a command, as the caller sent it. */
 function text(args: unknown, key: "path" | "id" | "title"): string {
   return String((args as Record<string, unknown>)[key]);
+}
+
+/** Whether `delete_book` was asked to delete for good. */
+function forever(args: unknown): boolean {
+  return (args as Record<string, unknown>)["forever"] === true;
 }
 
 type After = <T>(ms: number, value: () => T) => Promise<T>;
@@ -259,11 +274,28 @@ export function bookCommands(
         return { chapters: found?.chapters.length ?? 0, ...fates };
       }),
     delete_book: (args) =>
-      // Off the shelf; the same file added again puts it back.
+      // Archived, it is listed apart; for good, it is nowhere. The same
+      // file added again puts it back on the shelf.
       after(200, () => {
         const id = text(args, "id");
+        const gone = books.find((candidate) => candidate.id === id);
         books = books.filter((candidate) => candidate.id !== id);
+        archived = archived.filter((candidate) => candidate.id !== id);
+        if (gone !== undefined && !forever(args)) {
+          archived = [
+            {
+              id: gone.id,
+              title: gone.title,
+              author: gone.author,
+              opening: gone.opening,
+              archivedAt: new Date().toISOString(),
+              words: fates.kept,
+            },
+            ...archived,
+          ];
+        }
       }),
+    archived_books: () => after(80, () => archived),
     // No file behind the mock's books: each shows the page it opens with.
     book_cover: () => after(0, () => new ArrayBuffer(0)),
     book_pdf: () => after(0, () => new ArrayBuffer(0)),

@@ -13,6 +13,7 @@ import { Orb } from "@/components/ui/Orb";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { Spinner } from "@/components/ui/Spinner";
 import type { Navigate } from "@/app/routes";
+import { ArchivedShelf } from "./ArchivedShelf";
 import { BookCover } from "./BookCover";
 
 interface BookCardProps {
@@ -148,6 +149,8 @@ export function BookShelf({
             </Reveal>
           )}
         </Presence>
+
+        <ArchivedShelf />
 
         <Presence>
           {knownCount > 0 && (
