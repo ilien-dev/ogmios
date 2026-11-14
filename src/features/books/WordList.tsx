@@ -78,7 +78,10 @@ export function WordList({
                   <th scope="col" className="p-2 text-right font-medium">
                     {t("books.chapter.count")}
                   </th>
-                  <th scope="col" className="p-2 text-right font-medium">
+                  <th
+                    scope="col"
+                    className="p-2 text-right font-medium whitespace-nowrap"
+                  >
                     {t("books.chapter.known")}
                   </th>
                 </tr>

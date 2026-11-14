@@ -235,6 +235,163 @@ const COPULAS: [(&str, &[&str]); 4] = [
 /// written apart from it: "se serenó" says what "serenarse" says.
 const REFLEXIVES: [(&str, &[&str]); 1] = [("es", &["me", "te", "se", "nos", "os"])];
 
+/// The pronouns written apart before the auxiliary of a compound tense in
+/// the learner's language: "me", "lo" in "me había", "lo había visto".
+const CLITICS: [(&str, &[&str]); 1] = [(
+    "es",
+    &[
+        "me", "te", "se", "nos", "os", "le", "les", "lo", "la", "los", "las",
+    ],
+)];
+
+/// The forms of "to have" a compound tense is made with in the learner's
+/// language, without their accents: "había" in "había logrado".
+const PERFECTS: [(&str, &[&str]); 1] = [(
+    "es",
+    &[
+        "haber",
+        "habiendo",
+        "he",
+        "has",
+        "ha",
+        "hemos",
+        "habeis",
+        "han",
+        "habia",
+        "habias",
+        "habiamos",
+        "habiais",
+        "habian",
+        "hube",
+        "hubiste",
+        "hubo",
+        "hubimos",
+        "hubisteis",
+        "hubieron",
+        "habre",
+        "habras",
+        "habra",
+        "habremos",
+        "habreis",
+        "habran",
+        "habria",
+        "habrias",
+        "habriamos",
+        "habriais",
+        "habrian",
+        "haya",
+        "hayas",
+        "hayamos",
+        "hayais",
+        "hayan",
+        "hubiera",
+        "hubieras",
+        "hubieramos",
+        "hubierais",
+        "hubieran",
+        "hubiese",
+        "hubieses",
+        "hubiesemos",
+        "hubieseis",
+        "hubiesen",
+    ],
+)];
+
+/// How a participle ends in the learner's language, without its accent and
+/// in either gender and number: "logrado", "hecho", "rotas".
+const PARTICIPLES: [(&str, &[&str]); 1] = [(
+    "es",
+    &[
+        "ado", "ada", "ados", "adas", "ido", "ida", "idos", "idas", "to", "ta", "tos", "tas",
+        "cho", "cha", "chos", "chas", "so", "sa", "sos", "sas",
+    ],
+)];
+
+/// The forms of the "to be" of a progressive tense in the learner's
+/// language, without their accents: "estaba" in "estaba corriendo".
+const PROGRESSIVES: [(&str, &[&str]); 1] = [(
+    "es",
+    &[
+        "estar",
+        "estoy",
+        "estas",
+        "esta",
+        "estamos",
+        "estais",
+        "estan",
+        "estaba",
+        "estabas",
+        "estabamos",
+        "estabais",
+        "estaban",
+        "estuve",
+        "estuviste",
+        "estuvo",
+        "estuvimos",
+        "estuvisteis",
+        "estuvieron",
+        "estare",
+        "estara",
+        "estaran",
+        "estaria",
+        "estarian",
+    ],
+)];
+
+/// The forms of the "to be" of a passive in the learner's language, without
+/// their accents: "fue" in "fue adornado". Not the "to be" of a state
+/// ("estaba tendida" for "lay"), which says the word itself.
+const PASSIVES: [(&str, &[&str]); 1] = [(
+    "es",
+    &[
+        "ser", "es", "son", "era", "eran", "fue", "fueron", "sera", "seran", "seria", "serian",
+        "sido", "siendo",
+    ],
+)];
+
+/// An auxiliary of the learner's language: a word that only says the tense
+/// of the verb after it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Auxiliary {
+    /// "to have" before a participle: "había" in "había logrado".
+    Perfect,
+    /// "to be" before a gerund: "estaba" in "estaba corriendo". Not "ir":
+    /// "se fue debilitando" says "weakened".
+    Progressive,
+    /// "to be" before a participle: "fue" in "fue adornado".
+    Passive,
+}
+
+/// Whether `word` is a pronoun written apart before an auxiliary in the
+/// learner's language.
+pub fn clitic(word: &str, lang: &str) -> bool {
+    listed(&CLITICS, &primary(lang)).contains(&plain(word).as_str())
+}
+
+/// The auxiliary `word` is in the learner's language when the verb `next`
+/// comes after it; none when it is no auxiliary there: "había gente" says
+/// "there were people", and "había" is the word itself.
+pub fn auxiliary(word: &str, next: &str, lang: &str) -> Option<Auxiliary> {
+    let lang = primary(lang);
+    let (word, next) = (plain(word), plain(next));
+    let ends = |table: &[(&str, &'static [&'static str])]| {
+        listed(table, &lang)
+            .iter()
+            .any(|ending| next.ends_with(&plain(ending)))
+    };
+    let is =
+        |table: &[(&str, &'static [&'static str])]| listed(table, &lang).contains(&word.as_str());
+    if ends(&PARTICIPLES) && is(&PERFECTS) {
+        Some(Auxiliary::Perfect)
+    } else if ends(&PARTICIPLES) && is(&PASSIVES) {
+        Some(Auxiliary::Passive)
+    } else if ends(&GERUNDS) && is(&PROGRESSIVES) {
+        Some(Auxiliary::Progressive)
+    } else {
+        None
+    }
+}
+
 /// The languages whose words can be brought to their stem.
 const STEMMERS: [(&str, Algorithm); 6] = [
     ("es", Algorithm::Spanish),
@@ -326,6 +483,10 @@ fn roots(text: &str, (lang, inflects): (&str, bool), spelling: Spelling) -> Vec<
         .find(|(tag, _)| inflects && *tag == lang)
         .map_or(&[][..], |(_, list)| list);
     if words.len() > 1 && reflexives.contains(&words[0].as_str()) {
+        words.remove(0);
+    }
+    // "había asegurado" says what "aseguré" says: the tense is the form.
+    if words.len() > 1 && auxiliary(&words[0], &words[1], &lang) == Some(Auxiliary::Perfect) {
         words.remove(0);
     }
     let copulas = COPULAS

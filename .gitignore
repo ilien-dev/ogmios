@@ -13,3 +13,6 @@ src-tauri/binaries
 .themis/
 .muninn/
 .superpowers/
+
+# Local portfolio material for arc.dev, not part of the app
+/.promo/

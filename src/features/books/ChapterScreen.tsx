@@ -216,11 +216,11 @@ export function ChapterScreen({
         <Reveal index={0}>
           <BackLink label={book.title} onClick={onBack} />
         </Reveal>
-        <div className="flex flex-col gap-10 nav:flex-row nav:items-start nav:gap-12">
+        <div className="flex flex-col gap-8 wide:flex-row wide:items-start wide:gap-12">
           <Reveal
             as="aside"
             index={1}
-            className="nav:sticky nav:top-0 nav:w-80 nav:shrink-0"
+            className="wide:sticky wide:top-0 wide:w-80 wide:shrink-0"
           >
             <ChapterAside
               book={book}

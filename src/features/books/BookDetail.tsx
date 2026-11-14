@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Trash2 } from "lucide-react";
-import type { Book, Chapter } from "@shared/domain";
+import type { Book, BookDeletion, Chapter } from "@shared/domain";
 import { Presence } from "@/components/motion/Presence";
 import { Reveal } from "@/components/motion/Reveal";
 import { Stagger } from "@/components/motion/Stagger";
@@ -11,9 +11,11 @@ import { BackLink } from "@/components/ui/BackLink";
 import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
 import { errorMessage } from "@/lib/errors";
-import { deleteBook } from "@/lib/ipc";
+import { bookDeletion, deleteBook, purgeBook } from "@/lib/ipc";
 import { BookCover } from "./BookCover";
 import { ChapterRow } from "./ChapterRow";
+import { DeleteBookDialog } from "./DeleteBookDialog";
+import type { DeleteWay } from "./DeleteBookDialog";
 
 interface BookDetailProps {
   /** Null when the book was deleted while it was open. */
@@ -34,6 +36,8 @@ export function BookDetail({
 }: BookDetailProps): ReactNode {
   const { t } = useTranslation();
   const [confirming, setConfirming] = useState(false);
+  const [asking, setAsking] = useState(false);
+  const [deletion, setDeletion] = useState<BookDeletion | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
 
@@ -52,13 +56,28 @@ export function BookDetail({
     );
   }
 
-  const remove = async (): Promise<void> => {
+  const ask = async (): Promise<void> => {
+    setAsking(true);
+    setFailure(null);
+    try {
+      setDeletion(await bookDeletion(book.id));
+      setConfirming(true);
+    } catch (error) {
+      setFailure(errorMessage(error));
+    } finally {
+      setAsking(false);
+    }
+  };
+
+  const remove = async (way: DeleteWay): Promise<void> => {
     setDeleting(true);
     setFailure(null);
     try {
-      await deleteBook(book.id);
+      await (way === "archive" ? deleteBook(book.id) : purgeBook(book.id));
+      setConfirming(false);
       onDeleted();
     } catch (error) {
+      setConfirming(false);
       setFailure(errorMessage(error));
     } finally {
       setDeleting(false);
@@ -120,43 +139,14 @@ export function BookDetail({
           as="section"
           className="relative flex flex-col items-start gap-4"
         >
-          <Presence swap>
-            {confirming ? (
-              <Reveal key="confirm" kind="fade" className="flex flex-col gap-4">
-                <p className="text-ink">{t("books.deleteConfirm")}</p>
-                <div className="flex gap-2">
-                  <Button
-                    variant="danger"
-                    disabled={deleting}
-                    onClick={() => void remove()}
-                  >
-                    {t("books.deleteYes")}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    disabled={deleting}
-                    onClick={() => {
-                      setConfirming(false);
-                    }}
-                  >
-                    {t("common.cancel")}
-                  </Button>
-                </div>
-              </Reveal>
-            ) : (
-              <Reveal key="delete" kind="fade">
-                <Button
-                  variant="danger"
-                  icon={<Trash2 aria-hidden className="size-4" />}
-                  onClick={() => {
-                    setConfirming(true);
-                  }}
-                >
-                  {t("books.delete")}
-                </Button>
-              </Reveal>
-            )}
-          </Presence>
+          <Button
+            variant="danger"
+            disabled={asking || deleting}
+            icon={<Trash2 aria-hidden className="size-4" />}
+            onClick={() => void ask()}
+          >
+            {t("books.delete")}
+          </Button>
           <Presence>
             {failure !== null && (
               <Reveal key="failure">
@@ -168,6 +158,16 @@ export function BookDetail({
           </Presence>
         </Reveal>
       </Stagger>
+      <DeleteBookDialog
+        book={book}
+        open={confirming}
+        deletion={deletion}
+        deleting={deleting}
+        onCancel={() => {
+          setConfirming(false);
+        }}
+        onConfirm={(way) => void remove(way)}
+      />
     </main>
   );
 }

@@ -1,13 +1,17 @@
 import { describe, expect, test } from "bun:test";
 import type { ReactNode } from "react";
 import { useState } from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { Route } from "@/app/routes";
 import { i18n } from "@/lib/i18n/i18n";
 import { listBooks } from "@/lib/ipc";
 import { setMockLatency } from "@/lib/ipcMock";
-import { clearMockBooks, setMockBookPick } from "@/lib/ipcMockBooks";
+import {
+  clearMockBooks,
+  setMockBookDeletion,
+  setMockBookPick,
+} from "@/lib/ipcMockBooks";
 import { seedMockReadiness } from "@/lib/ipcMockChapters";
 import { setMockWordKnown } from "@/lib/ipcMockWords";
 import { useMockBackend } from "@/test/mockBackend";
@@ -316,8 +320,15 @@ describe("BooksScreen", () => {
     ).toBeInTheDocument();
   });
 
-  test("deleting asks first, then the book is gone", async () => {
+  test("archiving says first what happens to the words, then lists the book as archived", async () => {
     const user = userEvent.setup();
+    setMockBookDeletion({
+      kept: 12,
+      shared: 3,
+      discarded: 20,
+      purged: 30,
+      elsewhere: 5,
+    });
     render(<Shelf />);
     await user.click(
       await screen.findByRole("button", {
@@ -326,23 +337,142 @@ describe("BooksScreen", () => {
     );
 
     await user.click(screen.getByRole("button", { name: "Delete book" }));
+    const dialog = await screen.findByRole("dialog", {
+      name: "Delete Alice's Adventures in Wonderland?",
+    });
     expect(
-      screen.getByText(
-        "Delete this book and its chapters? The words you learned in it are kept.",
-      ),
-    ).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Cancel" }));
+      within(dialog).getByRole("radio", { name: /Archive/u }),
+    ).toBeChecked();
+    for (const line of [
+      "12 words you have already practised, with their right and missed answers. They will come back in the daily review.",
+      "3 more are also in other books and do not change.",
+      "20 analysed words you never answered in any exercise.",
+      "Your learned words are not lost: they stop being practised by chapter and move to the daily review.",
+    ]) {
+      expect(within(dialog).getByText(line)).toBeInTheDocument();
+    }
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).toBeNull();
+    });
     expect(
       screen.getByRole("heading", { name: "Alice's Adventures in Wonderland" }),
     ).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Delete book" }));
-    await user.click(screen.getByRole("button", { name: "Delete" }));
+    await user.click(
+      within(await screen.findByRole("dialog")).getByRole("button", {
+        name: "Archive book",
+      }),
+    );
     expect(
       await screen.findByText(
         "No books yet. Add an EPUB or a PDF to see its chapters.",
       ),
     ).toBeInTheDocument();
+    const archived = await screen.findByRole("region", { name: "Archived" });
+    // The title, and the page its cover shows without one.
+    expect(
+      within(archived).getAllByText("Alice's Adventures in Wonderland").length,
+    ).toBeGreaterThan(0);
+    expect(
+      within(archived).getByText("12 words in your daily review"),
+    ).toBeInTheDocument();
+    // It no longer opens: the row has nothing to open it with.
+    expect(
+      within(archived).queryByRole("button", {
+        name: /^Alice's Adventures in Wonderland/u,
+      }),
+    ).toBeNull();
+
+    // An archived book can still be deleted for good.
+    await user.click(
+      within(archived).getByRole("button", {
+        name: "Delete Alice's Adventures in Wonderland for good",
+      }),
+    );
+    const purging = await screen.findByRole("dialog", {
+      name: "Delete Alice's Adventures in Wonderland for good?",
+    });
+    expect(within(purging).queryByRole("radio")).toBeNull();
+    await user.click(
+      within(purging).getByRole("button", { name: "Delete for good" }),
+    );
+    await waitFor(() => {
+      expect(screen.queryByRole("region", { name: "Archived" })).toBeNull();
+    });
+  });
+
+  test("deleting for good says which words go with their history, and leaves nothing archived", async () => {
+    const user = userEvent.setup();
+    setMockBookDeletion({
+      kept: 12,
+      shared: 3,
+      discarded: 20,
+      purged: 30,
+      elsewhere: 5,
+    });
+    render(<Shelf />);
+    await user.click(
+      await screen.findByRole("button", {
+        name: /Alice's Adventures in Wonderland/u,
+      }),
+    );
+
+    await user.click(screen.getByRole("button", { name: "Delete book" }));
+    const dialog = await screen.findByRole("dialog");
+    await user.click(
+      within(dialog).getByRole("radio", { name: /Delete for good/u }),
+    );
+    for (const line of [
+      "30 words only this book has go, with their right and missed answers and their daily review.",
+      "5 words are also in other books and do not change.",
+      "The words you marked as known stay known.",
+      "This cannot be undone.",
+    ]) {
+      expect(await within(dialog).findByText(line)).toBeInTheDocument();
+    }
+    await user.click(
+      within(dialog).getByRole("button", { name: "Delete for good" }),
+    );
+    expect(
+      await screen.findByText(
+        "No books yet. Add an EPUB or a PDF to see its chapters.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Archived" })).toBeNull();
+  });
+
+  test("a book with nothing practised says so, and Escape keeps it", async () => {
+    const user = userEvent.setup();
+    setMockBookDeletion({
+      kept: 0,
+      shared: 0,
+      discarded: 0,
+      purged: 0,
+      elsewhere: 0,
+    });
+    render(<Shelf />);
+    await user.click(
+      await screen.findByRole("button", {
+        name: /Alice's Adventures in Wonderland/u,
+      }),
+    );
+
+    await user.click(screen.getByRole("button", { name: "Delete book" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      within(dialog).getByText(
+        "You have not practised any word of this book yet.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).queryByText("What you never practised goes"),
+    ).toBeNull();
+    await user.keyboard("{Escape}");
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).toBeNull();
+    });
   });
 
   test("a move between shelf, book and chapter shows content at once, seeded from the shelf the app holds", async () => {

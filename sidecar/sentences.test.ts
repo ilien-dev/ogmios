@@ -108,6 +108,15 @@ describe("the prompt that glosses a word's sentences", () => {
     expect(prompt).toContain('never "llama"');
   });
 
+  test("leaves out of the hint a tense said by English words outside the word", () => {
+    const prompt = sentenceWriteSystemPrompt(write);
+    expect(prompt).toContain("never the words for the English words around it");
+    expect(prompt).toContain(
+      `"empeñado en" for "made a point of" in "I'd made a point of smoking"`,
+    );
+    expect(prompt).toContain('never "me había empeñado en"');
+  });
+
   test("gives each word with its book sentences numbered", () => {
     const prompt = sentenceWriteUserPrompt(write);
     expect(prompt).toContain('<word id="peep">');
@@ -164,6 +173,13 @@ describe("the prompt that looks at sentences again", () => {
       expect(prompt).toContain(`"${form}"`);
     }
     expect(prompt).toContain("null for any other word");
+  });
+
+  test("asks for the other translations without a tense the form does not show", () => {
+    const prompt = sentenceReviewSystemPrompt(review);
+    expect(prompt).toContain("only the words of <form>");
+    expect(prompt).toContain('"asegurado de" beside the hint "empeñado en"');
+    expect(prompt).toContain('never "me había asegurado de"');
   });
 
   test("gives each sentence with its word, its form, its hint and its translation", () => {

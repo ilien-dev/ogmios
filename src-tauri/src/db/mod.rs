@@ -52,6 +52,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("verbs.sql"),
     include_str!("inform.sql"),
     include_str!("archive.sql"),
+    include_str!("discard.sql"),
 ];
 
 pub fn open(path: &Path) -> Result<Connection> {
@@ -590,6 +591,71 @@ mod tests {
         assert_eq!(bank[0].hints, ["se retiró", "se alejó"]);
         assert_eq!(bank[0].verb_form, Some(crate::domain::VerbForm::Past));
         assert_eq!(sentences::unlabelled(&conn).expect("list").len(), 0);
+    }
+
+    #[test]
+    fn migration_thirty_leaves_a_deleted_book_only_the_words_answered_in_it() {
+        let conn = Connection::open_in_memory().expect("open");
+        for sql in &MIGRATIONS[..29] {
+            conn.execute_batch(sql).expect("migration");
+        }
+        conn.pragma_update(None, "user_version", 29)
+            .expect("version");
+        conn.execute_batch(
+            r#"INSERT INTO books VALUES ('gone', 'Alice', NULL, 'epub', 'h', 'f', '2026-01-01'),
+                                     ('kept', 'Emma', NULL, 'epub', 'h2', 'f2', '2026-01-01');
+             INSERT INTO book_chapters (id, book_id, idx, title, words, text, prepared)
+               VALUES ('g1', 'gone', 0, 'I', 2, 'text', 'most'),
+                      ('g2', 'gone', 1, 'II', 2, 'text', 'most'),
+                      ('k1', 'kept', 0, 'I', 2, 'text', 'most');
+             INSERT INTO chapter_words
+               (id, chapter_id, key, lemma, forms, sentence, occurrences, depth, created_at,
+                learned_at)
+             VALUES ('learned', 'g1', 'peep', 'peep', '["peep"]', 's', 1, 'most',
+                     '2026-01-01', '2026-01-02T10:00:00.000Z'),
+                    ('tried', 'g2', 'tide', 'tide', '["tide"]', 's', 1, 'most',
+                     '2026-01-01', NULL),
+                    ('never', 'g2', 'husk', 'husk', '["husk"]', 's', 1, 'most',
+                     '2026-01-01', NULL),
+                    ('shelved', 'k1', 'husk', 'husk', '["husk"]', 's', 1, 'most',
+                     '2026-01-01', NULL);
+             INSERT INTO chapter_chunks VALUES ('g2', 'most', 0, 1, '[]');
+             INSERT INTO practice_sittings (id, chapter_id, started_at) VALUES ('s', 'g2', '2026-01-02T10:00:00.000Z');
+             INSERT INTO word_answers (word_id, direction, sitting_id, answer, correct, created_at)
+               VALUES ('tried', 'recognition', 's', 'x', 0, '2026-01-02T10:00:00.000Z');
+             INSERT INTO archived_books VALUES ('gone', '2026-01-03T10:00:00.000Z');"#,
+        )
+        .expect("rows");
+
+        migrate(&conn).expect("migrate");
+        let mut stmt = conn
+            .prepare("SELECT id FROM chapter_words ORDER BY id")
+            .expect("stmt");
+        let left: Vec<String> = stmt
+            .query_map([], |row| row.get(0))
+            .expect("rows")
+            .collect::<rusqlite::Result<_>>()
+            .expect("ids");
+        assert_eq!(left, ["learned", "shelved", "tried"]);
+        let prepared: Vec<Option<String>> = conn
+            .prepare("SELECT prepared FROM book_chapters ORDER BY id")
+            .expect("stmt")
+            .query_map([], |row| row.get(0))
+            .expect("rows")
+            .collect::<rusqlite::Result<_>>()
+            .expect("prepared");
+        assert_eq!(prepared, [Some("most".into()), None, Some("most".into())]);
+        let chunks: i64 = conn
+            .query_row("SELECT COUNT(*) FROM chapter_chunks", [], |row| row.get(0))
+            .expect("count");
+        assert_eq!(chunks, 0);
+        let mut asked: Vec<String> = recall::words(&conn)
+            .expect("recall")
+            .into_iter()
+            .map(|word| word.key)
+            .collect();
+        asked.sort();
+        assert_eq!(asked, ["peep", "tide"]);
     }
 
     #[test]

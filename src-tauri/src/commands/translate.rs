@@ -452,8 +452,7 @@ pub fn review(
         let previous = at
             .checked_sub(1)
             .and_then(|before| chapter.english.get(before))
-            .map(|sentences| sentences.join(" "))
-            .unwrap_or_default();
+            .map_or_default(|sentences| sentences.join(" "));
         (attempt, chapter, lines, previous, spelling)
     };
     let brief = brief(ctx, &attempt.chapter_id, &chapter.native_lang, model, now)?;

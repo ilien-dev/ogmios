@@ -61,12 +61,10 @@ impl Widths {
             first: first
                 .and_then(|first| usize::try_from(code(doc, first)?).ok())
                 .unwrap_or(0),
-            widths: widths
-                .map(|widths| {
-                    let width = |width| float(doc, width).unwrap_or(USUAL_WIDTH);
-                    widths.iter().map(width).collect()
-                })
-                .unwrap_or_default(),
+            widths: widths.map_or_default(|widths| {
+                let width = |width| float(doc, width).unwrap_or(USUAL_WIDTH);
+                widths.iter().map(width).collect()
+            }),
         }
     }
 
@@ -349,8 +347,7 @@ pub(super) fn page_text(doc: &Document, page: ObjectId) -> String {
         })
         .collect();
     doc.get_and_decode_page_content(page)
-        .map(|content| text_of(&content.operations, &fonts))
-        .unwrap_or_default()
+        .map_or_default(|content| text_of(&content.operations, &fonts))
 }
 
 #[cfg(test)]

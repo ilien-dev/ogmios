@@ -493,9 +493,58 @@ export const en = {
     renameLabel: "Chapter name",
     missing: "This book is no longer here.",
     delete: "Delete book",
-    deleteConfirm:
-      "Delete this book and its chapters? The words you learned in it are kept.",
     deleteYes: "Delete",
+    deleting: {
+      title: "Delete {{title}}?",
+      lead_one: "It leaves your library with its chapter.",
+      lead_other: "It leaves your library with its {{count}} chapters.",
+      keptTitle: "What you learned stays",
+      kept_one:
+        "{{count}} word you have already practised, with its right and missed answers. It will come back in the daily review.",
+      kept_other:
+        "{{count}} words you have already practised, with their right and missed answers. They will come back in the daily review.",
+      keptNone: "You have not practised any word of this book yet.",
+      shared_one: "{{count}} more is also in other books and does not change.",
+      shared_other: "{{count}} more are also in other books and do not change.",
+      discardedTitle: "What you never practised goes",
+      discarded_one:
+        "{{count}} analysed word you never answered in any exercise.",
+      discarded_other:
+        "{{count}} analysed words you never answered in any exercise.",
+      chaptersTitle: "You will no longer practise its chapters",
+      chapters:
+        "Your learned words are not lost: they stop being practised by chapter and move to the daily review.",
+      purgeTitle: "Delete {{title}} for good?",
+      how: "How to delete it",
+      archive: "Archive",
+      archiveHint:
+        "It leaves your library; what you practised stays in the daily review.",
+      purge: "Delete for good",
+      purgeHint: "It goes with all its vocabulary and its statistics.",
+      purgedTitle: "Its vocabulary goes",
+      purged_one:
+        "{{count}} word only this book has goes, with its right and missed answers and its daily review.",
+      purged_other:
+        "{{count}} words only this book has go, with their right and missed answers and their daily review.",
+      purgedNone: "No word is this book's alone.",
+      elsewhereTitle: "What other books have stays",
+      elsewhere_one:
+        "{{count}} word is also in another book and does not change.",
+      elsewhere_other:
+        "{{count}} words are also in other books and do not change.",
+      known: "The words you marked as known stay known.",
+      undone: "This cannot be undone.",
+      archiveConfirm: "Archive book",
+      purgeConfirm: "Delete for good",
+    },
+    archived: {
+      title: "Archived",
+      intro:
+        "They no longer open. What you practised in them is still in your daily review.",
+      words_one: "{{count}} word in your daily review",
+      words_other: "{{count}} words in your daily review",
+      purge: "Delete {{title}} for good",
+    },
     known: {
       title: "Words you already know",
       intro:

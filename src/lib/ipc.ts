@@ -8,7 +8,9 @@
 import type {
   AnalysisProgress,
   AnswerResult,
+  ArchivedBook,
   Book,
+  BookDeletion,
   Chapter,
   ChapterProgress,
   ChapterWords,
@@ -208,8 +210,18 @@ export async function pickBookFile(label: string): Promise<string | null> {
 /** The same file twice resolves to the book already there. */
 export const importBook = (path: string): Promise<Book> =>
   call("import_book", { path });
+/** What deleting the book would do to its words. */
+export const bookDeletion = (id: string): Promise<BookDeletion> =>
+  call("book_deletion", { id });
+/** Off the shelf; the words practised in it stay for the daily review. */
 export const deleteBook = (id: string): Promise<void> =>
-  call("delete_book", { id });
+  call("delete_book", { id, forever: false });
+/** Gone for good, with every word only it has and their history. */
+export const purgeBook = (id: string): Promise<void> =>
+  call("delete_book", { id, forever: true });
+/** The books deleted with their words kept, the latest first. */
+export const archivedBooks = (): Promise<ArchivedBook[]> =>
+  call("archived_books");
 /** The book's cover as image bytes; empty when it has none yet. */
 export const bookCover = (id: string): Promise<ArrayBuffer> =>
   call("book_cover", { id });

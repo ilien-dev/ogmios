@@ -40,7 +40,7 @@ use crate::agent::protocol::{
 };
 use crate::books::segment::{paragraphs, sentences as cut};
 use crate::books::sentences::{
-    found, hint_fits, in_translation, other_hints, Banked, GIVEN, WORDS_PER_CALL,
+    found, hint_fits, in_translation, other_hints, unaided, Banked, GIVEN, WORDS_PER_CALL,
 };
 use crate::db::recall::{self, Source};
 use crate::db::sentences::{self as bank, Labels, NewSentence, Sentence};
@@ -211,32 +211,41 @@ fn ask(word: Wanted, book: &[(String, String)]) -> Option<Asked> {
     (!from_book.is_empty()).then(|| asked_about(word, from_book))
 }
 
-/// What the model said of a sentence, as it can be kept: the hint and the
-/// translation. None when the hint gives the word away, or is not words of
-/// the translation: the word would be asked by something its sentence does
-/// not say.
-fn gloss<'a>(said: &'a BookGloss, form: &str) -> Option<(&'a str, &'a str)> {
-    let (hint, translation) = (said.hint.trim(), said.translation.trim());
-    (hint_fits(hint, form) && in_translation(hint, translation)).then_some((hint, translation))
+/// What the model said of a sentence, as it can be kept: the hint, without
+/// the words of the learner's `lang` for English ones outside the `form`
+/// (`books::sentences::unaided`), and the translation. None when the hint
+/// gives the word away, or is not words of the translation: the word would
+/// be asked by something its sentence does not say.
+fn gloss<'a>(said: &'a BookGloss, form: &str, lang: &str) -> Option<(String, &'a str)> {
+    let (hint, translation) = (
+        unaided(said.hint.trim(), form, lang),
+        said.translation.trim(),
+    );
+    (hint_fits(&hint, form) && in_translation(&hint, translation)).then_some((hint, translation))
 }
 
 /// Keeps what the model answered for one word: each sentence whose gloss
 /// passes the checks is kept to be looked at, and each other is refused for
 /// good.
-fn keep(conn: &Connection, asked: &Asked, answer: &WrittenWord, now: DateTime<Utc>) -> Result<()> {
+fn keep(
+    conn: &Connection,
+    (asked, answer): (&Asked, &WrittenWord),
+    lang: &str,
+    now: DateTime<Utc>,
+) -> Result<()> {
     let key = asked.word.key.as_str();
     for gloss in &answer.book {
         let at = usize::try_from(gloss.index).unwrap_or(usize::MAX);
         let Some((sentence, form)) = asked.book.get(at) else {
             continue;
         };
-        if let Some((hint, translation)) = self::gloss(gloss, form) {
+        if let Some((hint, translation)) = self::gloss(gloss, form, lang) {
             let new = NewSentence {
                 key,
                 book: true,
                 sentence,
                 form,
-                hint,
+                hint: &hint,
                 translation,
             };
             bank::add(conn, &new, now)?;
@@ -290,7 +299,11 @@ fn labels(
 /// (`books::sentences::other_hints`), and the form of the verb. Nothing for
 /// a sentence the model said nothing of. `base` is the word's translations
 /// in their base form.
-fn kept(label: Option<&SentenceVerdict>, sentence: &Sentence, base: &[String]) -> Labels {
+fn kept(
+    label: Option<&SentenceVerdict>,
+    sentence: &Sentence,
+    (base, lang): (&[String], &str),
+) -> Labels {
     let Some(label) = label else {
         return Labels::default();
     };
@@ -300,7 +313,7 @@ fn kept(label: Option<&SentenceVerdict>, sentence: &Sentence, base: &[String]) -
             .map(|each| each.trim().to_owned())
             .filter(|each| !each.is_empty())
             .collect(),
-        hints: other_hints(&label.hints, (&sentence.hint, &sentence.form), base),
+        hints: other_hints(&label.hints, (&sentence.hint, &sentence.form, lang), base),
         verb_form: label.verb_form,
     }
 }
@@ -317,7 +330,12 @@ fn look(ctx: Ctx<'_>, model: &mut dyn Model, native_lang: &str) -> Result<()> {
             let label = labels.get(&each.id);
             let good = label.is_some_and(|label| label.good);
             let (_, base) = bank::meaning(&conn, &each.key)?;
-            bank::review(&conn, &each.id, good, &kept(label, each, &base))?;
+            bank::review(
+                &conn,
+                &each.id,
+                good,
+                &kept(label, each, (&base, native_lang)),
+            )?;
         }
     }
     Ok(())
@@ -334,7 +352,8 @@ fn label(ctx: Ctx<'_>, model: &mut dyn Model, native_lang: &str) -> Result<()> {
         let conn = ctx.conn()?;
         for each in chunk {
             let (_, base) = bank::meaning(&conn, &each.key)?;
-            bank::label(&conn, &each.id, &kept(labels.get(&each.id), each, &base))?;
+            let labels = kept(labels.get(&each.id), each, (&base, native_lang));
+            bank::label(&conn, &each.id, &labels)?;
         }
     }
     Ok(())
@@ -389,10 +408,10 @@ fn renew(ctx: Ctx<'_>, model: &mut dyn Model, native_lang: &str, batch: &[Outdat
                     let said = |gloss: &&BookGloss| usize::try_from(gloss.index) == Ok(at);
                     answer.book.iter().find(said)
                 })
-                .and_then(|said| gloss(said, &old.form));
+                .and_then(|said| gloss(said, &old.form, native_lang));
             match new {
                 Some((hint, translation)) => glossed.push(Sentence {
-                    hint: hint.to_owned(),
+                    hint,
                     translation: translation.to_owned(),
                     ..old.clone()
                 }),
@@ -413,7 +432,7 @@ fn renew(ctx: Ctx<'_>, model: &mut dyn Model, native_lang: &str, batch: &[Outdat
         let label = labels.get(&each.id);
         if label.is_some_and(|label| label.good) {
             let (_, base) = bank::meaning(&conn, &each.key)?;
-            bank::regloss(&conn, each, &kept(label, each, &base))?;
+            bank::regloss(&conn, each, &kept(label, each, (&base, native_lang)))?;
         } else {
             bank::discard(&conn, &each.id)?;
         }
@@ -422,7 +441,8 @@ fn renew(ctx: Ctx<'_>, model: &mut dyn Model, native_lang: &str, batch: &[Outdat
 }
 
 /// Gives the words of the scope that were never given a sentence one of
-/// their book; how many words that was. `progress` hears how many are done
+/// their book; how many words that was. Every hint kept is first rid of the
+/// words for English ones outside its form (`db::sentences::unaid`). `progress` hears how many are done
 /// out of how many. Sentences left waiting by a run that was cut short are
 /// looked at first, so nothing is asked twice. The sentences kept before
 /// their rivals were listed are labelled last ([`label`]), after those
@@ -435,6 +455,9 @@ pub fn top_up(
     progress: &dyn Fn(u32, u32),
 ) -> Result<u32> {
     let profile = require_profile(&*ctx.conn()?)?;
+    // Hints kept before they had to leave out a tense their form does not
+    // show lose it here, with no request to the model.
+    bank::unaid(&*ctx.conn()?, &profile.native_lang)?;
     look(ctx, model, &profile.native_lang)?;
 
     let mut asked: Vec<Asked> = Vec::new();
@@ -487,7 +510,7 @@ pub fn top_up(
             for each in batch {
                 let answer = written.words.iter().find(|word| word.id == each.word.key);
                 if let Some(answer) = answer {
-                    keep(&tx, each, answer, now)?;
+                    keep(&tx, (each, answer), &profile.native_lang, now)?;
                 }
             }
             tx.commit()?;
@@ -918,6 +941,52 @@ pub mod tests {
         // Once: its hint is words of its translation now.
         let again = stock(&desk, &chapter);
         assert_eq!((again.writes.len(), again.reviews), (0, 0));
+    }
+
+    #[test]
+    fn a_hint_kept_with_a_tense_its_form_does_not_show_loses_it_without_the_model() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let desk = Desk::new(&dir);
+        let text = "I'd made a point of smoking.";
+        let point = Word {
+            forms: vec!["made a point of".into()],
+            sentence: text.into(),
+            ..word("make a point of", &["empeñarse en", "asegurarse de"], 1)
+        };
+        let chapter = chapter_of(&desk, text, &[point]);
+        // As a chapter prepared before this was asked for kept it.
+        {
+            let conn = desk.db.lock().expect("db");
+            let new = NewSentence {
+                key: "make a point of",
+                book: true,
+                sentence: text,
+                form: "made a point of",
+                hint: "me había empeñado en",
+                translation: "Me había empeñado en fumar.",
+            };
+            bank::add(&conn, &new, Utc::now()).expect("add");
+            let waiting = bank::unreviewed(&conn).expect("waiting").remove(0);
+            let labels = Labels {
+                also: Vec::new(),
+                hints: vec!["me había asegurado de".into()],
+                verb_form: Some(VerbForm::PastParticiple),
+            };
+            bank::review(&conn, &waiting.id, true, &labels).expect("review");
+        }
+
+        let stub = stock(&desk, &chapter);
+        assert_eq!((stub.writes.len(), stub.reviews), (0, 0));
+        let [kept] = bank::bank(&desk.db.lock().expect("db"), "make a point of")
+            .expect("bank")
+            .try_into()
+            .expect("one sentence");
+        assert_eq!(kept.hint, "empeñado en");
+        assert_eq!(kept.hints, ["asegurado de"]);
+        assert_eq!(kept.translation, "Me había empeñado en fumar.");
+        // Once.
+        let conn = desk.db.lock().expect("db");
+        assert_eq!(bank::unaid(&conn, "es").expect("unaid"), 0);
     }
 
     #[test]

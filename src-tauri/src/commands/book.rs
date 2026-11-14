@@ -12,7 +12,7 @@ use super::run;
 use crate::books::{epub, is_image, pdf, refused, ParsedBook, UNREADABLE};
 use crate::db::books::{self, NewBook};
 use crate::db::new_id;
-use crate::domain::{Book, Chapter};
+use crate::domain::{ArchivedBook, Book, BookDeletion, Chapter};
 use crate::error::Result;
 use crate::Ctx;
 
@@ -96,18 +96,52 @@ pub fn import(ctx: Ctx<'_>, path: &Path) -> Result<Book> {
     stored
 }
 
-/// Deletes the book: it leaves the shelf and its copy of the file goes. Its
-/// rows are kept (`db::books::archive_book`), so the words learned in it
-/// stay learned.
+/// What deleting the book would do to its words.
+pub fn deletion(ctx: Ctx<'_>, id: &str) -> Result<BookDeletion> {
+    books::deletion(&*ctx.conn()?, id)
+}
+
+/// Deletes the book: it leaves the shelf and its copy of the file goes. The
+/// words answered in it are kept (`db::books::archive_book`), so what was
+/// learned stays learned; the rest go.
 pub fn remove(ctx: Ctx<'_>, id: &str) -> Result<()> {
     let mut conn = ctx.conn()?;
     books::get_book(&conn, id)?;
-    let file = books_dir(ctx).join(books::file_name(&conn, id)?);
+    let gone = [
+        books_dir(ctx).join(books::file_name(&conn, id)?),
+        cover_path(ctx, id),
+    ];
     let tx = conn.transaction()?;
     books::archive_book(&tx, id, Utc::now())?;
     tx.commit()?;
-    for gone in [file, cover_path(ctx, id)] {
-        match std::fs::remove_file(gone) {
+    drop(conn);
+    remove_files(&gone)
+}
+
+/// Deletes the book for good, shelved or archived: its rows, its copy of the
+/// file and the words only it had, with their history (`db::books::purge_book`).
+pub fn purge(ctx: Ctx<'_>, id: &str) -> Result<()> {
+    let mut conn = ctx.conn()?;
+    let gone = [
+        books_dir(ctx).join(books::file_name(&conn, id)?),
+        cover_path(ctx, id),
+    ];
+    let tx = conn.transaction()?;
+    books::purge_book(&tx, id)?;
+    tx.commit()?;
+    drop(conn);
+    remove_files(&gone)
+}
+
+/// The books deleted with their words kept.
+pub fn archived(ctx: Ctx<'_>) -> Result<Vec<ArchivedBook>> {
+    books::list_archived(&*ctx.conn()?)
+}
+
+/// Removes these files; one already gone is no error.
+fn remove_files(paths: &[PathBuf]) -> Result<()> {
+    for path in paths {
+        match std::fs::remove_file(path) {
             Err(e) if e.kind() != std::io::ErrorKind::NotFound => return Err(e.into()),
             _ => {}
         }
@@ -187,8 +221,26 @@ pub async fn import_book(app: AppHandle, path: String) -> Result<Book> {
 }
 
 #[tauri::command]
-pub async fn delete_book(app: AppHandle, id: String) -> Result<()> {
-    run(app, move |_, ctx| remove(ctx, &id)).await
+pub async fn book_deletion(app: AppHandle, id: String) -> Result<BookDeletion> {
+    run(app, move |_, ctx| deletion(ctx, &id)).await
+}
+
+#[tauri::command]
+pub async fn archived_books(app: AppHandle) -> Result<Vec<ArchivedBook>> {
+    run(app, |_, ctx| archived(ctx)).await
+}
+
+/// Archives the book, or with `forever` deletes it for good.
+#[tauri::command]
+pub async fn delete_book(app: AppHandle, id: String, forever: bool) -> Result<()> {
+    run(app, move |_, ctx| {
+        if forever {
+            purge(ctx, &id)
+        } else {
+            remove(ctx, &id)
+        }
+    })
+    .await
 }
 
 #[tauri::command]

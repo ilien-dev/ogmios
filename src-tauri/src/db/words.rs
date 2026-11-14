@@ -27,9 +27,7 @@ pub struct Used {
 impl Used {
     /// The answers given to the word of `key`, or to every word.
     pub fn load(conn: &Connection, key: Option<&str>) -> Result<Self> {
-        let native = get_profile(conn)?
-            .map(|profile| profile.native_lang)
-            .unwrap_or_default();
+        let native = get_profile(conn)?.map_or_default(|profile| profile.native_lang);
         let mut stmt = conn.prepare(
             "SELECT w.key, a.answer FROM word_answers a
              JOIN chapter_words w ON w.id = a.word_id
@@ -431,8 +429,8 @@ pub fn list(conn: &Connection, chapter_id: &str) -> Result<Vec<BookWord>> {
 /// a verb nobody said takes an object or not, or the form of: each was
 /// stored before that was asked for. So was a verb called by another form
 /// than its base form with a translation nobody put in that form: it comes
-/// with those translations. Of a deleted book, only the words learned in
-/// it: the others are asked nowhere.
+/// with those translations. A deleted book has only the words answered in
+/// it left (`books::archive_book`), and they come back in the recall.
 pub fn unlabelled(conn: &Connection) -> Result<Vec<LabelWord>> {
     let mut stmt = conn.prepare(
         "SELECT id, lemma, sentence FROM chapter_words
@@ -443,9 +441,6 @@ pub fn unlabelled(conn: &Connection) -> Result<Vec<LabelWord>> {
                   SELECT 1 FROM word_translations t
                   WHERE t.word_id = chapter_words.id
                     AND t.source = 'extraction' AND t.in_form IS NULL)))
-           AND (learned_at IS NOT NULL OR chapter_id NOT IN (
-                  SELECT c.id FROM book_chapters c
-                  JOIN archived_books a ON a.book_id = c.book_id))
          ORDER BY chapter_id, occurrences DESC, key",
     )?;
     let mut words = stmt
@@ -740,7 +735,7 @@ pub mod tests {
     }
 
     #[test]
-    fn deleting_a_book_keeps_its_words_and_the_known_ones() {
+    fn deleting_a_book_discards_the_words_nobody_answered_but_keeps_the_known_ones() {
         let conn = open_in_memory().expect("db");
         let chapters = book(&conn, "b", &["one"]);
         finish(
@@ -761,8 +756,9 @@ pub mod tests {
             })
             .expect("count")
         };
-        assert_eq!(count("chapter_words"), 1);
-        assert_eq!(count("word_translations"), 1);
+        assert_eq!(count("chapter_words"), 0);
+        assert_eq!(count("word_translations"), 0);
+        assert_eq!(count("chapter_chunks"), 0);
         assert_eq!(count("known_words"), 1);
     }
 
