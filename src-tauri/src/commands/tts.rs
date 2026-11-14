@@ -47,13 +47,16 @@ pub async fn tts_configure(app: AppHandle, voice: String, enabled: bool) -> Resu
 }
 
 /// Reads `text` aloud. Resolves when it has been heard to the end, or when
-/// something else was said over it or `tts_stop` silenced it.
+/// something else was said over it or `tts_stop` silenced it. Its turn is
+/// taken as it arrives, before the database is waited on: whichever of two
+/// gets through that first, the one asked for last is the one heard.
 #[tauri::command]
 pub async fn tts_speak(app: AppHandle, text: String) -> Result<()> {
+    let turn = app.state::<AppState>().tts.claim();
     run(app, move |app, ctx| {
         app.state::<AppState>()
             .tts
-            .speak(&text, variant(ctx)?, Pace::Normal)
+            .speak(&turn, &text, variant(ctx)?, Pace::Normal)
     })
     .await
 }

@@ -69,7 +69,7 @@ For each word:
 - ${PART_OF_SPEECH_RULE}
 - ${TRANSITIVE_RULE}
 - ${VERB_FORM_RULE}
-- inForm: when the word comes with translations, those translations, one for each and in the same order, each put in the form the word has: the learner sees them and has to type the word in that form, so "jurado" for "jurar" when the word is "sworn", "juró" for "swore", "jurando" for "swearing", "jura" for "swears". A participle is given on its own, masculine singular, without an auxiliary; a past or a present takes the person its sentence gives it. Written in the language the translations are in, never in English. Empty when the word comes without translations.
+- inForm: when the word comes with translations, those translations, one for each and in the same order, each put in the form the word has: the learner sees them and has to type the word in that form, so "jurado" for "jurar" when the word is "sworn", "juró" for "swore", "jurando" for "swearing", "jura" for "swears". A participle is given on its own, masculine singular, without an auxiliary; a past or a present takes the person its sentence gives it, in the indicative and in the tense of the English word itself, never a mood or a tense the rest of its sentence gives it: "se congela" for "freezes" in "before she freezes", never "se congele". The learner meets the word as the book writes it and has to know what it says on its own. Written in the language the translations are in, never in English. Empty when the word comes without translations.
 
 Answer with one label per word.`;
 }

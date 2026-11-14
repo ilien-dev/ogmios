@@ -10,6 +10,7 @@ use rusqlite::{params, Connection};
 use super::words::Used;
 use super::{found, new_id, parse_ts, ts};
 use crate::books::practice::{Answer, Asked, SessionWord};
+use crate::books::sentences::inflected;
 use crate::domain::{Direction, PartOfSpeech, SittingSummary, VerbForm, Ways};
 use crate::error::Result;
 
@@ -234,6 +235,31 @@ impl WordRow {
     /// is called by, once that was said, and in its base form until then.
     pub fn shown_as(&self) -> &[String] {
         self.in_form.as_deref().unwrap_or(&self.shown)
+    }
+
+    /// What a verb is in the learner's language taken alone, in the form it
+    /// is called by: its base translations for a verb called by its base
+    /// form, and those put in its form for any other ("se congela" for
+    /// "freezes"). What English → native asks for when its sentence puts it
+    /// in a mood, a tense or an agreement the word does not show ("se
+    /// congele" in "before she freezes"). None for any other word, and
+    /// until its translations were put in its form.
+    pub fn alone(&self) -> Option<&[String]> {
+        let verb = matches!(
+            self.part_of_speech,
+            Some(PartOfSpeech::Verb | PartOfSpeech::PhrasalVerb)
+        );
+        let alone = match self.base {
+            None => Some(self.shown.as_slice()),
+            Some(_) => self.in_form.as_deref(),
+        };
+        alone.filter(|each| verb && !each.is_empty())
+    }
+
+    /// [`Self::alone`], for a sentence that has the word in this `form`:
+    /// none when it has it in another form than the one it is called by.
+    pub fn alone_in(&self, form: &str) -> Option<&[String]> {
+        self.alone().filter(|_| !inflected(form, &self.lemma))
     }
 }
 

@@ -1199,6 +1199,156 @@ pub mod tests {
         .expect("hint")
     }
 
+    /// A chapter with a verb called by its form, put in that form, and the
+    /// one sentence of its bank, as the second look kept it; a session on it.
+    fn alone_in(desk: &Desk, verb: (&str, &[&str], &[&str]), kept: (&str, &str, &str)) -> Sitting {
+        let (form, base, said) = verb;
+        let (text, hint, translation) = kept;
+        let list = [Word {
+            part_of_speech: Some(PartOfSpeech::Verb),
+            base: Some("base".into()),
+            verb_form: Some(VerbForm::Present),
+            forms: vec![form.into()],
+            sentence: text.into(),
+            ..word(form, base, 1)
+        }];
+        let chapter = chapter_of(desk, text, &list);
+        let conn = desk.db.lock().expect("db");
+        let id = words::id_by_key(&conn, &chapter, form)
+            .expect("id")
+            .expect("word");
+        let asked: Vec<String> = base.iter().map(|each| (*each).to_owned()).collect();
+        let said: Vec<String> = said.iter().map(|each| (*each).to_owned()).collect();
+        assert!(words::put_in_form(&conn, &id, &asked, &said).expect("put"));
+        let new = NewSentence {
+            key: form,
+            book: true,
+            sentence: text,
+            form,
+            hint,
+            translation,
+        };
+        bank::add(&conn, &new, Utc::now()).expect("add");
+        let waiting = bank::unreviewed(&conn).expect("waiting").remove(0);
+        bank::review(&conn, &waiting.id, true, &Labels::default()).expect("review");
+        drop(conn);
+        desk.start(&chapter, t0())
+    }
+
+    /// The sentence an item is asked with, the database at hand.
+    fn sentence_of_locked(conn: &Connection, item: &PracticeItem) -> Sentence {
+        let id = item.sentence_id.as_deref().expect("asked with a sentence");
+        bank::usable(conn, id).expect("bank").expect("usable")
+    }
+
+    /// The next question of a session, from `step` on, that asks in this
+    /// direction; each one before it is answered right with `form`, or
+    /// `native`.
+    fn next_in(
+        desk: &Desk,
+        (sitting, step): (&Sitting, &PracticeStep),
+        direction: Direction,
+        (form, native): (&str, &str),
+    ) -> PracticeItem {
+        let mut step = step.clone();
+        loop {
+            let asked = item(&step).clone();
+            if asked.direction == direction {
+                return asked;
+            }
+            let answer = match asked.direction {
+                Direction::Recognition => native,
+                Direction::Production => form,
+            };
+            step = say(desk, sitting, &asked, (answer, false)).step;
+        }
+    }
+
+    #[test]
+    fn a_verb_in_a_sentence_is_asked_as_it_is_alone_and_not_as_the_sentence_puts_it() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let desk = Desk::new(&dir);
+        // "before she freezes": the sentence puts it in the subjunctive.
+        let sitting = alone_in(
+            &desk,
+            (
+                "freezes",
+                &["congelarse", "helarse"],
+                &["se congela", "se hiela"],
+            ),
+            (
+                "I'm trying to get her in before she freezes to death.",
+                "se congele",
+                "Intento meterla antes de que se congele.",
+            ),
+        );
+        let answers = ("freezes", "se congela");
+        let there = Direction::Recognition;
+        let asked = next_in(&desk, (&sitting, &sitting.step), there, answers);
+        assert_eq!(asked.prompt, "freezes");
+        // Its hints spell what it is alone.
+        {
+            let conn = desk.db.lock().expect("db");
+            let row = crate::db::practice::word(&conn, &asked.word_id).expect("word");
+            let kept = sentence_of_locked(&conn, &asked);
+            let (answer, _) = crate::commands::practice::clue(&row, Some(&kept), there);
+            assert_eq!(answer, "se congela");
+        }
+        let result = say(&desk, &sitting, &asked, ("se congela", false));
+        assert!(result.correct);
+        assert_eq!(result.accepted, ["se congela", "se hiela"]);
+        assert_eq!(result.exact.as_deref(), Some("se congele"));
+        // Native → English shows it alone too, and the book's form fills
+        // the blank.
+        let back = next_in(
+            &desk,
+            (&sitting, &result.step),
+            Direction::Production,
+            answers,
+        );
+        assert_eq!(back.prompt, "se congela, se hiela");
+        assert!(say(&desk, &sitting, &back, ("freezes", false)).correct);
+    }
+
+    #[test]
+    fn a_participle_is_asked_without_the_tense_and_the_agreement_its_sentence_gives_it() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let desk = Desk::new(&dir);
+        let sitting = alone_in(
+            &desk,
+            ("marked", &["señalar", "marcar"], &["señalado", "marcado"]),
+            (
+                "These entrances will be marked and easy to spot.",
+                "estarán señaladas",
+                "Estas entradas estarán señaladas y serán fáciles de localizar.",
+            ),
+        );
+        let answers = ("marked", "marcado");
+        let asked = next_in(
+            &desk,
+            (&sitting, &sitting.step),
+            Direction::Recognition,
+            answers,
+        );
+        let result = say(&desk, &sitting, &asked, ("marcado", false));
+        assert!(result.correct);
+        assert_eq!(result.exact.as_deref(), Some("estarán señaladas"));
+        // The one answered most comes first.
+        let mut accepted = result.accepted.clone();
+        accepted.sort();
+        assert_eq!(accepted, ["marcado", "señalado"]);
+        let back = next_in(
+            &desk,
+            (&sitting, &result.step),
+            Direction::Production,
+            answers,
+        );
+        let mut shown: Vec<&str> = back.prompt.split(", ").collect();
+        shown.sort_unstable();
+        assert_eq!(shown, ["marcado", "señalado"]);
+        assert!(say(&desk, &sitting, &back, ("marked", false)).correct);
+    }
+
     #[test]
     fn a_word_is_practised_in_its_sentences_the_one_of_its_chapter_first() {
         let dir = tempfile::tempdir().expect("tempdir");

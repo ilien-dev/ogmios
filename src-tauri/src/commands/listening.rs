@@ -339,6 +339,7 @@ pub async fn listen_chapter(
     from: u32,
     pace: Pace,
 ) -> Result<bool> {
+    let turn = app.state::<AppState>().tts.claim();
     run(app, move |app, ctx| {
         let sentences = sentences(&*ctx.conn()?, &chapter_id)?;
         let variant = tts::variant(ctx)?;
@@ -346,22 +347,22 @@ pub async fn listen_chapter(
             db::set_place(&*ctx.conn()?, &chapter_id, sentence, Utc::now())
         };
         let from = usize::try_from(from).unwrap_or(usize::MAX);
-        let ended = app
-            .state::<AppState>()
-            .tts
-            .read(&sentences, from, variant, pace, |at| {
-                let sentence = count(at);
-                // A place not kept is a place found again by hand.
-                let _ = keep(sentence);
-                // A closed window is the only way this fails.
-                let _ = app.emit(
-                    "chapter-listening",
-                    ChapterListening {
-                        chapter_id: chapter_id.clone(),
-                        sentence,
-                    },
-                );
-            })?;
+        let ended =
+            app.state::<AppState>()
+                .tts
+                .read(&turn, &sentences, from, variant, pace, |at| {
+                    let sentence = count(at);
+                    // A place not kept is a place found again by hand.
+                    let _ = keep(sentence);
+                    // A closed window is the only way this fails.
+                    let _ = app.emit(
+                        "chapter-listening",
+                        ChapterListening {
+                            chapter_id: chapter_id.clone(),
+                            sentence,
+                        },
+                    );
+                })?;
         if ended {
             // Heard whole, it starts from the top next time.
             keep(0)?;
@@ -390,6 +391,7 @@ pub async fn hear_dictation(
     index: u32,
     pace: Pace,
 ) -> Result<Dictation> {
+    let turn = app.state::<AppState>().tts.claim();
     run(app, move |app, ctx| {
         let speech = &app.state::<AppState>().tts;
         let variant = tts::variant(ctx)?;
@@ -397,7 +399,7 @@ pub async fn hear_dictation(
             return Err(Error::Stt("the voice is not downloaded yet".into()));
         }
         let sentence = hear(ctx, &sitting_id, index, pace)?;
-        speech.speak(&sentence, variant, pace)?;
+        speech.speak(&turn, &sentence, variant, pace)?;
         get(ctx, &sitting_id)
     })
     .await

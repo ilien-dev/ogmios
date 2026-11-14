@@ -40,6 +40,26 @@ const REMEMBERED: usize = 8;
 /// would hold the CPU for a minute.
 const LONGEST: usize = 4_000;
 
+/// One thing asked to be said, in the order it was asked for.
+#[derive(Clone)]
+pub struct Turn {
+    mine: u64,
+    turn: Arc<AtomicU64>,
+}
+
+impl Turn {
+    /// Still what is to be said: nothing was asked for after it, and nothing
+    /// silenced it.
+    pub fn live(&self) -> bool {
+        self.turn.load(Ordering::SeqCst) == self.mine
+    }
+
+    fn watch(&self) -> impl Fn() -> bool + Clone + 'static {
+        let turn = self.clone();
+        move || turn.live()
+    }
+}
+
 /// Everything text to speech holds between commands.
 pub struct Speech {
     data_dir: PathBuf,
@@ -152,13 +172,13 @@ impl Speech {
 
     /// Say `text` at `pace` and return once it has been heard, or once
     /// something else was said over it. Blocking: call it off the main thread.
-    pub fn speak(&self, text: &str, variant: Variant, pace: Pace) -> Result<()> {
+    pub fn speak(&self, turn: &Turn, text: &str, variant: Variant, pace: Pace) -> Result<()> {
         let text = text.trim();
-        if text.is_empty() || text.len() > LONGEST {
+        if !turn.live() || text.is_empty() || text.len() > LONGEST {
             return Ok(());
         }
         let voice = self.voice(variant)?;
-        let live = self.take_turn();
+        let live = turn.watch();
 
         let speaker = Speaker::open()?;
         let feed = speaker.feed();
@@ -183,14 +203,18 @@ impl Speech {
     /// nothing is waited for between them. Blocking.
     pub fn read(
         &self,
+        turn: &Turn,
         sentences: &[String],
         from: usize,
         variant: Variant,
         pace: Pace,
         on_sentence: impl Fn(usize),
     ) -> Result<bool> {
+        if !turn.live() {
+            return Ok(false);
+        }
         let voice = self.voice(variant)?;
-        let live = self.take_turn();
+        let live = turn.watch();
 
         let speaker = Speaker::open()?;
         let feed = speaker.feed();
@@ -222,12 +246,14 @@ impl Speech {
         voice(catalogue, &self.choice(), variant)
     }
 
-    /// Becomes what is being said: whatever was is talked over. What comes
-    /// back says whether this still is.
-    fn take_turn(&self) -> impl Fn() -> bool + Clone + 'static {
-        let mine = self.turn.fetch_add(1, Ordering::SeqCst) + 1;
-        let turn = Arc::clone(&self.turn);
-        move || turn.load(Ordering::SeqCst) == mine
+    /// Becomes what is to be said: whatever was is talked over. Claimed when
+    /// it is asked for, before anything it waits on (the database, the
+    /// speakers, the model), so what is said last is what was asked for last.
+    pub fn claim(&self) -> Turn {
+        Turn {
+            mine: self.turn.fetch_add(1, Ordering::SeqCst) + 1,
+            turn: Arc::clone(&self.turn),
+        }
     }
 
     /// Makes the audio of `text`, handing each sentence of it to `each` as
@@ -455,13 +481,16 @@ mod tests {
         let speech = Speech::new(dir.path());
         assert_eq!(
             speech
-                .speak("Hello there.", Variant::Us, Pace::Normal)
+                .speak(&speech.claim(), "Hello there.", Variant::Us, Pace::Normal)
                 .unwrap_err()
                 .kind(),
             "stt"
         );
-        speech.speak("   ", Variant::Us, Pace::Normal).unwrap();
+        speech
+            .speak(&speech.claim(), "   ", Variant::Us, Pace::Normal)
+            .unwrap();
         let read = speech.read(
+            &speech.claim(),
             &["Hello there.".to_owned()],
             0,
             Variant::Us,
@@ -470,6 +499,41 @@ mod tests {
         );
         assert_eq!(read.unwrap_err().kind(), "stt");
         speech.stop();
+    }
+
+    /// The turn is the order things were asked in, not the order they got
+    /// through a lock: one asked for before another, and held up until after
+    /// it, is talked over already and says nothing, not an old word over the
+    /// one on the screen.
+    #[test]
+    fn what_was_asked_for_first_and_arrives_last_is_not_said() {
+        let dir = tempfile::tempdir().unwrap();
+        let speech = Speech::new(dir.path());
+        let first = speech.claim();
+        let second = speech.claim();
+        assert!(!first.live());
+        assert!(second.live());
+        // Without the model, the one still to be said says why it cannot;
+        // the talked over one is silent before it gets that far.
+        speech
+            .speak(&first, "stared", Variant::Us, Pace::Normal)
+            .unwrap();
+        assert_eq!(
+            speech
+                .speak(&second, "pitiful", Variant::Us, Pace::Normal)
+                .unwrap_err()
+                .kind(),
+            "stt"
+        );
+        let read = speech.read(
+            &first,
+            &["Hello.".to_owned()],
+            0,
+            Variant::Us,
+            Pace::Slow,
+            |_| {},
+        );
+        assert!(!read.unwrap());
     }
 
     #[test]
@@ -515,6 +579,7 @@ mod tests {
             let began = std::time::Instant::now();
             speech
                 .speak(
+                    &speech.claim(),
                     "I read that book last year. Do you read every night?",
                     variant,
                     Pace::Normal,
@@ -525,6 +590,7 @@ mod tests {
         let began = std::time::Instant::now();
         speech
             .speak(
+                &speech.claim(),
                 "I read that book last year. Do you read every night?",
                 Variant::Uk,
                 Pace::Fast,

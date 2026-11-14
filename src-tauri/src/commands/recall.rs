@@ -90,18 +90,19 @@ fn asked(
 ) -> Result<PracticeItem> {
     let own = sense(conn, word)?;
     if let Some(sentence) = next_sentence(conn, (&word.key, &own), run_id)? {
-        let (part_of_speech, needs_context) = match &word.source {
+        let (part_of_speech, needs_context, alone) = match &word.source {
             Source::Book { word_id } => {
                 let row = practice::word(conn, word_id)?;
-                (row.part_of_speech, row.needs_context)
+                let alone = row.alone_in(&sentence.form).map(<[String]>::to_vec);
+                (row.part_of_speech, row.needs_context, alone)
             }
-            Source::Chat { .. } => (None, false),
+            Source::Chat { .. } => (None, false, None),
         };
         return Ok(asked_with(
             (word.key.clone(), part_of_speech),
             &sentence,
             direction,
-            needs_context,
+            (needs_context, alone.as_deref()),
         ));
     }
     Ok(match &word.source {
@@ -210,6 +211,8 @@ fn check(
             let shown = std::slice::from_ref(asked);
             let meaning = Meaning {
                 lemma: &word.english,
+                called: &word.english,
+                alone: None,
                 translations: shown,
                 shown,
                 forms: word.forms.clone(),
