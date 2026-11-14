@@ -527,7 +527,17 @@ export interface BookWord {
    * labelled, or added outside a preparation.
    */
   partOfSpeech: PartOfSpeech | null;
-  /** Accepted translations in the learner's language, the first one first. */
+  /**
+   * The form a verb has in the sentence it was taken from; null for any
+   * other word, and for one nobody labelled.
+   */
+  verbForm: VerbForm | null;
+  /** The book's sentence it was taken from. */
+  sentence: string;
+  /**
+   * Accepted translations in the learner's language, the first one first,
+   * in the form the word is called by once that was said.
+   */
   translations: string[];
   /** How often it occurs in the chapter. */
   count: number;

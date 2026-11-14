@@ -96,6 +96,7 @@ describe("vocabulary extraction prompt", () => {
     expect(prompt).toContain("transitive: true when the item is a verb");
     expect(prompt).toContain("verbForm: when the word is a verb");
     expect(prompt).toContain("A verb is listed once for each form");
+    expect(prompt).toContain("Each translates the item alone");
   });
 
   test("fences the book text as material, not instructions", () => {
@@ -216,6 +217,9 @@ describe("the dispute prompt", () => {
     expect(system).toContain("Spanish (es)");
     expect(system).toContain("a right Spanish (es) translation of the word");
     expect(system).toContain("Be strict on meaning");
+    expect(system).toContain(
+      "a right answer has the tense, the person and the mood of one of them",
+    );
     expect(system).toContain("Be lenient on form");
     // The line the learner reads is in their language.
     expect(system).toContain(
@@ -392,6 +396,13 @@ describe("labelling words stored without their kind", () => {
     expect(prompt).toContain('never "se congele"');
   });
 
+  test("a past comes with the other past it can be, and nothing else", () => {
+    const prompt = vocabLabelSystemPrompt();
+    expect(prompt).toContain("inFormAlso: for each of inForm");
+    expect(prompt).toContain('"juraba" beside "juró"');
+    expect(prompt).toContain("Never another tense, another person");
+  });
+
   test("a verb in another form comes with the translations to put in it", () => {
     expect(vocabLabelSystemPrompt()).toContain(
       '"jurado" for "jurar" when the word is "sworn"',
@@ -411,6 +422,7 @@ describe("labelling words stored without their kind", () => {
         transitive: true,
         verbForm: "past",
         inForm: [],
+        inFormAlso: [],
       },
       {
         id: "w2",
@@ -418,10 +430,15 @@ describe("labelling words stored without their kind", () => {
         transitive: true,
         verbForm: "past",
         inForm: [],
+        inFormAlso: [],
       },
     ]);
     const formed = vocabLabelsSchema.parse(await ask("vocabLabel", sworn));
     expect(formed.labels[0]?.inForm).toEqual(["juraró", "prometeró"]);
+    expect(formed.labels[0]?.inFormAlso).toEqual([
+      ["juraraba"],
+      ["prometeraba"],
+    ]);
     expect(await ask("vocabLabel", { words: [] })).toMatchObject({
       error: { kind: "invalid" },
     });

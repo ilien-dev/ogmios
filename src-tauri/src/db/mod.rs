@@ -54,6 +54,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("archive.sql"),
     include_str!("discard.sql"),
     include_str!("alone.sql"),
+    include_str!("aspects.sql"),
 ];
 
 pub fn open(path: &Path) -> Result<Connection> {
@@ -678,6 +679,62 @@ mod tests {
         let shelf = books::list_books(&conn).expect("list");
         let ids: Vec<&str> = shelf.iter().map(|book| book.id.as_str()).collect();
         assert_eq!(ids, ["b"]);
+    }
+
+    #[test]
+    fn migration_thirty_two_has_a_past_said_again_with_the_other_pasts_it_can_be() {
+        let conn = Connection::open_in_memory().expect("open");
+        for sql in &MIGRATIONS[..31] {
+            conn.execute_batch(sql).expect("migration");
+        }
+        conn.pragma_update(None, "user_version", 31)
+            .expect("version");
+        conn.execute_batch(
+            r#"INSERT INTO books VALUES ('b', 'Alice', NULL, 'epub', 'h', 'f', '2026-01-01');
+             INSERT INTO book_chapters (id, book_id, idx, title, words, text)
+               VALUES ('c', 'b', 0, 'I', 2, 'text');
+             INSERT INTO chapter_words
+               (id, chapter_id, key, lemma, forms, sentence, occurrences, depth, created_at,
+                part_of_speech, transitive, base, verb_form)
+             VALUES ('swore', 'c', 'swore', 'swore', '["swore"]', 'He swore it.', 1, 'most',
+                     '2026-01-01', 'verb', 1, 'swear', 'past'),
+                    ('sworn', 'c', 'sworn', 'sworn', '["sworn"]', 'Sworn to it.', 1, 'most',
+                     '2026-01-01', 'verb', 0, 'swear', 'pastParticiple'),
+                    ('freezes', 'c', 'freezes', 'freezes', '["freezes"]', 'She freezes.', 1,
+                     'most', '2026-01-01', 'verb', 0, 'freeze', 'present');
+             INSERT INTO word_translations (word_id, text, source, in_form)
+               VALUES ('swore', 'jurar', 'extraction', 'juró'),
+                      ('sworn', 'jurar', 'extraction', 'jurado'),
+                      ('freezes', 'congelarse', 'extraction', NULL);"#,
+        )
+        .expect("rows");
+
+        migrate(&conn).expect("migrate");
+        let word = |id: &str| practice::word(&conn, id).expect("word");
+        // What it was said in stays: it is shown and asked for meanwhile.
+        assert_eq!(word("swore").in_form, Some(vec!["juró".to_owned()]));
+        assert_eq!(word("swore").also, None, "not asked yet");
+        let waiting = words::unlabelled(&conn).expect("unlabelled");
+        let ids: Vec<&str> = waiting.iter().map(|each| each.id.as_str()).collect();
+        // A participle has no other form to be asked for; a present not
+        // said yet is asked for all of it.
+        assert_eq!(ids, ["freezes", "swore"]);
+
+        let (asked, said) = (["jurar".to_owned()], ["juró".to_owned()]);
+        let also = [vec!["juraba".to_owned()]];
+        assert!(words::put_in_form(&conn, "swore", &asked, &said).is_ok());
+        assert!(words::put_also(&conn, "swore", &asked, &also).expect("also"));
+        assert_eq!(word("swore").also, Some(vec!["juraba".to_owned()]));
+        let left = words::unlabelled(&conn).expect("unlabelled");
+        assert_eq!(left.len(), 1, "only the present is left");
+        // One said to have no other is not asked again.
+        let none = [Vec::new()];
+        let asked = ["congelarse".to_owned()];
+        assert!(
+            words::put_in_form(&conn, "freezes", &asked, &["se congela".to_owned()]).expect("put")
+        );
+        assert!(words::put_also(&conn, "freezes", &asked, &none).expect("also"));
+        assert_eq!(words::unlabelled(&conn).expect("unlabelled").len(), 0);
     }
 
     #[test]

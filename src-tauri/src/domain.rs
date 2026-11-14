@@ -655,7 +655,13 @@ pub struct BookWord {
     /// What kind of word it is; none for a word prepared before words were
     /// labelled, or added outside a preparation.
     pub part_of_speech: Option<PartOfSpeech>,
-    /// Accepted translations in the learner's language, the first one first.
+    /// The form a verb has in the sentence it was taken from; none for any
+    /// other word, and for one nobody labelled.
+    pub verb_form: Option<VerbForm>,
+    /// The book's sentence it was taken from.
+    pub sentence: String,
+    /// Accepted translations in the learner's language, the first one first,
+    /// in the form the word is called by once that was said.
     pub translations: Vec<String>,
     /// How often it occurs in the chapter.
     pub count: u32,

@@ -308,6 +308,32 @@ pub fn extracted(conn: &Connection, word_id: &str) -> Result<Vec<String>> {
     Ok(rows.collect::<rusqlite::Result<_>>()?)
 }
 
+/// What each translation a chapter's word was prepared with is in the form
+/// the word is called by, of those a model has said it of.
+pub fn said_in_form(conn: &Connection, word_id: &str) -> Result<HashMap<String, String>> {
+    let mut stmt = conn.prepare_cached(
+        "SELECT text, in_form FROM word_translations
+         WHERE word_id = ?1 AND source = 'extraction' AND in_form IS NOT NULL",
+    )?;
+    let rows = stmt.query_map([word_id], |row| Ok((row.get(0)?, row.get(1)?)))?;
+    Ok(rows.collect::<rusqlite::Result<_>>()?)
+}
+
+/// The `shown` translations of a word called by another form than its base
+/// form, each in that form: "jurado" for "jurar" when the word is "sworn".
+/// None for a word called by its base form, and until every one of them was
+/// said in its form: half of them in it would read as two words.
+pub fn as_called(
+    shown: &[String],
+    said: &HashMap<String, String>,
+    called_by_base: bool,
+) -> Option<Vec<String>> {
+    if called_by_base || shown.is_empty() {
+        return None;
+    }
+    shown.iter().map(|text| said.get(text).cloned()).collect()
+}
+
 /// Every word the learner said they know, the latest first. Its translations
 /// are the ones the first chapter that has it was prepared with, the one the
 /// learner answers with most first, of a deleted book too; a word no chapter
@@ -383,12 +409,14 @@ pub fn learned(conn: &Connection) -> Result<Vec<Learned>> {
 
 /// The chapter's words, most frequent in it first, each with the
 /// translations it was prepared with, the one the learner answers with most
-/// first ([`Used`]).
+/// first ([`Used`]): in the form the word is called by once that was said
+/// ([`as_called`]), as practice shows them, and in their base form until
+/// then.
 pub fn list(conn: &Connection, chapter_id: &str) -> Result<Vec<BookWord>> {
     let mut stmt = conn.prepare(
         "SELECT id, lemma, occurrences, done_at IS NOT NULL,
                 key IN (SELECT key FROM known_words), part_of_speech, key,
-                sorted_at IS NOT NULL
+                sorted_at IS NOT NULL, verb_form, sentence, base IS NULL
          FROM chapter_words
          WHERE chapter_id = ?1 ORDER BY occurrences DESC, key",
     )?;
@@ -400,6 +428,8 @@ pub fn list(conn: &Connection, chapter_id: &str) -> Result<Vec<BookWord>> {
                 id: row.get(0)?,
                 lemma: row.get(1)?,
                 part_of_speech: row.get(5)?,
+                verb_form: row.get(8)?,
+                sentence: row.get(9)?,
                 translations: Vec::new(),
                 count: row.get(2)?,
                 done: row.get(3)?,
@@ -409,16 +439,18 @@ pub fn list(conn: &Connection, chapter_id: &str) -> Result<Vec<BookWord>> {
                 known: row.get(4)?,
                 sorted: row.get(7)?,
             };
-            Ok((key, word))
+            Ok((key, row.get::<_, bool>(10)?, word))
         })?
         .collect::<rusqlite::Result<Vec<_>>>()?;
     let halves = super::practice::halves(conn, chapter_id)?;
     let used = Used::load(conn, None)?;
     words
         .into_iter()
-        .map(|(key, mut word)| {
+        .map(|(key, called_by_base, mut word)| {
             word.half = halves.get(&word.id).copied();
-            word.translations = used.order(&key, word.part_of_speech, extracted(conn, &word.id)?);
+            let shown = used.order(&key, word.part_of_speech, extracted(conn, &word.id)?);
+            let said = said_in_form(conn, &word.id)?;
+            word.translations = as_called(&shown, &said, called_by_base).unwrap_or(shown);
             Ok(word)
         })
         .collect()
@@ -440,7 +472,9 @@ pub fn unlabelled(conn: &Connection) -> Result<Vec<LabelWord>> {
             OR (base IS NOT NULL AND EXISTS (
                   SELECT 1 FROM word_translations t
                   WHERE t.word_id = chapter_words.id
-                    AND t.source = 'extraction' AND t.in_form IS NULL)))
+                    AND t.source = 'extraction'
+                    AND (t.in_form IS NULL
+                      OR (t.in_form_also IS NULL AND chapter_words.verb_form = 'past')))))
          ORDER BY chapter_id, occurrences DESC, key",
     )?;
     let mut words = stmt
@@ -456,8 +490,8 @@ pub fn unlabelled(conn: &Connection) -> Result<Vec<LabelWord>> {
     let mut stmt = conn.prepare(
         "SELECT t.text FROM word_translations t
          JOIN chapter_words w ON w.id = t.word_id
-         WHERE w.id = ?1 AND w.base IS NOT NULL
-           AND t.source = 'extraction' AND t.in_form IS NULL
+         WHERE w.id = ?1 AND w.base IS NOT NULL AND t.source = 'extraction'
+           AND (t.in_form IS NULL OR (t.in_form_also IS NULL AND w.verb_form = 'past'))
          ORDER BY t.rowid",
     )?;
     for word in &mut words {
@@ -483,6 +517,37 @@ pub fn put_in_form(conn: &Connection, id: &str, asked: &[String], said: &[String
     let mut changed = 0;
     for (text, in_form) in asked.iter().zip(said) {
         changed += stmt.execute(params![id, text, in_form])?;
+    }
+    Ok(changed > 0)
+}
+
+/// Keeps the other forms each translation of a word says the same in,
+/// beside the one it is called by: `also`, a list for each of the `asked`
+/// ones, in that order, empty for one that has none ("juraba" beside
+/// "juró"); whether any was news. An answer that is not one for each says
+/// nothing, and what a translation has already, it keeps.
+pub fn put_also(
+    conn: &Connection,
+    id: &str,
+    asked: &[String],
+    also: &[Vec<String>],
+) -> Result<bool> {
+    if asked.len() != also.len() {
+        return Ok(false);
+    }
+    let mut stmt = conn.prepare(
+        "UPDATE word_translations SET in_form_also = ?3
+         WHERE word_id = ?1 AND text = ?2 AND source = 'extraction'
+           AND in_form IS NOT NULL AND in_form_also IS NULL",
+    )?;
+    let mut changed = 0;
+    for (text, forms) in asked.iter().zip(also) {
+        let forms: Vec<&str> = forms
+            .iter()
+            .map(|each| each.trim())
+            .filter(|each| !each.is_empty())
+            .collect();
+        changed += stmt.execute(params![id, text, serde_json::to_string(&forms)?])?;
     }
     Ok(changed > 0)
 }
@@ -607,6 +672,32 @@ pub mod tests {
         assert_eq!(listed[0].part_of_speech, None, "a word nobody labelled");
         let chapter = books::get_chapter(&conn, &chapters[0]).expect("chapter");
         assert_eq!(chapter.prepared, Some(Depth::Relevant));
+    }
+
+    #[test]
+    fn a_verb_called_by_another_form_is_listed_in_that_form_once_it_was_said() {
+        let conn = open_in_memory().expect("db");
+        let chapters = book(&conn, "b", &["one"]);
+        let sworn = Word {
+            base: Some("swear".into()),
+            verb_form: Some(VerbForm::PastParticiple),
+            part_of_speech: Some(PartOfSpeech::Verb),
+            ..word("sworn", &["jurar", "prometer"], 1)
+        };
+        finish(&conn, &chapters[0], Depth::Most, &[sworn], Utc::now()).expect("finish");
+        let listed = || list(&conn, &chapters[0]).expect("list").remove(0);
+        assert_eq!(
+            listed().translations,
+            ["jurar", "prometer"],
+            "until it was said"
+        );
+        assert_eq!(listed().verb_form, Some(VerbForm::PastParticiple));
+        assert_eq!(listed().sentence, "A sentence with sworn.");
+
+        let asked = ["jurar".to_owned(), "prometer".to_owned()];
+        let said = ["jurado".to_owned(), "prometido".to_owned()];
+        assert!(put_in_form(&conn, &listed().id, &asked, &said).expect("put"));
+        assert_eq!(listed().translations, ["jurado", "prometido"]);
     }
 
     #[test]

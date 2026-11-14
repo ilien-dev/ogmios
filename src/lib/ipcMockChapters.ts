@@ -95,6 +95,8 @@ function wordsUpTo(chapterId: string, depth: Depth): BookWord[] {
       id: `${chapterId}-${lemma.replaceAll(" ", "-")}`,
       lemma,
       partOfSpeech,
+      verbForm: partOfSpeech === "noun" ? null : ("base" as const),
+      sentence: `Alice saw the ${lemma} and wondered about it.`,
       translations: [...translations],
       count,
       done: false,

@@ -10,6 +10,8 @@ function word(lemma: string, partOfSpeech: PartOfSpeech | null): BookWord {
     id: lemma,
     lemma,
     partOfSpeech,
+    verbForm: null,
+    sentence: `A sentence with ${lemma}.`,
     translations: [`${lemma}-es`],
     count: 1,
     done: false,

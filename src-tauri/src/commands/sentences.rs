@@ -1220,6 +1220,8 @@ pub mod tests {
         let asked: Vec<String> = base.iter().map(|each| (*each).to_owned()).collect();
         let said: Vec<String> = said.iter().map(|each| (*each).to_owned()).collect();
         assert!(words::put_in_form(&conn, &id, &asked, &said).expect("put"));
+        let none: Vec<Vec<String>> = asked.iter().map(|_| Vec::new()).collect();
+        assert!(words::put_also(&conn, &id, &asked, &none).expect("also"));
         let new = NewSentence {
             key: form,
             book: true,
@@ -1298,6 +1300,30 @@ pub mod tests {
         assert!(result.correct);
         assert_eq!(result.accepted, ["se congela", "se hiela"]);
         assert_eq!(result.exact.as_deref(), Some("se congele"));
+        // The form its sentence gives it is a form of the word: it counts.
+        let row = {
+            let conn = desk.db.lock().expect("db");
+            crate::db::practice::word(&conn, &asked.word_id).expect("word")
+        };
+        let own = [
+            row.translations.as_slice(),
+            row.in_form.as_deref().unwrap_or_default(),
+        ]
+        .concat();
+        let native = ("es", true);
+        let lenient = crate::books::spelling::Spelling::Lenient;
+        assert!(crate::books::practice::accepts_native(
+            "se congele",
+            &own,
+            native,
+            lenient
+        ));
+        assert!(!crate::books::practice::accepts_native(
+            "bajó correteando",
+            &["corretear".to_owned(), "correteó".to_owned()],
+            native,
+            lenient
+        ));
         // Native → English shows it alone too, and the book's form fills
         // the blank.
         let back = next_in(
@@ -1308,6 +1334,32 @@ pub mod tests {
         );
         assert_eq!(back.prompt, "se congela, se hiela");
         assert!(say(&desk, &sitting, &back, ("freezes", false)).correct);
+    }
+
+    #[test]
+    fn a_verb_in_a_sentence_is_not_answered_with_the_words_its_translation_takes_from_beside_it() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let desk = Desk::new(&dir);
+        // "bajó" is the "down" beside the word, not the word.
+        let sitting = alone_in(
+            &desk,
+            ("scampered", &["corretear"], &["correteó"]),
+            (
+                "She scampered down the tree and sniffed the sidewalk.",
+                "bajó correteando",
+                "Bajó correteando por el árbol y olfateó la acera.",
+            ),
+        );
+        let answers = ("scampered", "correteó");
+        let there = Direction::Recognition;
+        let asked = next_in(&desk, (&sitting, &sitting.step), there, answers);
+        // Another tense of the word itself gets a second try.
+        assert!(say(&desk, &sitting, &asked, ("corretea", false)).again);
+        let result = say(&desk, &sitting, &asked, ("bajó correteando", false));
+        assert!(!result.correct);
+        assert_eq!(result.accepted, ["correteó"]);
+        // How the sentence has it is still pointed out.
+        assert_eq!(result.exact.as_deref(), Some("bajó correteando"));
     }
 
     #[test]
