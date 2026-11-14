@@ -579,8 +579,7 @@ pub fn help(ctx: Ctx<'_>, session_id: &str, text: &str) -> Result<Vec<HelpOption
             .into_iter()
             .rev()
             .find(|t| t.role == Role::Assistant)
-            .map(|t| t.sent_text)
-            .unwrap_or_default();
+            .map_or_default(|t| t.sent_text);
         HelpParams {
             native_lang: profile.native_lang,
             text: text.to_owned(),
@@ -887,7 +886,7 @@ fn cards(input: CardInputs<'_>) -> Vec<ReportCard> {
                 || pick.pattern.description.clone(),
                 |c| c.explanation.clone(),
             ),
-            hint: text.map(|c| c.hint.clone()).unwrap_or_default(),
+            hint: text.map_or_default(|c| c.hint.clone()),
             self_correct: self_correct(pick.pattern.kind),
             recurrence: pick.recurrence.map(|r| recurrence_text(input.ui_lang, r)),
         });
@@ -977,10 +976,7 @@ fn compose_params(
             .collect(),
         focus: challenge.map(|(p, example)| FocusInput {
             description: p.description.clone(),
-            example: example
-                .as_ref()
-                .map(|e| e.corrected.clone())
-                .unwrap_or_default(),
+            example: example.as_ref().map_or_default(|e| e.corrected.clone()),
         }),
     }
 }

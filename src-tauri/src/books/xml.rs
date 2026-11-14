@@ -119,8 +119,7 @@ fn entity(reference: &BytesRef<'_>) -> String {
     ENTITIES
         .iter()
         .find(|(known, _)| *known == name)
-        .map(|(_, text)| (*text).to_owned())
-        .unwrap_or_default()
+        .map_or_default(|(_, text)| (*text).to_owned())
 }
 
 fn node(start: &BytesStart<'_>) -> Node {

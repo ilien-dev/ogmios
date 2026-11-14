@@ -27,9 +27,7 @@ pub struct Used {
 impl Used {
     /// The answers given to the word of `key`, or to every word.
     pub fn load(conn: &Connection, key: Option<&str>) -> Result<Self> {
-        let native = get_profile(conn)?
-            .map(|profile| profile.native_lang)
-            .unwrap_or_default();
+        let native = get_profile(conn)?.map_or_default(|profile| profile.native_lang);
         let mut stmt = conn.prepare(
             "SELECT w.key, a.answer FROM word_answers a
              JOIN chapter_words w ON w.id = a.word_id

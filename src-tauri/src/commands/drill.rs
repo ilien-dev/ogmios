@@ -52,8 +52,7 @@ fn focus_of(patterns: &[DrillPattern], pattern_id: &str) -> String {
     patterns
         .iter()
         .find(|p| p.id == pattern_id)
-        .map(|p| p.description.clone())
-        .unwrap_or_default()
+        .map_or_default(|p| p.description.clone())
 }
 
 fn visible(index: usize, item: &GeneratedDrillItem, focus: String) -> DrillItem {
@@ -202,9 +201,7 @@ pub fn answer(ctx: Ctx<'_>, drill_id: &str, index: u32, response: &str) -> Resul
     if let Some(stored) = drill.items.get_mut(at) {
         stored.correct = Some(grade.correct);
     }
-    let focus = patterns::get_pattern(&tx, &item.item.pattern_id)
-        .map(|p| p.description)
-        .unwrap_or_default();
+    let focus = patterns::get_pattern(&tx, &item.item.pattern_id).map_or_default(|p| p.description);
     let retry = retry_item.map(|item| {
         drill.items.push(StoredItem {
             item,

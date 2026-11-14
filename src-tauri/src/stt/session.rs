@@ -112,7 +112,7 @@ impl Session {
             // Closed before the last take, so the tail of the sentence is kept.
             drop(microphone);
             gather(&mut vad);
-            let raw = raw.lock().map(|raw| raw.clone()).unwrap_or_default();
+            let raw = raw.lock().map_or_default(|raw| raw.clone());
             Captured {
                 pcm: audio::to_16k(&raw, rate),
                 speech_seconds: vad.seconds(),
@@ -163,5 +163,5 @@ impl Drop for Session {
 }
 
 fn take(heard: &Mutex<Heard>) -> (Vec<f32>, f32) {
-    heard.lock().map(|mut held| held.take()).unwrap_or_default()
+    heard.lock().map_or_default(|mut held| held.take())
 }

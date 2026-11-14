@@ -141,8 +141,7 @@ fn nav_toc(nav: &Node, base: &str) -> (Vec<TocEntry>, Option<Target>) {
         .iter()
         .find(|nav| has_type(nav, "toc"))
         .or(navs.first())
-        .map(|nav| links(nav))
-        .unwrap_or_default();
+        .map_or_default(|nav| links(nav));
     let body = navs
         .iter()
         .find(|nav| has_type(nav, "landmarks"))
@@ -306,8 +305,7 @@ fn styles(archive: &mut Archive<'_>) -> Styles {
 fn declared_covers(opf: &Node, base: &str) -> Vec<String> {
     let items = opf
         .find("manifest")
-        .map(|manifest| manifest.descendants("item"))
-        .unwrap_or_default();
+        .map_or_default(|manifest| manifest.descendants("item"));
     let declared = items.iter().filter(|item| {
         item.attr("properties")
             .is_some_and(|p| p.split_whitespace().any(|p| p == "cover-image"))
