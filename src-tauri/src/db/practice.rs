@@ -221,12 +221,7 @@ pub fn word(conn: &Connection, id: &str) -> Result<WordRow> {
         .into_iter()
         .map(|(text, extracted, in_form, _)| (text, extracted, in_form))
         .collect();
-    let shown = accepted
-        .iter()
-        .filter(|(_, extracted, _)| *extracted)
-        .map(|(text, ..)| text.clone())
-        .collect();
-    let shown = Used::load(conn, Some(&key))?.order(&key, part_of_speech, shown);
+    let shown = Used::load(conn, Some(&key))?.order(conn, (&key, id), part_of_speech)?;
     let said: HashMap<String, String> = accepted
         .iter()
         .filter(|(_, extracted, _)| *extracted)

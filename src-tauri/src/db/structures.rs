@@ -403,9 +403,8 @@ pub fn gloss(conn: &Connection, lemma: &str, chapter_id: Option<&str>) -> Result
         return Ok(Gloss::default());
     };
     let key = crate::books::vocab::key(lemma);
-    let shown = super::words::extracted(conn, &id)?;
     let translations =
-        super::words::Used::load(conn, Some(&key))?.order(&key, part_of_speech, shown);
+        super::words::Used::load(conn, Some(&key))?.order(conn, (&key, &id), part_of_speech)?;
     Ok(Gloss {
         part_of_speech,
         transitive,

@@ -380,10 +380,9 @@ pub fn meaning(conn: &Connection, key: &str) -> Result<(String, Vec<String>)> {
         )
         .optional()?;
     if let Some((word_id, lemma)) = of_book {
-        let shown = super::words::extracted(conn, &word_id)?;
         let part = part_of_speech(conn, &word_id)?;
         let used = super::words::Used::load(conn, Some(key))?;
-        return Ok((lemma, used.order(key, part, shown)));
+        return Ok((lemma, used.order(conn, (key, &word_id), part)?));
     }
     let mut stmt = conn.prepare(
         "SELECT english, asked FROM vocab WHERE asked IS NOT NULL ORDER BY created_at, rowid",
