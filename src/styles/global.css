@@ -90,6 +90,8 @@
   --color-on-cta-book: #23233a;
 
   --breakpoint-nav: 62.5rem;
+  /* Where a screen beside the rail has room for an aside and a table side by side. */
+  --breakpoint-wide: 75rem;
 
   --font-sans:
     "Plus Jakarta Sans Variable", ui-sans-serif, system-ui, -apple-system,
