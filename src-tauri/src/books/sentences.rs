@@ -112,11 +112,7 @@ pub fn found(sentences: &[String], forms: &[String], limit: usize) -> Vec<(Strin
 /// nothing, is the hint itself or holds the English `form`. Nor one of the
 /// word's `base` translations, unless the hint is one: the sentence then
 /// has the word in its base form, and so may its translations be.
-pub fn other_hints(
-    listed: &[String],
-    (hint, form, _lang): (&str, &str, &str),
-    base: &[String],
-) -> Vec<String> {
+pub fn other_hints(listed: &[String], (hint, form): (&str, &str), base: &[String]) -> Vec<String> {
     let is_base = |text: &str| base.iter().any(|each| tokens(each) == tokens(text));
     let base_form = is_base(hint);
     let mut kept: Vec<String> = Vec::new();
@@ -132,10 +128,6 @@ pub fn other_hints(
         }
     }
     kept
-}
-
-pub fn unaided(hint: &str, _form: &str, _lang: &str) -> String {
-    hint.to_owned()
 }
 
 /// Whether a sentence has the word in another form than its base form:
@@ -403,74 +395,6 @@ mod tests {
     }
 
     #[test]
-    fn a_hint_says_no_tense_its_english_form_does_not_show() {
-        let unaided = |hint: &str, form: &str| unaided(hint, form, "es");
-        // "I'd made a point of": "'d" is outside the form, and so is "había".
-        assert_eq!(
-            unaided("me había empeñado en", "made a point of"),
-            "empeñado en"
-        );
-        assert_eq!(unaided("se había hecho añicos", "shattered"), "hecho añicos");
-        assert_eq!(unaided("Habría fallecido", "passed away"), "fallecido");
-        assert_eq!(unaided("me he distanciado", "distanced myself"), "distanciado");
-        // "was running", "was adorned": the same for "to be".
-        assert_eq!(unaided("estaba corriendo", "running"), "corriendo");
-        assert_eq!(unaided("fue adornado", "adorned"), "adornado");
-        // The form has its auxiliary: the hint keeps its own.
-        assert_eq!(unaided("ha suspirado", "has sighed"), "ha suspirado");
-        assert_eq!(
-            unaided("me había empeñado en", "I'd made a point of"),
-            "me había empeñado en"
-        );
-        assert_eq!(unaided("estaba corriendo", "was running"), "estaba corriendo");
-        // A "había" that makes no tense is the word: "there was".
-        assert_eq!(unaided("había gente", "crowd"), "había gente");
-        // A tense written in one word cannot be split.
-        assert_eq!(unaided("se empeñó en", "made a point of"), "se empeñó en");
-        // Nothing would be left: the hint as it was.
-        assert_eq!(unaided("había", "had"), "había");
-        // A language without a table keeps its hint.
-        assert_eq!(super::unaided("avait fait", "made", "fr"), "avait fait");
-    }
-
-    #[test]
-    fn the_hints_listed_say_no_tense_their_english_form_does_not_show() {
-        let base = list(&["empeñarse en", "asegurarse de"]);
-        let listed = list(&["me había asegurado de", "me había empeñado en"]);
-        assert_eq!(
-            other_hints(&listed, ("empeñado en", "made a point of", "es"), &base),
-            ["asegurado de"]
-        );
-    }
-
-    #[test]
-    fn a_past_is_right_for_a_word_whose_sentence_has_had_outside_it() {
-        // "So after our fight, I'd made a point of smoking": the learner is
-        // shown "made a point of" alone.
-        let base = list(&["empeñarse en", "hacer hincapié en"]);
-        let spelling = Spelling::of(false);
-        let judged = |answer: &str, hints: &[&str]| {
-            let hints = list(hints);
-            let verdict = recognition(
-                answer,
-                (&base, &base),
-                (&hints, true),
-                (("es", true), spelling),
-            );
-            in_form(verdict, answer, &hints, ("es", spelling))
-        };
-        let hints = ["empeñado en", "asegurado de"];
-        assert_eq!(judged("empeñado en", &hints), Verdict::Right);
-        for answer in ["me aseguré de", "me asegure de", "me había asegurado de"] {
-            assert_eq!(judged(answer, &hints), Verdict::RightBase, "{answer}");
-        }
-        // As a hint kept before this was asked for has it.
-        let kept = ["me había empeñado en", "me había asegurado de"];
-        assert_eq!(judged("me aseguré de", &kept), Verdict::RightBase);
-        assert_eq!(judged("me olvidé de", &hints), Verdict::Miss);
-    }
-
-    #[test]
     fn a_verb_is_held_to_the_gerund_or_the_infinitive_its_sentence_has() {
         let base = list(&["predicar", "adoctrinar"]);
         let spelling = Spelling::of(false);
@@ -607,8 +531,7 @@ mod tests {
             "receded",
         ]);
         let base = list(&["retroceder", "retirarse", "alejarse"]);
-        let kept =
-            |listed: &[String], hint: &str| other_hints(listed, (hint, "receded", "es"), &base);
+        let kept = |listed: &[String], hint: &str| other_hints(listed, (hint, "receded"), &base);
         assert_eq!(kept(&listed, "retrocedió"), ["se retiró", "se alejó"]);
         // A base form is no form of the sentence, unless the hint is one.
         let mixed = list(&["Retirarse", "se alejó"]);

@@ -300,7 +300,7 @@ fn kept(label: Option<&SentenceVerdict>, sentence: &Sentence, base: &[String]) -
             .map(|each| each.trim().to_owned())
             .filter(|each| !each.is_empty())
             .collect(),
-        hints: other_hints(&label.hints, (&sentence.hint, &sentence.form, "es"), base),
+        hints: other_hints(&label.hints, (&sentence.hint, &sentence.form), base),
         verb_form: label.verb_form,
     }
 }
