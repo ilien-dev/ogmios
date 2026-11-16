@@ -491,6 +491,10 @@ revés, y las tres se ofrecen siempre.
   fallo deja la palabra debiendo esa dirección, y si estaba terminada vuelve a estar abierta.
 - Un capítulo listo para leer conserva el botón «Practicar» junto al repaso rápido, y el resumen
   de una sesión ofrece «Continuar» aunque no quede nada abierto.
+- **Cortar una sesión:** dentro de ella, «Terminar» la cierra donde está; cada respuesta queda
+  guardada, su resumen la cuenta y «Continuar» vuelve a elegir el tamaño. La X sale sin cerrarla:
+  al volver, «Practicar» ofrece «Seguir» (Enter) o «Empezar otra», que la cierra igual y lleva a
+  elegir el tamaño.
 - **Fallo en el repaso rápido:** la palabra vuelve a la práctica desde cero, debiendo dos aciertos
   seguidos en las dos direcciones: primero inglés → idioma nativo y, terminada esa, al revés.
 
