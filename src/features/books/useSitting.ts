@@ -10,12 +10,13 @@ import type {
 import { errorMessage } from "@/lib/errors";
 import {
   disputeAnswer,
+  endSitting,
   practiceOptions,
   sittingStep,
   startSitting,
 } from "@/lib/ipc";
 import { hasChoice } from "./SittingParts";
-import { began, disputed, settled } from "./sittingRun";
+import { began, disputed, ended, settled } from "./sittingRun";
 import type { Disputed, Running } from "./sittingRun";
 
 /** What came of "I was right", and the sitting its answer was given in. */
@@ -88,10 +89,18 @@ export interface SittingRun {
   failure: string | null;
   /**
    * What to choose from before the session starts, its ways and its size;
-   * null when there is nothing to choose: a session was left unfinished and
-   * is gone on with, or the chapter has one size and one way to ask.
+   * null when there is nothing to choose: a session left unfinished waits
+   * for `goOn` or `startOver`, or the chapter has one size and one way.
    */
   options: PracticeOptions | null;
+  /** A session was left unfinished: "Go on" with it, or "Start another". */
+  paused: boolean;
+  /** Goes on with the session left unfinished, where it was. */
+  goOn: () => void;
+  /** Leaves the unfinished session over, and offers the sizes again. */
+  startOver: () => void;
+  /** "End": the running sitting is over where it stands, to its summary. */
+  end: () => void;
   /** Starts the session as chosen; a size of null is every open word. */
   choose: (size: number | null, ways: Ways) => void;
   /** What happened to the sitting, applied to wherever it is by then. */
@@ -105,7 +114,7 @@ export interface SittingRun {
 /**
  * The sittings on a chapter, one after another, for as long as the screen is
  * open. Each begins by asking what "Practice" can do: a session left
- * unfinished is gone on with at once, and otherwise the learner chooses its
+ * unfinished is gone on with or left behind, as the learner says, and otherwise the learner chooses its
  * ways and its size, unless there is nothing to choose. "I was right" is asked from here and not
  * from a word or from one sitting: the learner goes on while Claude answers,
  * into the next sitting if they like, and the verdict is shown wherever they
@@ -117,6 +126,7 @@ export function useSitting(chapterId: string): SittingRun {
   const [round, setRound] = useState(0);
   const [options, setOptions] = useState<PracticeOptions | null>(null);
   const [plan, setPlan] = useState<Plan | null>(null);
+  const [paused, setPaused] = useState(false);
   const current = useRef<string | null>(null);
   const waiting = useRef<Verdict[]>([]);
 
@@ -127,10 +137,12 @@ export function useSitting(chapterId: string): SittingRun {
         if (!live) {
           return;
         }
-        if (offered.resume || !hasChoice(offered)) {
-          setPlan({ round, size: null, ways: "both" });
-        } else {
+        if (offered.resume) {
+          setPaused(true);
+        } else if (hasChoice(offered)) {
           setOptions(offered);
+        } else {
+          setPlan({ round, size: null, ways: "both" });
         }
       })
       .catch((error: unknown) => {
@@ -180,6 +192,47 @@ export function useSitting(chapterId: string): SittingRun {
     [round],
   );
 
+  const goOn = useCallback((): void => {
+    setPaused(false);
+    setPlan({ round, size: null, ways: "both" });
+  }, [round]);
+
+  const startOver = useCallback((): void => {
+    setPaused(false);
+    endSitting(chapterId)
+      .then(() => practiceOptions(chapterId))
+      .then((offered) => {
+        if (hasChoice(offered)) {
+          setOptions(offered);
+        } else {
+          setPlan({ round, size: null, ways: "both" });
+        }
+      })
+      .catch((error: unknown) => {
+        setFailure(errorMessage(error));
+      });
+  }, [chapterId, round]);
+
+  const end = useCallback((): void => {
+    const sittingId = current.current;
+    if (sittingId === null) {
+      return;
+    }
+    endSitting(chapterId)
+      // Over already, it is its own summary that comes next.
+      .then((summary) => summary ?? sittingStep(sittingId))
+      .then((summary) => {
+        if (current.current === sittingId) {
+          setRunning((left) => (left === null ? left : ended(left, summary)));
+        }
+      })
+      .catch((error: unknown) => {
+        current.current = null;
+        setRunning(null);
+        setFailure(errorMessage(error));
+      });
+  }, [chapterId]);
+
   const move = useCallback((change: (held: Running) => Running): void => {
     setRunning((held) => (held === null ? held : change(held)));
   }, []);
@@ -207,5 +260,17 @@ export function useSitting(chapterId: string): SittingRun {
     setRound((held) => held + 1);
   }, []);
 
-  return { running, failure, options, choose, move, dispute, again };
+  return {
+    running,
+    failure,
+    options,
+    paused,
+    goOn,
+    startOver,
+    end,
+    choose,
+    move,
+    dispute,
+    again,
+  };
 }

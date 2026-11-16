@@ -92,6 +92,14 @@ export function advanced(held: Running, step: PracticeStep): Running {
   };
 }
 
+/**
+ * "End": the sitting is over where it stands and shows `summary`, which
+ * takes the place of whatever was to come after the word on the screen.
+ */
+export function ended(held: Running, summary: PracticeStep): Running {
+  return advanced({ ...held, next: null }, summary);
+}
+
 /** Whether the step asks this very word, this very way. */
 function sameItem(step: PracticeStep, item: PracticeItem): boolean {
   return (

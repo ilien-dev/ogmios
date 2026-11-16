@@ -296,6 +296,14 @@ export const startSitting = (
   size: number | null,
   ways: Ways,
 ): Promise<Sitting> => call("start_sitting", { chapterId, size, ways });
+
+/**
+ * "End": the chapter's session left unfinished is over where it stands,
+ * every answer kept, and this is its summary; null when none was
+ * unfinished. The next session is chosen afresh.
+ */
+export const endSitting = (chapterId: string): Promise<PracticeStep | null> =>
+  call("end_sitting", { chapterId });
 /** The word an answer is given to, and the sentence it was asked with. */
 type Asked = Pick<PracticeItem, "wordId" | "direction" | "sentenceId">;
 

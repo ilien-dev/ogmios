@@ -32,6 +32,8 @@ interface SittingFrameProps {
   section?: "book" | "partner";
   /** Stands for the bar, where a share alone would say too little. */
   bar?: ReactNode;
+  /** "End" across from the way out, while a word is on the screen. */
+  end?: Choice | null;
   children: ReactNode;
 }
 
@@ -48,6 +50,7 @@ export function SittingFrame({
   onClose,
   section = "book",
   bar = null,
+  end = null,
   children,
 }: SittingFrameProps): ReactNode {
   const { t } = useTranslation();
@@ -77,6 +80,15 @@ export function SittingFrame({
             )}
           </Presence>
         </div>
+        <Presence>
+          {end !== null && (
+            <Reveal key="end" as="span" kind="fade">
+              <Button variant="ghost" onClick={end.onChoose}>
+                {end.label}
+              </Button>
+            </Reveal>
+          )}
+        </Presence>
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="flex min-h-full flex-col items-center gap-2">
@@ -287,9 +299,9 @@ interface Choice {
 
 interface SittingEndProps {
   title: string;
-  /** What was achieved, and under it what is left. */
+  /** What was achieved, and under it what is left, when there is more. */
   lead: string;
-  rest: string;
+  rest?: string;
   /** How each of the two went, where it is a result: it colours the line. */
   leadGrade?: Grade;
   restGrade?: Grade;
@@ -333,13 +345,22 @@ export function SittingEnd({
           >
             {lead}
           </p>
-          <p
-            className={
-              restGrade === undefined ? "text-ink-soft" : GRADE_TEXT[restGrade]
-            }
-          >
-            {rest}
-          </p>
+          <Presence>
+            {rest !== undefined && (
+              <Reveal
+                key="rest"
+                as="p"
+                kind="fade"
+                className={
+                  restGrade === undefined
+                    ? "text-ink-soft"
+                    : GRADE_TEXT[restGrade]
+                }
+              >
+                {rest}
+              </Reveal>
+            )}
+          </Presence>
         </div>
         <div className="flex gap-2">
           <Button ref={primary} variant="primaryBook" onClick={first.onChoose}>

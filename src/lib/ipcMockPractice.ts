@@ -413,7 +413,7 @@ function progressOf(sitting: MockSitting): SittingProgress {
 function stepOf(sittingId: string): PracticeStep {
   const sitting = findSitting(sittingId);
   const words = mockChapterWords(sitting.chapterId);
-  const next = nextItem(sittingId, sitting);
+  const next = sitting.finished ? null : nextItem(sittingId, sitting);
   const word = words.find((candidate) => candidate.id === next?.wordId);
   const progress = progressOf(sitting);
   if (word === undefined || next === null) {
@@ -511,6 +511,19 @@ function start(chapterId: string, size: number | null, ways: Ways): Sitting {
   const words = open.slice(0, size ?? open.length);
   sittings.set(id, { id, chapterId, words, ways, extra, finished: false });
   return { id, step: stepOf(id) };
+}
+
+/**
+ * "End": the chapter's session left unfinished is over where it stands, and
+ * gives its summary; null when none was.
+ */
+function end(chapterId: string): PracticeStep | null {
+  const left = heldSitting(chapterId);
+  if (left === null) {
+    return null;
+  }
+  findSitting(left).finished = true;
+  return stepOf(left);
 }
 
 /** Keeps where the word stands, and what the word list says of it. */
@@ -731,6 +744,7 @@ export function practiceCommands(
         const { size, ways } = args as { size?: number | null; ways?: Ways };
         return start(arg(args, "chapterId"), size ?? null, ways ?? "both");
       }),
+    end_sitting: (args) => after(80, () => end(arg(args, "chapterId"))),
     sitting_step: (args) => after(80, () => stepOf(arg(args, "sittingId"))),
     know_word: (args) =>
       after(80, () => know(arg(args, "sittingId"), arg(args, "wordId"))),
