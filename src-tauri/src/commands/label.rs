@@ -63,6 +63,11 @@ pub fn label_all(ctx: Ctx<'_>, model: &mut dyn Model) -> Result<u32> {
             }
         }
     }
+    // The forms just said lose what a negation beside their word gave them.
+    let conn = ctx.conn()?;
+    if let Some(profile) = crate::db::profile::get_profile(&conn)? {
+        words::affirm(&conn, &profile.native_lang)?;
+    }
     Ok(labelled)
 }
 

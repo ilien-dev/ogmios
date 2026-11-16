@@ -117,6 +117,12 @@ describe("the prompt that glosses a word's sentences", () => {
     expect(prompt).toContain('never "me había empeñado en"');
   });
 
+  test("leaves out of the hint a negation outside the word", () => {
+    const prompt = sentenceWriteSystemPrompt(write);
+    expect(prompt).toContain("A negation outside the word stays out as well");
+    expect(prompt).toContain('never "no tendría ninguna oportunidad"');
+  });
+
   test("gives each word with its book sentences numbered", () => {
     const prompt = sentenceWriteUserPrompt(write);
     expect(prompt).toContain('<word id="peep">');
@@ -180,6 +186,14 @@ describe("the prompt that looks at sentences again", () => {
     expect(prompt).toContain("only the words of <form>");
     expect(prompt).toContain('"asegurado de" beside the hint "empeñado en"');
     expect(prompt).toContain('never "me había asegurado de"');
+  });
+
+  test("asks for the other translations without a negation outside the form", () => {
+    const prompt = sentenceReviewSystemPrompt(review);
+    expect(prompt).toContain(
+      "Nor anything a negation outside <form> gives them",
+    );
+    expect(prompt).toContain('never "tendría ninguna posibilidad"');
   });
 
   test("gives each sentence with its word, its form, its hint and its translation", () => {

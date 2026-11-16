@@ -403,6 +403,15 @@ describe("labelling words stored without their kind", () => {
     expect(prompt).toContain("Never another tense, another person");
   });
 
+  test("translates a word without what a negation beside it calls for", () => {
+    expect(vocabExtractSystemPrompt(params)).toContain(
+      'never "tener ninguna oportunidad"',
+    );
+    expect(vocabLabelSystemPrompt()).toContain(
+      'never "tendría ninguna oportunidad"',
+    );
+  });
+
   test("a verb in another form comes with the translations to put in it", () => {
     expect(vocabLabelSystemPrompt()).toContain(
       '"jurado" for "jurar" when the word is "sworn"',

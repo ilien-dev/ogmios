@@ -40,7 +40,7 @@ use crate::agent::protocol::{
 };
 use crate::books::segment::{paragraphs, sentences as cut};
 use crate::books::sentences::{
-    found, hint_fits, in_translation, other_hints, unaided, Banked, GIVEN, WORDS_PER_CALL,
+    found, hint_fits, in_translation, other_hints, shown_in, unaided, Banked, GIVEN, WORDS_PER_CALL,
 };
 use crate::db::recall::{self, Source};
 use crate::db::sentences::{self as bank, Labels, NewSentence, Sentence};
@@ -360,17 +360,18 @@ fn label(ctx: Ctx<'_>, model: &mut dyn Model, native_lang: &str) -> Result<()> {
 }
 
 /// A word with the sentences it is asked with whose hint is not words of
-/// their translation: kept before a hint had to be.
+/// their translation, as written or without its negation
+/// (`books::sentences::shown_in`): kept before a hint had to be.
 struct Outdated {
     asked: Asked,
     sentences: Vec<Sentence>,
 }
 
 /// The sentences of a word's bank to be glossed again, if any.
-fn outdated(conn: &Connection, word: Wanted) -> Result<Option<Outdated>> {
+fn outdated(conn: &Connection, word: Wanted, lang: &str) -> Result<Option<Outdated>> {
     let sentences: Vec<Sentence> = bank::bank(conn, &word.key)?
         .into_iter()
-        .filter(|each| !in_translation(&each.hint, &each.translation))
+        .filter(|each| !shown_in(&each.hint, &each.translation, lang))
         .collect();
     if sentences.is_empty() {
         return Ok(None);
@@ -472,7 +473,7 @@ pub fn top_up(
                 continue;
             };
             if bank::given(&conn, &word.key)? {
-                stale.extend(outdated(&conn, word)?);
+                stale.extend(outdated(&conn, word, &profile.native_lang)?);
                 continue;
             }
             match groups.iter_mut().find(|(held, _)| *held == chapter) {
@@ -524,6 +525,8 @@ pub fn top_up(
         renew(ctx, model, &profile.native_lang, batch)?;
     }
     label(ctx, model, &profile.native_lang)?;
+    // What was looked at in this run loses the negation outside its form.
+    bank::unaid(&*ctx.conn()?, &profile.native_lang)?;
     Ok(total)
 }
 
@@ -987,6 +990,106 @@ pub mod tests {
         // Once.
         let conn = desk.db.lock().expect("db");
         assert_eq!(bank::unaid(&conn, "es").expect("unaid"), 0);
+    }
+
+    #[test]
+    fn a_hint_kept_with_a_negation_its_form_does_not_show_loses_it_without_the_model() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let desk = Desk::new(&dir);
+        let text = "And poor, stupid Donut wouldn’t stand a chance out here in the cold.";
+        let chance = Word {
+            forms: vec!["stand a chance".into()],
+            sentence: text.into(),
+            ..word(
+                "stand a chance",
+                &["tener posibilidades", "tener alguna oportunidad"],
+                1,
+            )
+        };
+        let chapter = chapter_of(&desk, text, &[chance]);
+        // As the chapter of the screenshot kept it, looked at and labelled.
+        {
+            let conn = desk.db.lock().expect("db");
+            let new = NewSentence {
+                key: "stand a chance",
+                book: true,
+                sentence: text,
+                form: "stand a chance",
+                hint: "tendría ninguna oportunidad",
+                translation: "Y la pobre y tonta Donut no tendría ninguna oportunidad aquí fuera, con este frío.",
+            };
+            bank::add(&conn, &new, Utc::now()).expect("add");
+            let waiting = bank::unreviewed(&conn).expect("waiting").remove(0);
+            let labels = Labels {
+                also: Vec::new(),
+                hints: vec!["tendría posibilidades".into()],
+                verb_form: Some(VerbForm::Base),
+            };
+            bank::review(&conn, &waiting.id, true, &labels).expect("review");
+        }
+
+        let stub = stock(&desk, &chapter);
+        // Nothing is glossed again for a hint its translation reads without "no".
+        assert_eq!((stub.writes.len(), stub.reviews), (0, 0));
+        let [kept] = bank::bank(&desk.db.lock().expect("db"), "stand a chance")
+            .expect("bank")
+            .try_into()
+            .expect("one sentence");
+        assert_eq!(kept.hint, "tendría alguna oportunidad");
+        assert_eq!(kept.hints, ["tendría posibilidades"]);
+        // Once.
+        let conn = desk.db.lock().expect("db");
+        assert_eq!(bank::unaid(&conn, "es").expect("unaid"), 0);
+    }
+
+    #[test]
+    fn a_hint_loses_a_no_and_then_the_tense_behind_it() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let desk = Desk::new(&dir);
+        let conn = desk.db.lock().expect("db");
+        let new = NewSentence {
+            key: "see",
+            book: true,
+            sentence: "He had not seen it.",
+            form: "seen",
+            hint: "no lo había visto",
+            translation: "No lo había visto.",
+        };
+        bank::add(&conn, &new, Utc::now()).expect("add");
+        let waiting = bank::unreviewed(&conn).expect("waiting").remove(0);
+        let labels = Labels {
+            also: Vec::new(),
+            hints: vec!["no lo había notado".into()],
+            verb_form: Some(VerbForm::PastParticiple),
+        };
+        bank::review(&conn, &waiting.id, true, &labels).expect("review");
+        assert_eq!(bank::unaid(&conn, "es").expect("unaid"), 1);
+        let [kept] = bank::bank(&conn, "see")
+            .expect("bank")
+            .try_into()
+            .expect("one sentence");
+        assert_eq!(kept.hint, "visto");
+        assert_eq!(kept.hints, ["notado"]);
+    }
+
+    #[test]
+    fn a_hint_not_looked_at_keeps_the_negation_of_its_translation_until_it_is() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let desk = Desk::new(&dir);
+        let text = "And poor, stupid Donut wouldn’t stand a chance out here in the cold.";
+        let conn = desk.db.lock().expect("db");
+        let new = NewSentence {
+            key: "stand a chance",
+            book: true,
+            sentence: text,
+            form: "stand a chance",
+            hint: "tendría ninguna oportunidad",
+            translation: "Y la pobre y tonta Donut no tendría ninguna oportunidad aquí fuera.",
+        };
+        bank::add(&conn, &new, Utc::now()).expect("add");
+        assert_eq!(bank::unaid(&conn, "es").expect("unaid"), 0);
+        let waiting = bank::unreviewed(&conn).expect("waiting").remove(0);
+        assert_eq!(waiting.hint, "tendría ninguna oportunidad");
     }
 
     #[test]

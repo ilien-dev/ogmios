@@ -8,7 +8,7 @@ use rusqlite::{params, Connection, OptionalExtension, Row};
 
 use super::practice::NOT_KNOWN;
 use super::{new_id, ts};
-use crate::books::sentences::{other_hints, unaided};
+use crate::books::sentences::{affirmed, other_hints, unaided};
 use crate::books::vocab;
 use crate::domain::{PartOfSpeech, VerbForm};
 use crate::error::Result;
@@ -266,40 +266,85 @@ pub fn regloss(conn: &Connection, sentence: &Sentence, labels: &Labels) -> Resul
 /// (`books::sentences::unaided`): a sentence glossed before this was asked
 /// for is asked as one glossed now. Changes nothing the second time; how
 /// many sentences it changed.
+///
+/// A sentence already looked at also loses what a negation outside its
+/// form gives its hints (`books::sentences::affirmed`): "tendría ninguna
+/// oportunidad" for "stand a chance" in "wouldn't stand a chance". One not
+/// looked at yet keeps it until it is, so that it is looked at as the
+/// words its translation has.
 pub fn unaid(conn: &Connection, lang: &str) -> Result<usize> {
     let mut stmt = conn.prepare(
-        "SELECT id, form, hint, COALESCE(hints, '[]'), hints IS NULL FROM word_sentences
-         WHERE hint != ''",
+        "SELECT id, form, hint, COALESCE(hints, '[]'), hints IS NULL, key, sentence, reviewed
+         FROM word_sentences WHERE hint != ''",
     )?;
     let rows = stmt
         .query_map([], |row| {
-            Ok((
-                row.get::<_, String>(0)?,
-                row.get::<_, String>(1)?,
-                row.get::<_, String>(2)?,
-                list(row, 3)?,
-                row.get::<_, bool>(4)?,
-            ))
+            Ok(Kept {
+                id: row.get(0)?,
+                form: row.get(1)?,
+                hint: row.get(2)?,
+                hints: list(row, 3)?,
+                unlabelled: row.get(4)?,
+                key: row.get(5)?,
+                sentence: row.get(6)?,
+                reviewed: row.get(7)?,
+            })
         })?
         .collect::<rusqlite::Result<Vec<_>>>()?;
     let mut changed = 0_usize;
-    for (id, form, hint, hints, unlabelled) in rows {
-        let new_hint = unaided(&hint, &form, lang);
-        let new_hints = other_hints(&hints, (&new_hint, &form, lang), &[]);
-        if new_hint == hint && new_hints == hints {
+    for row in rows {
+        let (mut new_hint, mut new_hints) = unaided_all(&row, lang, &[]);
+        if row.reviewed && (new_hint != row.hint || new_hints != row.hints) {
+            // The word's own translations decide what is its own: read only
+            // for the few sentences a negation outside the form changes.
+            let (_, base) = meaning(conn, &row.key)?;
+            (new_hint, new_hints) = unaided_all(&row, lang, &base);
+        }
+        if new_hint == row.hint && new_hints == row.hints {
             continue;
         }
         // One not labelled yet stays so: the next run labels it.
-        let json = (!unlabelled)
+        let json = (!row.unlabelled)
             .then(|| serde_json::to_string(&new_hints))
             .transpose()?;
         conn.execute(
             "UPDATE word_sentences SET hint = ?2, hints = ?3 WHERE id = ?1",
-            params![id, new_hint, json],
+            params![row.id, new_hint, json],
         )?;
         changed += 1;
     }
     Ok(changed)
+}
+
+/// A sentence kept, as [`unaid`] reads it.
+struct Kept {
+    id: String,
+    key: String,
+    sentence: String,
+    form: String,
+    hint: String,
+    hints: Vec<String>,
+    unlabelled: bool,
+    reviewed: bool,
+}
+
+/// The hint and the other hints of a sentence kept, without the words for
+/// English ones outside its form and, once it was looked at, without what
+/// a negation outside it gives them; `base` is the word's translations.
+fn unaided_all(row: &Kept, lang: &str, base: &[String]) -> (String, Vec<String>) {
+    // Without its "no" first: the auxiliary after it is then the first word.
+    let clear = |hint: &str| {
+        let hint = if row.reviewed {
+            affirmed(hint, (&row.form, &row.sentence), base, lang)
+        } else {
+            hint.to_owned()
+        };
+        unaided(&hint, &row.form, lang)
+    };
+    let hint = clear(&row.hint);
+    let listed: Vec<String> = row.hints.iter().map(|each| clear(each)).collect();
+    let hints = other_hints(&listed, (&hint, &row.form, lang), &[]);
+    (hint, hints)
 }
 
 /// The other words the learner has that are shown as one of these

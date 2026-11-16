@@ -68,6 +68,9 @@ fn setup(app: &mut tauri::App) -> std::result::Result<(), Box<dyn std::error::Er
     // show lose it before anything is practised (`db::sentences::unaid`).
     if let Some(profile) = db::profile::get_profile(&conn)? {
         db::sentences::unaid(&conn, &profile.native_lang)?;
+        // Translations kept with the words a negation beside their word
+        // calls for lose them too (`db::words::affirm`).
+        db::words::affirm(&conn, &profile.native_lang)?;
     }
     let agent = agent::Agent::new(agent::locate_sidecar()).in_dir(data_dir.join("agent"));
     let stt = stt::Dictation::new(&data_dir);

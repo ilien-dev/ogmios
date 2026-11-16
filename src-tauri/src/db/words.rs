@@ -10,6 +10,7 @@ use super::profile::get_profile;
 use super::{found, new_id, parse_ts, ts};
 use crate::agent::protocol::{LabelWord, VocabItem};
 use crate::books::practice::{inflects, preferred};
+use crate::books::sentences::affirmed_base;
 use crate::books::vocab::Word;
 use crate::domain::{BookWord, Depth, Direction, KnownWord, PartOfSpeech, VerbForm};
 use crate::error::Result;
@@ -552,6 +553,97 @@ pub fn put_in_form(conn: &Connection, id: &str, asked: &[String], said: &[String
     Ok(changed > 0)
 }
 
+/// Gives every translation of a word of a book, and the forms it is said
+/// in, without the words a negation outside the word calls for
+/// (`books::sentences::affirmed_base`): "tener ninguna oportunidad" for
+/// "stand a chance", taken from "wouldn't stand a chance", becomes "tener
+/// alguna oportunidad". One the word already has as it is now said is the
+/// same translation, and only that one is kept. Changes nothing the second
+/// time; how many translations it changed.
+pub fn affirm(conn: &Connection, lang: &str) -> Result<usize> {
+    let mut stmt = conn.prepare(
+        "SELECT t.word_id, t.text, t.in_form, t.in_form_also, w.lemma, w.forms,
+                w.sentence
+         FROM word_translations t JOIN chapter_words w ON w.id = t.word_id
+         WHERE t.source = 'extraction'",
+    )?;
+    let rows = stmt
+        .query_map([], |row| {
+            Ok(Said {
+                word_id: row.get(0)?,
+                text: row.get(1)?,
+                in_form: row.get(2)?,
+                also: row.get(3)?,
+                lemma: row.get(4)?,
+                forms: row.get(5)?,
+                sentence: row.get(6)?,
+            })
+        })?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    let mut changed = 0_usize;
+    for row in rows {
+        let forms: Vec<String> = serde_json::from_str(&row.forms).unwrap_or_default();
+        // The word in every form it is shown in: a negation in any is its own.
+        let form = [row.lemma.clone()]
+            .into_iter()
+            .chain(forms)
+            .collect::<Vec<_>>()
+            .join(" ");
+        let clear = |text: &str| affirmed_base(text, (&form, &row.sentence), lang);
+        let text = clear(&row.text);
+        let in_form = row.in_form.as_deref().map(clear);
+        // One nobody said yet stays unsaid: the next labelling says it.
+        let listed: Option<Vec<String>> = row
+            .also
+            .as_deref()
+            .map(|json| serde_json::from_str(json).unwrap_or_default());
+        let cleared: Option<Vec<String>> = listed
+            .as_ref()
+            .map(|listed| listed.iter().map(|each| clear(each)).collect());
+        if text == row.text && in_form == row.in_form && cleared == listed {
+            continue;
+        }
+        let held: bool = conn.query_row(
+            "SELECT EXISTS (SELECT 1 FROM word_translations WHERE word_id = ?1 AND text = ?2)",
+            params![row.word_id, text],
+            |found| found.get(0),
+        )?;
+        if held && text != row.text {
+            conn.execute(
+                "DELETE FROM word_translations WHERE word_id = ?1 AND text = ?2",
+                params![row.word_id, row.text],
+            )?;
+        } else {
+            conn.execute(
+                "UPDATE word_translations SET text = ?3, in_form = ?4, in_form_also = ?5
+                 WHERE word_id = ?1 AND text = ?2",
+                params![
+                    row.word_id,
+                    row.text,
+                    text,
+                    in_form,
+                    cleared
+                        .map(|each| serde_json::to_string(&each))
+                        .transpose()?
+                ],
+            )?;
+        }
+        changed += 1;
+    }
+    Ok(changed)
+}
+
+/// A translation of a word of a book, as [`affirm`] reads it.
+struct Said {
+    word_id: String,
+    text: String,
+    in_form: Option<String>,
+    also: Option<String>,
+    lemma: String,
+    forms: String,
+    sentence: String,
+}
+
 /// Keeps the other forms each translation of a word says the same in,
 /// beside the one it is called by: `also`, a list for each of the `asked`
 /// ones, in that order, empty for one that has none ("juraba" beside
@@ -729,6 +821,72 @@ pub mod tests {
         let said = ["jurado".to_owned(), "prometido".to_owned()];
         assert!(put_in_form(&conn, &listed().id, &asked, &said).expect("put"));
         assert_eq!(listed().translations, ["jurado", "prometido"]);
+    }
+
+    #[test]
+    fn a_translation_kept_with_what_a_negation_outside_its_word_calls_for_loses_it() {
+        let conn = open_in_memory().expect("db");
+        let chapters = book(&conn, "b", &["one"]);
+        let donut = "And poor, stupid Donut wouldn’t stand a chance out here in the cold.";
+        let words = [
+            Word {
+                sentence: donut.into(),
+                ..word(
+                    "stand a chance",
+                    &[
+                        "tener ninguna oportunidad",
+                        "tener posibilidades",
+                        "tener ninguna posibilidad",
+                    ],
+                    1,
+                )
+            },
+            Word {
+                sentence: "He didn't overlook it.".into(),
+                ..word("overlook", &["no ver", "pasar por alto"], 1)
+            },
+        ];
+        // As a chapter prepared before this kept them, and said in its form.
+        finish(&conn, &chapters[0], Depth::Most, &words, Utc::now()).expect("finish");
+        conn.execute_batch(
+            "INSERT INTO word_translations (word_id, text, source)
+               SELECT word_id, 'tener alguna posibilidad', 'extraction' FROM word_translations
+               WHERE text = 'tener posibilidades';
+             UPDATE word_translations SET in_form = 'tendría ninguna oportunidad',
+               in_form_also = '[\"tendría ninguna\"]'
+             WHERE text = 'tener ninguna oportunidad';",
+        )
+        .expect("old rows");
+
+        assert_eq!(affirm(&conn, "es").expect("affirm"), 2);
+        let listed = list(&conn, &chapters[0]).expect("list");
+        let chance = listed
+            .iter()
+            .find(|w| w.lemma == "stand a chance")
+            .expect("chance");
+        let mut texts: Vec<String> = conn
+            .prepare("SELECT text || '|' || COALESCE(in_form, '-') || '|' || COALESCE(in_form_also, '-') FROM word_translations WHERE word_id = ?1 ORDER BY text")
+            .expect("stmt")
+            .query_map([&chance.id], |row| row.get(0))
+            .expect("rows")
+            .collect::<rusqlite::Result<_>>()
+            .expect("texts");
+        texts.sort();
+        assert_eq!(
+            texts,
+            [
+                "tener alguna oportunidad|tendría alguna oportunidad|[\"tendría alguna\"]",
+                "tener alguna posibilidad|-|-",
+                "tener posibilidades|-|-",
+            ]
+        );
+        let overlook = listed
+            .iter()
+            .find(|w| w.lemma == "overlook")
+            .expect("overlook");
+        assert!(overlook.translations.contains(&"no ver".to_owned()));
+        // Once.
+        assert_eq!(affirm(&conn, "es").expect("affirm"), 0);
     }
 
     #[test]
