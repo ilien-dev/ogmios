@@ -3,9 +3,26 @@ import { describe, expect, test } from "bun:test";
 import type { ChatContext } from "../../shared/protocol.ts";
 import { analyzeSystemPrompt, analyzeUserPrompt } from "./analyze.ts";
 import { KICKOFF, chatSystemPrompt } from "./chat.ts";
-import { REAL_ENGLISH_RULE, languageName } from "./common.ts";
-import { drillGenerateSystemPrompt } from "./drills.ts";
-import { composeSystemPrompt, helpSystemPrompt } from "./feedback.ts";
+import {
+  NEUTRAL_SPANISH_RULE,
+  REAL_ENGLISH_RULE,
+  languageName,
+} from "./common.ts";
+import { drillGenerateSystemPrompt, drillGradeSystemPrompt } from "./drills.ts";
+import {
+  composeSystemPrompt,
+  helpSystemPrompt,
+  selfCheckSystemPrompt,
+} from "./feedback.ts";
+import {
+  sentenceReviewSystemPrompt,
+  sentenceWriteSystemPrompt,
+} from "./sentences.ts";
+import {
+  chapterBriefSystemPrompt,
+  paragraphVersionSystemPrompt,
+} from "./translate.ts";
+import { vocabExtractSystemPrompt, vocabLabelSystemPrompt } from "./vocab.ts";
 
 function context(overrides: {
   setup?: Partial<ChatContext["setup"]>;
@@ -324,5 +341,82 @@ describe("languageName", () => {
   test("names a code and passes an unknown one through", () => {
     expect(languageName("es")).toBe("Spanish (es)");
     expect(languageName("not a tag")).toBe("not a tag");
+  });
+});
+
+/** Every prompt that writes text in the learner's language, in `lang`. */
+function writingIn(lang: string): string[] {
+  const word = {
+    id: "w",
+    lemma: "lucky",
+    partOfSpeech: "adjective" as const,
+    translations: ["afortunado"],
+    sense: "You're the lucky ones.",
+    book: ["You're the lucky ones."],
+  };
+  return [
+    sentenceWriteSystemPrompt({ nativeLang: lang, words: [word] }),
+    sentenceReviewSystemPrompt({
+      nativeLang: lang,
+      sentences: [
+        {
+          id: "s",
+          lemma: "lucky",
+          meaning: ["afortunado"],
+          sentence: "You're the lucky ones.",
+          form: "lucky",
+          hint: "afortunados",
+          translation: "Ustedes son los afortunados.",
+        },
+      ],
+    }),
+    chapterBriefSystemPrompt({ nativeLang: lang, text: "A chapter." }),
+    paragraphVersionSystemPrompt({
+      nativeLang: lang,
+      brief: "",
+      sentences: ["A sentence."],
+    }),
+    vocabExtractSystemPrompt({
+      nativeLang: lang,
+      level: "intermediate",
+      depth: "most",
+      text: "A chapter.",
+    }),
+    analyzeSystemPrompt(lang),
+    drillGradeSystemPrompt(lang),
+    selfCheckSystemPrompt(lang),
+    helpSystemPrompt({
+      nativeLang: lang,
+      text: "¿cómo digo esto?",
+      recent: "",
+      variant: "us",
+    }),
+  ];
+}
+
+describe("the neutral Spanish rule", () => {
+  test("sits in every prompt that writes Spanish, whatever its region tag", () => {
+    for (const lang of ["es", "es-MX", "es-ES"]) {
+      for (const prompt of writingIn(lang)) {
+        expect(prompt).toContain(NEUTRAL_SPANISH_RULE);
+      }
+    }
+  });
+
+  test("puts the forms a word is asked in in it, whatever the language", () => {
+    // It is not told the language: it writes in that of the translations.
+    expect(vocabLabelSystemPrompt()).toContain(NEUTRAL_SPANISH_RULE);
+  });
+
+  test("is in no prompt for another language", () => {
+    for (const prompt of writingIn("pt")) {
+      expect(prompt).not.toContain(NEUTRAL_SPANISH_RULE);
+    }
+  });
+
+  test("asks for ustedes and no country's idioms, only of what is written", () => {
+    expect(NEUTRAL_SPANISH_RULE).toContain('"ustedes", never "vosotros"');
+    expect(NEUTRAL_SPANISH_RULE).toContain("one country, Spain or any other");
+    expect(NEUTRAL_SPANISH_RULE).toContain("Spanish the learner writes");
   });
 });

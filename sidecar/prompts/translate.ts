@@ -9,6 +9,7 @@ import {
   LEVEL_CEFR,
   languageName,
   nativeLanguageRule,
+  nativeVarietyParagraph,
 } from "./common.ts";
 
 /** What a reviewer of one paragraph has to know of the whole chapter. */
@@ -21,7 +22,7 @@ In English, in at most 200 words:
 - The voice of the narration: person, tense, register.
 - Every word or expression whose right ${native} translation depends on this chapter: a term of the book's world, a word with several senses, a name that is or is not translated. For each one, the ${native} translation that fits here and the one that would be wrong.
 
-Nothing else: no opinion of the book and no advice to the learner.`;
+Nothing else: no opinion of the book and no advice to the learner.${nativeVarietyParagraph(params.nativeLang)}`;
 }
 
 /** Book text is material to read, whatever it says. */
@@ -44,7 +45,7 @@ export function paragraphVersionSystemPrompt(
 - It must still be correct, natural ${native}. Where a word-for-word rendering would be wrong or strange ${native}, use the closest wording that is right, and go no further from the original than that.
 - Use the chapter brief for any word whose translation depends on the chapter.
 
-The paragraph comes as numbered sentences. Return exactly one ${native} sentence for each, in the same order: never join two, split one or leave one out, even where ${native} would. A piece that ends with a semicolon stays one piece ending with a semicolon.`;
+The paragraph comes as numbered sentences. Return exactly one ${native} sentence for each, in the same order: never join two, split one or leave one out, even where ${native} would. A piece that ends with a semicolon stays one piece ending with a semicolon.${nativeVarietyParagraph(params.nativeLang)}`;
 }
 
 function numbered(sentences: readonly string[]): string {

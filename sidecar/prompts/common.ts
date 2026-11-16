@@ -28,9 +28,35 @@ export const LEVEL_CEFR: Record<Level, string> = {
   advanced: "C1–C2",
 };
 
+/**
+ * The variety of Spanish the app writes: neutral Latin American Spanish,
+ * never the Spanish of one country. It is about what the model writes: the
+ * learner's own Spanish, from wherever it is, is still Spanish.
+ */
+export const NEUTRAL_SPANISH_RULE = `Whatever you write in Spanish is neutral Latin American Spanish, the kind any Spanish speaker reads without noticing where it comes from: "ustedes", never "vosotros", "os", "vuestro" or their verb forms ("sois", "tenéis", "habéis"); "tú" for one person, never "vos". Choose the word understood across Latin America, and never slang, idioms or set phrases of one country, Spain or any other. This is only about what you write: Spanish the learner writes, from any country, is not wrong for being from there.`;
+
+function isSpanish(nativeLang: string): boolean {
+  return nativeLang.split(/[-_]/)[0]?.toLowerCase() === "es";
+}
+
+/** The rule for the variety of the learner's language, or nothing. */
+export function nativeVarietyRule(nativeLang: string): string {
+  return isSpanish(nativeLang) ? NEUTRAL_SPANISH_RULE : "";
+}
+
+/** The variety rule as a paragraph of its own, for the end of a prompt. */
+export function nativeVarietyParagraph(nativeLang: string): string {
+  const rule = nativeVarietyRule(nativeLang);
+  return rule === ""
+    ? ""
+    : `
+
+${rule}`;
+}
+
 /** Placed in each prompt that writes text the learner reads. */
 export function nativeLanguageRule(nativeLang: string): string {
-  return `Write everything the learner reads (explanations, hints, notes, descriptions) in ${languageName(nativeLang)}, in plain words a non-linguist understands. Keep English examples, fragments and sentences in English.`;
+  return `Write everything the learner reads (explanations, hints, notes, descriptions) in ${languageName(nativeLang)}, in plain words a non-linguist understands. Keep English examples, fragments and sentences in English.${nativeVarietyParagraph(nativeLang)}`;
 }
 
 export function levelLine(level: Level, cefr: Cefr | null): string {

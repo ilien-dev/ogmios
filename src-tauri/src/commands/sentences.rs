@@ -42,6 +42,7 @@ use crate::books::segment::{paragraphs, sentences as cut};
 use crate::books::sentences::{
     found, hint_fits, in_translation, other_hints, shown_in, unaided, Banked, GIVEN, WORDS_PER_CALL,
 };
+use crate::books::variety::peninsular;
 use crate::db::recall::{self, Source};
 use crate::db::sentences::{self as bank, Labels, NewSentence, Sentence};
 use crate::db::{practice, translate};
@@ -215,13 +216,15 @@ fn ask(word: Wanted, book: &[(String, String)]) -> Option<Asked> {
 /// the words of the learner's `lang` for English ones outside the `form`
 /// (`books::sentences::unaided`), and the translation. None when the hint
 /// gives the word away, or is not words of the translation: the word would
-/// be asked by something its sentence does not say.
+/// be asked by something its sentence does not say. None too when the
+/// translation speaks to "vosotros" (`books::variety`).
 fn gloss<'a>(said: &'a BookGloss, form: &str, lang: &str) -> Option<(String, &'a str)> {
     let (hint, translation) = (
         unaided(said.hint.trim(), form, lang),
         said.translation.trim(),
     );
-    (hint_fits(&hint, form) && in_translation(&hint, translation)).then_some((hint, translation))
+    (hint_fits(&hint, form) && in_translation(&hint, translation) && !peninsular(translation, lang))
+        .then_some((hint, translation))
 }
 
 /// Keeps what the model answered for one word: each sentence whose gloss
@@ -361,7 +364,9 @@ fn label(ctx: Ctx<'_>, model: &mut dyn Model, native_lang: &str) -> Result<()> {
 
 /// A word with the sentences it is asked with whose hint is not words of
 /// their translation, as written or without its negation
-/// (`books::sentences::shown_in`): kept before a hint had to be.
+/// (`books::sentences::shown_in`): kept before a hint had to be. Or whose
+/// translation speaks to "vosotros" (`books::variety`): kept before the
+/// learner's Spanish had to be Latin American.
 struct Outdated {
     asked: Asked,
     sentences: Vec<Sentence>,
@@ -371,7 +376,9 @@ struct Outdated {
 fn outdated(conn: &Connection, word: Wanted, lang: &str) -> Result<Option<Outdated>> {
     let sentences: Vec<Sentence> = bank::bank(conn, &word.key)?
         .into_iter()
-        .filter(|each| !shown_in(&each.hint, &each.translation, lang))
+        .filter(|each| {
+            !shown_in(&each.hint, &each.translation, lang) || peninsular(&each.translation, lang)
+        })
         .collect();
     if sentences.is_empty() {
         return Ok(None);
@@ -942,6 +949,66 @@ pub mod tests {
         assert_eq!(new.verb_form, Some(VerbForm::Past));
 
         // Once: its hint is words of its translation now.
+        let again = stock(&desk, &chapter);
+        assert_eq!((again.writes.len(), again.reviews), (0, 0));
+    }
+
+    #[test]
+    fn a_translation_that_says_vosotros_is_refused() {
+        struct Spain;
+        impl Model for Spain {
+            fn write(&mut self, params: &SentenceWriteParams) -> Result<SentencesWritten> {
+                let mut written = Stub::default().write(params)?;
+                for gloss in written.words.iter_mut().flat_map(|word| &mut word.book) {
+                    gloss.translation = format!("Vosotros sois {}", gloss.hint);
+                }
+                Ok(written)
+            }
+
+            fn review(&mut self, _: &SentenceReviewParams) -> Result<SentenceVerdicts> {
+                panic!("nothing is kept to be looked at")
+            }
+        }
+
+        let dir = tempfile::tempdir().expect("tempdir");
+        let desk = Desk::new(&dir);
+        let chapter = desk.chapter("b", &numbered(1));
+        top_up(desk.ctx(), Scope::Chapter(&chapter), &mut Spain, &|_, _| {}).expect("top up");
+        assert_eq!(texts(&desk, "w00"), Vec::<String>::new());
+    }
+
+    #[test]
+    fn a_sentence_kept_with_a_translation_that_says_vosotros_is_glossed_again() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let desk = Desk::new(&dir);
+        let text = "You peeped at it.";
+        let chapter = chapter_of(&desk, text, &[peep()]);
+        let old = {
+            let conn = desk.db.lock().expect("db");
+            let new = NewSentence {
+                key: "peep",
+                book: true,
+                sentence: text,
+                form: "peeped",
+                hint: "asomasteis",
+                translation: "Os asomasteis.",
+            };
+            bank::add(&conn, &new, Utc::now()).expect("add");
+            let waiting = bank::unreviewed(&conn).expect("waiting").remove(0);
+            bank::review(&conn, &waiting.id, true, &Labels::default()).expect("review");
+            waiting
+        };
+
+        let stub = stock(&desk, &chapter);
+        assert_eq!((stub.writes.len(), stub.reviews), (1, 1));
+        let [new] = bank::bank(&desk.db.lock().expect("db"), "peep")
+            .expect("bank")
+            .try_into()
+            .expect("one sentence");
+        assert_eq!(new.id, old.id);
+        assert_eq!(new.translation, "peepó libro 0");
+
+        // Once: it says "ustedes" now.
         let again = stock(&desk, &chapter);
         assert_eq!((again.writes.len(), again.reviews), (0, 0));
     }

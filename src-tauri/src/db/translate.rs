@@ -3,7 +3,7 @@
 //! and the chapter's brief. Everything is kept by paragraph and sentence
 //! number.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use chrono::{DateTime, Utc};
 use rusqlite::{params, Connection, OptionalExtension};
@@ -236,6 +236,40 @@ pub fn versions(
         by_paragraph.insert(paragraph, serde_json::from_str(&sentences)?);
     }
     Ok(by_paragraph)
+}
+
+/// The paragraphs of a chapter some attempt has translated back into
+/// English, in part or whole.
+pub fn translated_back(conn: &Connection, chapter_id: &str) -> Result<BTreeSet<u32>> {
+    let mut stmt = conn.prepare(
+        "SELECT DISTINCT s.paragraph FROM attempt_sentences s
+         JOIN translation_attempts a ON a.id = s.attempt_id
+         WHERE a.chapter_id = ?1 AND a.direction = 'toEnglish'",
+    )?;
+    let rows = stmt.query_map([chapter_id], |row| row.get::<_, u32>(0))?;
+    Ok(rows.collect::<rusqlite::Result<_>>()?)
+}
+
+/// Drops the version of a paragraph, so that it is written again; not when
+/// an attempt has translated it back into English: what the learner
+/// translated stays as they saw it. Whether it was dropped.
+pub fn forget_version(
+    conn: &Connection,
+    chapter_id: &str,
+    native_lang: &str,
+    paragraph: u32,
+) -> Result<bool> {
+    let dropped = conn.execute(
+        "DELETE FROM paragraph_versions
+         WHERE chapter_id = ?1 AND native_lang = ?2 AND paragraph = ?3
+           AND NOT EXISTS (
+             SELECT 1 FROM attempt_sentences s
+             JOIN translation_attempts a ON a.id = s.attempt_id
+             WHERE a.chapter_id = ?1 AND a.direction = 'toEnglish' AND s.paragraph = ?3
+           )",
+        params![chapter_id, native_lang, paragraph],
+    )?;
+    Ok(dropped > 0)
 }
 
 /// Keeps the version of a paragraph; the first one stored stays.
