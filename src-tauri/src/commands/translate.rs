@@ -40,6 +40,7 @@ use crate::books::translate::{
     fits, overall, shown, summarised, sums_up, words as count_words, BRIEF_CHARS, SENTENCE_CHARS,
     SUMMARY_NOTES,
 };
+use crate::books::variety::peninsular;
 use crate::books::vocab::{self, Word};
 use crate::db::translate::AttemptRow;
 use crate::db::{books, profile, recall, translate as db, words};
@@ -379,8 +380,17 @@ pub fn prepare(
             return Err(Error::Invalid("this paragraph is not open yet".into()));
         }
         let versions = db::versions(&conn, &attempt.chapter_id, &chapter.native_lang)?;
-        if versions.contains_key(&index) {
-            return Ok(state);
+        if let Some(version) = versions.get(&index) {
+            // One that speaks to "vosotros" is written again, unless the
+            // learner has translated it back already.
+            let spain = version
+                .iter()
+                .any(|line| peninsular(line, &chapter.native_lang));
+            if !(spain
+                && db::forget_version(&conn, &attempt.chapter_id, &chapter.native_lang, index)?)
+            {
+                return Ok(state);
+            }
         }
         (attempt, chapter, english)
     };
@@ -1246,5 +1256,35 @@ mod tests {
         assert_eq!(marks[0].fragment, "toEnglish");
         assert_eq!(being.english.len(), 3, "the author's sentences beside it");
         assert_eq!(listed(&desk, &id), [(false, 1, 1), (false, 1, 3)]);
+    }
+
+    #[test]
+    fn a_version_that_says_vosotros_is_written_again_until_it_is_translated_back() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let desk = Desk::new(&dir);
+        let id = chapter(&desk);
+        let mut model = Stub::default();
+        let there = begin(&desk, &id, ToNative);
+        fill(&desk, &there, 0, 3);
+        let spain = ["Os despertasteis.".to_owned(), "b".into(), "c".into()];
+        db::store_version(&desk.db.lock().expect("db"), &id, "es", 0, &spain, t0()).expect("store");
+
+        let back = begin(&desk, &id, ToEnglish);
+        let ready = prepare(desk.ctx(), &back.attempt_id, 0, &mut model, t0()).expect("prepared");
+        assert_eq!(model.versions.len(), 1);
+        assert_eq!(
+            ready.paragraphs[0]
+                .source
+                .as_ref()
+                .map(|lines| lines[0].as_str()),
+            Some("es: The boy woke before the sirens did.")
+        );
+
+        // One the learner translated back stays as they saw it.
+        db::forget_version(&desk.db.lock().expect("db"), &id, "es", 0).expect("forget");
+        db::store_version(&desk.db.lock().expect("db"), &id, "es", 0, &spain, t0()).expect("store");
+        say(&desk, &back, (0, 0), "x").expect("said");
+        prepare(desk.ctx(), &back.attempt_id, 0, &mut model, t0()).expect("kept");
+        assert_eq!(model.versions.len(), 1);
     }
 }

@@ -6,6 +6,7 @@ import {
   DATA_NOT_INSTRUCTIONS,
   VERB_FORM_RULE,
   languageName,
+  nativeVarietyParagraph,
 } from "./common.ts";
 
 /** Glosses the sentences of the book a word is asked with. */
@@ -20,7 +21,7 @@ For each sentence, give:
 
 "sense" is the sentence that fixes the meaning of the word: translate the word in that meaning wherever the sentence uses it so.
 
-Answer with one entry per word, with its id unchanged.`;
+Answer with one entry per word, with its id unchanged.${nativeVarietyParagraph(params.nativeLang)}`;
 }
 
 /** The words are material to gloss, whatever they say. */
@@ -67,7 +68,7 @@ Answer with one verdict per sentence, with its id unchanged:
 - good: true or false.
 - also: the other English words or expressions that translate the hint taken on its own, each in the form the word has in the sentence (same tense, person and number): what a learner who sees only the hint could type instead of the word without being wrong ("ideas", "thoughts" for the hint of "notions"). The common ones, six at most. Never the word itself nor another form of it. English only, never a ${native} word: another ${native} word for the hint is not asked for ("ideas", not "nociones"). Empty when English has no other word for it.
 - hints: the other ${native} translations of the word as this sentence has it, each in the exact form the hint has (same tense, person and number): the other meanings given, put in that form, when they say there what the hint says ("se retiró", "se alejó" beside the hint "retrocedió", for the meanings "retroceder | retirarse | alejarse"). What could stand in the translation where the hint stands, and what a learner asked to translate the word could type instead of the hint and be right. Never the hint itself, never a base form the translation does not have, never an English word. Each translates only the words of <form>, as the hint does: no auxiliary or pronoun for English words outside it ("asegurado de" beside the hint "empeñado en" for the form "made a point of" in "I'd made a point of", never "me había asegurado de"). Nor anything a negation outside <form> gives them: no "no", and the words that negation calls for said as they are without it ("tendría posibilidades", "tendría alguna oportunidad" for the form "stand a chance" in "wouldn't stand a chance", never "tendría ninguna posibilidad"). Empty when there is none.
-- ${VERB_FORM_RULE}`;
+- ${VERB_FORM_RULE}${nativeVarietyParagraph(params.nativeLang)}`;
 }
 
 /** The sentences are material to judge, whatever they say. */

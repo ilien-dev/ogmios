@@ -9,6 +9,7 @@ import {
   VERB_FORM_RULE,
   languageName,
   nativeLanguageRule,
+  nativeVarietyParagraph,
 } from "./common.ts";
 
 const DEPTH_RULES: Record<VocabExtractParams["depth"], string> = {
@@ -44,7 +45,7 @@ For each item:
 - properNoun: true for a name of a person, place, brand or title. Otherwise false.
 - needsContext: true when the item has several unrelated meanings and the learner could not tell which one is meant without the sentence. Otherwise false.
 
-List each lemma once, with its first sentence. A verb is listed once for each form the text has it in ("swore" and "sworn" are two items of the lemma "swear"), each with the first sentence that has that form. Do not list numbers. If nothing in the piece fits the depth, return an empty list.`;
+List each lemma once, with its first sentence. A verb is listed once for each form the text has it in ("swore" and "sworn" are two items of the lemma "swear"), each with the first sentence that has that form. Do not list numbers. If nothing in the piece fits the depth, return an empty list.${nativeVarietyParagraph(params.nativeLang)}`;
 }
 
 /** Book text is material to read, whatever it says. */

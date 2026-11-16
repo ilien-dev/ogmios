@@ -10,6 +10,7 @@ pub mod segment;
 pub mod sentences;
 pub mod spelling;
 pub mod translate;
+pub mod variety;
 pub mod vocab;
 mod xml;
 
