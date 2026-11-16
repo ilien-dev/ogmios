@@ -7,6 +7,8 @@
 use super::practice::{
     accepts, accepts_native, articles, auxiliary, clitic, is_base, mark, shape, Auxiliary,
 };
+use std::borrow::Cow;
+
 use super::spelling::Spelling;
 use super::vocab::{tokens, LEADING};
 
@@ -188,6 +190,112 @@ pub fn unaided(hint: &str, form: &str, lang: &str) -> String {
         }
     }
     words[from..].join(" ")
+}
+
+/// The English words that make a sentence negative, and the endings that
+/// do it written onto a word ("wouldn't", "cannot").
+const NEGATORS: [&str; 14] = [
+    "not", "no", "never", "nothing", "nobody", "none", "nowhere", "neither", "nor", "without",
+    "hardly", "barely", "scarcely", "cannot",
+];
+
+/// Whether these English `tokens` make a sentence negative.
+fn negative(tokens: &[String]) -> bool {
+    tokens
+        .iter()
+        .any(|token| NEGATORS.contains(&token.as_str()) || token.ends_with("n't"))
+}
+
+/// The words of the learner's language that say "not" before a verb, and
+/// go with the negation outside a form when they begin its hint.
+const DENIALS: [(&str, &[&str]); 1] = [("es", &["no", "nunca", "jamas", "tampoco", "ni"])];
+
+/// The words of the learner's language that a negation outside a form
+/// turns its words into ("ninguna" for "a" in "wouldn't stand a chance"),
+/// each with the word it is without one. "nada" is left out: it is also
+/// "swims".
+const CONCORDS: [(&str, &[(&str, &str)]); 1] = [(
+    "es",
+    &[
+        ("ningun", "algún"),
+        ("ninguno", "alguno"),
+        ("ninguna", "alguna"),
+        ("ningunos", "algunos"),
+        ("ningunas", "algunas"),
+        ("nadie", "alguien"),
+    ],
+)];
+
+/// The entry of a language's table, by its primary tag.
+fn of_lang<T: Copy>(table: &[(&str, T)], lang: &str) -> Option<T> {
+    let primary = lang.split(['-', '_']).next().unwrap_or(lang).to_lowercase();
+    table
+        .iter()
+        .find(|(tag, _)| *tag == primary)
+        .map(|(_, each)| *each)
+}
+
+/// One word of the learner's language as it reads without a negation:
+/// None for a word that says "not", the word it stands for for one that a
+/// negation calls for, and the word itself for any other. A word one of
+/// the word's `base` translations has is the word's own and stays.
+fn without_negation<'a>(word: &'a str, base: &[String], lang: &str) -> Option<Cow<'a, str>> {
+    let said = tokens(word).concat();
+    if base.iter().any(|each| tokens(each).contains(&said)) {
+        return Some(Cow::Borrowed(word));
+    }
+    let concord = of_lang(&CONCORDS, lang)
+        .and_then(|table| table.iter().find(|(negated, _)| *negated == said));
+    match concord {
+        Some((_, plain)) => Some(Cow::Borrowed(plain)),
+        None if of_lang(&DENIALS, lang).is_some_and(|table| table.contains(&said.as_str())) => None,
+        None => Some(Cow::Borrowed(word)),
+    }
+}
+
+/// `hint` without what a negation outside the English `form` gives it in
+/// the learner's `lang`: the "no" before it and the words that negation
+/// calls for. The learner is shown the form alone: "stand a chance", taken
+/// from "wouldn't stand a chance", is "tendría alguna oportunidad", never
+/// "tendría ninguna oportunidad", which only a "no" before it makes right.
+/// Only when the `sentence` has a negation the form does not show, and
+/// never for a word one of the word's `base` translations has ("no ver"
+/// for "overlook"). A hint that would be left with nothing stays as it is.
+///
+/// What is left need not be words of its translation, so it is made of a
+/// hint already looked at; [`shown_in`] still finds it there.
+pub fn affirmed(hint: &str, (form, sentence): (&str, &str), base: &[String], lang: &str) -> String {
+    if negative(&tokens(form)) || !negative(&tokens(sentence)) {
+        return hint.to_owned();
+    }
+    let words: Vec<&str> = hint.split_whitespace().collect();
+    let denied = words
+        .iter()
+        .take_while(|word| without_negation(word, base, lang).is_none())
+        .count();
+    let kept: Vec<Cow<'_, str>> = words[denied..]
+        .iter()
+        .map(|word| without_negation(word, base, lang).unwrap_or(Cow::Borrowed(word)))
+        .collect();
+    if kept.is_empty() {
+        hint.to_owned()
+    } else {
+        kept.join(" ")
+    }
+}
+
+/// Whether `hint` is words of `translation`, as it is written there or as
+/// it reads without its negation ([`affirmed`]): a hint is never glossed
+/// again for having lost a "no" its English form does not show.
+pub fn shown_in(hint: &str, translation: &str, lang: &str) -> bool {
+    if in_translation(hint, translation) {
+        return true;
+    }
+    let affirmed: Vec<Cow<'_, str>> = translation
+        .split_whitespace()
+        .filter_map(|word| without_negation(word, &[], lang))
+        .collect();
+    in_translation(hint, &affirmed.join(" "))
 }
 
 /// What English → native asks of a word in a sentence.
@@ -494,6 +602,109 @@ mod tests {
                 ("Do not stir it.".to_owned(), "stir".to_owned())
             ]
         );
+    }
+
+    #[test]
+    fn a_hint_says_no_negation_its_english_form_does_not_show() {
+        let donut = "And poor, stupid Donut wouldn’t stand a chance out here in the cold.";
+        let base = list(&["tener posibilidades", "tener alguna oportunidad"]);
+        let affirmed = |hint: &str, form: &str, sentence: &str, base: &[String]| {
+            affirmed(hint, (form, sentence), base, "es")
+        };
+        // "wouldn't" is outside the form, and so is the "ninguna" it calls for.
+        assert_eq!(
+            affirmed(
+                "tendría ninguna oportunidad",
+                "stand a chance",
+                donut,
+                &base
+            ),
+            "tendría alguna oportunidad"
+        );
+        assert_eq!(
+            affirmed(
+                "no tendría ninguna oportunidad",
+                "stand a chance",
+                donut,
+                &base
+            ),
+            "tendría alguna oportunidad"
+        );
+        let drones = "Looking up at the sky, he didn’t spot any camera drones.";
+        assert_eq!(
+            affirmed("ningún dron", "camera drones", drones, &[]),
+            "algún dron"
+        );
+        assert_eq!(
+            affirmed("nunca visto", "seen", "He had never seen it.", &[]),
+            "visto"
+        );
+        assert_eq!(
+            affirmed("a nadie", "anyone", "She didn't tell anyone.", &[]),
+            "a alguien"
+        );
+        // A hint already affirmed stays as it is.
+        assert_eq!(
+            affirmed("tendría posibilidades", "stand a chance", donut, &base),
+            "tendría posibilidades"
+        );
+        // The form holds the negation: so may its hint.
+        assert_eq!(
+            affirmed(
+                "no tendría ninguna oportunidad",
+                "wouldn’t stand a chance",
+                donut,
+                &base
+            ),
+            "no tendría ninguna oportunidad"
+        );
+        // No negation in the sentence: the word says it.
+        assert_eq!(
+            affirmed(
+                "ninguna oportunidad",
+                "no chance",
+                "There was no chance.",
+                &[]
+            ),
+            "ninguna oportunidad"
+        );
+        // The word means it in every translation: "de la nada", "no ver".
+        let air = "It didn't come out of thin air.";
+        assert_eq!(
+            affirmed("de la nada", "out of thin air", air, &list(&["de la nada"])),
+            "de la nada"
+        );
+        let overlook = "He didn't overlook it.";
+        assert_eq!(
+            affirmed(
+                "no ver",
+                "overlook",
+                overlook,
+                &list(&["no ver", "pasar por alto"])
+            ),
+            "no ver"
+        );
+        // "nada" may be "swims": it is left alone.
+        assert_eq!(affirmed("nada", "swim", "She doesn't swim.", &[]), "nada");
+        // Nothing would be left: the hint as it was.
+        assert_eq!(affirmed("nunca", "ever", "I never ever go.", &[]), "nunca");
+        // A language without a table keeps its hint.
+        assert_eq!(
+            super::affirmed("aucune chance", ("stand a chance", donut), &[], "fr"),
+            "aucune chance"
+        );
+    }
+
+    #[test]
+    fn a_hint_affirmed_is_still_read_in_its_translation() {
+        let translation = "Y la pobre y tonta Donut no tendría ninguna oportunidad aquí fuera.";
+        assert!(shown_in("tendría alguna oportunidad", translation, "es"));
+        assert!(shown_in(
+            "no tendría ninguna oportunidad",
+            translation,
+            "es"
+        ));
+        assert!(!shown_in("tendría alguna suerte", translation, "es"));
     }
 
     #[test]
