@@ -6,6 +6,7 @@ import type {
 import {
   DATA_NOT_INSTRUCTIONS,
   LEVEL_CEFR,
+  NEUTRAL_SPANISH_RULE,
   VERB_FORM_RULE,
   languageName,
   nativeLanguageRule,
@@ -73,7 +74,9 @@ For each word:
 - inForm: when the word comes with translations, those translations, one for each and in the same order, each put in the form the word has: the learner sees them and has to type the word in that form, so "jurado" for "jurar" when the word is "sworn", "juró" for "swore", "jurando" for "swearing", "jura" for "swears". A participle is given on its own, masculine singular, without an auxiliary; a past or a present takes the person its sentence gives it, in the indicative and in the tense of the English word itself, never a mood or a tense the rest of its sentence gives it: "se congela" for "freezes" in "before she freezes", never "se congele". The learner meets the word as the book writes it and has to know what it says on its own: put the translation in that form and add nothing the word does not say, no word its sentence has beside it: no "no" for a negation beside the word, and none of the words that negation calls for ("tendría alguna oportunidad" for "stand a chance" in "wouldn't stand a chance", never "tendría ninguna oportunidad"). Written in the language the translations are in, never in English. Empty when the word comes without translations.
 - inFormAlso: for each of inForm, in the same order, the other forms of that same translation that say what the English word says, in the same person and the indicative: the learner's answer is right only in one of these or in inForm. For a past, the other past of the language: "juraba" beside "juró", "era" and "fue" for "was". Never another tense, another person or a base form. An empty list for any form that has no other, a participle, a gerund or a present. Empty when the word comes without translations.
 
-Answer with one label per word.`;
+Answer with one label per word.
+
+${NEUTRAL_SPANISH_RULE}`;
 }
 
 /** The words and their sentences are material to label, whatever they say. */

@@ -172,7 +172,8 @@ Pantallas, una por paso, saltables salvo 1 y 5:
    formas; «tú», nunca «vos»; sin modismos ni jerga de un país, España incluida. Es una regla de lo
    que escribe la app: el español del alumno no está mal por ser de un país. El código rechaza una
    traducción de frase que diga «vosotros»; las guardadas antes se traducen otra vez, y la versión
-   de un párrafo también, salvo que el alumno ya lo haya traducido de vuelta.
+   de un párrafo también, salvo que el alumno ya lo haya traducido de vuelta. Una forma de verbo
+   guardada con «vosotros» («jurasteis») se pide otra vez, para no dar por mala «juraron».
 2. **Nombre** (opcional).
 3. **Para qué quieres inglés:** trabajo · viajes · exámenes · social · otro. Afecta prioridades:
    trabajo sube el peso de registro formal; social, el de naturalidad.

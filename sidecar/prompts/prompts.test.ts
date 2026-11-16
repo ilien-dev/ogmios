@@ -22,7 +22,7 @@ import {
   chapterBriefSystemPrompt,
   paragraphVersionSystemPrompt,
 } from "./translate.ts";
-import { vocabExtractSystemPrompt } from "./vocab.ts";
+import { vocabExtractSystemPrompt, vocabLabelSystemPrompt } from "./vocab.ts";
 
 function context(overrides: {
   setup?: Partial<ChatContext["setup"]>;
@@ -401,6 +401,11 @@ describe("the neutral Spanish rule", () => {
         expect(prompt).toContain(NEUTRAL_SPANISH_RULE);
       }
     }
+  });
+
+  test("puts the forms a word is asked in in it, whatever the language", () => {
+    // It is not told the language: it writes in that of the translations.
+    expect(vocabLabelSystemPrompt()).toContain(NEUTRAL_SPANISH_RULE);
   });
 
   test("is in no prompt for another language", () => {

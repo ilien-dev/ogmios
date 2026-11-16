@@ -3,7 +3,7 @@
 //! and the chapter's brief. Everything is kept by paragraph and sentence
 //! number.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use chrono::{DateTime, Utc};
 use rusqlite::{params, Connection, OptionalExtension};
@@ -236,6 +236,18 @@ pub fn versions(
         by_paragraph.insert(paragraph, serde_json::from_str(&sentences)?);
     }
     Ok(by_paragraph)
+}
+
+/// The paragraphs of a chapter some attempt has translated back into
+/// English, in part or whole.
+pub fn translated_back(conn: &Connection, chapter_id: &str) -> Result<BTreeSet<u32>> {
+    let mut stmt = conn.prepare(
+        "SELECT DISTINCT s.paragraph FROM attempt_sentences s
+         JOIN translation_attempts a ON a.id = s.attempt_id
+         WHERE a.chapter_id = ?1 AND a.direction = 'toEnglish'",
+    )?;
+    let rows = stmt.query_map([chapter_id], |row| row.get::<_, u32>(0))?;
+    Ok(rows.collect::<rusqlite::Result<_>>()?)
 }
 
 /// Drops the version of a paragraph, so that it is written again; not when

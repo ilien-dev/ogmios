@@ -55,6 +55,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("discard.sql"),
     include_str!("alone.sql"),
     include_str!("aspects.sql"),
+    include_str!("neutral.sql"),
 ];
 
 pub fn open(path: &Path) -> Result<Connection> {
@@ -679,6 +680,43 @@ mod tests {
         let shelf = books::list_books(&conn).expect("list");
         let ids: Vec<&str> = shelf.iter().map(|book| book.id.as_str()).collect();
         assert_eq!(ids, ["b"]);
+    }
+
+    #[test]
+    fn migration_thirty_three_asks_again_for_a_form_that_says_vosotros() {
+        let conn = Connection::open_in_memory().expect("open");
+        conn.pragma_update(None, "foreign_keys", "ON").expect("fk");
+        for sql in &MIGRATIONS[..32] {
+            conn.execute_batch(sql).expect("migration");
+        }
+        conn.pragma_update(None, "user_version", 32)
+            .expect("version");
+        conn.execute_batch(
+            r#"INSERT INTO profile (id, native_lang, ui_lang, goal, variant, level)
+               VALUES (1, 'es', 'es', 'travel', 'us', 'intermediate');
+             INSERT INTO books VALUES ('b', 'Alice', NULL, 'epub', 'h', 'f', '2026-01-01');
+             INSERT INTO book_chapters (id, book_id, idx, title, words, text)
+               VALUES ('c', 'b', 0, 'I', 2, 'text');
+             INSERT INTO chapter_words
+               (id, chapter_id, key, lemma, forms, sentence, occurrences, depth, created_at,
+                part_of_speech, transitive, base, verb_form)
+             VALUES ('swore', 'c', 'swore', 'swore', '["swore"]', 'You swore it.', 1, 'most',
+                     '2026-01-01', 'verb', 1, 'swear', 'past'),
+                    ('sworn', 'c', 'sworn', 'sworn', '["sworn"]', 'Sworn to it.', 1, 'most',
+                     '2026-01-01', 'verb', 0, 'swear', 'pastParticiple');
+             INSERT INTO word_translations (word_id, text, source, in_form, in_form_also)
+               VALUES ('swore', 'jurar', 'extraction', 'jurasteis', '["jurabais"]'),
+                      ('sworn', 'jurar', 'extraction', 'jurado', '[]');"#,
+        )
+        .expect("rows");
+
+        migrate(&conn).expect("migrate");
+        let word = |id: &str| practice::word(&conn, id).expect("word");
+        assert_eq!(word("swore").in_form, None);
+        assert_eq!(word("sworn").in_form, Some(vec!["jurado".to_owned()]));
+        let waiting = words::unlabelled(&conn).expect("unlabelled");
+        let ids: Vec<&str> = waiting.iter().map(|each| each.id.as_str()).collect();
+        assert_eq!(ids, ["swore"]);
     }
 
     #[test]

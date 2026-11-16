@@ -24,6 +24,8 @@
 //! chapter's brief, a paragraph's version, a paragraph's review and an
 //! attempt's summary. The database is never held while it is asked.
 
+use std::collections::BTreeMap;
+
 use chrono::{DateTime, Utc};
 use rusqlite::Connection;
 use tauri::AppHandle;
@@ -125,11 +127,27 @@ fn is_whole(paragraph: &TranslationParagraph) -> bool {
         .is_some_and(|source| paragraph.written.len() >= source.len())
 }
 
+/// The versions of a chapter's paragraphs as the learner is shown them. One
+/// that speaks to "vosotros" (`books::variety`) is none, so it is written
+/// again; unless the learner has translated it back: it stays as they saw it.
+fn shown_versions(
+    conn: &Connection,
+    chapter_id: &str,
+    native_lang: &str,
+) -> Result<BTreeMap<u32, Vec<String>>> {
+    let back = db::translated_back(conn, chapter_id)?;
+    let mut versions = db::versions(conn, chapter_id, native_lang)?;
+    versions.retain(|index, lines| {
+        back.contains(index) || !lines.iter().any(|line| peninsular(line, native_lang))
+    });
+    Ok(versions)
+}
+
 /// An attempt as it stands.
 fn translation(conn: &Connection, attempt: &AttemptRow, chapter: &Open) -> Result<Translation> {
     let there = db::written_there(conn, &attempt.chapter_id)?;
     let written = db::written(conn, &attempt.id)?;
-    let versions = db::versions(conn, &attempt.chapter_id, &chapter.native_lang)?;
+    let versions = shown_versions(conn, &attempt.chapter_id, &chapter.native_lang)?;
     let reviews = db::reviews(conn, &attempt.id)?;
     let asked = words::asked(conn, &attempt.chapter_id)?;
     let spelling = profile::spelling(conn)?;
@@ -379,18 +397,8 @@ pub fn prepare(
         if english.is_empty() || there.get(&index).copied().unwrap_or(0) < count(english.len()) {
             return Err(Error::Invalid("this paragraph is not open yet".into()));
         }
-        let versions = db::versions(&conn, &attempt.chapter_id, &chapter.native_lang)?;
-        if let Some(version) = versions.get(&index) {
-            // One that speaks to "vosotros" is written again, unless the
-            // learner has translated it back already.
-            let spain = version
-                .iter()
-                .any(|line| peninsular(line, &chapter.native_lang));
-            if !(spain
-                && db::forget_version(&conn, &attempt.chapter_id, &chapter.native_lang, index)?)
-            {
-                return Ok(state);
-            }
+        if shown_versions(&conn, &attempt.chapter_id, &chapter.native_lang)?.contains_key(&index) {
+            return Ok(state);
         }
         (attempt, chapter, english)
     };
@@ -414,6 +422,8 @@ pub fn prepare(
         .map(|sentence| sentence.trim().to_owned())
         .collect();
     let conn = ctx.conn()?;
+    // One kept that speaks to "vosotros" gives way to this one.
+    db::forget_version(&conn, &attempt.chapter_id, &chapter.native_lang, index)?;
     db::store_version(
         &conn,
         &attempt.chapter_id,
@@ -1270,6 +1280,7 @@ mod tests {
         db::store_version(&desk.db.lock().expect("db"), &id, "es", 0, &spain, t0()).expect("store");
 
         let back = begin(&desk, &id, ToEnglish);
+        assert_eq!(back.paragraphs[0].source, None, "asked for again");
         let ready = prepare(desk.ctx(), &back.attempt_id, 0, &mut model, t0()).expect("prepared");
         assert_eq!(model.versions.len(), 1);
         assert_eq!(
@@ -1280,11 +1291,15 @@ mod tests {
             Some("es: The boy woke before the sirens did.")
         );
 
-        // One the learner translated back stays as they saw it.
-        db::forget_version(&desk.db.lock().expect("db"), &id, "es", 0).expect("forget");
-        db::store_version(&desk.db.lock().expect("db"), &id, "es", 0, &spain, t0()).expect("store");
-        say(&desk, &back, (0, 0), "x").expect("said");
-        prepare(desk.ctx(), &back.attempt_id, 0, &mut model, t0()).expect("kept");
+        // One the learner translated back before this stays as they saw it.
+        {
+            let conn = desk.db.lock().expect("db");
+            db::forget_version(&conn, &id, "es", 0).expect("forget");
+            db::store_version(&conn, &id, "es", 0, &spain, t0()).expect("store");
+            db::write(&conn, &back.attempt_id, (0, 0), "x", t0()).expect("write");
+        }
+        let kept = prepare(desk.ctx(), &back.attempt_id, 0, &mut model, t0()).expect("kept");
         assert_eq!(model.versions.len(), 1);
+        assert_eq!(kept.paragraphs[0].source.as_deref(), Some(&spain[..]));
     }
 }

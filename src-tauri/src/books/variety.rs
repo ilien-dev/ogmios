@@ -8,9 +8,10 @@ const PENINSULAR: [&str; 8] = [
     "vosotros", "vosotras", "os", "vuestro", "vuestra", "vuestros", "vuestras", "sois",
 ];
 
-/// The verb endings of "vosotros" ("tenéis", "habláis"): no other Spanish
-/// word ends in them.
-const PENINSULAR_ENDINGS: [&str; 2] = ["áis", "éis"];
+/// The verb endings of "vosotros": "habláis", "tenéis", "teníais",
+/// "estabais", "fuerais", "hicisteis". No other Spanish word ends in them;
+/// "país" ends in "ís", and "seis" in no "steis".
+const PENINSULAR_ENDINGS: [&str; 4] = ["áis", "éis", "ais", "steis"];
 
 /// Whether `text`, in the learner's `lang`, speaks to "vosotros". Only
 /// Spanish has such forms: in any other language nothing is.
@@ -41,6 +42,13 @@ mod tests {
             "Es vuestra casa.",
             "Tenéis razón.",
             "Si habláis claro, os entienden.",
+            "Teníais razón.",
+            "Estabais allí.",
+            "Si fuerais vosotros.",
+            "Erais tres.",
+            "Lo hicisteis.",
+            "Os asomasteis.",
+            "Tendríais que verlo.",
         ] {
             assert!(peninsular(text, "es"), "{text}");
         }
@@ -53,6 +61,8 @@ mod tests {
             "Ella vive en otro país.",
             "Tiene seis hermanos y un maíz.",
             "Los osos comen miel.",
+            "Eran seis en el país.",
+            "Lo hicieron ayer.",
             "",
         ] {
             assert!(!peninsular(text, "es"), "{text}");
