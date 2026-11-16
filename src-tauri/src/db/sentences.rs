@@ -332,13 +332,14 @@ struct Kept {
 /// English ones outside its form and, once it was looked at, without what
 /// a negation outside it gives them; `base` is the word's translations.
 fn unaided_all(row: &Kept, lang: &str, base: &[String]) -> (String, Vec<String>) {
+    // Without its "no" first: the auxiliary after it is then the first word.
     let clear = |hint: &str| {
-        let hint = unaided(hint, &row.form, lang);
-        if row.reviewed {
-            affirmed(&hint, (&row.form, &row.sentence), base, lang)
+        let hint = if row.reviewed {
+            affirmed(hint, (&row.form, &row.sentence), base, lang)
         } else {
-            hint
-        }
+            hint.to_owned()
+        };
+        unaided(&hint, &row.form, lang)
     };
     let hint = clear(&row.hint);
     let listed: Vec<String> = row.hints.iter().map(|each| clear(each)).collect();

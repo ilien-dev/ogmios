@@ -121,6 +121,8 @@ pub fn prepare(
         let answers: Vec<_> = answers.into_values().collect();
         let merged = merge(&answers, &text, &excluded);
         words::finish(&tx, chapter_id, depth, &merged, Utc::now())?;
+        // What a negation beside a word gave its translations is not the word's.
+        words::affirm(&tx, &profile.native_lang)?;
         tx.commit()?;
     }
     chapter_words(ctx, chapter_id)

@@ -1043,6 +1043,36 @@ pub mod tests {
     }
 
     #[test]
+    fn a_hint_loses_a_no_and_then_the_tense_behind_it() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let desk = Desk::new(&dir);
+        let conn = desk.db.lock().expect("db");
+        let new = NewSentence {
+            key: "see",
+            book: true,
+            sentence: "He had not seen it.",
+            form: "seen",
+            hint: "no lo había visto",
+            translation: "No lo había visto.",
+        };
+        bank::add(&conn, &new, Utc::now()).expect("add");
+        let waiting = bank::unreviewed(&conn).expect("waiting").remove(0);
+        let labels = Labels {
+            also: Vec::new(),
+            hints: vec!["no lo había notado".into()],
+            verb_form: Some(VerbForm::PastParticiple),
+        };
+        bank::review(&conn, &waiting.id, true, &labels).expect("review");
+        assert_eq!(bank::unaid(&conn, "es").expect("unaid"), 1);
+        let [kept] = bank::bank(&conn, "see")
+            .expect("bank")
+            .try_into()
+            .expect("one sentence");
+        assert_eq!(kept.hint, "visto");
+        assert_eq!(kept.hints, ["notado"]);
+    }
+
+    #[test]
     fn a_hint_not_looked_at_keeps_the_negation_of_its_translation_until_it_is() {
         let dir = tempfile::tempdir().expect("tempdir");
         let desk = Desk::new(&dir);
