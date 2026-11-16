@@ -22,9 +22,15 @@ interface WordsProps {
 }
 
 /** Names what is on the screen: a new word is a new step, each its own. */
-function stepOf({ running, failure, options }: SittingRun): string {
+function stepOf({ running, failure, options, paused }: SittingRun): string {
   if (running === null) {
-    return options === null || failure !== null ? "wait" : "sizes";
+    if (failure !== null) {
+      return "wait";
+    }
+    if (paused) {
+      return "held";
+    }
+    return options === null ? "wait" : "sizes";
   }
   const { step, sittingId, turn } = running;
   return step.type === "summary"
@@ -37,6 +43,19 @@ function Words({ sittings, nativeLang, onDone }: WordsProps): ReactNode {
   const { t } = useTranslation();
   const { running, failure, options, choose, move, dispute, again } = sittings;
 
+  if (running === null && failure === null && sittings.paused) {
+    return (
+      <SittingEnd
+        title={t("books.sitting.held")}
+        lead={t("books.sitting.kept")}
+        first={{ label: t("books.sitting.goOn"), onChoose: sittings.goOn }}
+        other={{
+          label: t("books.sitting.another"),
+          onChoose: sittings.startOver,
+        }}
+      />
+    );
+  }
   if (running === null) {
     return options === null || failure !== null ? (
       <SittingWait failure={failure} />
@@ -134,6 +153,11 @@ function Run({ chapterId, nativeLang, onDone }: RunProps): ReactNode {
     <SittingFrame
       leave={t("books.sitting.leave")}
       progress={sittings.running?.step.progress ?? null}
+      end={
+        sittings.running?.step.type === "item"
+          ? { label: t("books.sitting.end"), onChoose: sittings.end }
+          : null
+      }
       onClose={onDone}
     >
       <SittingStage step={stepOf(sittings)}>

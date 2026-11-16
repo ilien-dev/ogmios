@@ -1013,6 +1013,29 @@ pub fn know(
     Ok(step)
 }
 
+/// "End": the chapter's session left unfinished is over where it stands,
+/// and this is its summary; none when no session is unfinished. Every answer
+/// given in it stays as it was, and its words not done are open again for
+/// the next session, of whatever size. It is how a running session ends
+/// halfway, and how one left halfway is left behind for another.
+pub fn end(ctx: Ctx<'_>, chapter_id: &str, now: DateTime<Utc>) -> Result<Option<PracticeStep>> {
+    let mut conn = ctx.conn()?;
+    books::get_chapter(&conn, chapter_id)?;
+    let tx = conn.transaction()?;
+    let Some(id) = practice::unfinished(&tx, chapter_id)? else {
+        return Ok(None);
+    };
+    practice::finish(&tx, &id, now)?;
+    let step = step(&tx, &practising(&tx, &id)?, now)?;
+    tx.commit()?;
+    Ok(Some(step))
+}
+
+#[tauri::command]
+pub async fn end_sitting(app: AppHandle, chapter_id: String) -> Result<Option<PracticeStep>> {
+    run(app, move |_, ctx| end(ctx, &chapter_id, Utc::now())).await
+}
+
 #[tauri::command]
 pub async fn practice_options(app: AppHandle, chapter_id: String) -> Result<PracticeOptions> {
     run(app, move |_, ctx| options(ctx, &chapter_id, Utc::now())).await
@@ -1863,6 +1886,51 @@ pub mod tests {
             desk.count("SELECT COUNT(*) FROM practice_sittings WHERE finished_at IS NULL"),
             0
         );
+    }
+
+    #[test]
+    fn ending_a_session_halfway_keeps_its_answers_and_the_next_size_is_chosen_again() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let desk = Desk::new(&dir);
+        let chapter = desk.chapter("b", &numbered(30));
+        let long = desk.sized(&chapter, 20, t0());
+        let mut step = long.step.clone();
+        for _ in 0..3 {
+            let asked = item(&step).clone();
+            step = desk.answer(&long, &asked, &right(&asked), t0()).step;
+        }
+
+        let over = end(desk.ctx(), &chapter, t0()).expect("ended");
+        assert_eq!(over, Some(ended(0, 30, 20)), "its summary, its bar full");
+        assert_eq!(desk.count("SELECT COUNT(*) FROM word_answers"), 3);
+        assert_eq!(end(desk.ctx(), &chapter, t0()).expect("again"), None);
+        assert_eq!(current(desk.ctx(), &long.id, t0()).ok(), over);
+        assert!(!offered(&desk, &chapter, t0()).resume);
+
+        let short = desk.sized(&chapter, 10, t0());
+        assert_ne!(short.id, long.id, "a new session");
+        assert_eq!(bar(&short.step).1, 40, "of the size chosen now");
+    }
+
+    #[test]
+    fn leaving_the_unfinished_session_behind_offers_the_sizes_again() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let desk = Desk::new(&dir);
+        let chapter = desk.chapter("b", &numbered(30));
+        let long = desk.sized(&chapter, 20, t0());
+        let asked = item(&long.step).clone();
+        desk.answer(&long, &asked, &right(&asked), t0());
+        assert!(offered(&desk, &chapter, t0()).resume);
+
+        end(desk.ctx(), &chapter, t0()).expect("left");
+        assert!(!offered(&desk, &chapter, t0()).resume);
+        assert_eq!(desk.count("SELECT COUNT(*) FROM word_answers"), 1);
+        let short = desk.sized(&chapter, 10, t0());
+        assert_ne!(short.id, long.id);
+        assert_eq!(bar(&short.step).1, 40);
+        // With nothing left unfinished there is nothing to leave.
+        desk.finish(&short, t0());
+        assert_eq!(end(desk.ctx(), &chapter, t0()).expect("none"), None);
     }
 
     #[test]

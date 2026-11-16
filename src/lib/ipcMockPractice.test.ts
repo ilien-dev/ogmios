@@ -384,6 +384,40 @@ describe("the mock's session", () => {
     });
   });
 
+  test("a session ended halfway, or left behind, is over and the next is chosen afresh", async () => {
+    seedMockLongChapter();
+    const long = await call<Sitting>("start_sitting", {
+      chapterId: LONG,
+      size: 20,
+    });
+    const ended = await call<PracticeStep | null>("end_sitting", {
+      chapterId: LONG,
+    });
+    expect(ended?.type).toBe("summary");
+    expect(ended?.progress.value).toBe(ended?.progress.total);
+    const after = await call<PracticeOptions>("practice_options", {
+      chapterId: LONG,
+    });
+    expect(after.resume).toBe(false);
+    const short = await call<Sitting>("start_sitting", {
+      chapterId: LONG,
+      size: 10,
+    });
+    expect(short.id).not.toBe(long.id);
+
+    await call("end_sitting", { chapterId: LONG });
+    const fresh = await call<PracticeOptions>("practice_options", {
+      chapterId: LONG,
+    });
+    expect(fresh.resume).toBe(false);
+    expect(await call("end_sitting", { chapterId: LONG })).toBeNull();
+    const next = await call<Sitting>("start_sitting", {
+      chapterId: LONG,
+      size: 10,
+    });
+    expect(next.id).not.toBe(short.id);
+  });
+
   test("a way with nothing left to ask is an extra review, counted from its own answers", async () => {
     const one = (ways: Ways): Promise<Sitting> =>
       call<Sitting>("start_sitting", { chapterId: CHAPTER, ways });

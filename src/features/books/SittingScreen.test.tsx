@@ -309,6 +309,7 @@ describe("SittingScreen", () => {
     // Leaving and coming back finds it where it was.
     await user.click(screen.getByRole("button", { name: "Leave practice" }));
     await user.click(await screen.findByRole("button", { name: "Practice" }));
+    await user.click(await screen.findByRole("button", { name: "Go on" }));
     await screen.findByLabelText("Your translation");
     expect(bar()).toBe(18);
 
@@ -395,7 +396,10 @@ describe("SittingScreen", () => {
     expect(prompt()).toBe("curtsey");
 
     // Leaving halfway goes back to the chapter and keeps the session:
-    // "Practice" goes on with it, and asks for no size.
+    // "Practice" offers to go on with it, Enter does, and no size is asked.
+    // "End" is the first thing back from the answer, the way out the next.
+    await user.tab({ shift: true });
+    expect(screen.getByRole("button", { name: "End" })).toHaveFocus();
     await user.tab({ shift: true });
     expect(
       screen.getByRole("button", { name: "Leave practice" }),
@@ -405,6 +409,14 @@ describe("SittingScreen", () => {
       screen.getByRole("heading", { level: 1, name: LONG_NAME }),
     ).toBeInTheDocument();
     await tabTo(user, "Practice");
+    await user.keyboard("{Enter}");
+    expect(
+      await screen.findByRole("heading", {
+        level: 1,
+        name: "You left a session halfway",
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Go on" })).toHaveFocus();
     await user.keyboard("{Enter}");
     expect(await screen.findByLabelText("Your translation")).toHaveFocus();
     expect(screen.queryByRole("radio")).toBeNull();
@@ -453,6 +465,45 @@ describe("SittingScreen", () => {
       "aria-valuenow",
       "0",
     );
+  });
+
+  test("a long session is ended halfway for a shorter one, from inside it or on coming back", async () => {
+    seedMockLongChapter();
+    const user = userEvent.setup();
+    render(<Shelf chapterId={LONG} />);
+    await user.click(await screen.findByRole("button", { name: "Practice" }));
+    await user.click(
+      await screen.findByRole("radio", { name: /^All 12 words/u }),
+    );
+    await user.click(screen.getByRole("button", { name: "Start" }));
+    await screen.findByLabelText("Your translation");
+    await answer(user, RIGHT[prompt()] ?? "", "Right.");
+
+    // "End" closes it where it stands: its summary, then the sizes again.
+    await user.click(screen.getByRole("button", { name: "End" }));
+    expect(
+      await screen.findByRole("heading", { name: "That's it for now" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("12 words still open")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "End" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Continue" })).toHaveFocus();
+    await user.keyboard("{Enter}");
+    expect(await screen.findByRole("button", { name: "Start" })).toHaveFocus();
+    expect(screen.getByRole("radio", { name: /^10 words/u })).toBeChecked();
+    await user.keyboard("{Enter}");
+    await screen.findByLabelText("Your translation");
+    expect(screen.getByRole("button", { name: "End" })).toBeInTheDocument();
+
+    // Left halfway, it can be left behind on coming back.
+    await answer(user, RIGHT[prompt()] ?? "", "Right.");
+    await user.click(screen.getByRole("button", { name: "Leave practice" }));
+    await user.click(await screen.findByRole("button", { name: "Practice" }));
+    await user.click(
+      await screen.findByRole("button", { name: "Start another" }),
+    );
+    expect(await screen.findByRole("button", { name: "Start" })).toHaveFocus();
+    await user.keyboard("{Enter}");
+    expect(await screen.findByLabelText("Your translation")).toHaveFocus();
   });
 
   test("the size chosen is the size started, and the next session asks again", async () => {
