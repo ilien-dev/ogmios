@@ -138,9 +138,20 @@ The speech recogniser for Linux x86_64 is in
 
 Layout: `src/` is the React interface, `src-tauri/` the Rust backend (data,
 error memory, speech), `sidecar/` the process that talks to Claude, `shared/`
-the types they exchange. The product spec is in `docs/SPEC.md`. The website is
-its own repository, [ogmios-site](https://github.com/ilien-dev/ogmios-site),
-included here as the `site/` submodule.
+the types they exchange. The product spec is in `docs/SPEC.md`.
+
+The website ([ogmios.ilien.dev](https://ogmios.ilien.dev)) is its own
+repository, [ogmios-site](https://github.com/ilien-dev/ogmios-site), included
+here as the `site/` submodule. Its windows play the real interface, so after a
+change to the interface the demo is built again:
+
+```bash
+bun run site:install    # once: fetch the submodule and its packages
+bun run site:demo       # rebuild the demo from this checkout
+bun run site:dev        # the site, on http://localhost:4321
+```
+
+Commit inside `site/` and push it, then commit the new `site` pointer here.
 
 ## Licence
 
