@@ -3058,7 +3058,7 @@ dependencies = [
 
 [[package]]
 name = "ogmios"
-version = "0.15.3"
+version = "0.15.4"
 dependencies = [
  "chrono",
  "cpal",
