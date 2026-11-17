@@ -1,7 +1,9 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { answerWord, discardSentence, hintWord, knowWord } from "@/lib/ipc";
+import { Reveal } from "@/components/motion/Reveal";
 import { DisputeNote } from "./DisputeNote";
+import { PenaltyRun } from "./PenaltyRun";
 import { RefreshRun } from "./RefreshRun";
 import { SittingItem } from "./SittingItem";
 import {
@@ -33,9 +35,15 @@ function stepOf({ running, failure, options, paused }: SittingRun): string {
     return options === null ? "wait" : "sizes";
   }
   const { step, sittingId, turn } = running;
-  return step.type === "summary"
-    ? `${sittingId}-summary`
-    : `${sittingId}-${String(turn)}`;
+  switch (step.type) {
+    case "summary":
+      return `${sittingId}-summary`;
+    // One penalty stays on the screen from its first question to its last.
+    case "penalty":
+      return `${sittingId}-penalty-${step.penalty.item.wordId}`;
+    case "item":
+      return `${sittingId}-${String(turn)}`;
+  }
 }
 
 /** What a sitting shows under its bar: its choices, its word, its summary. */
@@ -102,6 +110,18 @@ function Words({ sittings, nativeLang, onDone }: WordsProps): ReactNode {
       />
     );
   }
+  if (step.type === "penalty") {
+    return (
+      <PenaltyRun
+        sittingId={sittingId}
+        penalty={step.penalty}
+        nativeLang={nativeLang}
+        onStep={(next) => {
+          move((held) => advanced(held, next));
+        }}
+      />
+    );
+  }
   const { item } = step;
   const mine = running.answered?.answerId;
   return (
@@ -149,12 +169,27 @@ interface RunProps {
 function Run({ chapterId, nativeLang, onDone }: RunProps): ReactNode {
   const { t } = useTranslation();
   const sittings = useSitting(chapterId);
+  const step = sittings.running?.step ?? null;
+  const penalty = step?.type === "penalty" ? step.penalty : null;
   return (
     <SittingFrame
       leave={t("books.sitting.leave")}
-      progress={sittings.running?.step.progress ?? null}
+      progress={step?.progress ?? null}
+      bar={
+        penalty === null ? null : (
+          <Reveal
+            key="penalty"
+            as="p"
+            kind="fade"
+            className="text-sm font-semibold text-book"
+          >
+            {t("books.sitting.penalty.bar", { rung: penalty.rung })}
+          </Reveal>
+        )
+      }
+      penalty={penalty !== null}
       end={
-        sittings.running?.step.type === "item"
+        step !== null && step.type !== "summary"
           ? { label: t("books.sitting.end"), onChoose: sittings.end }
           : null
       }

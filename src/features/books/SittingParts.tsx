@@ -34,6 +34,8 @@ interface SittingFrameProps {
   bar?: ReactNode;
   /** "End" across from the way out, while a word is on the screen. */
   end?: Choice | null;
+  /** A penalty review is on: the window wears its night (`PenaltyRun`). */
+  penalty?: boolean;
   children: ReactNode;
 }
 
@@ -51,11 +53,15 @@ export function SittingFrame({
   section = "book",
   bar = null,
   end = null,
+  penalty = false,
   children,
 }: SittingFrameProps): ReactNode {
   const { t } = useTranslation();
   return (
-    <main className="flex h-full flex-col">
+    <main
+      data-penalty={penalty ? "" : undefined}
+      className="flex h-full flex-col transition-colors duration-500"
+    >
       <header className="flex h-16 shrink-0 items-center gap-5 px-6 nav:px-8">
         <button
           type="button"

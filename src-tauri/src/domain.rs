@@ -831,6 +831,50 @@ pub enum PracticeStep {
         summary: SittingSummary,
         progress: SittingProgress,
     },
+    /// A word missed too many times in a row is asked on its own until it is
+    /// answered right every time (`books::penalty`). Nothing else is asked
+    /// until it is.
+    Penalty {
+        penalty: PenaltyStep,
+        progress: SittingProgress,
+    },
+}
+
+/// A penalty under way, and the question it asks now.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PenaltyStep {
+    /// The rung it is asked on, 1 to `TOP`.
+    pub rung: u32,
+    /// How many times it asks the word each way.
+    pub reps: u32,
+    /// The ways it was answered in so far, right every time, oldest first;
+    /// as many as it has answered.
+    pub answered: Vec<Direction>,
+    /// The word in English and in the learner's language, as its chapter
+    /// has it: what the penalty is on.
+    pub english: String,
+    pub native: String,
+    /// The question it asks now, as its chapter has the word.
+    pub item: PracticeItem,
+}
+
+/// The verdict on an answer to a penalty, and what comes after it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PenaltyAnswer {
+    pub correct: bool,
+    /// What was asked for, the first one first.
+    pub accepted: Vec<String>,
+    /// Nothing was kept: the word in another form, or another word for
+    /// what was shown. The learner has one more try at it.
+    pub again: bool,
+    /// The answer was a miss: the penalty starts over, in a new order.
+    pub restarted: bool,
+    /// That was the last one: the penalty is through, and `step` is what
+    /// the sitting asks next.
+    pub finished: bool,
+    pub step: PracticeStep,
 }
 
 /// A sitting just started, or the unfinished one gone on with.

@@ -28,15 +28,31 @@ import type {
   BookWord,
   Direction,
   DisputeResult,
-  PracticeItem,
+  PenaltyAnswer,
   PracticeOptions,
   PracticeStep,
-  SentencePart,
   Sitting,
   SittingProgress,
   Ways,
 } from "@shared/domain";
+import {
+  ARTICLES,
+  LEADING,
+  PLAIN,
+  english,
+  hintOf,
+  itemOf,
+  normal,
+  small,
+} from "./ipcMockAsking";
 import { mockChapterWords } from "./ipcMockChapters";
+import {
+  answerMockPenalty,
+  isPenaltyDue,
+  lendToPenalties,
+  mockPenaltyStep,
+  resetMockPenalties,
+} from "./ipcMockPenalty";
 import { nextQuestion, sizesFor } from "./ipcMockSession";
 import type { Asked } from "./ipcMockSession";
 import {
@@ -48,24 +64,6 @@ import {
 const IN_A_ROW = 2;
 const DIRECTIONS: readonly Direction[] = ["recognition", "production"];
 const WAYS: readonly Ways[] = ["both", "recognition", "production"];
-/** What may lead an answer in the learner's language, and in English. */
-const ARTICLES = new Set(["el", "la", "los", "las", "un", "una"]);
-const LEADING = new Set(["to", "a", "an", "the"]);
-
-/** The sentences of the words that are asked with their context. */
-const CONTEXT: Record<string, SentencePart[]> = {
-  tumble: [
-    { text: "Down she ", marked: false },
-    { text: "tumbled", marked: true },
-    { text: ", after the Rabbit.", marked: false },
-  ],
-  bank: [
-    { text: "Alice sat by her sister on the ", marked: false },
-    { text: "bank", marked: true },
-    { text: ".", marked: false },
-  ],
-};
-
 /** Answers the mock's judge upholds, by the word's base form. */
 const ALSO_RIGHT: Record<string, readonly string[]> = {
   "rabbit hole": ["conejera", "burrow"],
@@ -120,6 +118,8 @@ interface MockSitting {
   finished: boolean;
 }
 
+export { PLAIN, hintOf, itemOf, small } from "./ipcMockAsking";
+
 let sittings: Map<string, MockSitting> = new Map();
 let standings: Map<string, Standing> = new Map();
 let given: Given[] = [];
@@ -136,6 +136,7 @@ export function resetMockPractice(): void {
   upheld = new Map();
   disputesFail = false;
   held = null;
+  resetMockPenalties();
 }
 
 /** Makes "I was right" fail as when Claude cannot be reached, or work again. */
@@ -167,78 +168,6 @@ export class PracticeError extends Error {
     this.name = "PracticeError";
     this.kind = kind;
   }
-}
-
-/** An answer as it is compared: no case, accents, punctuation or `leading`. */
-function normal(text: string, leading: ReadonlySet<string>): string {
-  const words = text
-    .normalize("NFD")
-    .replaceAll(/\p{M}/gu, "")
-    .toLowerCase()
-    .split(/[^\p{L}\p{N}]+/u)
-    .filter(Boolean);
-  const [first] = words;
-  const rest =
-    words.length > 1 && first !== undefined && leading.has(first)
-      ? words.slice(1)
-      : words;
-  return rest.join(" ");
-}
-
-/** The forms of the word in its sentence: the pieces marked there. */
-function bookForms(word: BookWord): string[] {
-  return (CONTEXT[word.lemma] ?? [])
-    .filter((part) => part.marked)
-    .map((part) => part.text);
-}
-
-/**
- * The English the word is asked for: the forms its sentence is blanked of,
- * or its base form when it is asked without one.
- */
-function english(word: BookWord): string[] {
-  const forms = bookForms(word);
-  return forms.length > 0 ? forms : [word.lemma];
-}
-
-/** The mock asks no word with a sentence of a bank: nothing to add. */
-export const PLAIN = {
-  again: false,
-  another: null,
-  helped: false,
-  exact: null,
-  sentence: null,
-};
-
-/** A word as an exercise shows it: `commands::practice::small`. */
-export function small(texts: readonly string[]): string[] {
-  return texts.map((text) => text.toLowerCase());
-}
-
-/**
- * A hint to the word asked this way: `books::hint::mask` in small. The mock
- * keeps no sentence back: a word shows its own from the start or has none,
- * so every hint is to the answer.
- */
-export function hintOf(
-  word: BookWord,
-  direction: Direction,
-  letters: number,
-): WordHint {
-  const whole =
-    (direction === "recognition" ? word.translations[0] : english(word)[0]) ??
-    word.lemma;
-  const chars = Array.from(whole.toLowerCase());
-  const isLetter = (char: string): boolean => /[\p{L}\p{N}]/u.test(char);
-  const most = Math.max(chars.filter(isLetter).length - 1, 0);
-  const shown = Math.min(letters, most);
-  const mask = chars
-    .map((char, at) => {
-      const before = chars.slice(0, at).filter(isLetter).length;
-      return isLetter(char) && before >= shown ? "_" : char;
-    })
-    .join("");
-  return { mask, context: null, more: letters < most };
 }
 
 /** Whether the answer is right for the word asked this way. */
@@ -363,33 +292,6 @@ function nextItem(sittingId: string, sitting: MockSitting): Asked | null {
   return nextQuestion(openOf(sitting), log);
 }
 
-/** The word as it is asked: nothing of `production` holds the English. */
-export function itemOf(word: BookWord, direction: Direction): PracticeItem {
-  const context = CONTEXT[word.lemma] ?? null;
-  if (direction === "recognition") {
-    return {
-      wordId: word.id,
-      direction,
-      prompt: word.lemma.toLowerCase(),
-      partOfSpeech: word.partOfSpeech,
-      context,
-      sentenceId: null,
-      verbForm: null,
-    };
-  }
-  return {
-    wordId: word.id,
-    direction,
-    prompt: small(word.translations).join(", "),
-    partOfSpeech: word.partOfSpeech,
-    context:
-      context?.map((part) => (part.marked ? { ...part, text: "" } : part)) ??
-      null,
-    sentenceId: null,
-    verbForm: null,
-  };
-}
-
 /**
  * How far the session is: the right answers in a row its words stand on,
  * each way it asks, out of the ones they take in all. A word marked as known leaves
@@ -410,12 +312,24 @@ function progressOf(sitting: MockSitting): SittingProgress {
   return { value, total: counted.length * asked.length * IN_A_ROW };
 }
 
+function refuseWhileDue(chapterId: string): void {
+  if (isPenaltyDue(chapterId)) {
+    throw new PracticeError("invalid", "a penalty is due");
+  }
+}
+
 function stepOf(sittingId: string): PracticeStep {
   const sitting = findSitting(sittingId);
   const words = mockChapterWords(sitting.chapterId);
+  const progress = progressOf(sitting);
+  const due = sitting.finished
+    ? null
+    : mockPenaltyStep(sitting.chapterId, sittingId, progress);
+  if (due !== null) {
+    return due;
+  }
   const next = sitting.finished ? null : nextItem(sittingId, sitting);
   const word = words.find((candidate) => candidate.id === next?.wordId);
-  const progress = progressOf(sitting);
   if (word === undefined || next === null) {
     sitting.finished = true;
     const done = words.filter(
@@ -472,7 +386,7 @@ function wordsFor(chapterId: string, ways: Ways): string[] {
 function heldSitting(chapterId: string): string | null {
   for (const [id, sitting] of sittings) {
     if (sitting.chapterId === chapterId && !sitting.finished) {
-      if (nextItem(id, sitting) !== null) {
+      if (nextItem(id, sitting) !== null || isPenaltyDue(chapterId)) {
         return id;
       }
       sitting.finished = true;
@@ -590,6 +504,7 @@ function answer(
   if (word === undefined || !isAsked) {
     throw new PracticeError("invalid", "this word is not being asked");
   }
+  refuseWhileDue(sitting.chapterId);
   const correct = isRight(word, direction, text);
   if (word.done) {
     // Only an extra review asks a done word; its past is no part of it.
@@ -618,12 +533,14 @@ function answer(
 
 /** The hint to a word of the session's chapter, asked this way. */
 function hint(sittingId: string, asked: Asked, letters: number): WordHint {
-  const word = mockChapterWords(findSitting(sittingId).chapterId).find(
+  const { chapterId } = findSitting(sittingId);
+  const word = mockChapterWords(chapterId).find(
     (candidate) => candidate.id === asked.wordId,
   );
   if (word === undefined) {
     throw new PracticeError("invalid", "this word is not being asked");
   }
+  refuseWhileDue(chapterId);
   return hintOf(word, asked.direction, letters);
 }
 
@@ -675,9 +592,41 @@ function know(sittingId: string, wordId: string): PracticeStep {
   if (word === undefined) {
     throw new PracticeError("invalid", "this word is not being asked");
   }
+  refuseWhileDue(sitting.chapterId);
   setMockWordKnown(word.lemma, true);
   return stepOf(sittingId);
 }
+
+/** One answer to the penalty the session is showing (`ipcMockPenalty.ts`). */
+function answerPenalty(
+  sittingId: string,
+  asked: Asked,
+  text: string,
+): PenaltyAnswer {
+  const { chapterId, finished } = findSitting(sittingId);
+  try {
+    if (finished) {
+      throw new Error("over");
+    }
+    return answerMockPenalty(chapterId, sittingId, asked, text, () =>
+      stepOf(sittingId),
+    );
+  } catch {
+    throw new PracticeError("invalid", "this penalty is not being asked");
+  }
+}
+
+lendToPenalties({
+  given: () => given,
+  words: mockChapterWords,
+  itemOf,
+  judge: (word, direction, text) => ({
+    correct: isRight(word, direction, text),
+    accepted: small(
+      direction === "recognition" ? word.translations : english(word),
+    ),
+  }),
+});
 
 /** The answer, if it is a typed miss that has not been judged. */
 function disputable(answerId: number): Given {
@@ -731,6 +680,15 @@ function arg(args: unknown, key: string): string {
   return String((args as Record<string, unknown>)[key]);
 }
 
+/** The word and the way a command names. */
+function askedIn(args: unknown): Asked {
+  const production = arg(args, "direction") === "production";
+  return {
+    wordId: arg(args, "wordId"),
+    direction: production ? "production" : "recognition",
+  };
+}
+
 type After = <T>(ms: number, value: () => T) => Promise<T>;
 
 export function practiceCommands(
@@ -757,30 +715,22 @@ export function practiceCommands(
       after(80, () =>
         answer(
           arg(args, "sittingId"),
-          {
-            wordId: arg(args, "wordId"),
-            direction:
-              arg(args, "direction") === "production"
-                ? "production"
-                : "recognition",
-          },
+          askedIn(args),
           arg(args, "answer"),
           (args as { tries?: { hinted?: boolean } }).tries?.hinted === true,
         ),
       ),
+    answer_penalty: (args) =>
+      after(80, () =>
+        answerPenalty(
+          arg(args, "sittingId"),
+          askedIn(args),
+          arg(args, "answer"),
+        ),
+      ),
     hint_word: (args) =>
       after(60, () =>
-        hint(
-          arg(args, "sittingId"),
-          {
-            wordId: arg(args, "wordId"),
-            direction:
-              arg(args, "direction") === "production"
-                ? "production"
-                : "recognition",
-          },
-          Number(arg(args, "asked")),
-        ),
+        hint(arg(args, "sittingId"), askedIn(args), Number(arg(args, "asked"))),
       ),
   };
 }

@@ -687,6 +687,22 @@ export const en = {
       extra:
         "Nothing is left to do this way: this is an extra review of every word.",
       start: "Start",
+      penalty: {
+        title: "Penalty review",
+        bar: "Penalty review · rung {{rung}} of 4",
+        resists: "This word keeps slipping away",
+        ask: "Translate it {{total}} times in a row: {{reps}} into English and {{reps}} into {{native}}, in an order you won't know beforehand. One miss and you're back to the first.",
+        again: "Back to the first: you were on {{at}}.",
+        count: "{{done}} of {{total}} in a row",
+        rungs: "Rungs of the penalty review",
+        rung: "{{reps}} + {{reps}}",
+        rungDone: "{{reps}} + {{reps}}, passed",
+        rungNow: "{{reps}} + {{reps}}, this one",
+        through: "{{total}} of {{total}} without a miss.",
+        next: "“{{word}}” goes back to the chapter. If it slips away again, the next rung is {{reps}} + {{reps}}. Get it right the first time in 2 sessions in a row and it comes down a rung.",
+        top: "“{{word}}” goes back to the chapter. This is the top rung: if it slips away again, it is {{reps}} + {{reps}} once more.",
+        back: "Back to the chapter",
+      },
     },
     triage: {
       start: "Sort the list",

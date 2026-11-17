@@ -146,6 +146,7 @@ macro_rules! every_command {
             commands::sentences::write_sentences,
             commands::practice::discard_sentence,
             commands::practice::hint_word,
+            commands::penalty::answer_penalty,
             commands::recall::hint_recall,
             commands::recall::discard_recall_sentence,
             commands::dispute::dispute_answer,

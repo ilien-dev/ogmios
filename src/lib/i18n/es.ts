@@ -687,6 +687,22 @@ export const es: Catalog<typeof en> = {
       extra:
         "Aquí ya no te queda nada pendiente: es un repaso extra de todas las palabras.",
       start: "Empezar",
+      penalty: {
+        title: "Repaso de castigo",
+        bar: "Repaso de castigo · nivel {{rung}} de 4",
+        resists: "Esta palabra se te resiste",
+        ask: "Tradúcela {{total}} veces seguidas: {{reps}} al inglés y {{reps}} al {{native}}, en un orden que no sabrás de antemano. Un fallo y vuelves a la primera.",
+        again: "Vuelves a la primera: ibas por la {{at}}.",
+        count: "{{done}} de {{total}} seguidas",
+        rungs: "Niveles del repaso de castigo",
+        rung: "{{reps}} + {{reps}}",
+        rungDone: "{{reps}} + {{reps}}, superado",
+        rungNow: "{{reps}} + {{reps}}, el de ahora",
+        through: "{{total}} de {{total}} sin fallar.",
+        next: "«{{word}}» vuelve al capítulo. Si se te vuelve a resistir, el siguiente nivel es {{reps}} + {{reps}}. Si la aciertas a la primera en 2 sesiones seguidas, baja un nivel.",
+        top: "«{{word}}» vuelve al capítulo. Es el nivel más alto: si se te vuelve a resistir, serán otra vez {{reps}} + {{reps}}.",
+        back: "Volver al capítulo",
+      },
     },
     triage: {
       start: "Limpiar la lista",

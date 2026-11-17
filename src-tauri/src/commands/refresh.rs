@@ -111,13 +111,14 @@ pub fn answer(
         (&native_lang, inflects(word.part_of_speech)),
         spelling,
     );
-    practice::record(
+    let seq = practice::record(
         &tx,
         &pass.id,
         (word_id, Direction::Recognition),
         (answer.trim(), correct),
         now,
     )?;
+    super::penalty::counted(&tx, (word_id, seq), (correct, correct), now)?;
     let step = step(&tx, &pass, now)?;
     tx.commit()?;
     Ok(RefreshAnswer {

@@ -13,6 +13,7 @@ use chrono::{DateTime, Utc};
 use rusqlite::Connection;
 use tauri::AppHandle;
 
+use super::penalty;
 use super::profile::require_profile;
 use super::run;
 use super::sentences::banked;
@@ -53,6 +54,11 @@ pub(super) fn step(
     now: DateTime<Utc>,
 ) -> Result<PracticeStep> {
     let words = practice::session_words(conn, sitting)?;
+    if !sitting.finished {
+        if let Some(due) = penalty::step(conn, sitting, progress(&words, sitting.ways))? {
+            return Ok(due);
+        }
+    }
     let log = practice::session_log(conn, &sitting.id)?;
     let asked = if sitting.finished {
         None
@@ -739,6 +745,7 @@ pub fn hint(
     if word.chapter_id != sitting.chapter_id {
         return Err(Error::Invalid("this word is not being asked".into()));
     }
+    penalty::refuse_while_due(&conn, &sitting.chapter_id)?;
     let shown = Shown {
         sentence_id,
         ..Shown::default()
@@ -762,7 +769,8 @@ fn held(conn: &Connection, chapter_id: &str, now: DateTime<Utc>) -> Result<Optio
     let sitting = practice::sitting(conn, &id)?;
     let words = practice::session_words(conn, &sitting)?;
     let log = practice::session_log(conn, &id)?;
-    if next(&words, &log, sitting.ways, seed(&id)).is_some() {
+    let due = crate::db::penalty::due(conn, chapter_id)?.is_some();
+    if due || next(&words, &log, sitting.ways, seed(&id)).is_some() {
         return Ok(Some(sitting));
     }
     practice::finish(conn, &id, now)?;
@@ -914,6 +922,7 @@ pub fn answer_shown(
     if !asked {
         return Err(Error::Invalid("this word is not being asked".into()));
     }
+    penalty::refuse_while_due(&tx, &sitting.chapter_id)?;
     let sentence = shown_sentence(&tx, &word.key, shown)?;
     let judged = if let Some(sentence) = &sentence {
         judged(
@@ -954,6 +963,8 @@ pub fn answer_shown(
     if let Some(sentence) = &sentence {
         practice::tag(&tx, answer_id, &sentence.id)?;
     }
+    let clean = correct && !shown.helped();
+    penalty::counted(&tx, (word_id, answer_id), (correct, clean), now)?;
     let step = step(&tx, &sitting, now)?;
     tx.commit()?;
     Ok(AnswerResult {
@@ -1007,6 +1018,7 @@ pub fn know(
     if practice::word(&tx, word_id)?.chapter_id != sitting.chapter_id {
         return Err(Error::Invalid("this word is not being asked".into()));
     }
+    penalty::refuse_while_due(&tx, &sitting.chapter_id)?;
     words::set_known(&tx, word_id, true, now)?;
     let step = step(&tx, &sitting, now)?;
     tx.commit()?;
@@ -1223,6 +1235,7 @@ pub mod tests {
                 let item = match step {
                     PracticeStep::Item { item, .. } => item,
                     PracticeStep::Summary { summary, .. } => return (asked, summary),
+                    PracticeStep::Penalty { .. } => panic!("a penalty is due"),
                 };
                 let result = self.answer(sitting, &item, &right(&item), now);
                 assert!(result.correct, "{}", item.prompt);
@@ -1237,7 +1250,7 @@ pub mod tests {
     }
 
     /// The base form of a numbered word, whichever way it is asked.
-    fn lemma(item: &PracticeItem) -> String {
+    pub fn lemma(item: &PracticeItem) -> String {
         match item.direction {
             Direction::Recognition => item.prompt.clone(),
             Direction::Production => item
@@ -1249,7 +1262,7 @@ pub mod tests {
     }
 
     /// The right answer to a numbered word, whichever way it is asked.
-    fn right(item: &PracticeItem) -> String {
+    pub fn right(item: &PracticeItem) -> String {
         match item.direction {
             Direction::Recognition => translation(&item.prompt),
             Direction::Production => lemma(item),
@@ -1279,12 +1292,15 @@ pub mod tests {
         match step {
             PracticeStep::Item { item, .. } => item,
             PracticeStep::Summary { .. } => panic!("the sitting is over"),
+            PracticeStep::Penalty { .. } => panic!("a penalty is due"),
         }
     }
 
     /// How far the sitting is as the step says: (value, total).
     pub fn bar(step: &PracticeStep) -> (u32, u32) {
-        let (PracticeStep::Item { progress, .. } | PracticeStep::Summary { progress, .. }) = step;
+        let (PracticeStep::Item { progress, .. }
+        | PracticeStep::Summary { progress, .. }
+        | PracticeStep::Penalty { progress, .. }) = step;
         (progress.value, progress.total)
     }
 

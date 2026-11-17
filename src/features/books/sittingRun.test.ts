@@ -227,3 +227,61 @@ describe("the reason of a rejected dispute", () => {
     expect(showsReason(earlier, item("a", "production"))).toBe(false);
   });
 });
+
+/** The penalty on word "a", answered right `done` times so far. */
+function penalty(done = 0): PracticeStep {
+  const asked = item("a");
+  if (asked.type !== "item") {
+    throw new Error("an item");
+  }
+  return {
+    type: "penalty",
+    penalty: {
+      rung: 1,
+      reps: 3,
+      answered: Array.from({ length: done }, () => "recognition" as const),
+      english: "a",
+      native: "aes",
+      item: asked.item,
+    },
+    progress: SO_FAR,
+  };
+}
+
+describe("a verdict that arrives on a penalty", () => {
+  /** The third miss on "a" made its penalty due; the screen shows it. */
+  function onPenalty(done: number): Running {
+    return advanced(disputing(penalty()), penalty(done));
+  }
+
+  test("upheld before it starts, the penalty gives way to what is asked now", () => {
+    const held = onPenalty(0);
+    const upheld = settled(held, ABOUT, verdict(true, item("b")));
+    expect(upheld.step).toEqual(item("b"));
+    expect(upheld.turn).toBe(held.turn + 1);
+    expect(upheld.earlier?.state).toEqual({ status: "upheld" });
+  });
+
+  test("once it has started, the penalty stays and the verdict is told", () => {
+    const held = onPenalty(2);
+    const upheld = settled(held, ABOUT, verdict(true, item("b")));
+    expect(upheld.step).toEqual(penalty(2));
+    expect(upheld.turn).toBe(held.turn);
+    expect(upheld.earlier?.state).toEqual({ status: "upheld" });
+  });
+
+  test("rejected, the penalty stays as it is", () => {
+    const held = onPenalty(0);
+    const rejected = settled(held, ABOUT, verdict(false, penalty()));
+    expect(rejected.step).toEqual(penalty());
+  });
+
+  test("its reason is kept back when it is about the penalty's word", () => {
+    const held = settled(onPenalty(0), ABOUT, verdict(false, penalty()));
+    const { earlier } = held;
+    if (earlier === null) {
+      throw new Error("an earlier verdict");
+    }
+    expect(showsReason(earlier, penalty())).toBe(false);
+  });
+});
