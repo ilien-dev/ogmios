@@ -402,9 +402,30 @@ pub fn prepare(
         }
         (attempt, chapter, english)
     };
+    write_version(
+        ctx,
+        (&attempt.chapter_id, &chapter.native_lang, index),
+        english,
+        model,
+        now,
+    )?;
+    translation(&*ctx.conn()?, &attempt, &chapter)
+}
+
+/// Writes the version of a paragraph and keeps it; one kept that speaks to
+/// "vosotros" gives way to it. A version without a sentence for each one of
+/// the paragraph is asked for once more, and then refused. The database is
+/// not held while the model is asked.
+fn write_version(
+    ctx: Ctx<'_>,
+    (chapter_id, native_lang, index): (&str, &str, u32),
+    english: Vec<String>,
+    model: &mut dyn Model,
+    now: DateTime<Utc>,
+) -> Result<Vec<String>> {
     let params = ParagraphVersionParams {
-        brief: brief(ctx, &attempt.chapter_id, &chapter.native_lang, model, now)?,
-        native_lang: chapter.native_lang.clone(),
+        brief: brief(ctx, chapter_id, native_lang, model, now)?,
+        native_lang: native_lang.to_owned(),
         sentences: english,
     };
     let mut version = model.version(&params)?;
@@ -422,17 +443,37 @@ pub fn prepare(
         .map(|sentence| sentence.trim().to_owned())
         .collect();
     let conn = ctx.conn()?;
-    // One kept that speaks to "vosotros" gives way to this one.
-    db::forget_version(&conn, &attempt.chapter_id, &chapter.native_lang, index)?;
-    db::store_version(
-        &conn,
-        &attempt.chapter_id,
-        &chapter.native_lang,
-        index,
-        &lines,
-        now,
-    )?;
-    translation(&conn, &attempt, &chapter)
+    db::forget_version(&conn, chapter_id, native_lang, index)?;
+    db::store_version(&conn, chapter_id, native_lang, index, &lines, now)?;
+    Ok(shown_versions(&conn, chapter_id, native_lang)?
+        .remove(&index)
+        .unwrap_or(lines))
+}
+
+/// A paragraph in the learner's language, a line for each sentence: the one
+/// kept, or one written now. What a dictated sentence meant.
+pub(super) fn version_of(
+    ctx: Ctx<'_>,
+    chapter_id: &str,
+    index: u32,
+    model: &mut dyn Model,
+    now: DateTime<Utc>,
+) -> Result<Vec<String>> {
+    let (english, native_lang) = {
+        let conn = ctx.conn()?;
+        let chapter = open(&conn, chapter_id)?;
+        if let Some(kept) = shown_versions(&conn, chapter_id, &chapter.native_lang)?.remove(&index)
+        {
+            return Ok(kept);
+        }
+        let english = usize::try_from(index)
+            .ok()
+            .and_then(|at| chapter.english.get(at))
+            .cloned()
+            .ok_or_else(|| Error::NotFound("paragraph not found".into()))?;
+        (english, chapter.native_lang)
+    };
+    write_version(ctx, (chapter_id, &native_lang, index), english, model, now)
 }
 
 /// Reviews a paragraph that is whole, if it has no review yet. A failed

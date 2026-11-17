@@ -6,7 +6,8 @@
  * what comes next; none is kept for a word being reinforced. A word is
  * heard when it was typed anywhere in the answer, each typed word counting
  * for one of the sentence. A lost dictation suggests
- * slowing down; none suggests speeding up. Nothing is heard: reading takes
+ * slowing down; none suggests speeding up. An answered sentence means what
+ * the mock's version of its paragraph says. Nothing is heard: reading takes
  * what the mock's voice takes, and what was read is kept there.
  */
 import type {
@@ -26,7 +27,7 @@ import type { StructureVerdict } from "@shared/structures";
 import { allMockChapters, mockBookId, mockBookTitle } from "./ipcMockBooks";
 import { PracticeError } from "./ipcMockPractice";
 import { mockSay, mockVoiceReady } from "./ipcMockSpeech";
-import { mockEnglish } from "./ipcMockTranslate";
+import { mockEnglish, mockNative } from "./ipcMockTranslate";
 
 const SHORTEST = 6;
 const LONGEST = 14;
@@ -420,6 +421,18 @@ export function listeningCommands(
       after(80, () => {
         const sent = args as Sent;
         return answer(sent.sittingId, sent.index, sent.answer, sent.pace);
+      }),
+    dictation_meaning: (args) =>
+      after(200, () => {
+        const sent = args as Sent;
+        const sentence = sittingOf(sent.sittingId).sentences[sent.index];
+        if (sentence === undefined || sentence.verdict === null) {
+          throw new PracticeError(
+            "invalid",
+            "the sentence is not answered yet",
+          );
+        }
+        return mockNative(sentence.sentence);
       }),
     close_dictation: (args) =>
       after(60, () => {

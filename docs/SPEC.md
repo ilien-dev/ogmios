@@ -609,6 +609,9 @@ sin ella, la sección solo ofrece descargarla.
 - **Veredicto:** verde con la frase entera y hasta dos escuchas; ámbar entera pero con ayuda (más
   de dos escuchas, o bajar la velocidad después de oírla); rojo si falta o sobra una palabra. Tras
   responder se ve la frase con las palabras falladas marcadas y se puede oír otra vez.
+- **Qué significaba:** tras responder, bien o mal, debajo de la frase llega su traducción a la
+  lengua del usuario: su línea en la versión del párrafo que guarda la traducción del capítulo
+  de vuelta al inglés, escrita la primera vez que hace falta. No retrasa el veredicto; si no llega, no se muestra.
 - **Cambiar de velocidad:** antes de oír la frase es libre en los dos sentidos. Después, bajar es
   una pista: el acierto sale en ámbar y la frase cuenta para la velocidad más lenta a la que se oyó.
   Sin oírla, cuenta para la velocidad elegida.

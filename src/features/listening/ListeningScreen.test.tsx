@@ -149,6 +149,41 @@ describe("listening", () => {
     expect(screen.getByText("2 of 9")).toBeInTheDocument();
   });
 
+  test("what the sentence meant comes after it, right or wrong", async () => {
+    const user = await begin();
+    // Not before it is answered: it would give the sentence away.
+    expect(
+      screen.queryByText("El chico despertó antes que las sirenas."),
+    ).not.toBeInTheDocument();
+    await write(user, "the boy");
+    expect(
+      await screen.findByText("El chico despertó antes que las sirenas."),
+    ).toBeInTheDocument();
+    await next(user);
+    await waitFor(() => {
+      expect(
+        screen.queryByText("El chico despertó antes que las sirenas."),
+      ).not.toBeInTheDocument();
+    });
+    await write(user, "he lay still and counted the cracks in the ceiling");
+    expect(
+      await screen.findByText("Se quedó quieto y contó las grietas del techo;"),
+    ).toBeInTheDocument();
+  });
+
+  test("a meaning that comes after the next sentence is not shown on it", async () => {
+    const user = await begin();
+    await write(user, "the boy");
+    // On at once, before what the first one meant has come.
+    await next(user);
+    await new Promise((done) => {
+      setTimeout(done, 400);
+    });
+    expect(
+      screen.queryByText("El chico despertó antes que las sirenas."),
+    ).not.toBeInTheDocument();
+  });
+
   test("a third listen is help", async () => {
     const user = await begin();
     await listen(user, 1);
