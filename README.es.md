@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="assets/es/hero-dark.svg">
-    <img src="assets/es/hero-light.svg" alt="Ogmios: tu voz entra por la izquierda como una onda de sonido, los verbos de tu libro (tumbled, gave up, curtseyed) entran por la derecha y los dos se encuentran en la esfera de Ogmios. Habla con Claude. Aprende los verbos de tu libro." width="100%">
+    <img src="assets/es/hero-light.svg" alt="Ogmios: practica inglés hablado con IA. Tu propio libro, Alice's Adventures in Wonderland, se prepara capítulo a capítulo: un gráfico muestra qué capítulos están listos para leer, y las palabras del capítulo uno (tumble, curtsey, give up...) se estudian con la frase del libro y vuelven al día siguiente y a los 3, 7, 21 y 60 días." width="100%">
   </picture>
 </p>
 
