@@ -1,3 +1,18 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/es/hero-dark.svg">
+    <img src="assets/es/hero-light.svg" alt="Ogmios: tu voz entra por la izquierda como una onda de sonido, los verbos de tu libro (tumbled, gave up, curtseyed) entran por la derecha y los dos se encuentran en la esfera de Ogmios. Habla con Claude. Aprende los verbos de tu libro." width="100%">
+  </picture>
+</p>
+
+<p align="center">
+  <a href="https://github.com/ilien-dev/ogmios/releases/latest"><img src="https://img.shields.io/github/v/release/ilien-dev/ogmios?label=release&color=5b4bc4" alt="Última versión"></a>
+  <a href="https://github.com/ilien-dev/ogmios/releases/latest"><img src="https://img.shields.io/badge/plataforma-macOS%20%7C%20Windows-2d55c4" alt="macOS y Windows"></a>
+  <a href="https://github.com/ilien-dev/ogmios/actions/workflows/ci.yml"><img src="https://github.com/ilien-dev/ogmios/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/licencia-AGPL--3.0-0f766e" alt="Licencia: AGPL-3.0"></a>
+  <a href="https://ogmios.ilien.dev/es/"><img src="https://img.shields.io/badge/sitio-ogmios.ilien.dev-a3245f" alt="Sitio web"></a>
+</p>
+
 # Ogmios: practica inglés hablado con IA (Claude)
 
 [English](README.md) | **Español**
