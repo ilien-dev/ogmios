@@ -8,3 +8,4 @@ bun.lock
 tools/oxlint/anti-slop/
 .impeccable/
 .superpowers/
+site/

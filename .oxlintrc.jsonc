@@ -1811,6 +1811,8 @@
 
   "ignorePatterns": [
     "dist/**",
+    // The website is its own repository, a submodule here, with its own checks.
+    "site/**",
     "node_modules/**",
     "src-tauri/target/**",
     "src-tauri/gen/**",
