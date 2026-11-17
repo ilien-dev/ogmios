@@ -5,6 +5,7 @@ pub mod epub;
 pub mod hint;
 pub mod pdf;
 mod pdftext;
+pub mod penalty;
 pub mod practice;
 pub mod segment;
 pub mod sentences;

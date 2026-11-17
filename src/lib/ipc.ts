@@ -38,6 +38,7 @@ import type {
   PracticeOptions,
   Ways,
   WordHint,
+  PenaltyAnswer,
   PracticeStep,
   Recall,
   RecallAnswer,
@@ -333,6 +334,24 @@ export const answerWord = (
  * asked. The answer that follows says it was `hinted`, and a right one is
  * then a helped one.
  */
+/**
+ * One answer to the penalty a sitting is showing. Right, it goes one on; a
+ * miss, "I don't know" included, starts it over in a new order. The word in
+ * another form is no answer the first time: `second` says it is the next.
+ */
+export const answerPenalty = (
+  sittingId: string,
+  item: Asked,
+  answer: string,
+  second = false,
+): Promise<PenaltyAnswer> =>
+  call("answer_penalty", {
+    sittingId,
+    wordId: item.wordId,
+    direction: item.direction,
+    answer,
+    tries: { second, hinted: false },
+  });
 export const hintWord = (
   sittingId: string,
   item: Asked,

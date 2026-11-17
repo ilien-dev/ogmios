@@ -504,6 +504,33 @@ revés, y las tres se ofrecen siempre.
 - **Fallo en el repaso rápido:** la palabra vuelve a la práctica desde cero, debiendo dos aciertos
   seguidos en las dos direcciones: primero inglés → idioma nativo y, terminada esa, al revés.
 
+### 9.6.1 Repaso de castigo
+
+Una palabra que se resiste para la práctica hasta grabarla. Las reglas viven en
+`books/penalty.rs`; qué castigo toca se cuenta desde las respuestas (`db/penalty.rs`).
+
+- **Disparo:** 3 fallos seguidos de la misma palabra en práctica, en cualquier dirección; «No lo
+  sé» cuenta como fallo y un acierto rompe la racha. El repaso rápido no dispara castigos. Los
+  fallos anteriores a esta función no cuentan.
+- **Cuándo se ve:** tras el tercer fallo, al pulsar «Siguiente». La ventana entera cambia a un tema
+  nocturno propio (en claro y en oscuro) y abre con la palabra, la escalera de niveles y lo que
+  pide. Mientras está pendiente no se pregunta nada más: responder otra palabra, pedir pista o
+  «Ya la sé» se rechazan.
+- **Qué pide:** la palabra como la tiene su capítulo, N veces al inglés y N al español, en un
+  orden al azar que nunca alterna uno y uno; los puntos de avance solo dicen la dirección de lo
+  ya respondido. Sin pistas ni «Estaba bien». La palabra en otra forma, o otra palabra válida, da
+  un segundo intento sin reiniciar. Sus respuestas no son respuestas de la palabra: superar un
+  castigo no termina ni domina nada.
+- **Fallo:** la serie vuelve a la primera, en un orden nuevo, en el mismo nivel; la pantalla dice
+  por dónde iba.
+- **Niveles:** 3, 6, 12 y 24 por dirección. Cada racha nueva sube un nivel; en 24 se repite 24.
+- **Bajar:** una sesión limpia es la primera respuesta a la palabra en una sesión (práctica o
+  repaso rápido), correcta, sin pista y al primer intento. Dos seguidas, en días distintos del
+  alumno, bajan un nivel; un fallo reinicia la cuenta. En 0 la palabra queda libre.
+- **Cortar a medias:** «Terminar» cierra la sesión; el castigo abre la siguiente desde la primera.
+  Un «Estaba bien» aceptado o una «Frase mala» que quite el fallo antes de empezar lo deshace;
+  empezado, se termina.
+
 ### 9.7 Estructuras
 
 Una sección propia, **Estructuras**, para escribir frases con una estructura hasta que salga sola
@@ -829,6 +856,7 @@ best_sentences(id, session_id, turn_id, text)
 challenges(id, session_id_created, pattern_id, text, target_count, achieved_session_id)
 streak_days(date, sessions, freeze_used)
 settings(key, value)
+word_penalties(word_id, rung, clean, clean_on, since_seq, trigger_seq, position, restarts, sitting_id)
 
 structure_sittings(id, size, chapter_id, started_at, finished_at)
 structure_items(sitting_id, idx, structure, topic, verb, verb_source, warm, retry_of,

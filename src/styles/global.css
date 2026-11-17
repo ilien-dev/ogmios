@@ -85,6 +85,9 @@
   --color-adverb-soft: oklch(0.64 0.16 345 / 0.13);
   --color-learned: oklch(0.52 0.16 275);
   --color-scrim: oklch(0.2 0.01 265 / 0.4);
+  /* The two ways a penalty asks its word in, told apart in its count. */
+  --color-recognition: #a3245f;
+  --color-production: #2d55c4;
   /* Ink on the gradient of the main action, the same in both themes. */
   --color-on-cta: #23233a;
   --color-on-cta-book: #23233a;
@@ -288,6 +291,42 @@
     --shadow-float: 0 2px 8px rgb(0 0 0 / 0.4), 0 22px 56px rgb(0 0 0 / 0.45);
     --shadow-cover: 0 1px 2px rgb(0 0 0 / 0.6), 0 4px 10px rgb(0 0 0 / 0.6);
     --shadow-you: 0 8px 24px -8px rgb(127 220 203 / 0.3);
+  }
+
+  /*
+   * A penalty review (`PenaltyRun`): a night of its own in either theme, so
+   * it is plain at a glance that this is not the usual practice.
+   */
+  [data-penalty] {
+    color-scheme: dark;
+    --color-canvas: #1a1226;
+    --color-surface: #261a35;
+    --color-raised: #33233f;
+    --color-sunken: #150e1f;
+    --color-line: #3b2b4c;
+    --color-line-strong: #5b4872;
+    --color-ink: #f7f1fb;
+    --color-ink-soft: #cbbfd8;
+    --color-ink-faint: #ab9ebd;
+    --color-book: #f7a8cb;
+    --color-book-soft: #46223d;
+    --color-book-ink: #ffe0ec;
+    --color-recognition: #f7a8cb;
+    --color-production: #a9bdf7;
+    --color-correct: oklch(0.8 0.15 150);
+    --color-correct-soft: oklch(0.78 0.15 150 / 0.16);
+    --color-partial: oklch(0.8 0.14 55);
+    --color-partial-soft: oklch(0.76 0.15 48 / 0.2);
+    --color-wrong: oklch(0.76 0.16 25);
+    --color-wrong-soft: oklch(0.7 0.17 25 / 0.16);
+    --color-verb: oklch(0.82 0.11 300);
+    --color-verb-soft: oklch(0.8 0.11 300 / 0.16);
+    --color-noun: oklch(0.82 0.1 245);
+    --color-noun-soft: oklch(0.8 0.1 245 / 0.16);
+    --shadow-card: 0 4px 18px rgb(0 0 0 / 0.35);
+    --shadow-glow-book: 0 20px 80px rgb(247 168 203 / 0.22);
+    background-color: var(--color-canvas);
+    color: var(--color-ink);
   }
 
   html,

@@ -4,6 +4,7 @@ pub mod dispute;
 pub mod drill;
 pub mod label;
 pub mod listening;
+pub mod penalty;
 pub mod practice;
 pub mod profile;
 pub mod progress;

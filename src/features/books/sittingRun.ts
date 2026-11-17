@@ -125,7 +125,9 @@ function stateOf(outcome: DisputeResult | null): DisputeState {
  * - on a word already answered, what comes after it is what Rust says now;
  * - on a summary, the summary is the one Rust gives now;
  * - on the disputed word itself, shown again and not answered yet, the word
- *   gives way if it is no longer asked: answering it would be refused.
+ *   gives way if it is no longer asked: answering it would be refused;
+ * - on a penalty the miss made due, not started yet, the penalty gives way
+ *   to what is asked now. Started, it stays: it is answered through.
  *
  * A word that is being answered and is not the disputed one stays as it is,
  * but for how far it says the sitting is: the miss undone is a step back on
@@ -161,6 +163,14 @@ export function settled(
       ? { ...judged, earlier, step: fresh }
       : { ...judged, earlier };
   }
+  if (held.step.type === "penalty") {
+    // Started, a penalty is answered through whatever became of its miss.
+    if (held.step.penalty.answered.length > 0 || fresh.type === "penalty") {
+      return { ...judged, earlier };
+    }
+    const turn = held.turn + 1;
+    return { ...judged, earlier: { ...earlier, turn }, step: fresh, turn };
+  }
   if (held.step.item.wordId !== wordId || sameItem(fresh, held.step.item)) {
     const step = { ...held.step, progress: fresh.progress };
     return { ...judged, earlier, step };
@@ -178,5 +188,12 @@ export function showsReason(
   earlier: EarlierVerdict,
   step: PracticeStep,
 ): boolean {
-  return step.type === "summary" || step.item.wordId !== earlier.wordId;
+  switch (step.type) {
+    case "summary":
+      return true;
+    case "item":
+      return step.item.wordId !== earlier.wordId;
+    case "penalty":
+      return step.penalty.item.wordId !== earlier.wordId;
+  }
 }

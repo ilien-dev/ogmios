@@ -3,6 +3,7 @@ import type {
   AnswerResult,
   Direction,
   DisputeResult,
+  PenaltyAnswer,
   PracticeOptions,
   PracticeStep,
   Sitting,
@@ -213,7 +214,8 @@ describe("the mock's session", () => {
 
   /**
    * Plays a session to its summary, every answer right but the ones `wrong`
-   * names by their turn; a finished word is never asked again.
+   * names by their turn; a finished word is never asked again. A penalty a
+   * word's misses made due is answered right through, and is no turn.
    */
   async function play(
     sitting: Sitting,
@@ -222,8 +224,9 @@ describe("the mock's session", () => {
   ): Promise<[Turn[], PracticeStep]> {
     const turns: Turn[] = [];
     let { step } = sitting;
-    while (step.type === "item") {
-      const { wordId, direction } = step.item;
+    while (step.type !== "summary") {
+      const asked = step.type === "item" ? step.item : step.penalty.item;
+      const { wordId, direction } = asked;
       const word = mockChapterWords(LONG).find((each) => each.id === wordId);
       if (word === undefined || word.done) {
         throw new Error(`${wordId} is not to be asked`);
@@ -232,6 +235,16 @@ describe("the mock's session", () => {
         direction === THERE
           ? (word.translations[0] ?? "")
           : english(word.lemma);
+      if (step.type === "penalty") {
+        const through = await call<PenaltyAnswer>("answer_penalty", {
+          sittingId: sitting.id,
+          wordId,
+          direction,
+          answer: right,
+        });
+        ({ step } = through);
+        continue;
+      }
       const answer = wrong(turns.length) ? "no" : right;
       turns.push({ wordId, open: openWords(words) });
       const result = await call<AnswerResult>("answer_word", {

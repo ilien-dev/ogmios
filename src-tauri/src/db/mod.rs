@@ -4,6 +4,7 @@ pub mod books;
 pub mod drills;
 pub mod listening;
 pub mod patterns;
+pub mod penalty;
 pub mod practice;
 pub mod profile;
 pub mod recall;
@@ -56,6 +57,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("alone.sql"),
     include_str!("aspects.sql"),
     include_str!("neutral.sql"),
+    include_str!("penalty.sql"),
 ];
 
 pub fn open(path: &Path) -> Result<Connection> {
@@ -680,6 +682,46 @@ mod tests {
         let shelf = books::list_books(&conn).expect("list");
         let ids: Vec<&str> = shelf.iter().map(|book| book.id.as_str()).collect();
         assert_eq!(ids, ["b"]);
+    }
+
+    #[test]
+    fn migration_thirty_four_makes_no_penalty_due_for_misses_given_before_it() {
+        let conn = Connection::open_in_memory().expect("open");
+        conn.pragma_update(None, "foreign_keys", "ON").expect("fk");
+        for sql in &MIGRATIONS[..33] {
+            conn.execute_batch(sql).expect("migration");
+        }
+        conn.pragma_update(None, "user_version", 33)
+            .expect("version");
+        conn.execute_batch(
+            r#"INSERT INTO books VALUES ('b', 'Alice', NULL, 'epub', 'h', 'f', '2026-01-01');
+             INSERT INTO book_chapters (id, book_id, idx, title, words, text)
+               VALUES ('c', 'b', 0, 'I', 2, 'text');
+             INSERT INTO chapter_words
+               (id, chapter_id, key, lemma, forms, sentence, occurrences, depth, created_at)
+             VALUES ('swear', 'c', 'swear', 'swear', '["swear"]', 'I swear.', 1, 'most',
+                     '2026-01-01'),
+                    ('flee', 'c', 'flee', 'flee', '["flee"]', 'They flee.', 1, 'most',
+                     '2026-01-01');
+             INSERT INTO practice_sittings (id, chapter_id, started_at)
+               VALUES ('s', 'c', '2026-01-01');
+             INSERT INTO word_answers (word_id, direction, sitting_id, answer, correct, created_at)
+               VALUES ('swear', 'recognition', 's', '', 0, '2026-01-01'),
+                      ('swear', 'production', 's', '', 0, '2026-01-01'),
+                      ('swear', 'recognition', 's', '', 0, '2026-01-01');"#,
+        )
+        .expect("rows");
+
+        migrate(&conn).expect("migrate");
+        assert_eq!(penalty::due(&conn, "c").expect("due"), None);
+        let swear = penalty::row(&conn, "swear").expect("row");
+        assert_eq!(swear.since_seq, 3, "its streak starts after them");
+        assert_eq!(swear.standing.rung, 0);
+        let flee = penalty::row(&conn, "flee").expect("row");
+        assert_eq!(
+            flee.since_seq, 0,
+            "a word never answered has nothing behind it"
+        );
     }
 
     #[test]

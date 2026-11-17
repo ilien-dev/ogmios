@@ -6,6 +6,10 @@
  * is fixed.
  */
 
+import type { PenaltyStep } from "./penalty.ts";
+
+export type { PenaltyAnswer, PenaltyStep } from "./penalty.ts";
+
 export type Level = "basic" | "intermediate" | "advanced";
 export type Cefr = "A1" | "A2" | "B1" | "B2" | "C1" | "C2";
 export type Goal = "work" | "travel" | "exams" | "social" | "other";
@@ -735,7 +739,13 @@ export interface SittingProgress {
  */
 export type PracticeStep =
   | { type: "item"; item: PracticeItem; progress: SittingProgress }
-  | { type: "summary"; summary: SittingSummary; progress: SittingProgress };
+  | { type: "summary"; summary: SittingSummary; progress: SittingProgress }
+  /**
+   * A word missed too many times in a row is asked on its own until it is
+   * answered right every time (`books::penalty`). Nothing else is asked
+   * until it is.
+   */
+  | { type: "penalty"; penalty: PenaltyStep; progress: SittingProgress };
 
 /** A sitting just started, or the unfinished one gone on with. */
 export interface Sitting {
