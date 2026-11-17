@@ -1,7 +1,7 @@
 {
   "name": "ogmios",
   "private": true,
-  "version": "0.15.1",
+  "version": "0.15.2",
   "type": "module",
   "license": "AGPL-3.0-only",
   "scripts": {
@@ -26,6 +26,10 @@
     "rs:lint": "cd src-tauri && cargo clippy --all-targets -- -D warnings",
     "rs:test": "cd src-tauri && cargo test",
     "hooks:install": "git config core.hooksPath .githooks",
+    "site:install": "git submodule update --init site && cd site && bun install",
+    "site:dev": "cd site && bun run dev",
+    "site:build": "cd site && bun run build",
+    "site:demo": "cd site && bun run demo:build",
     "check": "bun run typecheck && bun run lint && bun run format:check && bun test && bun run rs:fmt:check && bun run rs:lint && bun run rs:test"
   },
   "dependencies": {
