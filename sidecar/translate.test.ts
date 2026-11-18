@@ -146,6 +146,18 @@ describe("paragraph review prompt", () => {
     expect(system).toContain("Write everything the learner reads");
   });
 
+  test("into the native language a slip is explained by the learner's words, never the English", () => {
+    const system = paragraphReviewSystemPrompt(there);
+    expect(system).toContain("An error is about the English");
+    expect(system).toContain(
+      "A slip is about the Spanish (es) the learner wrote",
+    );
+    expect(system).toContain("quote the words of the attempt that call for it");
+    expect(system).toContain("Never put a slip down to the English");
+    // Back into English the rule is English, and quoting it is right.
+    expect(paragraphReviewSystemPrompt(back)).not.toContain("put a slip down");
+  });
+
   test("an accent is a note only when the learner asked for spelling to count", () => {
     const lenient = paragraphReviewSystemPrompt(there);
     expect(lenient).toContain("did not ask for accents to count");
