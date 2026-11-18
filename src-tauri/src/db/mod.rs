@@ -727,6 +727,57 @@ mod tests {
     }
 
     #[test]
+    fn migration_thirty_six_looks_again_and_asks_a_past_for_its_persons() {
+        let conn = Connection::open_in_memory().expect("open");
+        conn.pragma_update(None, "foreign_keys", "ON").expect("fk");
+        for sql in &MIGRATIONS[..35] {
+            conn.execute_batch(sql).expect("migration");
+        }
+        conn.pragma_update(None, "user_version", 35)
+            .expect("version");
+        conn.execute_batch(
+            r#"INSERT INTO profile (id, native_lang, ui_lang, goal, variant, level)
+               VALUES (1, 'es', 'es', 'travel', 'us', 'intermediate');
+             INSERT INTO books VALUES ('b', 'Alice', NULL, 'epub', 'h', 'f', '2026-01-01');
+             INSERT INTO book_chapters (id, book_id, idx, title, words, text)
+               VALUES ('c', 'b', 0, 'I', 2, 'text');
+             INSERT INTO chapter_words
+               (id, chapter_id, key, lemma, forms, sentence, needs_context, occurrences,
+                depth, created_at, part_of_speech, transitive, base, verb_form, checked)
+             VALUES ('toe', 'c', 'toe', 'toe', '["toe"]', 'The toe of my shoe.', 1, 1,
+                     'most', '2026-01-01', 'noun', 0, NULL, NULL, 1),
+                    ('kicked', 'c', 'kicked', 'kicked', '["kicked"]', 'I kicked it.', 0, 1,
+                     'most', '2026-01-01', 'verb', 1, 'kick', 'past', 1);
+             INSERT INTO word_translations (word_id, text, source, in_form, in_form_also)
+               VALUES ('toe', 'punta', 'extraction', NULL, NULL),
+                      ('kicked', 'patear', 'extraction', 'pateé', '["pateaba"]');"#,
+        )
+        .expect("rows");
+
+        migrate(&conn).expect("migrate");
+        let looked: Vec<String> = words::unchecked(&conn)
+            .expect("unchecked")
+            .into_iter()
+            .map(|word| word.id)
+            .collect();
+        assert_eq!(looked, ["kicked", "toe"], "every word is looked at again");
+        // Until then, it goes by what its chapter said.
+        let toe = practice::word(&conn, "toe").expect("word");
+        assert!(toe.shows_context(crate::domain::Direction::Recognition));
+        assert!(toe.shows_context(crate::domain::Direction::Production));
+        assert_eq!(toe.related, []);
+        let kicked = practice::word(&conn, "kicked").expect("word");
+        assert!(!kicked.shows_context(crate::domain::Direction::Recognition));
+        assert_eq!(kicked.persons, None, "not said yet");
+        let waiting = words::unlabelled(&conn).expect("unlabelled");
+        let asked: Vec<(&str, &[String])> = waiting
+            .iter()
+            .map(|each| (each.id.as_str(), each.translations.as_slice()))
+            .collect();
+        assert_eq!(asked, [("kicked", &["patear".to_owned()][..])]);
+    }
+
+    #[test]
     fn migration_thirty_five_looks_again_at_every_word_and_its_form() {
         let conn = Connection::open_in_memory().expect("open");
         conn.pragma_update(None, "foreign_keys", "ON").expect("fk");
