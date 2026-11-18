@@ -909,10 +909,6 @@ export interface RecallAnswer extends SentenceVerdict {
   /** What was asked for, the first one first. */
   accepted: string[];
   step: RecallStep;
-  /** The word keeps slipping: the learner is offered a note of their own. */
-  stubborn: boolean;
-  /** The note they wrote for it before. */
-  note: string | null;
   /** Names this answer, for calling its sentence bad. */
   answerId: number;
 }

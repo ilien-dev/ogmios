@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import type { RecallAnswer, RecallStep, Ways } from "@shared/domain";
+import type { RecallStep, Ways } from "@shared/domain";
 import { SittingItem } from "@/features/books/SittingItem";
 import {
   SittingEnd,
@@ -16,7 +16,6 @@ import {
   hintRecall,
   startRecall,
 } from "@/lib/ipc";
-import { WordNote } from "./WordNote";
 
 /** The run on the screen, and how many words it has shown here. */
 interface Run {
@@ -38,8 +37,6 @@ function Round({ ways, nativeLang, onMore, onDone }: RoundProps): ReactNode {
   const { t } = useTranslation();
   const [run, setRun] = useState<Run | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
-  /** The verdict on the word shown, once it is answered. */
-  const [last, setLast] = useState<RecallAnswer | null>(null);
 
   useEffect(() => {
     let live = true;
@@ -92,9 +89,6 @@ function Round({ ways, nativeLang, onMore, onDone }: RoundProps): ReactNode {
         />
       );
     }
-    const { wordId } = step.item;
-    // A word that keeps slipping, just missed: the learner's note on it.
-    const slipped = last !== null && !last.correct && last.stubborn;
     return (
       <SittingItem
         nativeLang={nativeLang}
@@ -106,15 +100,9 @@ function Round({ ways, nativeLang, onMore, onDone }: RoundProps): ReactNode {
         bad={(result) => discardRecallSentence(id, result.answerId)}
         know={null}
         dispute={null}
-        notice={
-          slipped ? (
-            <WordNote key="note" wordId={wordId} note={last.note} />
-          ) : null
-        }
-        onAnswered={setLast}
+        notice={null}
         onDispute={null}
         onNext={(next) => {
-          setLast(null);
           setRun({ id, step: next, turn: run.turn + 1 });
         }}
       />

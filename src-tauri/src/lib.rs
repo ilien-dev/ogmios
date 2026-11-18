@@ -141,7 +141,6 @@ macro_rules! every_command {
             commands::recall::recall_state,
             commands::recall::start_recall,
             commands::recall::answer_recall,
-            commands::recall::save_word_note,
             commands::label::label_words,
             commands::sentences::write_sentences,
             commands::practice::discard_sentence,

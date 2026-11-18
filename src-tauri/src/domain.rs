@@ -1086,10 +1086,6 @@ pub struct RecallAnswer {
     /// What was asked for, the first one first.
     pub accepted: Vec<String>,
     pub step: RecallStep,
-    /// The word keeps slipping: the learner is offered a note of their own.
-    pub stubborn: bool,
-    /// The note they wrote for it before.
-    pub note: Option<String>,
     /// Names this answer, for calling its sentence bad.
     pub answer_id: i64,
     /// As in `AnswerResult`.

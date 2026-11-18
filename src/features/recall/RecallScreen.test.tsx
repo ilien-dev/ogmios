@@ -140,7 +140,7 @@ describe("the daily recall", () => {
     expect(await screen.findByText("Right.")).toBeInTheDocument();
   });
 
-  test("a word that keeps slipping offers the learner a note of their own", async () => {
+  test("a word that keeps slipping asks for nothing but the word", async () => {
     const user = await begin();
     const word = prompt();
     const miss = async (): Promise<void> => {
@@ -155,28 +155,16 @@ describe("the daily recall", () => {
       await start(user);
     };
 
-    // Two misses are misses; the third makes it one that keeps slipping.
     await miss();
-    expect(screen.queryByText("This one keeps slipping")).toBeNull();
+    const fields = screen.queryAllByRole("textbox").length;
     await again();
     await miss();
-    expect(screen.queryByText("This one keeps slipping")).toBeNull();
     await again();
     await miss();
-    expect(screen.getByText("This one keeps slipping")).toBeInTheDocument();
-    // Enter still goes on: the note is the learner's to write or not.
+    // The third miss makes it one that keeps slipping: no field for a note
+    // of the learner's own, they have to remember it themselves.
+    expect(screen.queryAllByRole("textbox")).toHaveLength(fields);
     expect(screen.getByRole("button", { name: "Next" })).toHaveFocus();
-
-    await user.type(screen.getByLabelText("Your note"), "a coat for the waist");
-    await user.click(screen.getByRole("button", { name: "Save" }));
-    expect(await screen.findByText("Saved")).toBeInTheDocument();
-
-    // The next time it slips, the note is there to read.
-    await again();
-    await miss();
-    expect(screen.getByLabelText("Your note")).toHaveValue(
-      "a coat for the waist",
-    );
   });
 
   test("a run with a miss says so and offers another round", async () => {

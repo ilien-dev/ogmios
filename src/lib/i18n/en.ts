@@ -889,13 +889,6 @@ export const en = {
     allRight: "Nothing slipped.",
     more: "Another round",
     back: "Done",
-    note: {
-      title: "This one keeps slipping",
-      hint: "Write your own trick to remember it. You will see it the next time it slips.",
-      label: "Your note",
-      save: "Save",
-      saved: "Saved",
-    },
   },
   progress: {
     title: "Progress",

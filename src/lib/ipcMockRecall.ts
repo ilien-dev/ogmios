@@ -3,8 +3,7 @@
  * words finished on the shelf are due until one is answered right; a run
  * asks ten at most, each once, and a word missed in it is due again for the
  * next run: the mock has no tomorrow. A right answer takes the word a step
- * up and a miss one down, and three misses make it one that keeps slipping,
- * which carries the learner's note. Nothing here reopens a word in its
+ * up and a miss one down, Nothing here reopens a word in its
  * chapter.
  */
 import type {
@@ -29,7 +28,6 @@ import {
 } from "./ipcMockPractice";
 import {
   addMockWordMiss,
-  mockWordMisses,
   mockWordStep,
   mockWordStrength,
   setMockWordStep,
@@ -37,8 +35,6 @@ import {
 
 /** Words a run asks at most. */
 const SIZE = 10;
-/** Misses that make a word one that keeps slipping. */
-const STUBBORN_MISSES = 3;
 
 interface Run {
   ways: Ways;
@@ -51,15 +47,13 @@ interface Run {
 let runs: Map<string, Run> = new Map();
 /** The words answered right: they are not due again. */
 let held: Set<string> = new Set();
-let notes: Map<string, string> = new Map();
 /** The way each word was last asked. */
 let sides: Map<string, Direction> = new Map();
 
-/** Forgets every run, every answer and every note. */
+/** Forgets every run, and every answer. */
 export function resetMockRecall(): void {
   runs = new Map();
   held = new Set();
-  notes = new Map();
   sides = new Map();
 }
 
@@ -187,22 +181,10 @@ function answer(
       direction === "recognition" ? word.translations : [word.lemma],
     ),
     step: stepOf(run),
-    stubborn: mockWordMisses(key) >= STUBBORN_MISSES,
-    note: notes.get(key) ?? null,
     answerId: run.right + run.missed,
     ...PLAIN,
     helped: correct && hinted,
   };
-}
-
-function saveNote(key: string, note: string): null {
-  const text = note.trim();
-  if (text === "") {
-    notes.delete(key);
-  } else {
-    notes.set(key, text);
-  }
-  return null;
 }
 
 function arg(args: unknown, key: string): string {
@@ -234,7 +216,5 @@ export function recallCommands(
           Number(arg(args, "asked")),
         ),
       ),
-    save_word_note: (args) =>
-      after(80, () => saveNote(arg(args, "wordId"), arg(args, "note"))),
   };
 }
