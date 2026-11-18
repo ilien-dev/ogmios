@@ -463,6 +463,7 @@ describe("labelling words stored without their kind", () => {
         verbForm: "past",
         inForm: [],
         inFormAlso: [],
+        inFormPersons: [],
       },
       {
         id: "w2",
@@ -471,6 +472,7 @@ describe("labelling words stored without their kind", () => {
         verbForm: "past",
         inForm: [],
         inFormAlso: [],
+        inFormPersons: [],
       },
     ]);
     const formed = vocabLabelsSchema.parse(await ask("vocabLabel", sworn));
@@ -520,6 +522,23 @@ describe("looking again at the words taken from a book", () => {
     );
   });
 
+  test("the sentence is asked for each way, only when the word alone misleads", () => {
+    const system = vocabCheckSystemPrompt(taken);
+    expect(system).toContain('"toe" asked for "punta"');
+    expect(system).toContain('("race" asked for "carrera")');
+    expect(system).toContain('"punta" leads to "tip" or "point", not "toe"');
+    expect(system).toContain('"patada" (noun) beside "patear" (verb)');
+  });
+
+  test("a past is said in every person: English says none", () => {
+    expect(vocabLabelSystemPrompt()).toContain(
+      "inFormPersons: for each of inForm",
+    );
+    expect(vocabLabelSystemPrompt()).toContain(
+      "English says no person in a past",
+    );
+  });
+
   test("each word comes with its sentence, its kind and its translations", () => {
     const user = vocabCheckUserPrompt(taken);
     expect(user).toContain('<word id="w1">');
@@ -541,6 +560,9 @@ describe("looking again at the words taken from a book", () => {
       verbForm: "past",
       base: "mope",
       translations: ["mopear"],
+      contextThere: true,
+      contextBack: true,
+      related: [{ text: "mopeo", partOfSpeech: "noun" }],
     });
     expect(checked.checks[1]).toMatchObject({ id: "w2", fits: true });
     expect(

@@ -486,6 +486,10 @@ pub struct WordLabel {
     /// past of a past ("juraba" beside "juró"); empty for any other form.
     #[serde(default)]
     pub in_form_also: Vec<Vec<String>>,
+    /// For each of those, a past in every other person of the same tense
+    /// ("juré", "juraron" beside "juró"); empty for any other form.
+    #[serde(default)]
+    pub in_form_persons: Vec<Vec<String>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -517,6 +521,15 @@ pub struct VocabCheckParams {
     pub words: Vec<CheckWord>,
 }
 
+/// A word of the learner's language from the root of a translation, in
+/// another kind: "patada", a noun, beside "patear".
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RelatedWord {
+    pub text: String,
+    pub part_of_speech: crate::domain::PartOfSpeech,
+}
+
 /// The model's look at one word: whether it was taken for the word its
 /// sentence uses, and the word it is when it was not.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -536,6 +549,14 @@ pub struct WordCheck {
     pub base: Option<String>,
     /// Its translations in the sense its sentence gives it, base form.
     pub translations: Vec<String>,
+    /// The English word shown alone does not lead to its translations: it
+    /// is asked English → native with its sentence.
+    pub context_there: bool,
+    /// Its translations shown alone do not lead to the English word: it is
+    /// asked native → English with its sentence.
+    pub context_back: bool,
+    /// Words from the root of its translations, in another kind.
+    pub related: Vec<RelatedWord>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

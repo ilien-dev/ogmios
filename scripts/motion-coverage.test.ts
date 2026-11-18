@@ -103,7 +103,7 @@ const ALLOWED: readonly Allowance[] = [
     why: "A word's standing changes on another route; known, its row leaves whole. Rows are thousands: each Presence here costs a mount.",
   },
   {
-    file: "src/features/books/SittingItem.tsx",
+    file: "src/features/books/SentenceContext.tsx",
     when: "blanked",
     why: "Set by the question, and the question is swapped by SittingStage.",
   },

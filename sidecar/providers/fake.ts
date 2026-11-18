@@ -211,6 +211,7 @@ function fakeLabels(params: VocabLabelParams): VocabLabels {
       verbForm: "past",
       inForm: word.translations.map((each) => `${each}ó`),
       inFormAlso: word.translations.map((each) => [`${each}aba`]),
+      inFormPersons: word.translations.map((each) => [`${each}é`]),
     })),
   };
 }
@@ -236,6 +237,9 @@ function fakeChecks(params: VocabCheckParams): VocabChecks {
           verbForm: null,
           base: null,
           translations: word.translations,
+          contextThere: false,
+          contextBack: false,
+          related: [],
         };
       }
       const base = word.lemma.slice(0, -1);
@@ -247,6 +251,9 @@ function fakeChecks(params: VocabCheckParams): VocabChecks {
         verbForm: "past",
         base,
         translations: [`${base}ar`],
+        contextThere: true,
+        contextBack: true,
+        related: [{ text: `${base}o`, partOfSpeech: "noun" }],
       };
     }),
   };

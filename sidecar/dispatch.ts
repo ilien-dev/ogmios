@@ -121,7 +121,7 @@ const MAX_TOKENS = {
   vocabExtract: 16_000,
   vocabJudge: 1024,
   vocabLabel: 4096,
-  vocabCheck: 8192,
+  vocabCheck: 16_000,
   sentenceWrite: 16_000,
   sentenceReview: 4096,
   chapterBrief: 2048,

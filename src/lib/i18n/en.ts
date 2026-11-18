@@ -643,6 +643,8 @@ export const en = {
         "That's the word, but I'm after its base form: the infinitive. Try once more.",
       otherWord:
         "That's right, but I'm after another word here. Try once more.",
+      otherKind:
+        "Remember: I'm asking for “{{asked}}”, not “{{given}}”. {{title}}: {{meaning}} Try once more.",
       exact: "In this sentence:",
       verbForm: {
         base: "base form",

@@ -8,7 +8,7 @@ use rusqlite::{params, Connection, OptionalExtension};
 
 use super::profile::get_profile;
 use super::{found, new_id, parse_ts, ts};
-use crate::agent::protocol::{CheckWord, LabelWord, VocabItem, WordCheck};
+use crate::agent::protocol::{CheckWord, LabelWord, RelatedWord, VocabItem, WordCheck};
 use crate::books::practice::{inflects, preferred};
 use crate::books::sentences::affirmed_base;
 use crate::books::vocab::{called_in_form, key, tokens, Word};
@@ -530,7 +530,9 @@ pub fn unlabelled(conn: &Connection) -> Result<Vec<LabelWord>> {
         "SELECT t.text FROM word_translations t
          JOIN chapter_words w ON w.id = t.word_id
          WHERE w.id = ?1 AND t.source = 'extraction'
-           AND (t.in_form IS NULL OR (t.in_form_also IS NULL AND w.verb_form = 'past'))
+           AND (t.in_form IS NULL
+             OR (w.verb_form = 'past'
+               AND (t.in_form_also IS NULL OR t.in_form_persons IS NULL)))
          ORDER BY t.rowid",
     )?;
     let mut words = Vec::new();
@@ -577,6 +579,26 @@ pub fn unchecked(conn: &Connection) -> Result<Vec<CheckWord>> {
         word.translations = rows.collect::<rusqlite::Result<_>>()?;
     }
     Ok(words)
+}
+
+/// The words a look says are from the root of a word's translations, in
+/// another kind, that are none of the `translations` it keeps: each once.
+fn related(look: &WordCheck, translations: &[String]) -> Vec<RelatedWord> {
+    let mut seen: Vec<String> = translations.iter().map(|each| key(each)).collect();
+    let mut kept = Vec::new();
+    for word in &look.related {
+        let text = word.text.trim();
+        let same = key(text);
+        if same.is_empty() || word.part_of_speech == look.part_of_speech || seen.contains(&same) {
+            continue;
+        }
+        seen.push(same);
+        kept.push(RelatedWord {
+            text: text.to_owned(),
+            part_of_speech: word.part_of_speech,
+        });
+    }
+    kept
 }
 
 /// What a look at a word against its sentence found, as code takes it.
@@ -690,6 +712,23 @@ pub fn check(conn: &Connection, id: &str, look: &WordCheck) -> Result<bool> {
         .map(str::trim)
         .filter(|said| verb && !said.is_empty() && key(said) != key(&lemma));
     let found = judge_look((&lemma, &sentence), (taken, base.as_deref()), &had, look);
+    // What it says of how the word is asked holds for the word it is now.
+    let kept: Vec<String> = if found == Look::Other {
+        look.translations.clone()
+    } else {
+        had
+    };
+    let related = related(look, &kept);
+    conn.execute(
+        "UPDATE chapter_words SET context_there = ?2, context_back = ?3, related = ?4
+         WHERE id = ?1",
+        params![
+            id,
+            look.context_there,
+            look.context_back,
+            serde_json::to_string(&related)?
+        ],
+    )?;
     match found {
         Look::Fits => Ok(false),
         Look::Base => {
@@ -729,6 +768,37 @@ pub fn check(conn: &Connection, id: &str, look: &WordCheck) -> Result<bool> {
             Ok(true)
         }
     }
+}
+
+/// Keeps the other persons of a past said in its form: `persons`, one
+/// list for each of the `asked` translations, in that order, empty for one
+/// that has none ("juré", "juraron" beside "juró"); whether any was news.
+/// An answer that is not one for each says nothing, and what a translation
+/// has already, it keeps.
+pub fn put_persons(
+    conn: &Connection,
+    id: &str,
+    asked: &[String],
+    persons: &[Vec<String>],
+) -> Result<bool> {
+    if asked.len() != persons.len() {
+        return Ok(false);
+    }
+    let mut stmt = conn.prepare(
+        "UPDATE word_translations SET in_form_persons = ?3
+         WHERE word_id = ?1 AND text = ?2 AND source = 'extraction'
+           AND in_form IS NOT NULL AND in_form_persons IS NULL",
+    )?;
+    let mut changed = 0;
+    for (text, forms) in asked.iter().zip(persons) {
+        let forms: Vec<&str> = forms
+            .iter()
+            .map(|each| each.trim())
+            .filter(|each| !each.is_empty())
+            .collect();
+        changed += stmt.execute(params![id, text, serde_json::to_string(&forms)?])?;
+    }
+    Ok(changed > 0)
 }
 
 /// Keeps the translations of a word in the form it is called by: `said`,
@@ -982,6 +1052,9 @@ pub mod tests {
             verb_form: None,
             base: base.map(str::to_owned),
             translations: said.iter().map(|each| (*each).to_owned()).collect(),
+            context_there: false,
+            context_back: false,
+            related: Vec::new(),
         };
         let had = ["ciclomotor".to_owned(), "moto pequeña".to_owned()];
         let moped = ("moped", "He moped around.");

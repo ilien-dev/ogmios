@@ -533,6 +533,11 @@ const wordLabelSchema = z.object({
    * a past ("juraba" beside "juró"); empty for any other form.
    */
   inFormAlso: z.array(z.array(z.string())),
+  /**
+   * For each of those, a past in every other person of the same tense
+   * ("juré", "juraron" beside "juró"); empty for any other form.
+   */
+  inFormPersons: z.array(z.array(z.string())),
 });
 
 /** The model's labels; a word without one is asked about again. */
@@ -563,6 +568,15 @@ export const vocabCheckParams = z.object({
 export type VocabCheckParams = z.infer<typeof vocabCheckParams>;
 
 /**
+ * A word of the learner's language from the root of a translation, in
+ * another kind: "patada", a noun, beside "patear".
+ */
+const relatedWordSchema = z.object({
+  text: z.string(),
+  partOfSpeech: partOfSpeechSchema,
+});
+
+/**
  * The model's look at one word: whether it was taken for the word its
  * sentence uses, and the word it is when it was not.
  */
@@ -580,6 +594,18 @@ const wordCheckSchema = z.object({
   base: z.string().nullable(),
   /** Its translations in the sense its sentence gives it, base form. */
   translations: z.array(z.string()),
+  /**
+   * The English word shown alone does not lead to its translations: it is
+   * asked English → native with its sentence.
+   */
+  contextThere: z.boolean(),
+  /**
+   * Its translations shown alone do not lead to the English word: it is
+   * asked native → English with its sentence.
+   */
+  contextBack: z.boolean(),
+  /** Words from the root of its translations, in another kind. */
+  related: z.array(relatedWordSchema),
 });
 
 /** The model's looks; a word without one is looked at again. */

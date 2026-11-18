@@ -59,6 +59,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("neutral.sql"),
     include_str!("penalty.sql"),
     include_str!("senses.sql"),
+    include_str!("contexts.sql"),
 ];
 
 pub fn open(path: &Path) -> Result<Connection> {
@@ -856,6 +857,14 @@ mod tests {
         assert!(words::put_in_form(&conn, "swore", &asked, &said).is_ok());
         assert!(words::put_also(&conn, "swore", &asked, &also).expect("also"));
         assert_eq!(word("swore").also, Some(vec!["juraba".to_owned()]));
+        // A past still owes its other persons (migration 36).
+        assert_eq!(words::unlabelled(&conn).expect("unlabelled").len(), 2);
+        let persons = [vec!["juré".to_owned(), "juraron".to_owned()]];
+        assert!(words::put_persons(&conn, "swore", &asked, &persons).expect("persons"));
+        assert_eq!(
+            word("swore").persons,
+            Some(vec!["juré".to_owned(), "juraron".to_owned()])
+        );
         let left = words::unlabelled(&conn).expect("unlabelled");
         assert_eq!(left.len(), 1, "only the present is left");
         // One said to have no other is not asked again.

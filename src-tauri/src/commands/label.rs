@@ -97,7 +97,13 @@ pub fn label_all(ctx: Ctx<'_>, model: &mut dyn Model) -> Result<u32> {
             let kind = words::label(&conn, &label.id, kind, label.verb_form)?;
             let form = words::put_in_form(&conn, &label.id, &asked.translations, &label.in_form)?;
             let also = words::put_also(&conn, &label.id, &asked.translations, &label.in_form_also)?;
-            if kind || form || also {
+            let persons = words::put_persons(
+                &conn,
+                &label.id,
+                &asked.translations,
+                &label.in_form_persons,
+            )?;
+            if kind || form || also || persons {
                 labelled = labelled.saturating_add(1);
             }
         }
@@ -175,6 +181,7 @@ mod tests {
                     verb_form: Some(VerbForm::Base),
                     in_form: word.translations.iter().map(|t| format!("{t}do")).collect(),
                     in_form_also: word.translations.iter().map(|_| Vec::new()).collect(),
+                    in_form_persons: word.translations.iter().map(|_| Vec::new()).collect(),
                 })
                 .collect();
             labels.push(WordLabel {
@@ -184,6 +191,7 @@ mod tests {
                 verb_form: None,
                 in_form: Vec::new(),
                 in_form_also: Vec::new(),
+                in_form_persons: Vec::new(),
             });
             Ok(VocabLabels { labels })
         }
@@ -210,6 +218,9 @@ mod tests {
                             base: kicked.then(|| "kick".to_owned()),
                             translations: [word.translations.clone(), vec!["valla".into()]]
                                 .concat(),
+                            context_there: false,
+                            context_back: false,
+                            related: Vec::new(),
                         };
                     }
                     WordCheck {
@@ -228,6 +239,9 @@ mod tests {
                         } else {
                             word.translations.clone()
                         },
+                        context_there: false,
+                        context_back: false,
+                        related: Vec::new(),
                     }
                 })
                 .collect();

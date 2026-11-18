@@ -35,6 +35,7 @@ const RECOGNITION: PracticeItem = {
     { text: "tumble", marked: true },
     { text: " down the hole.", marked: false },
   ],
+  nativeContext: null,
   sentenceId: null,
   verbForm: null,
 };
@@ -49,6 +50,7 @@ const PRODUCTION: PracticeItem = {
     { text: "", marked: true },
     { text: " down the hole.", marked: false },
   ],
+  nativeContext: null,
   sentenceId: null,
   verbForm: null,
 };

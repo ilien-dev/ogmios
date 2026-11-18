@@ -424,6 +424,10 @@ pub enum Verdict {
     /// Another English word for what was shown, not the one asked for: no
     /// answer yet. What was shown did not say which of them was meant.
     OtherWord,
+    /// A word of the learner's language from the root of the one asked
+    /// for, of another kind ("patada" for "kicked"): no answer yet, and the
+    /// learner is reminded of the kind asked for.
+    OtherKind,
     Miss,
 }
 

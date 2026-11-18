@@ -39,6 +39,7 @@ const BLANKED: PracticeItem = {
     { text: "", marked: true },
     { text: " the soup.", marked: false },
   ],
+  nativeContext: null,
   sentenceId: "s1",
   verbForm: "past",
 };
@@ -746,5 +747,54 @@ describe("from one word to the next, with animation on", () => {
       expect(leaving() === null).toBe(true);
     });
     expect(hushed).not.toHaveBeenCalled();
+  });
+});
+
+describe("telling which word is meant", () => {
+  useMockBackend();
+
+  test("asked for in English, a word shows its sentence in the learner's language", () => {
+    stage(
+      {
+        ...BLANKED,
+        prompt: "punta",
+        partOfSpeech: "noun",
+        verbForm: null,
+        context: null,
+        nativeContext: [
+          { text: "Con la ", marked: false },
+          { text: "punta", marked: true },
+          { text: " del zapato.", marked: false },
+        ],
+      },
+      () => ({ ...PLAIN, correct: true, accepted: ["toe"], step: "next" }),
+    );
+    expect(screen.getByText("punta", { selector: "mark" })).toBeVisible();
+    expect(screen.getByText(/del zapato\./)).toBeVisible();
+    // Nothing of English is in it, and no blank stands in it.
+    expect(document.querySelector("[data-blank]")).toBeNull();
+    expect(screen.queryByText(/toe/)).toBeNull();
+  });
+
+  test("a word of another kind from its root is told the kind asked for, and what it is", async () => {
+    const user = userEvent.setup();
+    const held = stage(
+      { ...SHOWN, prompt: "kicked", context: null, sentenceId: null },
+      (_answer, second) => ({
+        ...PLAIN,
+        correct: false,
+        accepted: second ? ["pateó"] : [],
+        step: "next",
+        again: !second,
+        otherKind: second ? null : { asked: "verb", given: "noun" },
+      }),
+    );
+    await user.type(screen.getByLabelText("Your translation"), "patada{Enter}");
+    expect(
+      await screen.findByText(
+        "Remember: I'm asking for “verb”, not “noun”. Verb: says an action or a state. Try once more.",
+      ),
+    ).toBeInTheDocument();
+    expect(held.sent).toEqual([["patada", false]]);
   });
 });
