@@ -9,8 +9,10 @@ use rusqlite::{params, Connection};
 
 use super::words::{as_called, Used};
 use super::{found, new_id, parse_ts, ts};
+use crate::agent::protocol::RelatedWord;
 use crate::books::practice::{Answer, Asked, SessionWord};
 use crate::books::sentences::inflected;
+use crate::books::vocab::called_in_form;
 use crate::domain::{Direction, PartOfSpeech, SittingSummary, VerbForm, Ways};
 use crate::error::Result;
 
@@ -52,6 +54,18 @@ pub struct WordRow {
     pub forms: Vec<String>,
     pub sentence: String,
     pub needs_context: bool,
+    /// Whether it is asked English → native with its sentence, as the look
+    /// at it said (`db::words::check`); none until it was looked at.
+    pub context_there: Option<bool>,
+    /// The same, native → English.
+    pub context_back: Option<bool>,
+    /// Words from the root of its translations, in another kind ("patada"
+    /// beside "patear"); none until it was looked at.
+    pub related: Vec<RelatedWord>,
+    /// A past said in its form in every other person of the same tense:
+    /// "juré" and "juraron" beside "juró". None while any of them was not
+    /// said (`db::words::put_persons`), and for any other word.
+    pub persons: Option<Vec<String>>,
     /// Every accepted translation, the first one first: the ones the
     /// chapter was prepared with, then the ones a dispute upheld.
     pub translations: Vec<String>,
@@ -158,6 +172,82 @@ pub fn sitting(conn: &Connection, id: &str) -> Result<SittingRow> {
     })
 }
 
+/// What the look at a word said of how it is asked, and the other persons
+/// its past was said in (`WordRow`).
+struct Looked {
+    context_there: Option<bool>,
+    context_back: Option<bool>,
+    related: Vec<RelatedWord>,
+    persons: Option<Vec<String>>,
+}
+
+impl Looked {
+    fn load(conn: &Connection, id: &str) -> Result<Self> {
+        let (context_there, context_back, related): (Option<bool>, Option<bool>, Option<String>) =
+            conn.query_row(
+                "SELECT context_there, context_back, related FROM chapter_words WHERE id = ?1",
+                [id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )?;
+        let related: Vec<RelatedWord> = match related {
+            Some(json) => serde_json::from_str(&json)?,
+            None => Vec::new(),
+        };
+        let mut stmt = conn.prepare(
+            "SELECT in_form_persons FROM word_translations
+             WHERE word_id = ?1 AND source = 'extraction' AND in_form IS NOT NULL",
+        )?;
+        let said: Vec<Option<String>> = stmt
+            .query_map([id], |row| row.get(0))?
+            .collect::<rusqlite::Result<_>>()?;
+        // Unsaid while any translation said in its form has none.
+        let mut persons: Option<Vec<String>> = Some(Vec::new());
+        for each in said {
+            let (Some(json), Some(kept)) = (each, persons.as_mut()) else {
+                persons = None;
+                continue;
+            };
+            for form in serde_json::from_str::<Vec<String>>(&json)? {
+                if !kept.contains(&form) {
+                    kept.push(form);
+                }
+            }
+        }
+        Ok(Self {
+            context_there,
+            context_back,
+            related,
+            persons,
+        })
+    }
+}
+
+/// The other forms the translations said in their form say the same in,
+/// each once; none while any of them was not asked (`WordRow::also`).
+fn said_also(
+    rows: &[(String, bool, Option<String>, Option<String>)],
+) -> Result<Option<Vec<String>>> {
+    let mut also: Option<Vec<String>> = Some(Vec::new());
+    for (_, extracted, in_form, forms) in rows {
+        if !*extracted || in_form.is_none() {
+            continue;
+        }
+        let Some(forms) = forms else {
+            also = None;
+            continue;
+        };
+        let forms: Vec<String> = serde_json::from_str(forms)?;
+        if let Some(kept) = also.as_mut() {
+            for each in forms {
+                if !kept.contains(&each) {
+                    kept.push(each);
+                }
+            }
+        }
+    }
+    Ok(also)
+}
+
 pub fn word(conn: &Connection, id: &str) -> Result<WordRow> {
     let (chapter_id, lemma, forms, sentence, needs_context, (key, part_of_speech)): (
         String,
@@ -189,6 +279,7 @@ pub fn word(conn: &Connection, id: &str) -> Result<WordRow> {
         [id],
         |row| Ok((row.get(0)?, row.get(1)?)),
     )?;
+    let looked = Looked::load(conn, id)?;
     let mut stmt = conn.prepare(
         "SELECT text, source = 'extraction', in_form, in_form_also FROM word_translations
          WHERE word_id = ?1 ORDER BY rowid",
@@ -198,25 +289,7 @@ pub fn word(conn: &Connection, id: &str) -> Result<WordRow> {
             Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
         })?
         .collect::<rusqlite::Result<Vec<(String, bool, Option<String>, Option<String>)>>>()?;
-    // Unasked while any translation shown in its form was not asked.
-    let mut also: Option<Vec<String>> = Some(Vec::new());
-    for (_, extracted, in_form, forms) in &rows {
-        if !*extracted || in_form.is_none() {
-            continue;
-        }
-        let Some(forms) = forms else {
-            also = None;
-            continue;
-        };
-        let forms: Vec<String> = serde_json::from_str(forms)?;
-        if let Some(kept) = also.as_mut() {
-            for each in forms {
-                if !kept.contains(&each) {
-                    kept.push(each);
-                }
-            }
-        }
-    }
+    let also = said_also(&rows)?;
     let accepted: Vec<(String, bool, Option<String>)> = rows
         .into_iter()
         .map(|(text, extracted, in_form, _)| (text, extracted, in_form))
@@ -227,8 +300,17 @@ pub fn word(conn: &Connection, id: &str) -> Result<WordRow> {
         .filter(|(_, extracted, _)| *extracted)
         .filter_map(|(text, _, in_form)| Some((text.clone(), in_form.clone()?)))
         .collect();
-    let in_form = as_called(&shown, &said, base.is_none());
+    let forms: Vec<String> = serde_json::from_str(&forms)?;
+    let called = (lemma.as_str(), base.as_deref());
+    let in_form = as_called(
+        &shown,
+        &said,
+        !called_in_form(called, (&forms, &sentence), part_of_speech, verb_form),
+    );
     let also = also.filter(|_| in_form.is_some());
+    let persons = looked
+        .persons
+        .filter(|_| in_form.is_some() && verb_form == Some(VerbForm::Past));
     let translations = accepted.iter().map(|(text, ..)| text.clone()).collect();
     let mut stmt =
         conn.prepare("SELECT text FROM word_english WHERE word_id = ?1 ORDER BY rowid")?;
@@ -243,9 +325,13 @@ pub fn word(conn: &Connection, id: &str) -> Result<WordRow> {
         base,
         part_of_speech,
         verb_form,
-        forms: serde_json::from_str(&forms)?,
+        forms,
         sentence,
         needs_context,
+        context_there: looked.context_there,
+        context_back: looked.context_back,
+        related: looked.related,
+        persons,
         translations,
         shown,
         in_form,
@@ -255,6 +341,26 @@ pub fn word(conn: &Connection, id: &str) -> Result<WordRow> {
 }
 
 impl WordRow {
+    /// The other persons of a past it is asked for in, when it is asked
+    /// English → native without its sentence: nothing tells the person
+    /// then, and any is right. None with its sentence, which says it.
+    pub fn unseen_persons(&self) -> &[String] {
+        if self.shows_context(Direction::Recognition) {
+            return &[];
+        }
+        self.persons.as_deref().unwrap_or_default()
+    }
+
+    /// Whether it is asked this way with its sentence: as the look at it
+    /// said, and as its chapter said until it was looked at.
+    pub fn shows_context(&self, direction: Direction) -> bool {
+        let said = match direction {
+            Direction::Recognition => self.context_there,
+            Direction::Production => self.context_back,
+        };
+        said.unwrap_or(self.needs_context)
+    }
+
     /// What the word is shown as in the learner's language: in the form it
     /// is called by, once that was said, and in its base form until then.
     pub fn shown_as(&self) -> &[String] {
@@ -273,11 +379,23 @@ impl WordRow {
             self.part_of_speech,
             Some(PartOfSpeech::Verb | PartOfSpeech::PhrasalVerb)
         );
-        let alone = match self.base {
-            None => Some(self.shown.as_slice()),
-            Some(_) => self.in_form.as_deref(),
+        let alone = if self.called_in_form() {
+            self.in_form.as_deref()
+        } else {
+            Some(self.shown.as_slice())
         };
         alone.filter(|each| verb && !each.is_empty())
+    }
+
+    /// Whether it is called by another form than its base form
+    /// (`books::vocab::called_in_form`).
+    pub fn called_in_form(&self) -> bool {
+        called_in_form(
+            (&self.lemma, self.base.as_deref()),
+            (&self.forms, &self.sentence),
+            self.part_of_speech,
+            self.verb_form,
+        )
     }
 
     /// [`Self::alone`], for a sentence that has the word in this `form`:

@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import type { BookWord, ChapterWords } from "@shared/domain";
 import { useMockBackend } from "@/test/mockBackend";
 import { TriageCard } from "./TriageCard";
-import { retryKey } from "./SittingItem";
+import { retryKey } from "./retryLine";
 import { renewed } from "./TriageRun";
 
 function word(overrides: Partial<BookWord> = {}): BookWord {

@@ -4,10 +4,9 @@ import { Trans, useTranslation } from "react-i18next";
 import { ArrowRight } from "lucide-react";
 import type {
   AnotherWord,
+  KindReminder,
   PracticeItem,
-  SentencePart,
   ShownSentence,
-  VerbForm,
   WordHint,
 } from "@shared/domain";
 import { Presence } from "@/components/motion/Presence";
@@ -25,23 +24,8 @@ import { PartOfSpeechTag } from "./PartOfSpeechTag";
 import type { DisputeState } from "./sittingRun";
 import { Key } from "./TriageRun";
 import { VerbFormTag } from "./VerbFormTag";
-
-/** Each piece with a key of its own: where it starts, and what it is. */
-function placed(
-  parts: SentencePart[],
-): Array<{ key: string; part: SentencePart }> {
-  return parts.map((part, index) => {
-    const start = parts
-      .slice(0, index)
-      .reduce((length, earlier) => length + earlier.text.length, 0);
-    return { key: `${String(start)}${part.marked ? "w" : "s"}`, part };
-  });
-}
-
-/** The sentence as the book has it. */
-function whole(parts: SentencePart[]): string {
-  return parts.map((part) => part.text).join("");
-}
+import { kindLine, retryKey } from "./retryLine";
+import { Context, whole } from "./SentenceContext";
 
 /**
  * The English of a word as it is asked, to be read aloud. English → native
@@ -57,52 +41,6 @@ function aloud(item: PracticeItem, answer: string | null): string | null {
     : `${item.prompt}. ${whole(item.context)}`;
 }
 
-interface ContextProps {
-  parts: SentencePart[];
-  /** The word is the answer: a blank stands where it was. */
-  blanked: boolean;
-}
-
-/**
- * The word's sentence from the book. The word stands out in it, or, when it
- * is what is being asked, a blank of one width stands in for it: how long
- * the word is says nothing.
- */
-function Context({ parts, blanked }: ContextProps): ReactNode {
-  const { t } = useTranslation();
-  const word = (key: string, part: SentencePart): ReactNode =>
-    blanked ? (
-      <span
-        key={key}
-        data-blank
-        className="mx-1 inline-block w-16 border-b border-ink-faint"
-      >
-        <span className="sr-only">{t("books.sitting.blank")}</span>
-      </span>
-    ) : (
-      <mark
-        key={key}
-        className="rounded-sm bg-book-soft px-1 font-medium text-ink"
-      >
-        {part.text}
-      </mark>
-    );
-  return (
-    <p className="text-lead text-ink-soft">
-      {placed(parts).map(({ key, part }) =>
-        part.marked ? word(key, part) : <span key={key}>{part.text}</span>,
-      )}
-      <Presence>
-        {!blanked && (
-          <Reveal key="blanked" as="span" kind="fade">
-            <SpeakButton text={whole(parts)} className="ml-1" />
-          </Reveal>
-        )}
-      </Presence>
-    </p>
-  );
-}
-
 /**
  * An answer once it is checked, in practice, in the recall or in the
  * refresh: whether it was right, what was asked for, and what comes after
@@ -116,6 +54,7 @@ export interface Checked {
   step: unknown;
   again?: boolean;
   another?: AnotherWord | null;
+  otherKind?: KindReminder | null;
   helped?: boolean;
   exact?: string | null;
   sentence?: ShownSentence | null;
@@ -217,36 +156,6 @@ interface WholeProps {
   /** Calls the sentence bad; null where that is not offered. */
   onBad: (() => void) | null;
   busy: boolean;
-}
-
-/**
- * What says why an answer is none yet: another word for what was shown, the
- * the word in a form its sentence does not have, or, asked on its own, in a form
- * that is not the one asked for: for the English word, the form its
- * translation was shown in; for a translation, the form of a verb the book
- * has in another form than its base form ("juró" for "swore"), and the base
- * form of any other.
- */
-export function retryKey(
-  other: boolean,
-  inSentence: boolean,
-  toEnglish: boolean,
-  verbForm: VerbForm | null = null,
-):
-  | "books.sitting.otherWord"
-  | "books.sitting.wrongForm"
-  | "books.sitting.askedForm"
-  | "books.sitting.baseForm" {
-  if (other) {
-    return "books.sitting.otherWord";
-  }
-  if (inSentence) {
-    return "books.sitting.wrongForm";
-  }
-  const inflected = verbForm !== null && verbForm !== "base";
-  return toEnglish || inflected
-    ? "books.sitting.askedForm"
-    : "books.sitting.baseForm";
 }
 
 /**
@@ -377,6 +286,8 @@ export function SittingItem<Result extends Checked>({
   const [again, setAgain] = useState(false);
   /** What came was another word for what was shown, not the wrong form. */
   const [other, setOther] = useState(false);
+  /** What came was a word of another kind from its root. */
+  const [kind, setKind] = useState<KindReminder | null>(null);
   const [result, setResult] = useState<Result | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   /** The hint asked for, and how often: each time gives a little more. */
@@ -419,6 +330,7 @@ export function SittingItem<Result extends Checked>({
         setAgain(true);
         const told = verdict.another ?? null;
         setOther(told !== null);
+        setKind(verdict.otherKind ?? null);
         if (told !== null) {
           // What tells the two words apart; hints that gave more stay.
           if (hints <= told.asked) {
@@ -538,6 +450,11 @@ export function SittingItem<Result extends Checked>({
               <Context parts={item.context} blanked={toEnglish} />
             </Reveal>
           )}
+          {item.nativeContext !== null && (
+            <Reveal key="nativeContext">
+              <Context parts={item.nativeContext} blanked={false} native />
+            </Reveal>
+          )}
         </Presence>
         <Presence>
           {clue !== null && result === null && (
@@ -593,14 +510,15 @@ export function SittingItem<Result extends Checked>({
           {result === null && again && (
             <Reveal key="again" className="flex justify-center">
               <VerdictLine tone="partial">
-                {t(
-                  retryKey(
-                    other,
-                    item.sentenceId !== null,
-                    toEnglish,
-                    item.verbForm,
-                  ),
-                )}
+                {kindLine(kind, t, item.verbForm) ??
+                  t(
+                    retryKey(
+                      other,
+                      item.sentenceId !== null,
+                      toEnglish,
+                      item.verbForm,
+                    ),
+                  )}
               </VerdictLine>
             </Reveal>
           )}

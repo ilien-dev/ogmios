@@ -745,6 +745,12 @@ pub struct PracticeItem {
     /// have no text: they are the blank the answer goes in, and the English
     /// word is nowhere in the item.
     pub context: Option<Vec<SentencePart>>,
+    /// The sentence in the learner's language, the word's translation
+    /// marked, for `production` of a word whose translations alone do not
+    /// lead to it ("con la punta del zapato" for "toe"): it says which
+    /// sense is meant without the English word. None for any other item;
+    /// with it, `context` is none.
+    pub native_context: Option<Vec<SentencePart>>,
     /// The sentence of the word's bank it is asked with, to be sent back
     /// with the answer; none for a word asked as its chapter has it. With
     /// one, `prompt` is the word in the form that sentence has it: as
@@ -944,6 +950,9 @@ pub struct AnswerResult {
     /// That answer was another English word for what was shown: right for
     /// what the learner saw, and not the word asked for.
     pub another: Option<AnotherWord>,
+    /// That answer was a word of another kind from the root of the one
+    /// asked for: the kind asked for is recalled.
+    pub other_kind: Option<KindReminder>,
     /// Right on that second try.
     pub helped: bool,
     /// The translation in the form the sentence has the word in, when the
@@ -951,6 +960,16 @@ pub struct AnswerResult {
     pub exact: Option<String>,
     /// The sentence the word was asked with, when it was asked with one.
     pub sentence: Option<ShownSentence>,
+}
+
+/// An answer that is a word of another kind from the root of the one
+/// asked for ("patada", a noun, for "kicked", a verb): the learner is
+/// reminded of the kind asked for, and has one more try.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KindReminder {
+    pub asked: PartOfSpeech,
+    pub given: PartOfSpeech,
 }
 
 /// What came of "I was right" on a missed answer.
@@ -1076,6 +1095,7 @@ pub struct RecallAnswer {
     /// As in `AnswerResult`.
     pub again: bool,
     pub another: Option<AnotherWord>,
+    pub other_kind: Option<KindReminder>,
     pub helped: bool,
     pub exact: Option<String>,
     pub sentence: Option<ShownSentence>,

@@ -458,6 +458,9 @@ pub struct LabelWord {
     /// form, to be put in that form; empty for a word that has them so, and
     /// for any other word.
     pub translations: Vec<String>,
+    /// The form those translations are put in, when its chapter said it:
+    /// a past spelled as its base form ("set off") is told by it alone.
+    pub verb_form: Option<crate::domain::VerbForm>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -483,12 +486,83 @@ pub struct WordLabel {
     /// past of a past ("juraba" beside "juró"); empty for any other form.
     #[serde(default)]
     pub in_form_also: Vec<Vec<String>>,
+    /// For each of those, a past in every other person of the same tense
+    /// ("juré", "juraron" beside "juró"); empty for any other form.
+    #[serde(default)]
+    pub in_form_persons: Vec<Vec<String>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct VocabLabels {
     pub labels: Vec<WordLabel>,
+}
+
+/// One word of a book, looked at once more against its sentence.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CheckWord {
+    /// Names the word in the answer: its id.
+    pub id: String,
+    /// The English word, as it is stored.
+    pub lemma: String,
+    /// The sentence of the book it was taken from.
+    pub sentence: String,
+    /// What kind of word it was taken for; none when nobody said.
+    pub part_of_speech: Option<crate::domain::PartOfSpeech>,
+    /// The translations it was taken with.
+    pub translations: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VocabCheckParams {
+    pub native_lang: String,
+    pub words: Vec<CheckWord>,
+}
+
+/// A word of the learner's language from the root of a translation, in
+/// another kind: "patada", a noun, beside "patear".
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RelatedWord {
+    pub text: String,
+    pub part_of_speech: crate::domain::PartOfSpeech,
+}
+
+/// The model's look at one word: whether it was taken for the word its
+/// sentence uses, and the word it is when it was not.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WordCheck {
+    pub id: String,
+    /// What it was taken for is the word its sentence uses.
+    pub fits: bool,
+    /// What kind of word the sentence uses it as.
+    pub part_of_speech: crate::domain::PartOfSpeech,
+    /// A verb that takes an object in its sentence.
+    pub transitive: bool,
+    /// The form a verb has in its sentence; none for any other word.
+    pub verb_form: Option<crate::domain::VerbForm>,
+    /// The base form of a verb the word is another form of; none for any
+    /// other word.
+    pub base: Option<String>,
+    /// Its translations in the sense its sentence gives it, base form.
+    pub translations: Vec<String>,
+    /// The English word shown alone does not lead to its translations: it
+    /// is asked English → native with its sentence.
+    pub context_there: bool,
+    /// Its translations shown alone do not lead to the English word: it is
+    /// asked native → English with its sentence.
+    pub context_back: bool,
+    /// Words from the root of its translations, in another kind.
+    pub related: Vec<RelatedWord>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VocabChecks {
+    pub checks: Vec<WordCheck>,
 }
 
 // ── sentences a word is asked with ────────────────────────────────────────

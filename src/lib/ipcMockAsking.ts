@@ -65,6 +65,7 @@ export function english(word: BookWord): string[] {
 export const PLAIN = {
   again: false,
   another: null,
+  otherKind: null,
   helped: false,
   exact: null,
   sentence: null,
@@ -111,6 +112,7 @@ export function itemOf(word: BookWord, direction: Direction): PracticeItem {
       prompt: word.lemma.toLowerCase(),
       partOfSpeech: word.partOfSpeech,
       context,
+      nativeContext: null,
       sentenceId: null,
       verbForm: null,
     };
@@ -123,6 +125,7 @@ export function itemOf(word: BookWord, direction: Direction): PracticeItem {
     context:
       context?.map((part) => (part.marked ? { ...part, text: "" } : part)) ??
       null,
+    nativeContext: null,
     sentenceId: null,
     verbForm: null,
   };

@@ -94,7 +94,7 @@ fn asked(
             Source::Book { word_id } => {
                 let row = practice::word(conn, word_id)?;
                 let alone = row.alone_in(&sentence.form).map(<[String]>::to_vec);
-                (row.part_of_speech, row.needs_context, alone)
+                (row.part_of_speech, row.shows_context(direction), alone)
             }
             Source::Chat { .. } => (None, false, None),
         };
@@ -116,6 +116,7 @@ fn asked(
             prompt: small(asked),
             part_of_speech: None,
             context: None,
+            native_context: None,
             sentence_id: None,
             verb_form: None,
         },
@@ -222,6 +223,8 @@ fn check(
                 verb: false,
                 also: None,
                 participle: false,
+                persons: &[],
+                kind: None,
             };
             judged(conn, &meaning, sentence, (direction, answer), how)
         }
@@ -236,6 +239,7 @@ fn check(
                 verdict: or_other(verdict, answer, &rivals, spelling),
                 accepted: vec![word.english.clone()],
                 exact: None,
+                kind: None,
             })
         }
     }
@@ -320,6 +324,7 @@ pub fn answer_shown(
             answer_id: 0,
             again: true,
             another: told,
+            other_kind: judged.kind,
             helped: false,
             exact: None,
             sentence: None,
@@ -349,6 +354,7 @@ pub fn answer_shown(
         answer_id,
         again: false,
         another: None,
+        other_kind: None,
         helped: correct && shown.helped(),
         exact: judged.exact.as_deref().map(small),
         sentence: sentence.as_ref().map(whole),

@@ -159,6 +159,31 @@ fn own_form(item: &VocabItem) -> Option<String> {
     .then_some(form)
 }
 
+/// Whether a word is called by another form than its base form, and its
+/// translations are said in that form: "sworn" is "jurado". A verb whose
+/// form was kept apart from its base form ([`own_form`]) is. So is a past
+/// its book writes as the word is called, with no base kept beside it: a
+/// past spelled as its base form ("set off" in "he set off" is "partió"),
+/// or one the model wrote as its lemma ("kicked"). A verb its sentence or
+/// its book has in other words than the ones it is called by ("peeped" for
+/// "peep", "wiped it away" for "wipe away") is called by its base form.
+pub fn called_in_form(
+    (lemma, base): (&str, Option<&str>),
+    (forms, sentence): (&[String], &str),
+    part_of_speech: Option<PartOfSpeech>,
+    verb_form: Option<VerbForm>,
+) -> bool {
+    if base.is_some() {
+        return true;
+    }
+    let verb = part_of_speech.is_some_and(is_verb);
+    let past = matches!(verb_form, Some(VerbForm::Past | VerbForm::PastParticiple));
+    let called = tokens(lemma);
+    let said = tokens(sentence);
+    let written = |form: &String| tokens(form).iter().all(|word| called.contains(word));
+    verb && past && called.iter().all(|word| said.contains(word)) && forms.iter().all(written)
+}
+
 /// The words that deny what they stand with; so does one ending in "n't".
 const NEGATIONS: [&str; 4] = ["not", "no", "never", "cannot"];
 
@@ -402,6 +427,49 @@ mod tests {
 
     fn keys(words: &[Word]) -> Vec<(&str, u32)> {
         words.iter().map(|w| (w.key.as_str(), w.count)).collect()
+    }
+
+    #[test]
+    fn a_past_its_sentence_writes_as_it_is_called_is_called_in_its_form() {
+        let verb = Some(PartOfSpeech::Verb);
+        let past = Some(VerbForm::Past);
+        let said = |lemma: &str, forms: &[&str], sentence: &str| {
+            let forms: Vec<String> = forms.iter().map(|f| (*f).to_owned()).collect();
+            called_in_form((lemma, None), (&forms, sentence), verb, past)
+        };
+        assert!(said("set off", &["set off"], "At dawn he set off."));
+        assert!(said("kicked", &["kicked"], "He kicked the door."));
+        assert!(said(
+            "put away",
+            &["put away", "put"],
+            "He put the tablet away."
+        ));
+        assert!(!said("peep", &["peep"], "She peeped in."));
+        assert!(!said(
+            "wipe away",
+            &["wipe away", "wiped it away"],
+            "He wiped it away."
+        ));
+        let forms = ["set off".to_owned()];
+        let written = (forms.as_slice(), "He set off.");
+        assert!(!called_in_form(
+            ("set off", None),
+            written,
+            verb,
+            Some(VerbForm::Base)
+        ));
+        assert!(!called_in_form(
+            ("set off", None),
+            written,
+            Some(PartOfSpeech::Noun),
+            past
+        ));
+        assert!(called_in_form(
+            ("sworn", Some("swear")),
+            written,
+            verb,
+            None
+        ));
     }
 
     #[test]

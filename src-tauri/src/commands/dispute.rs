@@ -8,7 +8,7 @@ use chrono::{DateTime, Utc};
 use rusqlite::Connection;
 use tauri::AppHandle;
 
-use super::practice::{asked_off, blanked, english, judged, step, Meaning};
+use super::practice::{asked_off, blanked, english, judged, other_kind, step, Meaning};
 use super::profile::{agent, require_profile};
 use super::run;
 use crate::agent::protocol::{VocabJudgeParams, VocabVerdict};
@@ -46,6 +46,24 @@ fn judged_against(word: &WordRow, direction: Direction, form: Option<&str>) -> V
         }
     }
     forms
+}
+
+/// A word of another kind from the root of the one asked for was told the
+/// kind asked for: the model, which takes the meaning for right, would undo
+/// that, so it is not asked.
+fn refuse_other_kind(conn: &Connection, word_id: &str, given: &str) -> Result<()> {
+    let word = practice::word(conn, word_id)?;
+    let native_lang = require_profile(conn)?.native_lang;
+    let spelling = profile::spelling(conn)?;
+    let related = word
+        .part_of_speech
+        .map(|kind| (kind, word.related.as_slice()));
+    if other_kind(related, given, (&native_lang, spelling)).is_some() {
+        return Err(Error::Invalid(
+            "a word of another kind is not the kind asked for".into(),
+        ));
+    }
+    Ok(())
 }
 
 /// The answer, if it can be disputed: a miss the learner typed in a sitting
@@ -108,6 +126,9 @@ fn disputable(conn: &Connection, answer_id: i64) -> Result<AnswerRow> {
             }
         }
     }
+    if answer.direction == Direction::Recognition {
+        refuse_other_kind(conn, &answer.word_id, &answer.answer)?;
+    }
     if answer.direction == Direction::Recognition && answer.sentence_id.is_none() {
         let word = practice::word(conn, &answer.word_id)?;
         let native_lang = require_profile(conn)?.native_lang;
@@ -115,6 +136,7 @@ fn disputable(conn: &Connection, answer_id: i64) -> Result<AnswerRow> {
         let native = (native_lang.as_str(), inflects(word.part_of_speech));
         let asked = (native_lang.as_str(), word.part_of_speech);
         if accepts_native(&answer.answer, &word.translations, native, spelling)
+            && !word.called_in_form()
             && off_base(&answer.answer, &word.translations, asked, spelling)
         {
             return Err(Error::Invalid(
@@ -296,6 +318,7 @@ mod tests {
             prompt: "bank".into(),
             part_of_speech: None,
             context: None,
+            native_context: None,
             sentence_id: None,
             verb_form: None,
         }

@@ -627,6 +627,11 @@ export interface PracticeItem {
    */
   context: SentencePart[] | null;
   /**
+   * The sentence in the learner's language, its translation marked, for a
+   * word whose translations alone do not lead to it ("punta" for "toe").
+   */
+  nativeContext: SentencePart[] | null;
+  /**
    * The sentence of the word's bank it is asked with, to be sent back with
    * the answer; null for a word asked as its chapter has it. With one,
    * `prompt` is the word in the form that sentence has it: as written for
@@ -682,6 +687,9 @@ export interface AnotherWord {
   asked: number;
 }
 
+/** An answer of another kind from the root asked for: "patada" for "kicked". */
+export type KindReminder = Record<"asked" | "given", PartOfSpeech>;
+
 /** What an answer given to a word in a sentence adds to its verdict. */
 export interface SentenceVerdict {
   /**
@@ -695,6 +703,11 @@ export interface SentenceVerdict {
    * the learner saw, and not the word asked for.
    */
   another: AnotherWord | null;
+  /**
+   * That answer was a word of another kind from the root of the one asked
+   * for: the kind asked for is recalled.
+   */
+  otherKind: KindReminder | null;
   /** Right on that second try. */
   helped: boolean;
   /**

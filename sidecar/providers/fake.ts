@@ -26,6 +26,8 @@ import type {
   Vocab,
   VocabExtractParams,
   VocabJudgeParams,
+  VocabCheckParams,
+  VocabChecks,
   VocabLabelParams,
   VocabLabels,
   VocabVerdict,
@@ -209,7 +211,51 @@ function fakeLabels(params: VocabLabelParams): VocabLabels {
       verbForm: "past",
       inForm: word.translations.map((each) => `${each}ó`),
       inFormAlso: word.translations.map((each) => [`${each}aba`]),
+      inFormPersons: word.translations.map((each) => [`${each}é`]),
     })),
+  };
+}
+
+/**
+ * Every word fits as it was taken, but a noun ending in "ed" its sentence
+ * has after "he": the past of a verb, the word without its "d", translated
+ * as that and "ar".
+ */
+function fakeChecks(params: VocabCheckParams): VocabChecks {
+  return {
+    checks: params.words.map((word) => {
+      const misread =
+        word.partOfSpeech === "noun" &&
+        word.lemma.endsWith("ed") &&
+        word.sentence.toLowerCase().includes(`he ${word.lemma}`);
+      if (!misread) {
+        return {
+          id: word.id,
+          fits: true,
+          partOfSpeech: word.partOfSpeech ?? "other",
+          transitive: false,
+          verbForm: null,
+          base: null,
+          translations: word.translations,
+          contextThere: false,
+          contextBack: false,
+          related: [],
+        };
+      }
+      const base = word.lemma.slice(0, -1);
+      return {
+        id: word.id,
+        fits: false,
+        partOfSpeech: "verb",
+        transitive: false,
+        verbForm: "past",
+        base,
+        translations: [`${base}ar`],
+        contextThere: true,
+        contextBack: true,
+        related: [{ text: `${base}o`, partOfSpeech: "noun" }],
+      };
+    }),
   };
 }
 
@@ -384,6 +430,8 @@ function answerFor(request: StructuredRequest): unknown {
       return fakeVerdict(request.params);
     case "vocabLabel":
       return fakeLabels(request.params);
+    case "vocabCheck":
+      return fakeChecks(request.params);
     case "sentenceWrite":
       return fakeSentences(request.params);
     case "sentenceReview":

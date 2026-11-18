@@ -217,6 +217,13 @@ impl Agent {
         self.call("vocabLabel", params, VOCAB_TIMEOUT, &mut |_| {})
     }
 
+    pub fn vocab_check(
+        &self,
+        params: &protocol::VocabCheckParams,
+    ) -> Result<protocol::VocabChecks> {
+        self.call("vocabCheck", params, VOCAB_TIMEOUT, &mut |_| {})
+    }
+
     pub fn sentence_write(
         &self,
         params: &protocol::SentenceWriteParams,

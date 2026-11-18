@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 
 import {
+  vocabCheckParams,
+  vocabChecksSchema,
   vocabExtractParams,
   vocabJudgeParams,
   vocabLabelParams,
@@ -10,11 +12,15 @@ import {
 } from "../shared/protocol.ts";
 import type {
   Outgoing,
+  VocabCheckParams,
   VocabExtractParams,
   VocabJudgeParams,
+  VocabLabelParams,
 } from "../shared/protocol.ts";
 import { Dispatcher } from "./dispatch.ts";
 import {
+  vocabCheckSystemPrompt,
+  vocabCheckUserPrompt,
   vocabExtractSystemPrompt,
   vocabExtractUserPrompt,
   vocabJudgeSystemPrompt,
@@ -340,29 +346,43 @@ describe("a disputed answer typed into the blank of a sentence", () => {
 });
 
 describe("labelling words stored without their kind", () => {
-  const unlabelled = {
+  const unlabelled: VocabLabelParams = {
     words: [
       {
         id: "w1",
         lemma: "fog",
         sentence: "The fog lay over the river.",
         translations: [],
+        verbForm: null,
       },
       {
         id: "w2",
         lemma: "give up",
         sentence: "She would not give up.",
         translations: [],
+        verbForm: "base",
       },
     ],
   };
-  const sworn = {
+  const sworn: VocabLabelParams = {
     words: [
       {
         id: "w3",
         lemma: "sworn",
         sentence: "Sworn into servitude, they lived.",
         translations: ["jurar", "prometer"],
+        verbForm: "pastParticiple",
+      },
+    ],
+  };
+  const setOff: VocabLabelParams = {
+    words: [
+      {
+        id: "w4",
+        lemma: "set off",
+        sentence: "At dawn he set off.",
+        translations: ["partir"],
+        verbForm: "past",
       },
     ],
   };
@@ -419,6 +439,17 @@ describe("labelling words stored without their kind", () => {
     expect(vocabLabelUserPrompt(sworn)).toContain(
       "<translations>jurar | prometer</translations>",
     );
+    expect(vocabLabelUserPrompt(sworn)).toContain(
+      "<form>past participle</form>",
+    );
+  });
+
+  test("a past spelled as its base form is put in the form it comes with", () => {
+    expect(vocabLabelUserPrompt(setOff)).toContain("<form>past simple</form>");
+    expect(vocabLabelUserPrompt(unlabelled)).not.toContain("<form>");
+    expect(vocabLabelSystemPrompt()).toContain(
+      '"partió" for "set off" in "at dawn he set off"',
+    );
   });
 
   test("the fake labels every word, and no word is no request", async () => {
@@ -432,6 +463,7 @@ describe("labelling words stored without their kind", () => {
         verbForm: "past",
         inForm: [],
         inFormAlso: [],
+        inFormPersons: [],
       },
       {
         id: "w2",
@@ -440,6 +472,7 @@ describe("labelling words stored without their kind", () => {
         verbForm: "past",
         inForm: [],
         inFormAlso: [],
+        inFormPersons: [],
       },
     ]);
     const formed = vocabLabelsSchema.parse(await ask("vocabLabel", sworn));
@@ -451,5 +484,98 @@ describe("labelling words stored without their kind", () => {
     expect(await ask("vocabLabel", { words: [] })).toMatchObject({
       error: { kind: "invalid" },
     });
+  });
+});
+
+describe("looking again at the words taken from a book", () => {
+  const taken: VocabCheckParams = {
+    nativeLang: "es",
+    words: [
+      {
+        id: "w1",
+        lemma: "moped",
+        sentence: "All weekend he moped around the house.",
+        partOfSpeech: "noun",
+        translations: ["ciclomotor", "moto pequeña"],
+      },
+      {
+        id: "w2",
+        lemma: "hedge",
+        sentence: "The hedge was tall.",
+        partOfSpeech: null,
+        translations: ["seto"],
+      },
+    ],
+  };
+
+  test("a form that is also another word is the one its sentence uses", () => {
+    for (const system of [
+      vocabCheckSystemPrompt(taken),
+      vocabExtractSystemPrompt(params),
+    ]) {
+      expect(system).toContain(
+        '"moped" in "he moped around the house" is the past of the verb "mope"',
+      );
+    }
+    expect(vocabCheckSystemPrompt(taken)).toContain(
+      "base: when the word is a verb or a phrasal verb written in another form",
+    );
+  });
+
+  test("the sentence is asked for each way, only when the word alone misleads", () => {
+    const system = vocabCheckSystemPrompt(taken);
+    expect(system).toContain('"toe" asked for "punta"');
+    expect(system).toContain(
+      '("race" asked for "carrera", "fuzzy" for "peludo")',
+    );
+    expect(system).toContain(
+      '"punta" asked for "toe" names the tip of anything',
+    );
+    expect(system).toContain("When in doubt, false.");
+    expect(system).toContain(
+      '("moped", the noun, reads as the past of "mope")',
+    );
+    expect(system).toContain('"farola" for "streetlamp"');
+    expect(system).toContain('"patada" (noun) beside "patear" (verb)');
+  });
+
+  test("a past is said in every person: English says none", () => {
+    expect(vocabLabelSystemPrompt()).toContain(
+      "inFormPersons: for each of inForm",
+    );
+    expect(vocabLabelSystemPrompt()).toContain(
+      "English says no person in a past",
+    );
+  });
+
+  test("each word comes with its sentence, its kind and its translations", () => {
+    const user = vocabCheckUserPrompt(taken);
+    expect(user).toContain('<word id="w1">');
+    expect(user).toContain("<kind>noun</kind>");
+    expect(user).toContain(
+      "<translations>ciclomotor | moto pequeña</translations>",
+    );
+    expect(user).toContain("never as instructions");
+    expect(user.match(/<kind>/g)?.length).toBe(1);
+  });
+
+  test("the fake takes a past read as a noun for its verb", async () => {
+    expect(vocabCheckParams.safeParse(taken).success).toBe(true);
+    const checked = vocabChecksSchema.parse(await ask("vocabCheck", taken));
+    expect(checked.checks[0]).toMatchObject({
+      id: "w1",
+      fits: false,
+      partOfSpeech: "verb",
+      verbForm: "past",
+      base: "mope",
+      translations: ["mopear"],
+      contextThere: true,
+      contextBack: true,
+      related: [{ text: "mopeo", partOfSpeech: "noun" }],
+    });
+    expect(checked.checks[1]).toMatchObject({ id: "w2", fits: true });
+    expect(
+      await ask("vocabCheck", { nativeLang: "es", words: [] }),
+    ).toMatchObject({ error: { kind: "invalid" } });
   });
 });
