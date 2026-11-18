@@ -48,9 +48,9 @@ impl Model for Sidecar<'_> {
 
 /// Looks at every word not looked at yet against its sentence, of any
 /// book, and puts right the ones taken for another word written the same
-/// way (`words::check`); how many were. A word the model says nothing of is
-/// looked at on the next run. It runs before the labels: a word put right
-/// is said in its form by them.
+/// way (`words::check`); how many were. A word the model says nothing of,
+/// or whose request failed, is looked at on the next run. A word put right
+/// is said in its form by the labels that run after it.
 pub fn check_all(ctx: Ctx<'_>, model: &mut dyn Model) -> Result<u32> {
     let (waiting, native_lang) = {
         let conn = ctx.conn()?;
@@ -61,10 +61,15 @@ pub fn check_all(ctx: Ctx<'_>, model: &mut dyn Model) -> Result<u32> {
     };
     let mut put_right = 0_u32;
     for chunk in waiting.chunks(WORDS_PER_CALL) {
-        let answer = model.check(&VocabCheckParams {
+        let asked = model.check(&VocabCheckParams {
             native_lang: native_lang.clone(),
             words: chunk.to_vec(),
-        })?;
+        });
+        // A request that fails leaves its words for the next run; the
+        // others are looked at all the same.
+        let Ok(answer) = asked.inspect_err(|err| eprintln!("check words: {err}")) else {
+            continue;
+        };
         let conn = ctx.conn()?;
         for look in &answer.checks {
             if chunk.iter().any(|word| word.id == look.id) && words::check(&conn, &look.id, look)? {
@@ -115,14 +120,23 @@ pub async fn label_words(app: AppHandle) -> Result<u32> {
         let _one = RUNNING
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        // The screen stays quiet about it; the reason is said here. A look
-        // that fails leaves its words for the next run, and the labels go on.
+        // The screen stays quiet about it; the reason is said here. The
+        // labels come first: the words of the chapter open are not kept
+        // waiting for a look at every word of every book. The words that
+        // look puts right are labelled after it.
+        let labelled =
+            label_all(ctx, &mut Sidecar(ctx)).inspect_err(|err| eprintln!("label words: {err}"))?;
         let put_right = check_all(ctx, &mut Sidecar(ctx))
             .inspect_err(|err| eprintln!("check words: {err}"))
             .unwrap_or(0);
-        let labelled =
-            label_all(ctx, &mut Sidecar(ctx)).inspect_err(|err| eprintln!("label words: {err}"))?;
-        Ok(labelled.saturating_add(put_right))
+        let relabelled = if put_right > 0 {
+            label_all(ctx, &mut Sidecar(ctx)).inspect_err(|err| eprintln!("label words: {err}"))?
+        } else {
+            0
+        };
+        Ok(labelled
+            .saturating_add(put_right)
+            .saturating_add(relabelled))
     })
     .await
 }
@@ -183,6 +197,21 @@ mod tests {
                 .iter()
                 .map(|word| {
                     let wrong = word.lemma == "moped";
+                    if word.lemma == "kicked" || word.lemma == "hedge" {
+                        // The same word: "kicked" lacked its base form, and
+                        // "hedge" is only said in other words.
+                        let kicked = word.lemma == "kicked";
+                        return WordCheck {
+                            id: word.id.clone(),
+                            fits: false,
+                            part_of_speech: word.part_of_speech.unwrap_or(PartOfSpeech::Other),
+                            transitive: kicked,
+                            verb_form: kicked.then_some(VerbForm::Past),
+                            base: kicked.then(|| "kick".to_owned()),
+                            translations: [word.translations.clone(), vec!["valla".into()]]
+                                .concat(),
+                        };
+                    }
                     WordCheck {
                         id: word.id.clone(),
                         fits: !wrong,
@@ -450,6 +479,7 @@ mod tests {
         ];
         let chapter = desk.chapter("b", &list);
         let sentences = "SELECT COUNT(*) FROM word_sentences WHERE key = 'moped'";
+        let hedges = "SELECT COUNT(*) FROM word_sentences WHERE key = 'hedge'";
         desk.db
             .lock()
             .expect("db")
@@ -457,7 +487,9 @@ mod tests {
                 "INSERT INTO word_sentences (id, key, source, sentence, form, hint, translation,
                                              created_at)
                  VALUES ('s', 'moped', 'model', 'He rode a moped.', 'moped', 'ciclomotor',
-                         'Iba en ciclomotor.', '2026-01-01')",
+                         'Iba en ciclomotor.', '2026-01-01'),
+                        ('h', 'hedge', 'model', 'A tall hedge.', 'hedge', 'seto',
+                         'Un seto alto.', '2026-01-01')",
             )
             .expect("sentence");
 
@@ -473,6 +505,9 @@ mod tests {
         };
         let moped = row("moped");
         assert_eq!(moped.lemma, "moped", "called as before");
+        // "hedge" was said not to fit, in the same kind and with its own
+        // translations: it is the same word, and stays as it was.
+        assert_eq!(desk.count(hedges), 1);
         assert_eq!(moped.base.as_deref(), Some("mope"));
         assert_eq!(moped.part_of_speech, Some(PartOfSpeech::Verb));
         assert_eq!(moped.verb_form, Some(VerbForm::Past));
@@ -489,6 +524,29 @@ mod tests {
         assert_eq!(label_all(desk.ctx(), &mut again).expect("label"), 1);
         assert_eq!(again.asked, [["moped"]]);
         assert_eq!(row("moped").shown_as(), ["andar deprimidodo"]);
+    }
+
+    #[test]
+    fn a_past_kept_as_the_model_wrote_it_is_only_given_its_base_form() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let desk = Desk::new(&dir);
+        let list = [Word {
+            part_of_speech: Some(PartOfSpeech::Verb),
+            transitive: Some(true),
+            verb_form: Some(VerbForm::Past),
+            sentence: "He kicked the door.".into(),
+            ..word("kicked", &["patear"], 1)
+        }];
+        let chapter = desk.chapter("b", &list);
+        let mut stub = Stub::default();
+        assert_eq!(check_all(desk.ctx(), &mut stub).expect("check"), 1);
+        let conn = desk.db.lock().expect("db");
+        let id = words::id_by_key(&conn, &chapter, "kicked")
+            .expect("id")
+            .expect("word");
+        let kicked = practice::word(&conn, &id).expect("word");
+        assert_eq!(kicked.base.as_deref(), Some("kick"));
+        assert_eq!(kicked.translations, ["patear"], "its own, not the model's");
     }
 
     #[test]

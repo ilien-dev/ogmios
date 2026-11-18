@@ -11,7 +11,7 @@ use super::{found, new_id, parse_ts, ts};
 use crate::agent::protocol::{CheckWord, LabelWord, VocabItem, WordCheck};
 use crate::books::practice::{inflects, preferred};
 use crate::books::sentences::affirmed_base;
-use crate::books::vocab::{called_in_form, key, Word};
+use crate::books::vocab::{called_in_form, key, tokens, Word};
 use crate::domain::{BookWord, Depth, Direction, KnownWord, PartOfSpeech, VerbForm};
 use crate::error::Result;
 
@@ -579,67 +579,156 @@ pub fn unchecked(conn: &Connection) -> Result<Vec<CheckWord>> {
     Ok(words)
 }
 
-/// Keeps what a look at a word against its sentence found; whether it was
-/// put right. One that fits is only marked as looked at. One its sentence
-/// uses as another word written the same way ("moped", the past of "mope",
-/// taken for the noun) becomes that word, under the same key and called as
-/// before: its kind, whether it takes an object, the form of a verb and the
-/// base form of one written in another form, and its translations, which
-/// are said in its form again (`unlabelled`). The sentences it was asked
-/// with gloss the other word: they go, and new ones are written. A look
-/// with no translation changes nothing but the mark.
-pub fn check(conn: &Connection, id: &str, look: &WordCheck) -> Result<bool> {
-    let translations: Vec<&str> = look
+/// What a look at a word against its sentence found, as code takes it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Look {
+    /// Nothing to put right: what the model said is kept for no word.
+    Fits,
+    /// Another word written the same way: a kind of its own, or not one
+    /// translation in common with the ones it was taken with.
+    Other,
+    /// The same word, a verb written in another form than its base form
+    /// that kept none: it is given that base form, and nothing else changes.
+    Base,
+}
+
+/// What code makes of a look at a word that was taken as `lemma`, of the
+/// kind `taken`, with these translations and `base`, against `sentence`.
+/// The model only says what it sees. A word whose sentence does not write
+/// it as it is called is left as it is: its key is not the word written
+/// there. A look that says it does not fit and changes neither its kind
+/// nor a single translation is no other word.
+pub fn judge_look(
+    (lemma, sentence): (&str, &str),
+    (taken, base): (Option<PartOfSpeech>, Option<&str>),
+    translations: &[String],
+    look: &WordCheck,
+) -> Look {
+    let said = tokens(sentence);
+    let written = tokens(lemma).iter().all(|word| said.contains(word));
+    let given: Vec<String> = look
         .translations
         .iter()
-        .map(|each| each.trim())
+        .map(|each| key(each))
         .filter(|each| !each.is_empty())
         .collect();
-    let wrong = !look.fits && !translations.is_empty();
-    let marked = conn.execute(
-        "UPDATE chapter_words SET checked = 1 WHERE id = ?1 AND checked = 0",
-        [id],
-    )?;
-    if marked == 0 || !wrong {
-        return Ok(false);
+    if look.fits || !written || given.is_empty() {
+        return Look::Fits;
     }
-    let (word_key, lemma): (String, String) = conn.query_row(
-        "SELECT key, lemma FROM chapter_words WHERE id = ?1",
-        [id],
-        |row| Ok((row.get(0)?, row.get(1)?)),
-    )?;
     let verb = matches!(
         look.part_of_speech,
         PartOfSpeech::Verb | PartOfSpeech::PhrasalVerb
     );
-    let base = look
+    let kind = taken.is_some_and(|taken| taken != look.part_of_speech);
+    let shared = translations.iter().any(|each| given.contains(&key(each)));
+    if kind || !shared {
+        return Look::Other;
+    }
+    let new_base = look
+        .base
+        .as_deref()
+        .is_some_and(|said| !key(said).is_empty() && key(said) != key(lemma));
+    if verb && base.is_none() && new_base {
+        Look::Base
+    } else {
+        Look::Fits
+    }
+}
+
+/// Keeps what a look at a word against its sentence found ([`judge_look`]);
+/// whether the word changed. Every word looked at is marked, and is not
+/// looked at again. One its sentence uses as another word written the same
+/// way ("moped", the past of "mope", taken for the noun) becomes that word,
+/// under the same key and called as before: its kind, whether it takes an
+/// object, the form of a verb and the base form of one written in another
+/// form, and its translations, which are said in its form again
+/// (`unlabelled`). The sentences it was asked with gloss the other word:
+/// they go, and new ones are written. A verb that only lacked its base
+/// form ("kicked", kept as the model wrote it) is given it, and keeps its
+/// translations and its sentences.
+pub fn check(conn: &Connection, id: &str, look: &WordCheck) -> Result<bool> {
+    let marked = conn.execute(
+        "UPDATE chapter_words SET checked = 1 WHERE id = ?1 AND checked = 0",
+        [id],
+    )?;
+    if marked == 0 {
+        return Ok(false);
+    }
+    let (word_key, lemma, sentence, taken, base): (
+        String,
+        String,
+        String,
+        Option<PartOfSpeech>,
+        Option<String>,
+    ) = conn.query_row(
+        "SELECT key, lemma, sentence, part_of_speech, base FROM chapter_words WHERE id = ?1",
+        [id],
+        |row| {
+            Ok((
+                row.get(0)?,
+                row.get(1)?,
+                row.get(2)?,
+                row.get(3)?,
+                row.get(4)?,
+            ))
+        },
+    )?;
+    let mut stmt = conn.prepare(
+        "SELECT text FROM word_translations
+         WHERE word_id = ?1 AND source = 'extraction' ORDER BY rowid",
+    )?;
+    let had: Vec<String> = stmt
+        .query_map([id], |row| row.get(0))?
+        .collect::<rusqlite::Result<_>>()?;
+    let verb = matches!(
+        look.part_of_speech,
+        PartOfSpeech::Verb | PartOfSpeech::PhrasalVerb
+    );
+    let new_base = look
         .base
         .as_deref()
         .map(str::trim)
-        .filter(|base| verb && !base.is_empty() && key(base) != key(&lemma));
-    conn.execute(
-        "UPDATE chapter_words
-         SET part_of_speech = ?2, transitive = ?3, verb_form = ?4, base = ?5
-         WHERE id = ?1",
-        params![
-            id,
-            look.part_of_speech,
-            look.transitive && verb,
-            look.verb_form.filter(|_| verb),
-            base
-        ],
-    )?;
-    conn.execute(
-        "DELETE FROM word_translations WHERE word_id = ?1 AND source = 'extraction'",
-        [id],
-    )?;
-    let mut add =
-        conn.prepare("INSERT OR IGNORE INTO word_translations (word_id, text) VALUES (?1, ?2)")?;
-    for translation in translations {
-        add.execute(params![id, translation])?;
+        .filter(|said| verb && !said.is_empty() && key(said) != key(&lemma));
+    let found = judge_look((&lemma, &sentence), (taken, base.as_deref()), &had, look);
+    match found {
+        Look::Fits => Ok(false),
+        Look::Base => {
+            conn.execute(
+                "UPDATE chapter_words SET base = ?2, verb_form = COALESCE(verb_form, ?3)
+                 WHERE id = ?1",
+                params![id, new_base, look.verb_form],
+            )?;
+            Ok(true)
+        }
+        Look::Other => {
+            conn.execute(
+                "UPDATE chapter_words
+                 SET part_of_speech = ?2, transitive = ?3, verb_form = ?4, base = ?5
+                 WHERE id = ?1",
+                params![
+                    id,
+                    look.part_of_speech,
+                    look.transitive && verb,
+                    look.verb_form.filter(|_| verb),
+                    new_base
+                ],
+            )?;
+            conn.execute(
+                "DELETE FROM word_translations WHERE word_id = ?1 AND source = 'extraction'",
+                [id],
+            )?;
+            let mut add = conn.prepare(
+                "INSERT OR IGNORE INTO word_translations (word_id, text) VALUES (?1, ?2)",
+            )?;
+            for translation in look.translations.iter().map(|each| each.trim()) {
+                if !translation.is_empty() {
+                    add.execute(params![id, translation])?;
+                }
+            }
+            conn.execute("DELETE FROM word_sentences WHERE key = ?1", [word_key])?;
+            Ok(true)
+        }
     }
-    conn.execute("DELETE FROM word_sentences WHERE key = ?1", [word_key])?;
-    Ok(true)
 }
 
 /// Keeps the translations of a word in the form it is called by: `said`,
@@ -881,6 +970,50 @@ pub mod tests {
 
     fn lemmas(words: &[BookWord]) -> Vec<(&str, u32)> {
         words.iter().map(|w| (w.lemma.as_str(), w.count)).collect()
+    }
+
+    #[test]
+    fn code_decides_what_a_look_at_a_word_puts_right() {
+        let look = |fits: bool, kind: PartOfSpeech, base: Option<&str>, said: &[&str]| WordCheck {
+            id: "w".into(),
+            fits,
+            part_of_speech: kind,
+            transitive: false,
+            verb_form: None,
+            base: base.map(str::to_owned),
+            translations: said.iter().map(|each| (*each).to_owned()).collect(),
+        };
+        let had = ["ciclomotor".to_owned(), "moto pequeña".to_owned()];
+        let moped = ("moped", "He moped around.");
+        let noun = (Some(PartOfSpeech::Noun), None);
+        let verb = PartOfSpeech::Verb;
+        let judged = |words, taken, look: &WordCheck| judge_look(words, taken, &had, look);
+        // Another kind, or not one translation in common: another word.
+        let other = look(false, verb, Some("mope"), &["andar deprimido"]);
+        assert_eq!(judged(moped, noun, &other), Look::Other);
+        let sense = look(false, PartOfSpeech::Noun, None, &["vespa"]);
+        assert_eq!(judged(moped, noun, &sense), Look::Other);
+        // The same kind and a translation in common: the same word.
+        let same = look(false, PartOfSpeech::Noun, None, &["Ciclomotor", "scooter"]);
+        assert_eq!(judged(moped, noun, &same), Look::Fits);
+        // Said to fit, or with nothing to put in its place: kept.
+        assert_eq!(
+            judged(moped, noun, &look(true, verb, None, &["x"])),
+            Look::Fits
+        );
+        assert_eq!(
+            judged(moped, noun, &look(false, verb, None, &[" "])),
+            Look::Fits
+        );
+        // A word its sentence does not write as it is called keeps its key.
+        let leaf = ("leaf", "The tree leaves early.");
+        assert_eq!(judged(leaf, noun, &other), Look::Fits);
+        // A verb that only lacked its base form is given it.
+        let past = (Some(verb), None);
+        let base = look(false, verb, Some("kick"), &["moto pequeña"]);
+        assert_eq!(judged(("kicked", "He kicked it."), past, &base), Look::Base);
+        let kept = (Some(verb), Some("kick"));
+        assert_eq!(judged(("kicked", "He kicked it."), kept, &base), Look::Fits);
     }
 
     #[test]

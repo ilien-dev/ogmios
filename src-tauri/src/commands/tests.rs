@@ -871,3 +871,59 @@ fn a_sentence_and_a_chapter_through_the_sidecar() {
         ]
     );
 }
+
+#[test]
+#[ignore = "needs bun; run with `cargo test -- --ignored`"]
+fn a_word_taken_in_the_wrong_sense_is_put_right_through_the_sidecar() {
+    use super::label::{check_all, label_all, Sidecar};
+    use crate::books::vocab::Word;
+    use crate::db::practice;
+    use crate::db::words::{self, tests as shelf};
+    use crate::domain::{Depth, PartOfSpeech, VerbForm};
+
+    let dir = tempfile::tempdir().expect("tempdir");
+    let db = Mutex::new(open_in_memory().expect("db"));
+    let agent = fake_agent();
+    let ctx = Ctx {
+        db: &db,
+        agent: &agent,
+        data_dir: dir.path(),
+    };
+    let chapter = {
+        let conn = ctx.conn().expect("conn");
+        profile::save_profile(&conn, &profile::tests::profile()).expect("profile");
+        let chapter = shelf::book(&conn, "b", &["text"]).remove(0);
+        let list = [
+            Word {
+                part_of_speech: Some(PartOfSpeech::Noun),
+                transitive: Some(false),
+                sentence: "All weekend he moped around.".into(),
+                ..shelf::word("moped", &["ciclomotor"], 1)
+            },
+            Word {
+                part_of_speech: Some(PartOfSpeech::PhrasalVerb),
+                transitive: Some(false),
+                verb_form: Some(VerbForm::Past),
+                sentence: "At dawn he set off.".into(),
+                ..shelf::word("set off", &["partir"], 1)
+            },
+        ];
+        words::finish(&conn, &chapter, Depth::Most, &list, Utc::now()).expect("words");
+        chapter
+    };
+    assert_eq!(check_all(ctx, &mut Sidecar(ctx)).expect("check"), 1);
+    assert_eq!(label_all(ctx, &mut Sidecar(ctx)).expect("label"), 2);
+    let conn = ctx.conn().expect("conn");
+    let row = |key: &str| {
+        let id = words::id_by_key(&conn, &chapter, key)
+            .expect("id")
+            .expect("word");
+        practice::word(&conn, &id).expect("word")
+    };
+    let moped = row("moped");
+    assert_eq!(moped.base.as_deref(), Some("mope"));
+    assert_eq!(moped.translations, ["mopear"]);
+    // The fake says a translation in its form with an "ó".
+    assert_eq!(moped.shown_as(), ["mopearó"]);
+    assert_eq!(row("set off").shown_as(), ["partiró"]);
+}
