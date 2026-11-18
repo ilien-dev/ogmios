@@ -93,6 +93,18 @@ Mark what the learner got wrong in the English they wrote:
 The author's sentence is one right answer, not the only one: correct English that says the same thing gets no note, even where the author chose other words. Neither does punctuation that is no part of a word: a comma, a full stop, quotation marks.`;
 }
 
+/**
+ * What a note's why rests on. Into the native language a slip breaks a rule
+ * of that language, and the English beside it decides nothing: a tense
+ * concordance blamed on another English verb sends the learner to the wrong
+ * words.
+ */
+function whyRule(params: ParagraphReviewParams, native: string): string {
+  return params.direction === "toNative"
+    ? `one short line saying what went wrong and the sense or rule behind it. An error is about the English: quote the English words the fragment translates. A slip is about the ${native} the learner wrote: give the ${native} rule and quote the words of the attempt that call for it, such as the past verb that calls for a past subjunctive. Never put a slip down to the English: an English infinitive or -ing form has no tense, and the tense of another English verb decides nothing.`
+    : "one short line saying what went wrong and the sense or rule behind it, quoting the English words it is about.";
+}
+
 /** Reviews one finished paragraph; Rust places the notes and scores it. */
 export function paragraphReviewSystemPrompt(
   params: ParagraphReviewParams,
@@ -112,7 +124,7 @@ Answer with:
   - fragment: the words of the attempt that are wrong, copied exactly as the learner typed them, letter for letter, and as few words as hold the mistake. It is highlighted in the learner's text, so it must be found there. For something left out, copy the word of the attempt next to where it is missing.
   - severity: "error" or "slip", as defined above.
   - better: what the fragment should have been, in ${written}.
-  - why: one short line saying what went wrong and the sense or rule behind it, quoting the English words it is about.
+  - why: ${whyRule(params, native)}
   - word: when the mistake comes from one English word or expression the learner did not know or could not recall, that word: english is its base form in lowercase ("run" for "ran", "give up" for "gave up"), translations are its natural ${native} translations in the sense it has here, at least one. Otherwise null: grammar, spelling and word order have no word.
 
 ${nativeLanguageRule(params.nativeLang)}`;
