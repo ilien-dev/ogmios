@@ -525,8 +525,16 @@ describe("looking again at the words taken from a book", () => {
   test("the sentence is asked for each way, only when the word alone misleads", () => {
     const system = vocabCheckSystemPrompt(taken);
     expect(system).toContain('"toe" asked for "punta"');
-    expect(system).toContain('("race" asked for "carrera")');
-    expect(system).toContain('"punta" leads to "tip" or "point", not "toe"');
+    expect(system).toContain(
+      '("race" asked for "carrera", "fuzzy" for "peludo")',
+    );
+    expect(system).toContain(
+      '("punta" asked for "toe": they would type "tip" or "point")',
+    );
+    expect(system).toContain(
+      '("moped", the noun, reads as the past of "mope")',
+    );
+    expect(system).toContain('"farola" for "streetlamp"');
     expect(system).toContain('"patada" (noun) beside "patear" (verb)');
   });
 
