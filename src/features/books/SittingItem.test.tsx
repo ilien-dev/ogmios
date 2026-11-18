@@ -792,7 +792,7 @@ describe("telling which word is meant", () => {
     await user.type(screen.getByLabelText("Your translation"), "patada{Enter}");
     expect(
       await screen.findByText(
-        "Remember: I'm asking for “verb”, not “noun”. Verb: says an action or a state. Try once more.",
+        "Remember: I'm asking for “verb” (past simple), not “noun”. Verb: says an action or a state. Try once more.",
       ),
     ).toBeInTheDocument();
     expect(held.sent).toEqual([["patada", false]]);

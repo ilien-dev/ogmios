@@ -34,12 +34,14 @@ export function retryKey(
 /**
  * What reminds the learner of the kind of word asked for, when they gave a
  * word of another kind from its root ("patada" for "kicked"): both kinds,
- * and in a few words what the one asked for is. Null when either is no
+ * the form a verb is asked in, and in a few words what the kind asked for
+ * is. Null when either is no
  * kind worth naming: the line for the wrong form says it then.
  */
 export function kindLine(
   kind: KindReminder | null,
   t: TFunction,
+  verbForm: VerbForm | null = null,
 ): string | null {
   const asked = kind?.asked ?? "other";
   const given = kind?.given ?? "other";
@@ -48,8 +50,14 @@ export function kindLine(
   }
   const name = t(`books.chapter.partOfSpeech.${asked}`);
   const meaning = t(`books.chapter.partOfSpeechHint.${asked}`);
+  // A verb is asked for in a form too: "verbo (pasado simple)".
+  const form =
+    verbForm === null || verbForm === "base"
+      ? ""
+      : ` (${t(`books.sitting.verbForm.${verbForm}`)})`;
   return t("books.sitting.otherKind", {
     asked: name,
+    form,
     given: t(`books.chapter.partOfSpeech.${given}`),
     title: name.charAt(0).toUpperCase() + name.slice(1),
     meaning: meaning.charAt(0).toLowerCase() + meaning.slice(1),

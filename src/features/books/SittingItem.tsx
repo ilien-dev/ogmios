@@ -510,7 +510,7 @@ export function SittingItem<Result extends Checked>({
           {result === null && again && (
             <Reveal key="again" className="flex justify-center">
               <VerdictLine tone="partial">
-                {kindLine(kind, t) ??
+                {kindLine(kind, t, item.verbForm) ??
                   t(
                     retryKey(
                       other,

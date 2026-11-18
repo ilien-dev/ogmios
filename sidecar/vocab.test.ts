@@ -529,8 +529,9 @@ describe("looking again at the words taken from a book", () => {
       '("race" asked for "carrera", "fuzzy" for "peludo")',
     );
     expect(system).toContain(
-      '("punta" asked for "toe": they would type "tip" or "point")',
+      '"punta" asked for "toe" names the tip of anything',
     );
+    expect(system).toContain("When in doubt, false.");
     expect(system).toContain(
       '("moped", the noun, reads as the past of "mope")',
     );

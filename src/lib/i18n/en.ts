@@ -644,7 +644,7 @@ export const en = {
       otherWord:
         "That's right, but I'm after another word here. Try once more.",
       otherKind:
-        "Remember: I'm asking for “{{asked}}”, not “{{given}}”. {{title}}: {{meaning}} Try once more.",
+        "Remember: I'm asking for “{{asked}}”{{form}}, not “{{given}}”. {{title}}: {{meaning}} Try once more.",
       exact: "In this sentence:",
       verbForm: {
         base: "base form",
