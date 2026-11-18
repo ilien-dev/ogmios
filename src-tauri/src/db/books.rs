@@ -259,7 +259,7 @@ const OTHERS: &str = "SELECT w.key FROM chapter_words w
      WHERE c.book_id != ?1";
 
 /// Deletes the book for good, with every row of it. The words no other book
-/// has, archived or not, go with their history, their note and their
+/// has, archived or not, go with their history and their
 /// sentences, so the daily recall forgets them; the known ones stay known.
 /// The practice left half way in it by ear or on structures belongs to no
 /// chapter any more. Run it inside a transaction.
@@ -268,7 +268,7 @@ pub fn purge_book(conn: &Connection, id: &str) -> Result<()> {
         conn.query_row("SELECT 1 FROM books WHERE id = ?1", [id], |_| Ok(())),
         "book",
     )?;
-    for table in ["word_events", "word_notes", "word_sentences"] {
+    for table in ["word_events", "word_sentences"] {
         conn.execute(
             &format!(
                 "DELETE FROM {table}
@@ -643,8 +643,7 @@ mod tests {
         conn.execute_batch(
             "INSERT INTO word_events (key, kind, created_at)
                VALUES ('peep', 'right', '2026-03-02T10:00:00.000Z'),
-                      ('bank', 'right', '2026-03-02T10:00:00.000Z');
-             INSERT INTO word_notes VALUES ('peep', 'a bird peeps', '2026-03-02T10:00:00.000Z');",
+                      ('bank', 'right', '2026-03-02T10:00:00.000Z');",
         )
         .expect("history");
         mark_known(&conn, "dread");
@@ -664,7 +663,6 @@ mod tests {
             count("SELECT COUNT(*) FROM word_events WHERE key = 'peep'"),
             0
         );
-        assert_eq!(count("SELECT COUNT(*) FROM word_notes"), 0);
         assert_eq!(
             count("SELECT COUNT(*) FROM word_events WHERE key = 'bank'"),
             1

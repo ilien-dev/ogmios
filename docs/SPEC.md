@@ -408,8 +408,7 @@ terminadas en un capítulo de un libro y las pedidas con "¿Cómo digo…?"; nun
 - **Fuerza:** nueva (escalón 0), asentándose (1–3), firme (4 o más: aguantó tres semanas). Se ve
   en la lista del capítulo, en el vocabulario del progreso y en Repaso.
 - **Palabras que se resisten:** con 3 fallos entre práctica y repaso, la palabra vuelve antes
-  (1 → 2 → 4 → 10 → 30 días) y, al fallarla, el usuario puede escribir su propio truco para
-  recordarla; se le muestra la próxima vez que falle.
+  (1 → 2 → 4 → 10 → 30 días). El usuario no deja notas ni trucos propios: la recuerda solo.
 - **Encuentros al traducir:** en el texto en inglés de un capítulo, las palabras aprendidas van
   subrayadas con un color propio. No al traducir hacia el inglés, donde serían la respuesta.
 

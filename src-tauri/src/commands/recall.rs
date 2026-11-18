@@ -265,8 +265,7 @@ fn clue_of(
 
 /// Checks one answer of a run, keeps it, and says what comes next. The word
 /// has to be one the run can ask: due, and asked in its ways. An empty
-/// answer is "I don't know": a miss like any other. For a word that keeps
-/// slipping the verdict carries the learner's own note on it.
+/// answer is "I don't know": a miss like any other.
 #[cfg(test)]
 pub fn answer(
     ctx: Ctx<'_>,
@@ -319,8 +318,6 @@ pub fn answer_shown(
             correct: false,
             accepted: Vec::new(),
             step: step(&tx, &run, now)?,
-            stubborn: false,
-            note: None,
             answer_id: 0,
             again: true,
             another: told,
@@ -338,19 +335,12 @@ pub fn answer_shown(
         (answer.trim(), correct),
         (sentence.as_ref().map(|each| each.id.as_str()), now),
     )?;
-    // This answer may be the miss that makes it one that keeps slipping.
-    let stubborn = recall::words(&tx)?
-        .iter()
-        .any(|after| after.key == key && after.stubborn);
-    let note = recall::note(&tx, key)?;
     let step = step(&tx, &run, now)?;
     tx.commit()?;
     Ok(RecallAnswer {
         correct,
         accepted: all_small(&judged.accepted),
         step,
-        stubborn,
-        note,
         answer_id,
         again: false,
         another: None,
@@ -408,11 +398,6 @@ pub fn discard(
     Ok(step)
 }
 
-/// Keeps the learner's note on a word; an empty one takes it away.
-pub fn save_note(ctx: Ctx<'_>, key: &str, note: &str, now: DateTime<Utc>) -> Result<()> {
-    recall::save_note(&*ctx.conn()?, key, note, now)
-}
-
 #[tauri::command]
 pub async fn recall_state(app: AppHandle) -> Result<RecallState> {
     run(app, |_, ctx| state(ctx, Utc::now())).await
@@ -468,14 +453,6 @@ pub async fn discard_recall_sentence(
 ) -> Result<RecallStep> {
     run(app, move |_, ctx| {
         discard(ctx, &sitting_id, answer_id, Utc::now())
-    })
-    .await
-}
-
-#[tauri::command]
-pub async fn save_word_note(app: AppHandle, word_id: String, note: String) -> Result<()> {
-    run(app, move |_, ctx| {
-        save_note(ctx, &word_id, &note, Utc::now())
     })
     .await
 }
@@ -739,29 +716,6 @@ mod tests {
         // Answered: it is not due, and the run is over.
         let twice = answer(desk.ctx(), &run.id, "w00", &translation("w00"), days(1));
         assert!(matches!(twice, Err(Error::Invalid(_))));
-    }
-
-    #[test]
-    fn a_word_that_keeps_slipping_says_so_and_carries_the_learners_note() {
-        let dir = tempfile::tempdir().expect("tempdir");
-        let desk = Desk::new(&dir);
-        learned(&desk, "b", 1);
-        let mut now = days(1);
-        for miss in 1..=3 {
-            let run = start(desk.ctx(), Ways::Recognition, now).expect("start");
-            let result = reply(&desk, &run, &run.step, false, now);
-            assert_eq!(result.stubborn, miss == 3, "miss {miss}");
-            assert_eq!(result.note, None);
-            now += TimeDelta::days(1);
-        }
-        save_note(desk.ctx(), "w00", "  sounds like wool  ", now).expect("note");
-        let run = start(desk.ctx(), Ways::Recognition, now).expect("start");
-        let result = reply(&desk, &run, &run.step, false, now);
-        assert!(result.stubborn);
-        assert_eq!(result.note.as_deref(), Some("sounds like wool"));
-
-        save_note(desk.ctx(), "w00", " ", now).expect("cleared");
-        assert_eq!(desk.count("SELECT COUNT(*) FROM word_notes"), 0);
     }
 
     #[test]

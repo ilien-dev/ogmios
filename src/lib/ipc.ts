@@ -474,9 +474,6 @@ export const discardRecallSentence = (
   answerId: number,
 ): Promise<RecallStep> =>
   call("discard_recall_sentence", { sittingId, answerId });
-/** Keeps the learner's own note on a word; an empty one takes it away. */
-export const saveWordNote = (wordId: string, note: string): Promise<void> =>
-  call("save_word_note", { wordId, note });
 
 // ── Translating a chapter ─────────────────────────────────────────────────
 

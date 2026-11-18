@@ -61,6 +61,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("senses.sql"),
     include_str!("contexts.sql"),
     include_str!("tenses.sql"),
+    include_str!("notes.sql"),
 ];
 
 pub fn open(path: &Path) -> Result<Connection> {
@@ -138,6 +139,30 @@ mod tests {
             .pragma_query_value(None, "user_version", |row| row.get(0))
             .expect("version");
         assert_eq!(version, i64::try_from(MIGRATIONS.len()).expect("small"));
+    }
+
+    #[test]
+    fn migration_thirty_eight_drops_the_notes_written_on_words() {
+        let conn = Connection::open_in_memory().expect("open");
+        for sql in &MIGRATIONS[..37] {
+            conn.execute_batch(sql).expect("migration");
+        }
+        conn.pragma_update(None, "user_version", 37)
+            .expect("version");
+        conn.execute_batch(
+            "INSERT INTO word_notes VALUES ('swear', 'like an oath', '2026-01-07T10:00:00.000Z');",
+        )
+        .expect("rows");
+
+        migrate(&conn).expect("migrate");
+        let tables: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE name = 'word_notes'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("tables");
+        assert_eq!(tables, 0);
     }
 
     #[test]
@@ -1095,7 +1120,6 @@ mod tests {
                      '2026-01-03');
              INSERT INTO word_events (key, kind, direction, answer, created_at)
                VALUES ('swear', 'right', 'recognition', 'jurar', '2026-01-07T10:00:00.000Z');
-             INSERT INTO word_notes VALUES ('swear', 'like an oath', '2026-01-07T10:00:00.000Z');
              INSERT INTO known_words VALUES ('recede', 'recede', '2026-01-03');
              UPDATE chapter_words SET transitive = 1;"#,
         )
@@ -1150,7 +1174,6 @@ mod tests {
         assert_eq!(keys("word_sentences"), ["sworn", "swore", "swear"]);
         assert_eq!(sentences::bank(&conn, "swore").expect("bank").len(), 1);
         assert_eq!(keys("word_events"), ["sworn"]);
-        assert_eq!(keys("word_notes"), ["sworn"]);
         assert_eq!(keys("known_words"), ["recede", "receded"]);
         assert!(words::list(&conn, "c")
             .expect("list")

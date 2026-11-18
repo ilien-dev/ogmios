@@ -334,30 +334,6 @@ pub fn used(conn: &Connection, key: &str, session_id: &str, now: DateTime<Utc>) 
     Ok(())
 }
 
-/// The learner's note on a word, if they wrote one.
-pub fn note(conn: &Connection, key: &str) -> Result<Option<String>> {
-    Ok(conn
-        .query_row("SELECT note FROM word_notes WHERE key = ?1", [key], |row| {
-            row.get(0)
-        })
-        .optional()?)
-}
-
-/// Keeps the note of a word; an empty one takes it away.
-pub fn save_note(conn: &Connection, key: &str, note: &str, now: DateTime<Utc>) -> Result<()> {
-    let note = note.trim();
-    if note.is_empty() {
-        conn.execute("DELETE FROM word_notes WHERE key = ?1", [key])?;
-    } else {
-        conn.execute(
-            "INSERT INTO word_notes (key, note, updated_at) VALUES (?1, ?2, ?3)
-             ON CONFLICT (key) DO UPDATE SET note = ?2, updated_at = ?3",
-            params![key, note, ts(now)],
-        )?;
-    }
-    Ok(())
-}
-
 /// Fixes the learned words a conversation's partner is given, in order.
 pub fn set_session_words(conn: &Connection, session_id: &str, words: &[RecallWord]) -> Result<()> {
     let mut stmt = conn.prepare(

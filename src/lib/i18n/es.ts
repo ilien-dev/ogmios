@@ -891,13 +891,6 @@ export const es: Catalog<typeof en> = {
     allRight: "No se te escapó ninguna.",
     more: "Otra ronda",
     back: "Listo",
-    note: {
-      title: "Esta se te resiste",
-      hint: "Escribe tu propio truco para recordarla. Lo verás la próxima vez que se te escape.",
-      label: "Tu nota",
-      save: "Guardar",
-      saved: "Guardada",
-    },
   },
   progress: {
     title: "Progreso",
