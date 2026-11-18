@@ -502,6 +502,11 @@ const labelWordSchema = z.object({
    * to be put in that form; empty for any other word.
    */
   translations: z.array(z.string()),
+  /**
+   * The form those translations are put in, when its chapter said it: a
+   * past spelled as its base form ("set off") is told by it alone.
+   */
+  verbForm: verbFormSchema.nullable(),
 });
 
 /** Words stored before words were labelled, to be said what kind each is. */
@@ -535,6 +540,53 @@ export const vocabLabelsSchema = z.object({
   labels: z.array(wordLabelSchema),
 });
 export type VocabLabels = z.infer<typeof vocabLabelsSchema>;
+
+/** One word of a book, looked at once more against its sentence. */
+const checkWordSchema = z.object({
+  /** Names the word in the answer; Rust gives its id. */
+  id: z.string(),
+  /** The English word, as it is stored. */
+  lemma: z.string(),
+  /** The sentence of the book it was taken from. */
+  sentence: z.string(),
+  /** What kind of word it was taken for; null when nobody said. */
+  partOfSpeech: partOfSpeechSchema.nullable(),
+  /** The translations it was taken with. */
+  translations: z.array(z.string()),
+});
+
+/** Words of the learner's books, each looked at once against its sentence. */
+export const vocabCheckParams = z.object({
+  nativeLang: z.string(),
+  words: z.array(checkWordSchema).min(1),
+});
+export type VocabCheckParams = z.infer<typeof vocabCheckParams>;
+
+/**
+ * The model's look at one word: whether it was taken for the word its
+ * sentence uses, and the word it is when it was not.
+ */
+const wordCheckSchema = z.object({
+  id: z.string(),
+  /** What it was taken for is the word its sentence uses. */
+  fits: z.boolean(),
+  /** What kind of word the sentence uses it as. */
+  partOfSpeech: partOfSpeechSchema,
+  /** A verb or a phrasal verb that takes an object in its sentence. */
+  transitive: z.boolean(),
+  /** The form a verb has in its sentence; null for any other word. */
+  verbForm: verbFormSchema.nullable(),
+  /** The base form of a verb the word is another form of; null otherwise. */
+  base: z.string().nullable(),
+  /** Its translations in the sense its sentence gives it, base form. */
+  translations: z.array(z.string()),
+});
+
+/** The model's looks; a word without one is looked at again. */
+export const vocabChecksSchema = z.object({
+  checks: z.array(wordCheckSchema),
+});
+export type VocabChecks = z.infer<typeof vocabChecksSchema>;
 
 // ── sentences a word is asked with ────────────────────────────────────────
 

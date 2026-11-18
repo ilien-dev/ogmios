@@ -26,6 +26,8 @@ import type {
   Vocab,
   VocabExtractParams,
   VocabJudgeParams,
+  VocabCheckParams,
+  VocabChecks,
   VocabLabelParams,
   VocabLabels,
   VocabVerdict,
@@ -213,6 +215,43 @@ function fakeLabels(params: VocabLabelParams): VocabLabels {
   };
 }
 
+/**
+ * Every word fits as it was taken, but a noun ending in "ed" its sentence
+ * has after "he": the past of a verb, the word without its "d", translated
+ * as that and "ar".
+ */
+function fakeChecks(params: VocabCheckParams): VocabChecks {
+  return {
+    checks: params.words.map((word) => {
+      const misread =
+        word.partOfSpeech === "noun" &&
+        word.lemma.endsWith("ed") &&
+        word.sentence.toLowerCase().includes(`he ${word.lemma}`);
+      if (!misread) {
+        return {
+          id: word.id,
+          fits: true,
+          partOfSpeech: word.partOfSpeech ?? "other",
+          transitive: false,
+          verbForm: null,
+          base: null,
+          translations: word.translations,
+        };
+      }
+      const base = word.lemma.slice(0, -1);
+      return {
+        id: word.id,
+        fits: false,
+        partOfSpeech: "verb",
+        transitive: false,
+        verbForm: "past",
+        base,
+        translations: [`${base}ar`],
+      };
+    }),
+  };
+}
+
 /** What the fake calls a bad sentence when it looks at one. */
 const FAKE_BAD = "clumsy";
 
@@ -384,6 +423,8 @@ function answerFor(request: StructuredRequest): unknown {
       return fakeVerdict(request.params);
     case "vocabLabel":
       return fakeLabels(request.params);
+    case "vocabCheck":
+      return fakeChecks(request.params);
     case "sentenceWrite":
       return fakeSentences(request.params);
     case "sentenceReview":

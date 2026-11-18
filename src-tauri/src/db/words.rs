@@ -8,10 +8,10 @@ use rusqlite::{params, Connection, OptionalExtension};
 
 use super::profile::get_profile;
 use super::{found, new_id, parse_ts, ts};
-use crate::agent::protocol::{LabelWord, VocabItem};
+use crate::agent::protocol::{CheckWord, LabelWord, VocabItem, WordCheck};
 use crate::books::practice::{inflects, preferred};
 use crate::books::sentences::affirmed_base;
-use crate::books::vocab::Word;
+use crate::books::vocab::{called_in_form, key, Word};
 use crate::domain::{BookWord, Depth, Direction, KnownWord, PartOfSpeech, VerbForm};
 use crate::error::Result;
 
@@ -448,7 +448,7 @@ pub fn list(conn: &Connection, chapter_id: &str) -> Result<Vec<BookWord>> {
     let mut stmt = conn.prepare(
         "SELECT id, lemma, occurrences, done_at IS NOT NULL,
                 key IN (SELECT key FROM known_words), part_of_speech, key,
-                sorted_at IS NOT NULL, verb_form, sentence, base IS NULL
+                sorted_at IS NOT NULL, verb_form, sentence, base, forms
          FROM chapter_words
          WHERE chapter_id = ?1 ORDER BY occurrences DESC, key",
     )?;
@@ -471,14 +471,20 @@ pub fn list(conn: &Connection, chapter_id: &str) -> Result<Vec<BookWord>> {
                 known: row.get(4)?,
                 sorted: row.get(7)?,
             };
-            Ok((key, row.get::<_, bool>(10)?, word))
+            let called: (Option<String>, String) = (row.get(10)?, row.get(11)?);
+            Ok((key, called, word))
         })?
         .collect::<rusqlite::Result<Vec<_>>>()?;
     let halves = super::practice::halves(conn, chapter_id)?;
     let used = Used::load(conn, None)?;
     words
         .into_iter()
-        .map(|(key, called_by_base, mut word)| {
+        .map(|(key, (base, forms), mut word)| {
+            let forms: Vec<String> = serde_json::from_str(&forms)?;
+            let called = (word.lemma.as_str(), base.as_deref());
+            let written = (forms.as_slice(), word.sentence.as_str());
+            let called_by_base =
+                !called_in_form(called, written, word.part_of_speech, word.verb_form);
             word.half = halves.get(&word.id).copied();
             let shown = used.order(conn, (&key, &word.id), word.part_of_speech)?;
             let said = said_in_form(conn, &word.id)?;
@@ -497,40 +503,143 @@ pub fn list(conn: &Connection, chapter_id: &str) -> Result<Vec<BookWord>> {
 /// it left (`books::archive_book`), and they come back in the recall.
 pub fn unlabelled(conn: &Connection) -> Result<Vec<LabelWord>> {
     let mut stmt = conn.prepare(
-        "SELECT id, lemma, sentence FROM chapter_words
-         WHERE (part_of_speech IS NULL
-            OR (part_of_speech IN ('verb', 'phrasalVerb')
-                AND (transitive IS NULL OR verb_form IS NULL))
-            OR (base IS NOT NULL AND EXISTS (
-                  SELECT 1 FROM word_translations t
-                  WHERE t.word_id = chapter_words.id
-                    AND t.source = 'extraction'
-                    AND (t.in_form IS NULL
-                      OR (t.in_form_also IS NULL AND chapter_words.verb_form = 'past')))))
+        "SELECT id, lemma, sentence, base, forms, part_of_speech, verb_form,
+                part_of_speech IS NULL
+                  OR (part_of_speech IN ('verb', 'phrasalVerb')
+                    AND (transitive IS NULL OR verb_form IS NULL))
+         FROM chapter_words
+         ORDER BY chapter_id, occurrences DESC, key",
+    )?;
+    let rows = stmt
+        .query_map([], |row| {
+            let word = LabelWord {
+                id: row.get(0)?,
+                lemma: row.get(1)?,
+                sentence: row.get(2)?,
+                translations: Vec::new(),
+                verb_form: row.get(6)?,
+            };
+            let base: Option<String> = row.get(3)?;
+            let forms: String = row.get(4)?;
+            let kind: (Option<PartOfSpeech>, Option<VerbForm>) = (row.get(5)?, row.get(6)?);
+            Ok((word, base, forms, kind, row.get::<_, bool>(7)?))
+        })?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    // The translations not said yet in the form the word is called by.
+    let mut stmt = conn.prepare(
+        "SELECT t.text FROM word_translations t
+         JOIN chapter_words w ON w.id = t.word_id
+         WHERE w.id = ?1 AND t.source = 'extraction'
+           AND (t.in_form IS NULL OR (t.in_form_also IS NULL AND w.verb_form = 'past'))
+         ORDER BY t.rowid",
+    )?;
+    let mut words = Vec::new();
+    for (mut word, base, forms, (part_of_speech, verb_form), unkind) in rows {
+        let forms: Vec<String> = serde_json::from_str(&forms)?;
+        let called = (word.lemma.as_str(), base.as_deref());
+        if called_in_form(called, (&forms, &word.sentence), part_of_speech, verb_form) {
+            let rows = stmt.query_map([&word.id], |row| row.get(0))?;
+            word.translations = rows.collect::<rusqlite::Result<_>>()?;
+        }
+        if unkind || !word.translations.is_empty() {
+            words.push(word);
+        }
+    }
+    Ok(words)
+}
+
+/// Every word not looked at yet against its sentence, of any book: what it
+/// is called, the sentence it was taken from, the kind it was taken for and
+/// the translations it was taken with (`check`).
+pub fn unchecked(conn: &Connection) -> Result<Vec<CheckWord>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, lemma, sentence, part_of_speech FROM chapter_words
+         WHERE checked = 0
          ORDER BY chapter_id, occurrences DESC, key",
     )?;
     let mut words = stmt
         .query_map([], |row| {
-            Ok(LabelWord {
+            Ok(CheckWord {
                 id: row.get(0)?,
                 lemma: row.get(1)?,
                 sentence: row.get(2)?,
+                part_of_speech: row.get(3)?,
                 translations: Vec::new(),
             })
         })?
         .collect::<rusqlite::Result<Vec<_>>>()?;
     let mut stmt = conn.prepare(
-        "SELECT t.text FROM word_translations t
-         JOIN chapter_words w ON w.id = t.word_id
-         WHERE w.id = ?1 AND w.base IS NOT NULL AND t.source = 'extraction'
-           AND (t.in_form IS NULL OR (t.in_form_also IS NULL AND w.verb_form = 'past'))
-         ORDER BY t.rowid",
+        "SELECT text FROM word_translations
+         WHERE word_id = ?1 AND source = 'extraction' ORDER BY rowid",
     )?;
     for word in &mut words {
         let rows = stmt.query_map([&word.id], |row| row.get(0))?;
         word.translations = rows.collect::<rusqlite::Result<_>>()?;
     }
     Ok(words)
+}
+
+/// Keeps what a look at a word against its sentence found; whether it was
+/// put right. One that fits is only marked as looked at. One its sentence
+/// uses as another word written the same way ("moped", the past of "mope",
+/// taken for the noun) becomes that word, under the same key and called as
+/// before: its kind, whether it takes an object, the form of a verb and the
+/// base form of one written in another form, and its translations, which
+/// are said in its form again (`unlabelled`). The sentences it was asked
+/// with gloss the other word: they go, and new ones are written. A look
+/// with no translation changes nothing but the mark.
+pub fn check(conn: &Connection, id: &str, look: &WordCheck) -> Result<bool> {
+    let translations: Vec<&str> = look
+        .translations
+        .iter()
+        .map(|each| each.trim())
+        .filter(|each| !each.is_empty())
+        .collect();
+    let wrong = !look.fits && !translations.is_empty();
+    let marked = conn.execute(
+        "UPDATE chapter_words SET checked = 1 WHERE id = ?1 AND checked = 0",
+        [id],
+    )?;
+    if marked == 0 || !wrong {
+        return Ok(false);
+    }
+    let (word_key, lemma): (String, String) = conn.query_row(
+        "SELECT key, lemma FROM chapter_words WHERE id = ?1",
+        [id],
+        |row| Ok((row.get(0)?, row.get(1)?)),
+    )?;
+    let verb = matches!(
+        look.part_of_speech,
+        PartOfSpeech::Verb | PartOfSpeech::PhrasalVerb
+    );
+    let base = look
+        .base
+        .as_deref()
+        .map(str::trim)
+        .filter(|base| verb && !base.is_empty() && key(base) != key(&lemma));
+    conn.execute(
+        "UPDATE chapter_words
+         SET part_of_speech = ?2, transitive = ?3, verb_form = ?4, base = ?5
+         WHERE id = ?1",
+        params![
+            id,
+            look.part_of_speech,
+            look.transitive && verb,
+            look.verb_form.filter(|_| verb),
+            base
+        ],
+    )?;
+    conn.execute(
+        "DELETE FROM word_translations WHERE word_id = ?1 AND source = 'extraction'",
+        [id],
+    )?;
+    let mut add =
+        conn.prepare("INSERT OR IGNORE INTO word_translations (word_id, text) VALUES (?1, ?2)")?;
+    for translation in translations {
+        add.execute(params![id, translation])?;
+    }
+    conn.execute("DELETE FROM word_sentences WHERE key = ?1", [word_key])?;
+    Ok(true)
 }
 
 /// Keeps the translations of a word in the form it is called by: `said`,

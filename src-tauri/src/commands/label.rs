@@ -19,7 +19,7 @@ use tauri::AppHandle;
 
 use super::profile::agent;
 use super::run;
-use crate::agent::protocol::{VocabLabelParams, VocabLabels};
+use crate::agent::protocol::{VocabCheckParams, VocabChecks, VocabLabelParams, VocabLabels};
 use crate::db::words;
 use crate::error::Result;
 use crate::Ctx;
@@ -27,9 +27,10 @@ use crate::Ctx;
 /// Words put to the model in one request.
 const WORDS_PER_CALL: usize = 40;
 
-/// The one thing the model is asked for; a stub in the tests.
+/// What the model is asked for; a stub in the tests.
 pub trait Model {
     fn label(&mut self, params: &VocabLabelParams) -> Result<VocabLabels>;
+    fn check(&mut self, params: &VocabCheckParams) -> Result<VocabChecks>;
 }
 
 /// The model behind the sidecar.
@@ -39,6 +40,39 @@ impl Model for Sidecar<'_> {
     fn label(&mut self, params: &VocabLabelParams) -> Result<VocabLabels> {
         agent(self.0)?.vocab_label(params)
     }
+
+    fn check(&mut self, params: &VocabCheckParams) -> Result<VocabChecks> {
+        agent(self.0)?.vocab_check(params)
+    }
+}
+
+/// Looks at every word not looked at yet against its sentence, of any
+/// book, and puts right the ones taken for another word written the same
+/// way (`words::check`); how many were. A word the model says nothing of is
+/// looked at on the next run. It runs before the labels: a word put right
+/// is said in its form by them.
+pub fn check_all(ctx: Ctx<'_>, model: &mut dyn Model) -> Result<u32> {
+    let (waiting, native_lang) = {
+        let conn = ctx.conn()?;
+        let Some(profile) = crate::db::profile::get_profile(&conn)? else {
+            return Ok(0);
+        };
+        (words::unchecked(&conn)?, profile.native_lang)
+    };
+    let mut put_right = 0_u32;
+    for chunk in waiting.chunks(WORDS_PER_CALL) {
+        let answer = model.check(&VocabCheckParams {
+            native_lang: native_lang.clone(),
+            words: chunk.to_vec(),
+        })?;
+        let conn = ctx.conn()?;
+        for look in &answer.checks {
+            if chunk.iter().any(|word| word.id == look.id) && words::check(&conn, &look.id, look)? {
+                put_right = put_right.saturating_add(1);
+            }
+        }
+    }
+    Ok(put_right)
 }
 
 /// Labels every word still to be labelled, of any book; how many were.
@@ -81,8 +115,14 @@ pub async fn label_words(app: AppHandle) -> Result<u32> {
         let _one = RUNNING
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        // The screen stays quiet about it; the reason is said here.
-        label_all(ctx, &mut Sidecar(ctx)).inspect_err(|err| eprintln!("label words: {err}"))
+        // The screen stays quiet about it; the reason is said here. A look
+        // that fails leaves its words for the next run, and the labels go on.
+        let put_right = check_all(ctx, &mut Sidecar(ctx))
+            .inspect_err(|err| eprintln!("check words: {err}"))
+            .unwrap_or(0);
+        let labelled =
+            label_all(ctx, &mut Sidecar(ctx)).inspect_err(|err| eprintln!("label words: {err}"))?;
+        Ok(labelled.saturating_add(put_right))
     })
     .await
 }
@@ -90,18 +130,19 @@ pub async fn label_words(app: AppHandle) -> Result<u32> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::agent::protocol::WordLabel;
+    use crate::agent::protocol::{WordCheck, WordLabel};
     use crate::books::vocab::Word;
     use crate::commands::practice::tests::{numbered, Desk};
     use crate::db::practice;
     use crate::db::words::tests::word;
     use crate::domain::{PartOfSpeech, VerbForm};
 
-    /// A model that calls every word a verb but the ones it is told to skip,
-    /// and one more that nobody asked about. It keeps what it was asked.
+    /// A model that calls every word a verb in its base form but the ones it
+    /// is told to skip, and one more that nobody asked about. It keeps what it was asked.
     #[derive(Default)]
     struct Stub {
         asked: Vec<Vec<String>>,
+        looked: Vec<Vec<String>>,
         skips: Vec<&'static str>,
     }
 
@@ -117,7 +158,7 @@ mod tests {
                     id: word.id.clone(),
                     part_of_speech: PartOfSpeech::Verb,
                     transitive: true,
-                    verb_form: Some(VerbForm::Past),
+                    verb_form: Some(VerbForm::Base),
                     in_form: word.translations.iter().map(|t| format!("{t}do")).collect(),
                     in_form_also: word.translations.iter().map(|_| Vec::new()).collect(),
                 })
@@ -131,6 +172,37 @@ mod tests {
                 in_form_also: Vec::new(),
             });
             Ok(VocabLabels { labels })
+        }
+
+        /// Every word fits but "moped", the past of "mope" in its sentence.
+        fn check(&mut self, params: &VocabCheckParams) -> Result<VocabChecks> {
+            self.looked
+                .push(params.words.iter().map(|word| word.lemma.clone()).collect());
+            let checks = params
+                .words
+                .iter()
+                .map(|word| {
+                    let wrong = word.lemma == "moped";
+                    WordCheck {
+                        id: word.id.clone(),
+                        fits: !wrong,
+                        part_of_speech: if wrong {
+                            PartOfSpeech::Verb
+                        } else {
+                            word.part_of_speech.unwrap_or(PartOfSpeech::Other)
+                        },
+                        transitive: false,
+                        verb_form: wrong.then_some(VerbForm::Past),
+                        base: wrong.then(|| "mope".to_owned()),
+                        translations: if wrong {
+                            vec!["andar deprimido".into(), " ".into()]
+                        } else {
+                            word.translations.clone()
+                        },
+                    }
+                })
+                .collect();
+            Ok(VocabChecks { checks })
         }
     }
 
@@ -233,7 +305,7 @@ mod tests {
         assert_eq!(forms, [], "none is left to ask about");
         let form = |id: &str| practice::word(&desk.db.lock().expect("db"), id).expect("word");
         let listed = words::list(&desk.db.lock().expect("db"), &chapter).expect("list");
-        assert_eq!(form(&listed[0].id).verb_form, Some(VerbForm::Past));
+        assert_eq!(form(&listed[0].id).verb_form, Some(VerbForm::Base));
         assert_eq!(form(&listed[2].id).verb_form, None, "a noun has none");
         // The model called it a verb: it stays what its chapter said.
         assert_eq!(
@@ -289,6 +361,134 @@ mod tests {
         let mut stub = Stub::default();
         assert_eq!(label_all(desk.ctx(), &mut stub).expect("label"), 0);
         assert_eq!(stub.asked, Vec::<Vec<String>>::new());
+    }
+
+    #[test]
+    fn a_verb_its_book_has_in_a_past_written_as_it_is_called_is_said_in_that_form() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let desk = Desk::new(&dir);
+        let past = |lemma: &str, sentence: &str, translations: &[&str]| Word {
+            part_of_speech: Some(PartOfSpeech::Verb),
+            transitive: Some(true),
+            verb_form: Some(VerbForm::Past),
+            sentence: sentence.into(),
+            ..word(lemma, translations, 1)
+        };
+        let list = [
+            // A past spelled as its base form: no base was kept.
+            past("set off", "At dawn he set off.", &["partir", "salir"]),
+            // A past the model wrote as its lemma: no base either.
+            past(
+                "kicked",
+                "He kicked the door.",
+                &["patear", "dar una patada"],
+            ),
+            // Called by its base form: the book has it in other words.
+            Word {
+                part_of_speech: Some(PartOfSpeech::PhrasalVerb),
+                forms: vec!["wipe away".into(), "wiped it away".into()],
+                ..past("wipe away", "He wiped it away.", &["limpiar"])
+            },
+        ];
+        let chapter = desk.chapter("b", &list);
+        let waiting = words::unlabelled(&desk.db.lock().expect("db")).expect("unlabelled");
+        let asked: Vec<(&str, &[String])> = waiting
+            .iter()
+            .map(|word| (word.lemma.as_str(), word.translations.as_slice()))
+            .collect();
+        assert_eq!(asked.len(), 2, "{asked:?}");
+        assert!(asked
+            .iter()
+            .all(|(lemma, said)| *lemma != "wipe away" && said.len() == 2));
+
+        let mut stub = Stub::default();
+        assert_eq!(label_all(desk.ctx(), &mut stub).expect("label"), 2);
+        let conn = desk.db.lock().expect("db");
+        let id = |key: &str| {
+            words::id_by_key(&conn, &chapter, key)
+                .expect("id")
+                .expect("word")
+        };
+        let row = |key: &str| practice::word(&conn, &id(key)).expect("word");
+        let (set_off, kicked, wipe) = (row("set off"), row("kicked"), row("wipe away"));
+        assert_eq!(set_off.shown_as(), ["partirdo", "salirdo"]);
+        assert_eq!(
+            set_off.alone(),
+            Some(&["partirdo".to_owned(), "salirdo".to_owned()][..])
+        );
+        assert_eq!(kicked.shown_as(), ["pateardo", "dar una patadado"]);
+        assert_eq!(wipe.shown_as(), ["limpiar"]);
+        assert_eq!(wipe.alone(), Some(&["limpiar".to_owned()][..]));
+        let listed = words::list(&conn, &chapter).expect("list");
+        let shown = |lemma: &str| {
+            let word = listed
+                .iter()
+                .find(|word| word.lemma == lemma)
+                .expect("listed");
+            word.translations.clone()
+        };
+        assert_eq!(shown("kicked"), ["pateardo", "dar una patadado"]);
+        assert_eq!(shown("wipe away"), ["limpiar"]);
+    }
+
+    #[test]
+    fn a_word_taken_for_another_written_the_same_is_put_right_once() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let desk = Desk::new(&dir);
+        let list = [
+            Word {
+                part_of_speech: Some(PartOfSpeech::Noun),
+                transitive: Some(false),
+                sentence: "All weekend he moped around the house.".into(),
+                ..word("moped", &["ciclomotor", "moto pequeña"], 1)
+            },
+            Word {
+                part_of_speech: Some(PartOfSpeech::Noun),
+                transitive: Some(false),
+                ..word("hedge", &["seto"], 2)
+            },
+        ];
+        let chapter = desk.chapter("b", &list);
+        let sentences = "SELECT COUNT(*) FROM word_sentences WHERE key = 'moped'";
+        desk.db
+            .lock()
+            .expect("db")
+            .execute_batch(
+                "INSERT INTO word_sentences (id, key, source, sentence, form, hint, translation,
+                                             created_at)
+                 VALUES ('s', 'moped', 'model', 'He rode a moped.', 'moped', 'ciclomotor',
+                         'Iba en ciclomotor.', '2026-01-01')",
+            )
+            .expect("sentence");
+
+        let mut stub = Stub::default();
+        assert_eq!(check_all(desk.ctx(), &mut stub).expect("check"), 1);
+        assert_eq!(stub.looked, [["hedge", "moped"]]);
+        let row = |key: &str| {
+            let conn = desk.db.lock().expect("db");
+            let id = words::id_by_key(&conn, &chapter, key)
+                .expect("id")
+                .expect("word");
+            practice::word(&conn, &id).expect("word")
+        };
+        let moped = row("moped");
+        assert_eq!(moped.lemma, "moped", "called as before");
+        assert_eq!(moped.base.as_deref(), Some("mope"));
+        assert_eq!(moped.part_of_speech, Some(PartOfSpeech::Verb));
+        assert_eq!(moped.verb_form, Some(VerbForm::Past));
+        assert_eq!(moped.translations, ["andar deprimido"]);
+        assert_eq!(desk.count(sentences), 0, "they glossed the noun");
+        assert_eq!(row("hedge").translations, ["seto"]);
+
+        // Each is looked at once.
+        let mut again = Stub::default();
+        assert_eq!(check_all(desk.ctx(), &mut again).expect("check"), 0);
+        assert_eq!(again.looked, Vec::<Vec<String>>::new());
+
+        // Its translations are then said in its form.
+        assert_eq!(label_all(desk.ctx(), &mut again).expect("label"), 1);
+        assert_eq!(again.asked, [["moped"]]);
+        assert_eq!(row("moped").shown_as(), ["andar deprimidodo"]);
     }
 
     #[test]

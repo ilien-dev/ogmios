@@ -602,7 +602,7 @@ pub(super) fn plain(
     let asked = (how.0, word.part_of_speech);
     if direction == Direction::Recognition
         && correct
-        && word.base.is_none()
+        && !word.called_in_form()
         && off_base(answer, &word.translations, asked, how.1)
     {
         verdict = Verdict::WrongForm;
@@ -612,7 +612,7 @@ pub(super) fn plain(
     }
     if direction == Direction::Production {
         if !correct
-            && word.base.is_some()
+            && word.called_in_form()
             && accepts_english(answer, &word.lemma, &english(word), how.1)
         {
             verdict = Verdict::WrongForm;
@@ -1555,6 +1555,57 @@ pub mod tests {
         };
         assert_eq!(lenient("juro"), Verdict::Right);
         assert_eq!(lenient("jura"), Verdict::WrongForm);
+    }
+
+    #[test]
+    fn a_past_written_as_it_is_called_is_asked_for_in_its_form() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let desk = Desk::new(&dir);
+        let past = |lemma: &str, translations: &[&str]| Word {
+            part_of_speech: Some(PartOfSpeech::Verb),
+            verb_form: Some(VerbForm::Past),
+            ..word(lemma, translations, 1)
+        };
+        let chapter = desk.chapter(
+            "b",
+            &[past("kicked", &["patear"]), past("set off", &["partir"])],
+        );
+        let conn = desk.db.lock().expect("db");
+        let id = |key: &str| {
+            words::id_by_key(&conn, &chapter, key)
+                .expect("id")
+                .expect("word")
+        };
+        let only = |text: &str| vec![text.to_owned()];
+        assert!(
+            words::put_in_form(&conn, &id("kicked"), &only("patear"), &only("pateó")).expect("put")
+        );
+        assert!(
+            words::put_in_form(&conn, &id("set off"), &only("partir"), &only("partió"))
+                .expect("put")
+        );
+        let spelling = profile::spelling(&conn).expect("spelling");
+        let say = |key: &str, direction: Direction, text: &str| {
+            let row = practice::word(&conn, &id(key)).expect("word");
+            let judged = plain(&conn, &row, (direction, text), ("es", spelling)).expect("judged");
+            (judged.verdict, judged.accepted)
+        };
+        let (there, back) = (Direction::Recognition, Direction::Production);
+        assert_eq!(
+            say("kicked", there, "pateó"),
+            (Verdict::Right, only("pateó"))
+        );
+        assert_eq!(
+            say("kicked", there, "patear"),
+            (Verdict::WrongForm, only("pateó"))
+        );
+        assert_eq!(
+            say("set off", there, "partio"),
+            (Verdict::Right, only("partió"))
+        );
+        let row = practice::word(&conn, &id("set off")).expect("word");
+        assert_eq!(super::item(row, back).prompt, "partió");
+        assert_eq!(say("set off", back, "set off").0, Verdict::Right);
     }
 
     /// A sitting on "swore", its translation said in its form: "juró".

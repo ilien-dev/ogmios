@@ -11,6 +11,7 @@ use super::words::{as_called, Used};
 use super::{found, new_id, parse_ts, ts};
 use crate::books::practice::{Answer, Asked, SessionWord};
 use crate::books::sentences::inflected;
+use crate::books::vocab::called_in_form;
 use crate::domain::{Direction, PartOfSpeech, SittingSummary, VerbForm, Ways};
 use crate::error::Result;
 
@@ -227,7 +228,13 @@ pub fn word(conn: &Connection, id: &str) -> Result<WordRow> {
         .filter(|(_, extracted, _)| *extracted)
         .filter_map(|(text, _, in_form)| Some((text.clone(), in_form.clone()?)))
         .collect();
-    let in_form = as_called(&shown, &said, base.is_none());
+    let forms: Vec<String> = serde_json::from_str(&forms)?;
+    let called = (lemma.as_str(), base.as_deref());
+    let in_form = as_called(
+        &shown,
+        &said,
+        !called_in_form(called, (&forms, &sentence), part_of_speech, verb_form),
+    );
     let also = also.filter(|_| in_form.is_some());
     let translations = accepted.iter().map(|(text, ..)| text.clone()).collect();
     let mut stmt =
@@ -243,7 +250,7 @@ pub fn word(conn: &Connection, id: &str) -> Result<WordRow> {
         base,
         part_of_speech,
         verb_form,
-        forms: serde_json::from_str(&forms)?,
+        forms,
         sentence,
         needs_context,
         translations,
@@ -273,11 +280,23 @@ impl WordRow {
             self.part_of_speech,
             Some(PartOfSpeech::Verb | PartOfSpeech::PhrasalVerb)
         );
-        let alone = match self.base {
-            None => Some(self.shown.as_slice()),
-            Some(_) => self.in_form.as_deref(),
+        let alone = if self.called_in_form() {
+            self.in_form.as_deref()
+        } else {
+            Some(self.shown.as_slice())
         };
         alone.filter(|each| verb && !each.is_empty())
+    }
+
+    /// Whether it is called by another form than its base form
+    /// (`books::vocab::called_in_form`).
+    pub fn called_in_form(&self) -> bool {
+        called_in_form(
+            (&self.lemma, self.base.as_deref()),
+            (&self.forms, &self.sentence),
+            self.part_of_speech,
+            self.verb_form,
+        )
     }
 
     /// [`Self::alone`], for a sentence that has the word in this `form`:

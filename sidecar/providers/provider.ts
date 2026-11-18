@@ -20,6 +20,7 @@ import type {
   SentenceWriteParams,
   StructureDetectParams,
   StructureGradeParams,
+  VocabCheckParams,
   VocabExtractParams,
   VocabJudgeParams,
   VocabLabelParams,
@@ -36,6 +37,7 @@ export type StructuredRequest =
   | { method: "vocabExtract"; params: VocabExtractParams }
   | { method: "vocabJudge"; params: VocabJudgeParams }
   | { method: "vocabLabel"; params: VocabLabelParams }
+  | { method: "vocabCheck"; params: VocabCheckParams }
   | { method: "sentenceWrite"; params: SentenceWriteParams }
   | { method: "sentenceReview"; params: SentenceReviewParams }
   | { method: "chapterBrief"; params: ChapterBriefParams }

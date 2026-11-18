@@ -36,6 +36,8 @@ import {
   vocabJudgeParams,
   vocabLabelParams,
   vocabLabelsSchema,
+  vocabCheckParams,
+  vocabChecksSchema,
   vocabSchema,
   vocabVerdictSchema,
 } from "../shared/protocol.ts";
@@ -93,6 +95,8 @@ import {
   vocabJudgeUserPrompt,
   vocabLabelSystemPrompt,
   vocabLabelUserPrompt,
+  vocabCheckSystemPrompt,
+  vocabCheckUserPrompt,
 } from "./prompts/vocab.ts";
 import { protocolFingerprint } from "./fingerprint.ts" with { type: "macro" };
 import type { Provider } from "./providers/provider.ts";
@@ -117,6 +121,7 @@ const MAX_TOKENS = {
   vocabExtract: 16_000,
   vocabJudge: 1024,
   vocabLabel: 4096,
+  vocabCheck: 8192,
   sentenceWrite: 16_000,
   sentenceReview: 4096,
   chapterBrief: 2048,
@@ -347,6 +352,16 @@ export class Dispatcher {
           user: vocabLabelUserPrompt(params),
           schema: vocabLabelsSchema,
           maxTokens: MAX_TOKENS.vocabLabel,
+        });
+      }
+      case "vocabCheck": {
+        const params = parseParams(vocabCheckParams, method, raw);
+        return provider.structured({
+          request: { method, params },
+          system: vocabCheckSystemPrompt(params),
+          user: vocabCheckUserPrompt(params),
+          schema: vocabChecksSchema,
+          maxTokens: MAX_TOKENS.vocabCheck,
         });
       }
       case "sentenceWrite": {

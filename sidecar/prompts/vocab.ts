@@ -1,8 +1,10 @@
 import type {
+  VocabCheckParams,
   VocabExtractParams,
   VocabJudgeParams,
   VocabLabelParams,
 } from "../../shared/protocol.ts";
+import type { VerbForm } from "../../shared/domain.ts";
 import {
   DATA_NOT_INSTRUCTIONS,
   LEVEL_CEFR,
@@ -24,8 +26,23 @@ const DEPTH_RULES: Record<VocabExtractParams["depth"], string> = {
 /** What kind of word an item is: the same labels wherever they are asked for. */
 const PART_OF_SPEECH_RULE = `partOfSpeech: what the item is in that sentence: "noun", "verb", "adjective" or "adverb" for a single word; "phrasalVerb" for a phrasal verb; "expression" for an idiom or a fixed expression; "other" for anything else.`;
 
+/**
+ * A written form that is also another word is the word its sentence uses:
+ * the same rule for the extraction and for the look that checks it.
+ */
+const HOMOGRAPH_RULE = `Read the sentence before you name the item: what the item is comes from how the sentence uses it, never from the word it looks like on its own. A written form that is also another word is the one the grammar of its sentence asks for: "moped" in "he moped around the house" is the past of the verb "mope" (lemma "mope", "andar deprimido"), never the noun "moped"; "left" in "she left early" is the past of "leave", never the adjective. Its lemma, partOfSpeech, verbForm and translations are all of that word.`;
+
 /** Whether a verb takes an object: the same label wherever it is asked for. */
 const TRANSITIVE_RULE = `transitive: true when the item is a verb or a phrasal verb that takes a direct object in that sentence, so that it can be turned into the passive ("adorn the hall" gives "the hall was adorned"). False for a verb used without an object ("she trotted off"), and for anything that is not a verb.`;
+
+/** A verb form as the label prompt names it. */
+const FORM_NAMES: Record<VerbForm, string> = {
+  base: "base form",
+  present: "present simple",
+  past: "past simple",
+  pastParticiple: "past participle",
+  ing: "-ing form",
+};
 
 /** Picks the words of one piece of a chapter worth learning before reading it. */
 export function vocabExtractSystemPrompt(params: VocabExtractParams): string {
@@ -37,6 +54,7 @@ ${DEPTH_RULES[params.depth]}
 
 For each item:
 - lemma: the base form in English, lowercase: "run" for "ran", "child" for "children", "give up" for "gave up". A phrasal verb, an idiom or a fixed expression is one item, never split into its words. No leading "to" or article.
+- ${HOMOGRAPH_RULE}
 - form: the word or expression exactly as it appears in the text.
 - sentence: the sentence it appears in, copied exactly from the text.
 - ${PART_OF_SPEECH_RULE}
@@ -71,12 +89,53 @@ For each word:
 - ${PART_OF_SPEECH_RULE}
 - ${TRANSITIVE_RULE}
 - ${VERB_FORM_RULE}
-- inForm: when the word comes with translations, those translations, one for each and in the same order, each put in the form the word has: the learner sees them and has to type the word in that form, so "jurado" for "jurar" when the word is "sworn", "juró" for "swore", "jurando" for "swearing", "jura" for "swears". A participle is given on its own, masculine singular, without an auxiliary; a past or a present takes the person its sentence gives it, in the indicative and in the tense of the English word itself, never a mood or a tense the rest of its sentence gives it: "se congela" for "freezes" in "before she freezes", never "se congele". The learner meets the word as the book writes it and has to know what it says on its own: put the translation in that form and add nothing the word does not say, no word its sentence has beside it: no "no" for a negation beside the word, and none of the words that negation calls for ("tendría alguna oportunidad" for "stand a chance" in "wouldn't stand a chance", never "tendría ninguna oportunidad"). Written in the language the translations are in, never in English. Empty when the word comes without translations.
+- inForm: when the word comes with translations, those translations, one for each and in the same order, each put in the form the word has. When it comes with its form, that is the form it has in its sentence, even for a word spelled as its base form: "partió" for "set off" in "at dawn he set off", never "partir". The learner sees them and has to type the word in that form, so "jurado" for "jurar" when the word is "sworn", "juró" for "swore", "jurando" for "swearing", "jura" for "swears". A participle is given on its own, masculine singular, without an auxiliary; a past or a present takes the person its sentence gives it, in the indicative and in the tense of the English word itself, never a mood or a tense the rest of its sentence gives it: "se congela" for "freezes" in "before she freezes", never "se congele". The learner meets the word as the book writes it and has to know what it says on its own: put the translation in that form and add nothing the word does not say, no word its sentence has beside it: no "no" for a negation beside the word, and none of the words that negation calls for ("tendría alguna oportunidad" for "stand a chance" in "wouldn't stand a chance", never "tendría ninguna oportunidad"). Written in the language the translations are in, never in English. Empty when the word comes without translations.
 - inFormAlso: for each of inForm, in the same order, the other forms of that same translation that say what the English word says, in the same person and the indicative: the learner's answer is right only in one of these or in inForm. For a past, the other past of the language: "juraba" beside "juró", "era" and "fue" for "was". Never another tense, another person or a base form. An empty list for any form that has no other, a participle, a gerund or a present. Empty when the word comes without translations.
 
 Answer with one label per word.
 
 ${NEUTRAL_SPANISH_RULE}`;
+}
+
+/**
+ * Looks once more at words already taken from a book: whether each was taken
+ * for the word its sentence uses, and the word it is when it was not.
+ */
+export function vocabCheckSystemPrompt(params: VocabCheckParams): string {
+  const native = languageName(params.nativeLang);
+  return `An adult English learner whose language is ${native} is learning the vocabulary of a book before reading it. You are given words taken from that book, each with the sentence it was taken from, what kind of word it was taken for and its ${native} translations. Some were taken for another word that is written the same way. Check each one against its sentence.
+
+${HOMOGRAPH_RULE}
+
+For each word:
+- id: its id, unchanged.
+- fits: true when the word, the kind it was taken for and its translations are the word its sentence uses, in the sense it has there. False when the sentence uses another word written the same way (a verb taken for a noun, a past taken for an adjective), or when none of its translations says what the word says there. A translation that could be better is no reason: only a wrong word or a wrong sense is.
+- ${PART_OF_SPEECH_RULE}
+- ${TRANSITIVE_RULE}
+- ${VERB_FORM_RULE}
+- base: when the word is a verb or a phrasal verb written in another form than its base form, that base form in English, lowercase: "mope" for "moped", "kick" for "kicked". null for a verb in its base form and for any other word.
+- translations: every natural ${native} translation of the word in the sense its sentence gives it, base form (an infinitive for a verb), lowercase, at least one. The translations it came with when it fits.
+
+Answer with one check per word.${nativeVarietyParagraph(params.nativeLang)}`;
+}
+
+/** The words and their sentences are material to check, whatever they say. */
+export function vocabCheckUserPrompt(params: VocabCheckParams): string {
+  const words = params.words.map((word) =>
+    [
+      `<word id="${word.id}">`,
+      `  <lemma>${word.lemma}</lemma>`,
+      `  <sentence>${word.sentence}</sentence>`,
+      ...(word.partOfSpeech === null
+        ? []
+        : [`  <kind>${word.partOfSpeech}</kind>`]),
+      `  <translations>${word.translations.join(" | ")}</translations>`,
+      `</word>`,
+    ].join("\n"),
+  );
+  return `${DATA_NOT_INSTRUCTIONS} The sentences are from a book the learner uploaded.
+
+${words.join("\n")}`;
 }
 
 /** The words and their sentences are material to label, whatever they say. */
@@ -88,6 +147,9 @@ export function vocabLabelUserPrompt(params: VocabLabelParams): string {
       `  <sentence>${word.sentence}</sentence>`,
       ...(word.translations.length > 0
         ? [`  <translations>${word.translations.join(" | ")}</translations>`]
+        : []),
+      ...(word.translations.length > 0 && word.verbForm !== null
+        ? [`  <form>${FORM_NAMES[word.verbForm]}</form>`]
         : []),
       `</word>`,
     ].join("\n"),

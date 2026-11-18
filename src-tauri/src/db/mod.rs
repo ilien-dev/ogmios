@@ -58,6 +58,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("aspects.sql"),
     include_str!("neutral.sql"),
     include_str!("penalty.sql"),
+    include_str!("senses.sql"),
 ];
 
 pub fn open(path: &Path) -> Result<Connection> {
@@ -722,6 +723,56 @@ mod tests {
             flee.since_seq, 0,
             "a word never answered has nothing behind it"
         );
+    }
+
+    #[test]
+    fn migration_thirty_five_looks_again_at_every_word_and_its_form() {
+        let conn = Connection::open_in_memory().expect("open");
+        conn.pragma_update(None, "foreign_keys", "ON").expect("fk");
+        for sql in &MIGRATIONS[..34] {
+            conn.execute_batch(sql).expect("migration");
+        }
+        conn.pragma_update(None, "user_version", 34)
+            .expect("version");
+        conn.execute_batch(
+            r#"INSERT INTO profile (id, native_lang, ui_lang, goal, variant, level)
+               VALUES (1, 'es', 'es', 'travel', 'us', 'intermediate');
+             INSERT INTO books VALUES ('b', 'Alice', NULL, 'epub', 'h', 'f', '2026-01-01');
+             INSERT INTO book_chapters (id, book_id, idx, title, words, text)
+               VALUES ('c', 'b', 0, 'I', 2, 'text');
+             INSERT INTO chapter_words
+               (id, chapter_id, key, lemma, forms, sentence, occurrences, depth, created_at,
+                part_of_speech, transitive, base, verb_form)
+             VALUES ('moped', 'c', 'moped', 'moped', '["moped"]', 'He moped around.', 1,
+                     'most', '2026-01-01', 'noun', 0, NULL, NULL),
+                    ('set', 'c', 'set off', 'set off', '["set off"]', 'He set off.', 1,
+                     'most', '2026-01-01', 'phrasalVerb', 0, NULL, 'past');
+             INSERT INTO word_translations (word_id, text, source)
+               VALUES ('moped', 'ciclomotor', 'extraction'),
+                      ('set', 'partir', 'extraction');"#,
+        )
+        .expect("rows");
+
+        migrate(&conn).expect("migrate");
+        let looked: Vec<(String, Vec<String>)> = words::unchecked(&conn)
+            .expect("unchecked")
+            .into_iter()
+            .map(|word| (word.id, word.translations))
+            .collect();
+        assert_eq!(
+            looked,
+            [
+                ("moped".to_owned(), vec!["ciclomotor".to_owned()]),
+                ("set".to_owned(), vec!["partir".to_owned()]),
+            ]
+        );
+        // A past spelled as its base form is said in that form at last.
+        let waiting = words::unlabelled(&conn).expect("unlabelled");
+        let asked: Vec<(&str, &[String])> = waiting
+            .iter()
+            .map(|each| (each.id.as_str(), each.translations.as_slice()))
+            .collect();
+        assert_eq!(asked, [("set", &["partir".to_owned()][..])]);
     }
 
     #[test]
