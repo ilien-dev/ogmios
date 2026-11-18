@@ -367,24 +367,28 @@ impl WordRow {
         self.in_form.as_deref().unwrap_or(&self.shown)
     }
 
-    /// What a verb is in the learner's language taken alone, in the form it
-    /// is called by: its base translations for a verb called by its base
-    /// form, and those put in its form for any other ("se congela" for
-    /// "freezes"). What English → native asks for when its sentence puts it
-    /// in a mood, a tense or an agreement the word does not show ("se
-    /// congele" in "before she freezes"). None for any other word, and
-    /// until its translations were put in its form.
+    /// What a word is in the learner's language taken alone, in the form it
+    /// is called by: its base translations for a word called by its base
+    /// form, and those put in its form for a verb called by another ("se
+    /// congela" for "freezes"). What English → native asks for when its
+    /// sentence puts it in a mood, a tense or an agreement the word does
+    /// not show: "se congele" in "before she freezes", "tendría una
+    /// oportunidad" for "stand a chance" in "wouldn't stand a chance", a
+    /// "would" that is not the word's. None until a verb's translations
+    /// were put in its form, and for a noun, an adjective or any other word.
     pub fn alone(&self) -> Option<&[String]> {
-        let verb = matches!(
+        // A noun or an adjective takes the agreement its sentence gives it:
+        // that is what its English says too.
+        let said = matches!(
             self.part_of_speech,
-            Some(PartOfSpeech::Verb | PartOfSpeech::PhrasalVerb)
+            Some(PartOfSpeech::Verb | PartOfSpeech::PhrasalVerb | PartOfSpeech::Expression)
         );
         let alone = if self.called_in_form() {
             self.in_form.as_deref()
         } else {
             Some(self.shown.as_slice())
         };
-        alone.filter(|each| verb && !each.is_empty())
+        alone.filter(|each| said && !each.is_empty())
     }
 
     /// Whether it is called by another form than its base form

@@ -1102,7 +1102,7 @@ pub mod tests {
             .expect("bank")
             .try_into()
             .expect("one sentence");
-        assert_eq!(kept.hint, "tendría alguna oportunidad");
+        assert_eq!(kept.hint, "tendría una oportunidad");
         assert_eq!(kept.hints, ["tendría posibilidades"]);
         // Once.
         let conn = desk.db.lock().expect("db");

@@ -60,6 +60,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("penalty.sql"),
     include_str!("senses.sql"),
     include_str!("contexts.sql"),
+    include_str!("tenses.sql"),
 ];
 
 pub fn open(path: &Path) -> Result<Connection> {
@@ -723,6 +724,45 @@ mod tests {
         assert_eq!(
             flee.since_seq, 0,
             "a word never answered has nothing behind it"
+        );
+    }
+
+    #[test]
+    fn migration_thirty_seven_looks_again_at_every_word() {
+        let conn = Connection::open_in_memory().expect("open");
+        conn.pragma_update(None, "foreign_keys", "ON").expect("fk");
+        for sql in &MIGRATIONS[..36] {
+            conn.execute_batch(sql).expect("migration");
+        }
+        conn.pragma_update(None, "user_version", 36)
+            .expect("version");
+        conn.execute_batch(
+            r#"INSERT INTO books VALUES ('b', 'Alice', NULL, 'epub', 'h', 'f', '2026-01-01');
+             INSERT INTO book_chapters (id, book_id, idx, title, words, text)
+               VALUES ('c', 'b', 0, 'I', 2, 'text');
+             INSERT INTO chapter_words
+               (id, chapter_id, key, lemma, forms, sentence, occurrences, depth, created_at,
+                part_of_speech, checked)
+             VALUES ('chance', 'c', 'stand a chance', 'stand a chance', '["stand a chance"]',
+                     'Donut wouldn''t stand a chance.', 1, 'most', '2026-01-01',
+                     'expression', 1);
+             INSERT INTO word_translations (word_id, text, source)
+               VALUES ('chance', 'tendría alguna oportunidad', 'extraction');"#,
+        )
+        .expect("rows");
+
+        migrate(&conn).expect("migrate");
+        let looked: Vec<(String, Vec<String>)> = words::unchecked(&conn)
+            .expect("unchecked")
+            .into_iter()
+            .map(|word| (word.id, word.translations))
+            .collect();
+        assert_eq!(
+            looked,
+            [(
+                "chance".to_owned(),
+                vec!["tendría alguna oportunidad".to_owned()]
+            )]
         );
     }
 
