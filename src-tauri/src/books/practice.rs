@@ -183,16 +183,44 @@ fn normal(text: &str, articles: &[&str], spelling: Spelling) -> Vec<String> {
     words
 }
 
+/// The indefinite articles of a language: "tener oportunidad" says what
+/// "tener una oportunidad" says.
+const INDEFINITE: [(&str, &[&str]); 2] = [
+    ("es", &["un", "una", "unos", "unas"]),
+    ("ca", &["un", "una", "uns", "unes"]),
+];
+
+/// The words of an answer as [`normal`] reads them, without an indefinite
+/// article of the language `articles` belong to anywhere in them; one
+/// alone stays, it is the whole answer.
+fn bare(words: Vec<String>, articles: &[&str]) -> Vec<String> {
+    let Some((_, indefinite)) = INDEFINITE
+        .iter()
+        .find(|(_, list)| list.iter().all(|each| articles.contains(each)))
+    else {
+        return words;
+    };
+    if words.len() < 2 {
+        return words;
+    }
+    words
+        .into_iter()
+        .filter(|word| !indefinite.contains(&word.as_str()))
+        .collect()
+}
+
 /// Whether `answer` is one of the `accepted` translations, ignoring case,
-/// punctuation, surrounding spaces and a leading article from `articles`.
-/// Lenient spelling also ignores accents; strict spelling takes them too.
-/// Every letter counts either way. An empty answer is never right.
+/// punctuation, surrounding spaces, a leading article from `articles` and
+/// an indefinite one anywhere ("tener oportunidad" for "tener una
+/// oportunidad"). Lenient spelling also ignores accents; strict spelling
+/// takes them too. Every letter counts either way. An empty answer is
+/// never right.
 pub fn accepts(answer: &str, accepted: &[String], articles: &[&str], spelling: Spelling) -> bool {
-    let given = normal(answer, articles, spelling);
+    let given = bare(normal(answer, articles, spelling), articles);
     !given.is_empty()
         && accepted
             .iter()
-            .any(|translation| normal(translation, articles, spelling) == given)
+            .any(|translation| bare(normal(translation, articles, spelling), articles) == given)
 }
 
 /// Whether `answer` is one of a verb's `forms`, as [`accepts`] reads it

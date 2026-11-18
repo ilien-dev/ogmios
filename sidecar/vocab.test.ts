@@ -428,7 +428,13 @@ describe("labelling words stored without their kind", () => {
       'never "tener ninguna oportunidad"',
     );
     expect(vocabLabelSystemPrompt()).toContain(
-      'never "tendría ninguna oportunidad"',
+      'never "tuvo ninguna oportunidad"',
+    );
+    expect(vocabLabelSystemPrompt()).toContain(
+      'never "tendría una oportunidad"',
+    );
+    expect(vocabExtractSystemPrompt(params)).toContain(
+      'never "tendría una oportunidad", whose "would" the item does not say',
     );
   });
 
@@ -519,6 +525,9 @@ describe("looking again at the words taken from a book", () => {
     }
     expect(vocabCheckSystemPrompt(taken)).toContain(
       "base: when the word is a verb or a phrasal verb written in another form",
+    );
+    expect(vocabCheckSystemPrompt(taken)).toContain(
+      'whose "would" and "not" the word does not say',
     );
   });
 

@@ -210,18 +210,35 @@ const DENIALS: [(&str, &[&str]); 1] = [("es", &["no", "nunca", "jamas", "tampoco
 
 /// The words of the learner's language that a negation calls for ("ninguna"
 /// for "a" in "wouldn't stand a chance"), each with the word it is without
-/// one. Said with no denial before them, they are right only after a "no"
-/// that is not there.
+/// one: what the English says, "a chance" is "una oportunidad". Said with
+/// no denial before them, they are right only after a "no" that is not
+/// there.
 const CONCORDS: [(&str, &[(&str, &str)]); 1] = [(
     "es",
     &[
-        ("ningun", "algún"),
-        ("ninguno", "alguno"),
-        ("ninguna", "alguna"),
-        ("ningunos", "algunos"),
-        ("ningunas", "algunas"),
+        ("ningun", "un"),
+        ("ninguno", "uno"),
+        ("ninguna", "una"),
+        ("ningunos", "unos"),
+        ("ningunas", "unas"),
         ("nadie", "alguien"),
         ("nada", "algo"),
+    ],
+)];
+
+/// What an earlier reading put for a word a negation calls for ("tener
+/// alguna oportunidad" for "tener ninguna oportunidad"), with what it is
+/// now: "alguna" is itself a word a question or a doubt calls for, and
+/// "stand a chance" says "una". Read only where a negation outside the
+/// form made it, and never in "alguna vez", which is "ever".
+const FORMER: [(&str, &[(&str, &str)]); 1] = [(
+    "es",
+    &[
+        ("algun", "un"),
+        ("alguno", "uno"),
+        ("alguna", "una"),
+        ("algunos", "unos"),
+        ("algunas", "unas"),
     ],
 )];
 
@@ -265,8 +282,14 @@ fn concord(words: &[&str], at: usize, lang: &str) -> Option<&'static str> {
     if after_article || (at == 0 && word == "nada") {
         return None;
     }
+    let ever = words.get(at + 1).is_some_and(|next| said(next) == "vez");
+    let former = of_lang(&FORMER, lang)
+        .unwrap_or_default()
+        .iter()
+        .filter(|_| !ever);
     of_lang(&CONCORDS, lang)?
         .iter()
+        .chain(former)
         .find(|(negated, _)| *negated == word)
         .map(|(_, plain)| *plain)
 }
@@ -675,7 +698,7 @@ mod tests {
     #[test]
     fn a_hint_says_no_negation_its_english_form_does_not_show() {
         let donut = "And poor, stupid Donut wouldn’t stand a chance out here in the cold.";
-        let base = list(&["tener posibilidades", "tener alguna oportunidad"]);
+        let base = list(&["tener posibilidades", "tener una oportunidad"]);
         let affirmed = |hint: &str, form: &str, sentence: &str, base: &[String]| {
             affirmed(hint, (form, sentence), base, "es")
         };
@@ -687,7 +710,7 @@ mod tests {
                 donut,
                 &base
             ),
-            "tendría alguna oportunidad"
+            "tendría una oportunidad"
         );
         assert_eq!(
             affirmed(
@@ -696,12 +719,12 @@ mod tests {
                 donut,
                 &base
             ),
-            "tendría alguna oportunidad"
+            "tendría una oportunidad"
         );
         let drones = "Looking up at the sky, he didn’t spot any camera drones.";
         assert_eq!(
             affirmed("ningún dron", "camera drones", drones, &[]),
-            "algún dron"
+            "un dron"
         );
         assert_eq!(
             affirmed("nunca visto", "seen", "He had never seen it.", &[]),
@@ -716,7 +739,7 @@ mod tests {
     #[test]
     fn a_hint_keeps_a_negation_that_is_its_words_own() {
         let donut = "And poor, stupid Donut wouldn’t stand a chance out here in the cold.";
-        let base = list(&["tener posibilidades", "tener alguna oportunidad"]);
+        let base = list(&["tener posibilidades", "tener una oportunidad"]);
         let affirmed = |hint: &str, form: &str, sentence: &str, base: &[String]| {
             affirmed(hint, (form, sentence), base, "es")
         };
@@ -772,7 +795,7 @@ mod tests {
                 donut,
                 &faulty
             ),
-            "tendría alguna oportunidad"
+            "tendría una oportunidad"
         );
         // "anything" is "nada" only after a "no".
         assert_eq!(
@@ -805,11 +828,11 @@ mod tests {
             |text: &str, form: &str, sentence: &str| affirmed_base(text, (form, sentence), "es");
         assert_eq!(
             base("tener ninguna oportunidad", "stand a chance", donut),
-            "tener alguna oportunidad"
+            "tener una oportunidad"
         );
         assert_eq!(
             base("tendría ninguna oportunidad", "stand a chance", donut),
-            "tendría alguna oportunidad"
+            "tendría una oportunidad"
         );
         // A translation that denies is the word's own meaning.
         assert_eq!(
@@ -842,7 +865,7 @@ mod tests {
     #[test]
     fn a_hint_affirmed_is_still_read_in_its_translation() {
         let translation = "Y la pobre y tonta Donut no tendría ninguna oportunidad aquí fuera.";
-        assert!(shown_in("tendría alguna oportunidad", translation, "es"));
+        assert!(shown_in("tendría una oportunidad", translation, "es"));
         assert!(shown_in(
             "no tendría ninguna oportunidad",
             translation,

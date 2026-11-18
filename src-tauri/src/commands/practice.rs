@@ -1895,6 +1895,78 @@ pub mod tests {
         assert!(shown.native_context.is_none() && shown.context.is_some());
     }
 
+    #[test]
+    fn a_word_shown_as_it_is_called_asks_for_no_tense_its_sentence_gives_it() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let desk = Desk::new(&dir);
+        let text = "And poor, stupid Donut wouldn’t stand a chance out here in the cold.";
+        let chance = Word {
+            part_of_speech: Some(PartOfSpeech::Expression),
+            sentence: text.into(),
+            ..word(
+                "stand a chance",
+                &["tener ninguna oportunidad", "tener posibilidades"],
+                1,
+            )
+        };
+        let chapter = desk.chapter("b", &[chance]);
+        let conn = desk.db.lock().expect("db");
+        words::affirm(&conn, "es").expect("affirm");
+        let id = words::id_by_key(&conn, &chapter, "stand a chance")
+            .expect("id")
+            .expect("word");
+        let row = practice::word(&conn, &id).expect("word");
+        // Without the "no" outside it, "a chance" is "una oportunidad".
+        assert_eq!(
+            row.translations,
+            ["tener una oportunidad", "tener posibilidades"]
+        );
+        // "wouldn't" is outside "stand a chance": its "tendría" is the
+        // sentence's, and the word shown asks for none.
+        let sentence = Sentence {
+            id: "s".into(),
+            key: "stand a chance".into(),
+            book: true,
+            text: text.into(),
+            form: "stand a chance".into(),
+            hint: "tendría una oportunidad".into(),
+            translation: "Y la pobre Donut no tendría ninguna oportunidad aquí fuera.".into(),
+            shows: 0,
+            also: Vec::new(),
+            hints: vec!["tendría posibilidades".into()],
+            verb_form: None,
+        };
+        let spelling = profile::spelling(&conn).expect("spelling");
+        let meaning = Meaning::of(&conn, &row).expect("meaning");
+        let say = |answer: &str| {
+            judged(
+                &conn,
+                &meaning,
+                &sentence,
+                (Direction::Recognition, answer),
+                ("es", spelling),
+            )
+            .expect("judged")
+        };
+        let own = say("tener oportunidad");
+        assert!(own.is_right(), "{:?} {:?}", own.verdict, own.accepted);
+        assert_eq!(
+            own.accepted,
+            ["tener una oportunidad", "tener posibilidades"]
+        );
+        assert_eq!(own.exact.as_deref(), Some("tendría una oportunidad"));
+        assert!(say("tener posibilidades").is_right());
+        // Native → English it is shown as it is called, not as conditional.
+        let alone = row.alone_in(&sentence.form).map(<[String]>::to_vec);
+        let item = asked_with(
+            (id.clone(), row.part_of_speech),
+            &sentence,
+            Direction::Production,
+            (false, alone.as_deref()),
+        );
+        assert_eq!(item.prompt, "tener una oportunidad, tener posibilidades");
+    }
+
     /// A sitting on "swore", its translation said in its form: "juró".
     fn swore(desk: &Desk) -> Sitting {
         let list = [Word {

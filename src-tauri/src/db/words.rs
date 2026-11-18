@@ -601,6 +601,40 @@ fn related(look: &WordCheck, translations: &[String]) -> Vec<RelatedWord> {
     kept
 }
 
+/// Gives a word these translations in place of the ones it was prepared
+/// with; one it had keeps what was said of it in its form. A dispute
+/// upheld stays.
+fn replace_translations(conn: &Connection, id: &str, translations: &[String]) -> Result<()> {
+    let new: Vec<&str> = translations
+        .iter()
+        .map(|each| each.trim())
+        .filter(|each| !each.is_empty())
+        .collect();
+    let mut stmt = conn.prepare(
+        "SELECT text FROM word_translations WHERE word_id = ?1 AND source = 'extraction'",
+    )?;
+    let had: Vec<String> = stmt
+        .query_map([id], |row| row.get(0))?
+        .collect::<rusqlite::Result<_>>()?;
+    for text in had
+        .iter()
+        .filter(|text| !new.iter().any(|each| key(each) == key(text)))
+    {
+        conn.execute(
+            "DELETE FROM word_translations WHERE word_id = ?1 AND text = ?2 AND source = 'extraction'",
+            params![id, text],
+        )?;
+    }
+    let mut add =
+        conn.prepare("INSERT OR IGNORE INTO word_translations (word_id, text) VALUES (?1, ?2)")?;
+    for text in new {
+        if !had.iter().any(|each| key(each) == key(text)) {
+            add.execute(params![id, text])?;
+        }
+    }
+    Ok(())
+}
+
 /// What a look at a word against its sentence found, as code takes it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Look {
@@ -612,6 +646,11 @@ pub enum Look {
     /// The same word, a verb written in another form than its base form
     /// that kept none: it is given that base form, and nothing else changes.
     Base,
+    /// The same word, with translations that say more than it does: a
+    /// negation, a tense or a mood of a word beside it in its sentence
+    /// ("tendría una oportunidad" for "stand a chance"). Its translations
+    /// become the look's, and its sentences stay: they gloss the same word.
+    Translations,
 }
 
 /// What code makes of a look at a word that was taken as `lemma`, of the
@@ -650,8 +689,13 @@ pub fn judge_look(
         .base
         .as_deref()
         .is_some_and(|said| !key(said).is_empty() && key(said) != key(lemma));
+    // Only a translation the look leaves out says it was wrong: one it
+    // adds is no reason to change a word.
+    let dropped = translations.iter().any(|each| !given.contains(&key(each)));
     if verb && base.is_none() && new_base {
         Look::Base
+    } else if dropped {
+        Look::Translations
     } else {
         Look::Fits
     }
@@ -713,7 +757,7 @@ pub fn check(conn: &Connection, id: &str, look: &WordCheck) -> Result<bool> {
         .filter(|said| verb && !said.is_empty() && key(said) != key(&lemma));
     let found = judge_look((&lemma, &sentence), (taken, base.as_deref()), &had, look);
     // What it says of how the word is asked holds for the word it is now.
-    let kept: Vec<String> = if found == Look::Other {
+    let kept: Vec<String> = if matches!(found, Look::Other | Look::Translations) {
         look.translations.clone()
     } else {
         had
@@ -731,6 +775,10 @@ pub fn check(conn: &Connection, id: &str, look: &WordCheck) -> Result<bool> {
     )?;
     match found {
         Look::Fits => Ok(false),
+        Look::Translations => {
+            replace_translations(conn, id, &look.translations)?;
+            Ok(true)
+        }
         Look::Base => {
             conn.execute(
                 "UPDATE chapter_words SET base = ?2, verb_form = COALESCE(verb_form, ?3)
@@ -752,18 +800,7 @@ pub fn check(conn: &Connection, id: &str, look: &WordCheck) -> Result<bool> {
                     new_base
                 ],
             )?;
-            conn.execute(
-                "DELETE FROM word_translations WHERE word_id = ?1 AND source = 'extraction'",
-                [id],
-            )?;
-            let mut add = conn.prepare(
-                "INSERT OR IGNORE INTO word_translations (word_id, text) VALUES (?1, ?2)",
-            )?;
-            for translation in look.translations.iter().map(|each| each.trim()) {
-                if !translation.is_empty() {
-                    add.execute(params![id, translation])?;
-                }
-            }
+            replace_translations(conn, id, &look.translations)?;
             conn.execute("DELETE FROM word_sentences WHERE key = ?1", [word_key])?;
             Ok(true)
         }
@@ -1066,9 +1103,18 @@ pub mod tests {
         assert_eq!(judged(moped, noun, &other), Look::Other);
         let sense = look(false, PartOfSpeech::Noun, None, &["vespa"]);
         assert_eq!(judged(moped, noun, &sense), Look::Other);
-        // The same kind and a translation in common: the same word.
+        // The same kind and a translation in common: the same word. One it
+        // leaves out was wrong, and they are the look's; one it only adds
+        // changes nothing.
         let same = look(false, PartOfSpeech::Noun, None, &["Ciclomotor", "scooter"]);
-        assert_eq!(judged(moped, noun, &same), Look::Fits);
+        assert_eq!(judged(moped, noun, &same), Look::Translations);
+        let more = look(
+            false,
+            PartOfSpeech::Noun,
+            None,
+            &["ciclomotor", "moto pequeña", "vespa"],
+        );
+        assert_eq!(judged(moped, noun, &more), Look::Fits);
         // Said to fit, or with nothing to put in its place: kept.
         assert_eq!(
             judged(moped, noun, &look(true, verb, None, &["x"])),
@@ -1083,7 +1129,7 @@ pub mod tests {
         assert_eq!(judged(leaf, noun, &other), Look::Fits);
         // A verb that only lacked its base form is given it.
         let past = (Some(verb), None);
-        let base = look(false, verb, Some("kick"), &["moto pequeña"]);
+        let base = look(false, verb, Some("kick"), &["ciclomotor", "moto pequeña"]);
         assert_eq!(judged(("kicked", "He kicked it."), past, &base), Look::Base);
         let kept = (Some(verb), Some("kick"));
         assert_eq!(judged(("kicked", "He kicked it."), kept, &base), Look::Fits);
@@ -1173,7 +1219,7 @@ pub mod tests {
         )
         .expect("old rows");
 
-        assert_eq!(affirm(&conn, "es").expect("affirm"), 2);
+        assert_eq!(affirm(&conn, "es").expect("affirm"), 3);
         let listed = list(&conn, &chapters[0]).expect("list");
         let chance = listed
             .iter()
@@ -1190,9 +1236,9 @@ pub mod tests {
         assert_eq!(
             texts,
             [
-                "tener alguna oportunidad|tendría alguna oportunidad|[\"tendría alguna\"]",
-                "tener alguna posibilidad|-|-",
                 "tener posibilidades|-|-",
+                "tener una oportunidad|tendría una oportunidad|[\"tendría una\"]",
+                "tener una posibilidad|-|-",
             ]
         );
         let overlook = listed

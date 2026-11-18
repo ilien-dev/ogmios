@@ -205,6 +205,24 @@ mod tests {
                 .iter()
                 .map(|word| {
                     let wrong = word.lemma == "moped";
+                    if word.lemma == "stand a chance" {
+                        // The "would" of its sentence is not the word's.
+                        return WordCheck {
+                            id: word.id.clone(),
+                            fits: false,
+                            part_of_speech: PartOfSpeech::Expression,
+                            transitive: false,
+                            verb_form: None,
+                            base: None,
+                            translations: vec![
+                                "tener una oportunidad".into(),
+                                "tener posibilidades".into(),
+                            ],
+                            context_there: false,
+                            context_back: false,
+                            related: Vec::new(),
+                        };
+                    }
                     if word.lemma == "kicked" || word.lemma == "hedge" {
                         // The same word: "kicked" lacked its base form, and
                         // "hedge" is only said in other words.
@@ -561,6 +579,47 @@ mod tests {
         let kicked = practice::word(&conn, &id).expect("word");
         assert_eq!(kicked.base.as_deref(), Some("kick"));
         assert_eq!(kicked.translations, ["patear"], "its own, not the model's");
+    }
+
+    #[test]
+    fn a_translation_with_a_tense_from_beside_its_word_is_put_right() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let desk = Desk::new(&dir);
+        let list = [Word {
+            part_of_speech: Some(PartOfSpeech::Expression),
+            sentence: "And poor, stupid Donut wouldn’t stand a chance out here.".into(),
+            ..word(
+                "stand a chance",
+                &["tendría alguna oportunidad", "tener posibilidades"],
+                1,
+            )
+        }];
+        let chapter = desk.chapter("b", &list);
+        desk.db
+            .lock()
+            .expect("db")
+            .execute_batch(
+                "INSERT INTO word_sentences (id, key, source, sentence, form, hint, translation,
+                                             created_at)
+                 VALUES ('s', 'stand a chance', 'book', 'Donut wouldn’t stand a chance.',
+                         'stand a chance', 'tendría una oportunidad',
+                         'Donut no tendría ninguna oportunidad.', '2026-01-01')",
+            )
+            .expect("sentence");
+        let mut stub = Stub::default();
+        assert_eq!(check_all(desk.ctx(), &mut stub).expect("check"), 1);
+        let conn = desk.db.lock().expect("db");
+        let id = words::id_by_key(&conn, &chapter, "stand a chance")
+            .expect("id")
+            .expect("word");
+        let row = practice::word(&conn, &id).expect("word");
+        let mut said = row.translations.clone();
+        said.sort();
+        assert_eq!(said, ["tener posibilidades", "tener una oportunidad"]);
+        let kept: i64 = conn
+            .query_row("SELECT COUNT(*) FROM word_sentences", [], |row| row.get(0))
+            .expect("count");
+        assert_eq!(kept, 1, "its sentences gloss the same word");
     }
 
     #[test]
