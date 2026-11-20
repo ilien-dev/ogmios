@@ -429,6 +429,11 @@ export function SittingItem<Result extends Checked>({
         t(retryKey(other, item.sentenceId !== null, toEnglish, item.verbForm)))
       : t("books.sitting.otherSense", { book: sense });
 
+  // Only a kind worth naming, or a verb's form, earns the row of tags.
+  const tagged =
+    (item.partOfSpeech !== null && item.partOfSpeech !== "other") ||
+    item.verbForm !== null;
+
   return (
     <section className="mx-auto flex w-full max-w-2xl flex-col items-center gap-6 px-6 pt-4 pb-12 text-center nav:px-10">
       <div className="flex flex-col items-center gap-3">
@@ -444,21 +449,32 @@ export function SittingItem<Result extends Checked>({
             }}
           />
         </p>
-        <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2">
-          <h1 className="font-display text-display font-light text-balance text-ink">
-            {item.prompt}
-            <Presence>
-              {!toEnglish && (
-                <Reveal key="toEnglish" as="span" kind="fade">
-                  <SpeakButton text={item.prompt} className="ml-2" />
-                </Reveal>
-              )}
-            </Presence>
-          </h1>
-          {/* Shift+Tab from the answer still lands on leaving the practice. */}
-          <PartOfSpeechTag kind={item.partOfSpeech} offTabPath />
-          <VerbFormTag form={item.verbForm} />
-        </div>
+        {/* The tags take a row of their own above the word: beside it, a long
+            word or two tags would break its line. */}
+        <Presence>
+          {tagged && (
+            <Reveal
+              key="tags"
+              kind="fade"
+              data-tags
+              className="flex flex-wrap items-center justify-center gap-2"
+            >
+              {/* Shift+Tab from the answer still lands on leaving the practice. */}
+              <PartOfSpeechTag kind={item.partOfSpeech} offTabPath />
+              <VerbFormTag form={item.verbForm} />
+            </Reveal>
+          )}
+        </Presence>
+        <h1 className="font-display text-display font-light text-balance text-ink">
+          {item.prompt}
+          <Presence>
+            {!toEnglish && (
+              <Reveal key="toEnglish" as="span" kind="fade">
+                <SpeakButton text={item.prompt} className="ml-2" />
+              </Reveal>
+            )}
+          </Presence>
+        </h1>
         <Presence>
           {item.context !== null && (
             <Reveal key="context">

@@ -5,13 +5,14 @@ import { Tooltip } from "@/components/ui/Tooltip";
 import { cn } from "@/lib/cn";
 
 /**
- * The colour of each kind of word on its tag. A phrasal verb is a verb; an
- * expression is no kind of single word and stays neutral.
+ * The colour of each kind of word on its tag. A phrasal verb is a verb, told
+ * from a plain one by its outline; an expression is no kind of single word
+ * and stays neutral.
  */
 export const TAG = {
   noun: "bg-noun-soft text-noun",
   verb: "bg-verb-soft text-verb",
-  phrasalVerb: "bg-verb-soft text-verb",
+  phrasalVerb: "bg-verb-soft text-verb ring-1 ring-verb ring-inset",
   adjective: "bg-adjective-soft text-adjective",
   adverb: "bg-adverb-soft text-adverb",
   expression: "bg-raised text-ink-soft",

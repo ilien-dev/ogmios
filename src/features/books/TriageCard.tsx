@@ -30,10 +30,7 @@ export function TriageCard({ word, position }: TriageCardProps): ReactNode {
   return (
     <>
       <p className="text-sm text-ink-faint">{position}</p>
-      <div className="flex flex-wrap items-center justify-center gap-3">
-        <h1 className="text-5xl font-semibold tracking-tight wrap-anywhere text-ink">
-          {word.lemma}
-        </h1>
+      <div className="flex flex-col items-center gap-2">
         <Presence>
           {form !== null && (
             <Reveal key={form} as="span" kind="fade">
@@ -41,6 +38,9 @@ export function TriageCard({ word, position }: TriageCardProps): ReactNode {
             </Reveal>
           )}
         </Presence>
+        <h1 className="text-5xl font-semibold tracking-tight wrap-anywhere text-ink">
+          {word.lemma}
+        </h1>
       </div>
       <p className="text-lead text-ink-soft">
         <Swap id={shown}>{shown}</Swap>

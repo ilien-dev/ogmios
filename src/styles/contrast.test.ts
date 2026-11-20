@@ -127,3 +127,26 @@ for (const [name, theme] of [
     expect(failing).toEqual([]);
   });
 }
+
+/** The hue of an `oklch()` value, in degrees. */
+function hue(value: string): number {
+  const ok = /^oklch\(\s*[\d.]+\s+[\d.]+\s+([\d.]+)/.exec(value);
+  if (!ok) throw new Error(`cannot read the hue of ${value}`);
+  return Number(ok[1]);
+}
+
+function apart(a: number, b: number): number {
+  const d = Math.abs(a - b) % 360;
+  return Math.min(d, 360 - d);
+}
+
+for (const [name, theme] of [
+  ["light", light],
+  ["dark", dark],
+] as const) {
+  test(`an adjective is told from a noun by its colour alone in the ${name} theme`, () => {
+    const noun = hue(theme.get("noun") ?? "");
+    const adjective = hue(theme.get("adjective") ?? "");
+    expect(apart(noun, adjective)).toBeGreaterThanOrEqual(90);
+  });
+}

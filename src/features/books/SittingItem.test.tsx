@@ -574,12 +574,24 @@ describe("a word asked with a sentence of its bank", () => {
     expect(way(BLANKED)).toEqual(["Spanish", "Spanish → English"]);
   });
 
-  test("the tags of the word sit on its row, under the way it is asked", () => {
+  test("the tags of the word sit on a row of their own, above it", () => {
     stage(SHOWN, () => ({ correct: false, accepted: [], step: null }));
-    const row = screen.getByRole("heading", { level: 1 }).parentElement;
-    expect(row?.querySelector("[data-part-of-speech]")).not.toBeNull();
-    expect(row?.querySelector("[data-verb-form]")).not.toBeNull();
-    expect(row?.querySelector("[data-way]")).toBeNull();
+    const word = screen.getByRole("heading", { level: 1 });
+    const tags = document.querySelector("[data-tags]");
+    expect(tags?.querySelector("[data-part-of-speech]")).not.toBeNull();
+    expect(tags?.querySelector("[data-verb-form]")).not.toBeNull();
+    // Stacked in the column, right before the word, never beside it.
+    expect(word.previousElementSibling).toBe(tags);
+    cleanup();
+  });
+
+  test("a word with no tag keeps no empty row above it", () => {
+    stage({ ...SHOWN, partOfSpeech: null, verbForm: null }, () => ({
+      correct: false,
+      accepted: [],
+      step: null,
+    }));
+    expect(document.querySelector("[data-tags]")).toBeNull();
     cleanup();
   });
 
