@@ -9,3 +9,18 @@ tools/oxlint/anti-slop/
 .impeccable/
 .superpowers/
 site/
+# Written by Nabu from .github/repo-rules.json: `render` owns their format.
+.github/repo-rules.json
+.github/scripts/check-pr.cjs
+.github/pull_request_template.md
+.github/ISSUE_TEMPLATE/
+.github/rulesets/
+.github/workflows/pr-rules.yml
+.github/workflows/release.yml
+.github/workflows/token-check.yml
+.agents/
+release-please-config.json
+.release-please-manifest.json
+CONTRIBUTING.md
+SECURITY.md
+CHANGELOG.md

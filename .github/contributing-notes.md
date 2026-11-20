@@ -1,0 +1,6 @@
+- The product spec is [`docs/SPEC.md`](docs/SPEC.md). A change to what the partner says or what a report shows starts there.
+- `bun run tauri:dev` runs the desktop app; `bun run dev` runs only the interface, on `src/lib/ipcMock.ts`.
+- `cargo test -- --ignored commands::` (from `src-tauri/`) runs the whole learner loop against a fake provider: no API key or `claude` needed.
+- Rust owns all data; the sidecar in `sidecar/` keeps no state between calls.
+- Interface text goes through i18n, in English and Spanish.
+- Ogmios is AGPL-3.0: a new dependency must have a compatible licence.

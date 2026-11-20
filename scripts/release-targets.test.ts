@@ -9,7 +9,7 @@ import { ASSETS } from "./updater-manifest";
  * x64 one died under Rosetta on the Apple Silicon runner.
  */
 interface Build {
-  target: string;
+  run: string;
 }
 
 const workflow = Bun.YAML.parse(
@@ -19,18 +19,23 @@ const workflow = Bun.YAML.parse(
   ),
 ) as { jobs: { build: { strategy: { matrix: { include: Build[] } } } } };
 
+/** Each build runs `scripts/release-build.sh <target> <arch>`. */
 const targets = workflow.jobs.build.strategy.matrix.include.map(
-  (build) => build.target,
+  (build) => /release-build\.sh (\S+)/u.exec(build.run)?.[1],
 );
 
-test("the release builds macOS for Apple Silicon only", () => {
-  expect(targets.filter((target) => target.endsWith("-apple-darwin"))).toEqual([
-    "aarch64-apple-darwin",
-  ]);
+test("every release build names its target", () => {
+  expect(targets).not.toContain(undefined);
 });
 
-// `publish` refuses a manifest with a platform missing, so a platform the
-// updater expects and nothing builds would leave every release a draft.
+test("the release builds macOS for Apple Silicon only", () => {
+  expect(
+    targets.filter((target) => target?.endsWith("-apple-darwin") === true),
+  ).toEqual(["aarch64-apple-darwin"]);
+});
+
+// The finish step refuses a manifest with a platform missing, so a platform
+// the updater expects and nothing builds would leave every release a draft.
 test("the release builds every platform the updater manifest lists", () => {
   expect(targets).toHaveLength(Object.keys(ASSETS).length);
 });

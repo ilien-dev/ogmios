@@ -1813,6 +1813,9 @@
     "dist/**",
     // The website is its own repository, a submodule here, with its own checks.
     "site/**",
+    // Written by Nabu from .github/repo-rules.json; a change here is undone on
+    // the next render, so it is fixed in Nabu's templates.
+    ".github/scripts/check-pr.cjs",
     "node_modules/**",
     "src-tauri/target/**",
     "src-tauri/gen/**",
