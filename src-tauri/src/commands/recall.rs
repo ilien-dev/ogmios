@@ -8,6 +8,12 @@
 //! of its own: it asks the most overdue ones as they stand, in an order
 //! drawn for it, until it has asked `memory::recall::SIZE` or none is due.
 //! No request to the model is made.
+//!
+//! A word's sentences come from every chapter that has it, and each one is
+//! judged by the sense its own chapter gives the word: a book can mean
+//! something else by it than another. When the chapters do not agree, the
+//! sentence shows from the start, and an answer that is the word's meaning
+//! in another book is no miss.
 
 use chrono::{DateTime, Utc};
 use rusqlite::Connection;
@@ -15,13 +21,16 @@ use tauri::AppHandle;
 
 use super::practice::{
     all_small, another, asked_with, climb, clue, in_place, item, judged, next_sentence, plain,
-    shown_sentence, small, whole, Judged, Meaning, Shown, Tries,
+    shown_sentence, small, telling, whole, Judged, Meaning, Shown, Tries,
 };
 use super::profile::require_profile;
 use super::run;
-use crate::books::practice::{accepts_english, pass_progress, pick, seed};
+use crate::books::practice::{
+    accepts_english, accepts_native, inflects, pass_progress, pick, seed,
+};
 use crate::books::sentences::{or_other, Verdict};
 use crate::books::spelling::Spelling;
+use crate::db::practice::WordRow;
 use crate::db::recall::{self, RecallWord, RunRow, Source};
 use crate::db::sentences::{self, Sentence};
 use crate::db::{practice, profile};
@@ -78,10 +87,21 @@ fn sense(conn: &Connection, word: &RecallWord) -> Result<String> {
     })
 }
 
+/// The word as the chapter of `sentence` has it: what the sentence means
+/// by it. The one it was learned as when that chapter has it no more.
+fn as_in(conn: &Connection, word_id: &str, sentence: &Sentence) -> Result<WordRow> {
+    let there = match sentence.chapter_id.as_deref() {
+        Some(chapter) => sentences::word_in(conn, &sentence.key, chapter)?,
+        None => None,
+    };
+    practice::word(conn, there.as_deref().unwrap_or(word_id))
+}
+
 /// The word as a run asks it. It goes by its key: it is of no chapter.
-/// With a bank it comes in one of its sentences, a different one each time
-/// (`commands::practice::next_sentence`); until it has one, as it was
-/// learned.
+/// With a bank it comes in one of its sentences, of any chapter, a
+/// different one each time (`commands::practice::next_sentence`); until it
+/// has one, as it was learned. The sentence shows from the start when the
+/// chapters that have the word give it different senses.
 fn asked(
     conn: &Connection,
     word: &RecallWord,
@@ -89,12 +109,13 @@ fn asked(
     run_id: &str,
 ) -> Result<PracticeItem> {
     let own = sense(conn, word)?;
-    if let Some(sentence) = next_sentence(conn, (&word.key, &own), run_id)? {
+    if let Some(sentence) = next_sentence(conn, (&word.key, &own), None, run_id)? {
         let (part_of_speech, needs_context, alone) = match &word.source {
             Source::Book { word_id } => {
-                let row = practice::word(conn, word_id)?;
+                let row = telling(conn, as_in(conn, word_id, &sentence)?)?;
                 let alone = row.alone_in(&sentence.form).map(<[String]>::to_vec);
-                (row.part_of_speech, row.shows_context(direction), alone)
+                let shows = row.shows_context(direction);
+                (row.part_of_speech, shows, alone)
             }
             Source::Chat { .. } => (None, false, None),
         };
@@ -108,7 +129,7 @@ fn asked(
     Ok(match &word.source {
         Source::Book { word_id } => PracticeItem {
             word_id: word.key.clone(),
-            ..item(practice::word(conn, word_id)?, direction)
+            ..item(telling(conn, practice::word(conn, word_id)?)?, direction)
         },
         Source::Chat { asked } => PracticeItem {
             word_id: word.key.clone(),
@@ -200,7 +221,7 @@ fn check(
     let how = (native_lang, spelling);
     match (&word.source, sentence) {
         (Source::Book { word_id }, Some(sentence)) => {
-            let row = practice::word(conn, word_id)?;
+            let row = as_in(conn, word_id, sentence)?;
             let meaning = Meaning::of(conn, &row)?;
             judged(conn, &meaning, sentence, (direction, answer), how)
         }
@@ -243,6 +264,32 @@ fn check(
             })
         }
     }
+}
+
+/// The title of the book that has the word in the sense the answer gave,
+/// when that is not the sense of the sentence it was asked with: English →
+/// native, a learner who knows the word from another book is not wrong.
+fn other_sense(
+    conn: &Connection,
+    word: &RecallWord,
+    sentence: Option<&Sentence>,
+    (direction, answer): (Direction, &str),
+    (native_lang, spelling): (&str, Spelling),
+) -> Result<Option<String>> {
+    let (Source::Book { word_id }, Some(sentence), Direction::Recognition) =
+        (&word.source, sentence, direction)
+    else {
+        return Ok(None);
+    };
+    if answer.trim().is_empty() {
+        return Ok(None);
+    }
+    let row = as_in(conn, word_id, sentence)?;
+    let native = (native_lang, inflects(row.part_of_speech));
+    Ok(sentences::other_senses(conn, &word.key, &row.id)?
+        .into_iter()
+        .find(|(_, theirs)| accepts_native(answer, theirs, native, spelling))
+        .map(|(title, _)| title))
 }
 
 /// What a hint to the word is made of (`commands::practice::clue`). A word
@@ -307,6 +354,32 @@ pub fn answer_shown(
         (direction, answer),
         (&native_lang, spelling),
     )?;
+    let elsewhere = if judged.is_right() {
+        None
+    } else {
+        other_sense(
+            &tx,
+            &word,
+            sentence.as_ref(),
+            (direction, answer),
+            (&native_lang, spelling),
+        )?
+    };
+    if let Some(book) = elsewhere {
+        return Ok(RecallAnswer {
+            correct: false,
+            accepted: Vec::new(),
+            step: step(&tx, &run, now)?,
+            answer_id: 0,
+            again: true,
+            another: None,
+            other_kind: None,
+            helped: false,
+            exact: None,
+            sentence: None,
+            other_sense: Some(book),
+        });
+    }
     if judged.is_no_answer() && !shown.second {
         let told = if judged.verdict == Verdict::OtherWord {
             let (answer, context) = clue_of(&tx, &word, sentence.as_ref(), direction)?;
@@ -325,6 +398,7 @@ pub fn answer_shown(
             helped: false,
             exact: None,
             sentence: None,
+            other_sense: None,
         });
     }
     let correct = judged.is_right();
@@ -348,6 +422,7 @@ pub fn answer_shown(
         helped: correct && shown.helped(),
         exact: judged.exact.as_deref().map(small),
         sentence: sentence.as_ref().map(whole),
+        other_sense: None,
     })
 }
 

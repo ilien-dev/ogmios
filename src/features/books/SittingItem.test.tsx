@@ -797,4 +797,23 @@ describe("telling which word is meant", () => {
     ).toBeInTheDocument();
     expect(held.sent).toEqual([["patada", false]]);
   });
+
+  test("the meaning a word has in another book is no answer yet, and that book is named", async () => {
+    const user = userEvent.setup();
+    const held = stage({ ...SHOWN, prompt: "fuzzy" }, (_answer, second) => ({
+      ...PLAIN,
+      correct: second,
+      accepted: second ? ["difuso"] : [],
+      step: "next",
+      again: !second,
+      otherSense: second ? null : "Dungeon Crawler Carl",
+    }));
+    await user.type(screen.getByLabelText("Your translation"), "peludo{Enter}");
+    expect(
+      await screen.findByText(
+        "That's what it means in “Dungeon Crawler Carl”. This sentence means something else by it: read it and try once more.",
+      ),
+    ).toBeInTheDocument();
+    expect(held.sent).toEqual([["peludo", false]]);
+  });
 });

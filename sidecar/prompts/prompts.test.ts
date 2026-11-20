@@ -353,6 +353,7 @@ function writingIn(lang: string): string[] {
     translations: ["afortunado"],
     sense: "You're the lucky ones.",
     book: ["You're the lucky ones."],
+    write: 5,
   };
   return [
     sentenceWriteSystemPrompt({ nativeLang: lang, words: [word] }),
@@ -361,6 +362,7 @@ function writingIn(lang: string): string[] {
       sentences: [
         {
           id: "s",
+          fromBook: true,
           lemma: "lucky",
           meaning: ["afortunado"],
           sentence: "You're the lucky ones.",

@@ -580,11 +580,14 @@ pub struct SentenceWord {
     pub translations: Vec<String>,
     /// A sentence that fixes the sense the word has in its chapter.
     pub sense: String,
-    /// Sentences of the book that have the word, to be glossed.
+    /// Sentences of the chapter that have the word, to be glossed.
     pub book: Vec<String>,
+    /// How many sentences to write in the sense of `sense`; 0 for none.
+    pub write: u32,
 }
 
-/// No sentence is written: the model glosses those the book has.
+/// The model glosses the sentences the chapter has, and writes `write`
+/// more in the sense the chapter gives the word.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SentenceWriteParams {
@@ -607,6 +610,20 @@ pub struct BookGloss {
 pub struct WrittenWord {
     pub id: String,
     pub book: Vec<BookGloss>,
+    /// The sentences written for it; empty when none was asked for.
+    #[serde(default)]
+    pub written: Vec<NewSentence>,
+}
+
+/// A sentence the model wrote, glossed as one of the book is.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NewSentence {
+    pub sentence: String,
+    /// The word as the sentence writes it, copied from it.
+    pub form: String,
+    pub hint: String,
+    pub translation: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -620,6 +637,8 @@ pub struct SentencesWritten {
 #[serde(rename_all = "camelCase")]
 pub struct ReviewedSentence {
     pub id: String,
+    /// From the book, not written for the learner.
+    pub from_book: bool,
     pub lemma: String,
     pub meaning: Vec<String>,
     pub sentence: String,

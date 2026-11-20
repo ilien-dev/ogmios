@@ -28,6 +28,7 @@ const write: SentenceWriteParams = {
       translations: ["asomarse"],
       sense: "She had peeped into the book.",
       book: ["She had peeped into the book.", "Do not peep."],
+      write: 5,
     },
   ],
 };
@@ -37,6 +38,7 @@ const review: SentenceReviewParams = {
   sentences: [
     {
       id: "s1",
+      fromBook: true,
       lemma: "peep",
       meaning: ["asomarse"],
       sentence: "She peeped over the hedge.",
@@ -46,6 +48,7 @@ const review: SentenceReviewParams = {
     },
     {
       id: "s2",
+      fromBook: false,
       lemma: "peep",
       meaning: ["asomarse"],
       sentence: "A clumsy sentence has peep in it.",
@@ -74,10 +77,9 @@ async function ask(method: string, sent: unknown): Promise<unknown> {
 }
 
 describe("the prompt that glosses a word's sentences", () => {
-  test("asks for the word in the form of each sentence, and writes none", () => {
+  test("asks for the word in the form of each sentence", () => {
     const prompt = sentenceWriteSystemPrompt(write);
     expect(prompt).toContain("Spanish (es)");
-    expect(prompt).toContain("Write no sentence of your own");
     expect(prompt).toContain('"removió" for "stirred"');
     expect(prompt).toContain("Never an English word");
   });
@@ -123,6 +125,16 @@ describe("the prompt that glosses a word's sentences", () => {
     expect(prompt).toContain('never "no tendría ninguna oportunidad"');
   });
 
+  test("writes new sentences only in the sense the chapter gives the word", () => {
+    const prompt = sentenceWriteSystemPrompt(write);
+    expect(prompt).toContain("as many new sentences as <write> says");
+    expect(prompt).toContain(
+      'in the meaning "sense" gives it and never in another',
+    );
+    expect(prompt).toContain("exactly once");
+    expect(sentenceWriteUserPrompt(write)).toContain("<write>5</write>");
+  });
+
   test("gives each word with its book sentences numbered", () => {
     const prompt = sentenceWriteUserPrompt(write);
     expect(prompt).toContain('<word id="peep">');
@@ -139,7 +151,8 @@ describe("the prompt that looks at sentences again", () => {
     expect(prompt).toContain("Spanish (es)");
     expect(prompt).toContain("natural English");
     expect(prompt).toContain("not in another one");
-    expect(prompt).toContain("none is written to replace one");
+    expect(prompt).toContain("others were written for the learner");
+    expect(prompt).toContain("could be read in another meaning of the word");
   });
 
   test("refuses a translation that copies English word order", () => {
@@ -198,7 +211,8 @@ describe("the prompt that looks at sentences again", () => {
 
   test("gives each sentence with its word, its form, its hint and its translation", () => {
     const prompt = sentenceReviewUserPrompt(review);
-    expect(prompt).toContain('<sentence id="s1">');
+    expect(prompt).toContain('<sentence id="s1" from="book">');
+    expect(prompt).toContain('<sentence id="s2" from="written">');
     expect(prompt).toContain("<form>peeped</form>");
     expect(prompt).toContain("<hint>se asomó</hint>");
     expect(prompt).toContain(
@@ -208,7 +222,7 @@ describe("the prompt that looks at sentences again", () => {
 });
 
 describe("sentences through the dispatcher", () => {
-  test("the fake glosses the book's sentences and writes none", async () => {
+  test("the fake glosses the chapter's sentences and writes those asked for", async () => {
     const written = sentencesWrittenSchema.parse(
       await ask("sentenceWrite", write),
     );
@@ -216,7 +230,24 @@ describe("sentences through the dispatcher", () => {
     const [word] = written.words;
     expect(word?.id).toBe("peep");
     expect(word?.book.map((gloss) => gloss.index)).toEqual([0, 1]);
-    expect(word).not.toHaveProperty("written");
+    expect(word?.written).toHaveLength(5);
+    for (const each of word?.written ?? []) {
+      expect(each.sentence).toContain(each.form);
+      expect(each.translation).toContain(each.hint);
+    }
+  });
+
+  test("a word asked for nothing is refused", async () => {
+    const [word] = write.words;
+    if (word === undefined) throw new Error("no word");
+    const idle = { ...write, words: [{ ...word, book: [], write: 0 }] };
+    expect(await ask("sentenceWrite", idle)).toEqual({
+      id: 1,
+      error: {
+        kind: "invalid",
+        message: expect.stringContaining("sentenceWrite") as string,
+      },
+    });
   });
 
   test("the fake refuses the clumsy ones on the second look", async () => {

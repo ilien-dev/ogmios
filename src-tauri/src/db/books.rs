@@ -319,7 +319,9 @@ pub fn list_archived(conn: &Connection) -> Result<Vec<ArchivedBook>> {
 /// Takes the book off the shelf. The words answered or finished in it stay,
 /// so what was learned still counts everywhere and comes back in the daily
 /// recall; the ones nobody answered go, and a chapter that loses any is to
-/// be prepared again, should the book come back. The practice left half way
+/// be prepared again, should the book come back. Its sentences go too, but
+/// the one each word kept was learned with and those written for it. The
+/// practice left half way
 /// in it by ear or on structures belongs to no chapter any more, as if the
 /// chapter were gone. Run it inside a transaction.
 pub fn archive_book(conn: &Connection, id: &str, now: DateTime<Utc>) -> Result<()> {
@@ -342,6 +344,30 @@ pub fn archive_book(conn: &Connection, id: &str, now: DateTime<Utc>) -> Result<(
              WHERE w.chapter_id IN (SELECT id FROM book_chapters WHERE book_id = ?1)
                AND {DISCARDED}"
         ),
+        [id],
+    )?;
+    // Its sentences go: a word kept keeps only the one it was learned with,
+    // and the ones written for it, which say what it was learned as. The
+    // ones of a word that went go with it.
+    conn.execute(
+        "DELETE FROM word_sentences AS s
+         WHERE s.chapter_id IN (SELECT id FROM book_chapters WHERE book_id = ?1)
+           AND NOT EXISTS (
+             SELECT 1 FROM chapter_words w
+             WHERE w.chapter_id = s.chapter_id AND w.key = s.key
+               AND (s.source = 'model'
+                 OR (w.sentence != '' AND s.sentence != ''
+                   AND (instr(w.sentence, s.sentence) > 0
+                     OR instr(s.sentence, w.sentence) > 0)))
+           )",
+        [id],
+    )?;
+    conn.execute(
+        "DELETE FROM sentence_writes AS s
+         WHERE s.chapter_id IN (SELECT id FROM book_chapters WHERE book_id = ?1)
+           AND NOT EXISTS (
+             SELECT 1 FROM chapter_words w WHERE w.chapter_id = s.chapter_id AND w.key = s.key
+           )",
         [id],
     )?;
     for sittings in ["dictation_sittings", "structure_sittings"] {

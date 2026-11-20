@@ -643,6 +643,8 @@ export const es: Catalog<typeof en> = {
       baseForm:
         "Es la palabra, pero la pido en su forma base: el infinitivo. Prueba otra vez.",
       otherWord: "Es correcto, pero aquí busco otra palabra. Prueba otra vez.",
+      otherSense:
+        "Eso significa en «{{book}}». Esta frase la usa con otro significado: léela y prueba otra vez.",
       otherKind:
         "Recuerda: busco «{{asked}}»{{form}}, no «{{given}}». {{title}}: {{meaning}} Prueba otra vez.",
       exact: "En esta frase:",

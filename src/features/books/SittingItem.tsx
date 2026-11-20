@@ -55,6 +55,8 @@ export interface Checked {
   again?: boolean;
   another?: AnotherWord | null;
   otherKind?: KindReminder | null;
+  /** The answer is what the word means in the book of this title. */
+  otherSense?: string | null;
   helped?: boolean;
   exact?: string | null;
   sentence?: ShownSentence | null;
@@ -259,7 +261,9 @@ interface SittingItemProps<Result extends Checked> {
  * what was shown is no answer yet either: it is right for what the learner
  * saw, so the line says another word is wanted, and the sentence comes with
  * the first letter of that word. Once it
- * is answered the sentence shows whole, with its translation.
+ * is answered the sentence shows whole, with its translation. In the
+ * recall, the meaning the word has in another book is no answer yet either:
+ * the line names that book and asks for the sense of this sentence.
  *
  * Its English is read aloud, never its other language: the word, with its
  * sentence when it shows from the start, or, asked for in English, the
@@ -288,6 +292,8 @@ export function SittingItem<Result extends Checked>({
   const [other, setOther] = useState(false);
   /** What came was a word of another kind from its root. */
   const [kind, setKind] = useState<KindReminder | null>(null);
+  /** What came is what the word means in the book of this title. */
+  const [sense, setSense] = useState<string | null>(null);
   const [result, setResult] = useState<Result | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   /** The hint asked for, and how often: each time gives a little more. */
@@ -331,6 +337,7 @@ export function SittingItem<Result extends Checked>({
         const told = verdict.another ?? null;
         setOther(told !== null);
         setKind(verdict.otherKind ?? null);
+        setSense(verdict.otherSense ?? null);
         if (told !== null) {
           // What tells the two words apart; hints that gave more stay.
           if (hints <= told.asked) {
@@ -413,6 +420,14 @@ export function SittingItem<Result extends Checked>({
     (dispute === null || dispute.status === "failed");
   // An answer put to "I was right" stands: its sentence is not called bad.
   const discardable = bad !== null && dispute === null;
+
+  // Why the answer is none yet: another book's sense, another kind, or the
+  // form or the word the sentence does not want.
+  const retry =
+    sense === null
+      ? (kindLine(kind, t, item.verbForm) ??
+        t(retryKey(other, item.sentenceId !== null, toEnglish, item.verbForm)))
+      : t("books.sitting.otherSense", { book: sense });
 
   return (
     <section className="mx-auto flex w-full max-w-2xl flex-col items-center gap-6 px-6 pt-4 pb-12 text-center nav:px-10">
@@ -509,17 +524,7 @@ export function SittingItem<Result extends Checked>({
         <Presence>
           {result === null && again && (
             <Reveal key="again" className="flex justify-center">
-              <VerdictLine tone="partial">
-                {kindLine(kind, t, item.verbForm) ??
-                  t(
-                    retryKey(
-                      other,
-                      item.sentenceId !== null,
-                      toEnglish,
-                      item.verbForm,
-                    ),
-                  )}
-              </VerdictLine>
+              <VerdictLine tone="partial">{retry}</VerdictLine>
             </Reveal>
           )}
         </Presence>
