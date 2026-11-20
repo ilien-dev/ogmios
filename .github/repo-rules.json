@@ -50,7 +50,7 @@
       {
         "path": "src-tauri/Cargo.lock",
         "type": "toml",
-        "jsonpath": "$.package[?(@.name==\"ogmios\")].version"
+        "jsonpath": "$.package[?(@.name.value==\"ogmios\")].version"
       }
     ],
     "build": [
