@@ -13,7 +13,7 @@ use chrono::{DateTime, Utc};
 use rusqlite::Connection;
 use tauri::AppHandle;
 
-use super::ladder::{on_steps, rise, Climb, ALONE, SHOWN};
+use super::ladder::{rise, Climb, ALONE};
 use super::penalty;
 use super::profile::require_profile;
 use super::run;
@@ -1097,10 +1097,9 @@ pub fn answer_shown(
         (answer.trim(), correct),
         now,
     )?;
-    // A word written alike shows its sentence only when it is needed: one
-    // not shown before the answer is not spent.
-    let seen = shown.rung == SHOWN || shown.hinted || !on_steps(&tx, &word)?;
-    if let (Some(sentence), true) = (&sentence, seen) {
+    // Shown once the answer is given, the sentence is spent: the next time
+    // another one of the bank comes.
+    if let Some(sentence) = &sentence {
         practice::tag(&tx, answer_id, &sentence.id)?;
     }
     let clean = correct && !shown.helped();

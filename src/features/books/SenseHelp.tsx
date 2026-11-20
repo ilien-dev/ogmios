@@ -28,12 +28,16 @@ function KindMark({ kind }: { kind: Kind }): ReactNode {
 }
 
 /**
- * Where the other meaning is from: a chapter of this book, or another book.
+ * Where the other meaning is from: a chapter of this book, by the name the
+ * app shows it by, or another book.
  */
 function place(hint: SenseHint, t: TFunction): string {
-  return hint.book === null
-    ? t("books.sense.placeChapter", { n: hint.chapter })
-    : t("books.sense.placeBook", { book: hint.book });
+  if (hint.book !== null) {
+    return t("books.sense.placeBook", { book: hint.book });
+  }
+  return hint.chapterTitle === ""
+    ? t("books.sense.placeSection", { n: hint.chapter })
+    : t("books.sense.placeChapter", { title: hint.chapterTitle });
 }
 
 /**

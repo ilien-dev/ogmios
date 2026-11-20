@@ -728,7 +728,8 @@ export const es: Catalog<typeof en> = {
       hideBook: "Ocultar la frase",
     },
     sense: {
-      placeChapter: "el capítulo {{n}}",
+      placeChapter: "«{{title}}»",
+      placeSection: "la sección {{n}}",
       placeBook: "«{{book}}»",
       notThis:
         "«{{meaning}}» es lo que significaba en {{place}}. Aquí significa otra cosa.",

@@ -457,13 +457,16 @@ export function SittingItem<Result extends Checked>({
   };
 
   // Only a typed miss can be stood by, and once: again if it could not be asked.
+  // Nor one understood only with its sentence: it was no miss.
+  const understood = (result?.understood ?? null) !== null;
   const disputable =
     result !== null &&
     !result.correct &&
     !unknown &&
+    !understood &&
     (dispute === null || dispute.status === "failed");
   // An answer put to "I was right" stands: its sentence is not called bad.
-  const discardable = bad !== null && dispute === null;
+  const discardable = bad !== null && dispute === null && !understood;
 
   // Why the answer is none yet: the step of a word written alike, another
   // kind, or the form or the word the sentence does not want.

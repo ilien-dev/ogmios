@@ -56,11 +56,6 @@ fn context(word: &WordRow, sentence: Option<&Sentence>) -> Vec<crate::domain::Se
         .unwrap_or_else(|| mark(&word.sentence, &word.forms))
 }
 
-/// Whether the word has a rival: then it is asked on the steps.
-pub fn on_steps(conn: &Connection, word: &WordRow) -> Result<bool> {
-    Ok(!spellings::rivals(conn, &word.id)?.is_empty())
-}
-
 /// What an answer on step `rung` comes to. Only English → native is on the
 /// steps: a rival is told apart by what it means.
 pub fn rise(

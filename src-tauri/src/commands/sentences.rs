@@ -2967,7 +2967,7 @@ pub mod tests {
     }
 
     #[test]
-    fn right_once_told_the_kind_is_helped_and_spends_no_sentence() {
+    fn right_once_told_the_kind_is_helped_and_spends_its_sentence() {
         let dir = tempfile::tempdir().expect("tempdir");
         let desk = Desk::new(&dir);
         let [cat, _, picture] = two_books(&desk, &blurred());
@@ -3005,7 +3005,8 @@ pub mod tests {
             .expect("db")
             .query_row("SELECT sentence_id FROM word_events", [], |row| row.get(0))
             .expect("event");
-        assert_eq!(spent, None, "not shown before the answer: not spent");
+        // Shown once answered: spent, so the next time another one comes.
+        assert_eq!(spent, Some(sentence.id.clone()));
     }
 
     #[test]

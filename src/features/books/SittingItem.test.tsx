@@ -838,7 +838,7 @@ describe("telling which word is meant", () => {
                 meaning: "dando vueltas",
                 book: null,
                 chapter: 1,
-                chapterTitle: "",
+                chapterTitle: "Chapter One",
                 asked: "adjective",
                 given: "verb",
               },
@@ -875,7 +875,7 @@ describe("telling which word is meant", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        "“dando vueltas” is what it meant in chapter 1. Here it means something else.",
+        "“dando vueltas” is what it meant in “Chapter One”. Here it means something else.",
       ),
     ).toBeInTheDocument();
     expect(screen.getByText("What is it like?")).toBeInTheDocument();

@@ -19,7 +19,7 @@ use chrono::{DateTime, Utc};
 use rusqlite::Connection;
 use tauri::AppHandle;
 
-use super::ladder::{on_steps, rise, Climb, ALONE, SHOWN};
+use super::ladder::{rise, Climb, ALONE};
 use super::practice::{
     all_small, another, asked_with, climb, clue, in_place, item, judged, next_sentence, plain,
     shown_sentence, small, whole, Judged, Meaning, Shown, Tries,
@@ -279,8 +279,8 @@ fn check(
     }
 }
 
-/// A word of a book as the chapter of its sentence has it, and what an
-/// answer on its steps comes to (`commands::ladder`): a word written alike
+/// What an answer to a word of a book, as the chapter of its sentence has
+/// it, comes to on its steps (`commands::ladder`): a word written alike
 /// to another one is told apart there. A word of a conversation has none.
 fn steps(
     conn: &Connection,
@@ -288,17 +288,16 @@ fn steps(
     (direction, answer, rung): (Direction, &str, u8),
     right: bool,
     how: (&str, Spelling),
-) -> Result<(Option<WordRow>, Climb)> {
+) -> Result<Climb> {
     let row = match (&word.source, sentence) {
         (Source::Book { word_id }, Some(each)) => Some(as_in(conn, word_id, each)?),
         (Source::Book { word_id }, None) => Some(practice::word(conn, word_id)?),
         (Source::Chat { .. }, _) => None,
     };
-    let climbed = match &row {
+    Ok(match &row {
         Some(row) => rise(conn, (row, sentence), (direction, answer, rung), right, how)?,
         None => Climb::Off,
-    };
-    Ok((row, climbed))
+    })
 }
 
 /// What a hint to the word is made of (`commands::practice::clue`). A word
@@ -363,7 +362,7 @@ pub fn answer_shown(
         (direction, answer),
         (&native_lang, spelling),
     )?;
-    let (row, climbed) = steps(
+    let climbed = steps(
         &tx,
         (&word, sentence.as_ref()),
         (direction, answer, shown.rung),
@@ -405,25 +404,12 @@ pub fn answer_shown(
         });
     }
     let correct = judged.is_right();
-    // A sentence not shown before the answer of a word on its steps is not
-    // spent.
-    let on = match &row {
-        Some(row) => on_steps(&tx, row)?,
-        None => false,
-    };
-    let seen = shown.rung == SHOWN || shown.hinted || !on;
     let answer_id = recall::record(
         &tx,
         &run.id,
         (key, direction),
         (answer.trim(), correct),
-        (
-            sentence
-                .as_ref()
-                .filter(|_| seen)
-                .map(|each| each.id.as_str()),
-            now,
-        ),
+        (sentence.as_ref().map(|each| each.id.as_str()), now),
     )?;
     let step = step(&tx, &run, now)?;
     tx.commit()?;

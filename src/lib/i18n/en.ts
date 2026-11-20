@@ -729,7 +729,8 @@ export const en = {
       hideBook: "Hide the sentence",
     },
     sense: {
-      placeChapter: "chapter {{n}}",
+      placeChapter: "“{{title}}”",
+      placeSection: "section {{n}}",
       placeBook: "“{{book}}”",
       notThis:
         "“{{meaning}}” is what it meant in {{place}}. Here it means something else.",

@@ -428,14 +428,14 @@ repaso rápido antes de leer no cambia.
   momento. Se pregunta en tres intentos, en la práctica, el castigo y Repaso:
   1. **Sola**, sin frase. Si responde con el significado de un rival, no es fallo: «También es
      correcta, pero no es la que busco».
-  2. **Qué no es**: «"dando vueltas" es lo que significaba en el capítulo 1», y si son de otro
+  2. **Qué no es**: «"dando vueltas" es lo que significaba en "1. Strange Business"», con el nombre que la app da al capítulo (o el libro, si es otro), y si son de otro
      tipo, qué es cada tipo (resaltado como su etiqueta), con un ejemplo y la pregunta que lleva a
      la respuesta («¿Cómo es?»). Acertar aquí es acierto con ayuda. Nunca se dan letras.
   3. **La frase** arriba, el último intento. Acertar con ella no es fallo ni acierto: la palabra
      no avanza y vuelve más adelante, con un consejo (mirar la etiqueta, o las palabras que la
      acompañan si los tipos coinciden). Fallar es fallo completo y se muestra la respuesta.
-     Cualquier error dentro de los intentos pasa al siguiente. La frase solo cuenta como vista si se
-     mostró antes de responder.
+     Cualquier error dentro de los intentos pasa al siguiente. La frase se muestra siempre tras
+     responder, y por eso cuenta como vista: la próxima vez sale otra del banco.
 - **Un significado por capítulo:** una misma palabra puede significar otra cosa en otro libro o
   en otro capítulo. Cada frase guarda el capítulo cuyo significado muestra. Practicar o castigar
   un capítulo solo usa frases suyas, y lo que se acepta es el significado de ese capítulo. Repaso
