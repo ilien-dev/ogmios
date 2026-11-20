@@ -420,17 +420,34 @@ repaso rápido antes de leer no cambia.
 - **La frase no se ve de entrada:** se muestra solo la palabra y la etiqueta del tipo de palabra;
   eso basta para saber qué traducción se pide. La frase es la primera pista (ver «Pista a
   petición») y sale completa tras responder. Solo las palabras marcadas como ambiguas, que
-  necesitan su frase para distinguir el sentido, la muestran desde el principio.
+  necesitan su frase para distinguir el sentido, la muestran desde el principio, y también las
+  que otro capítulo, de este u otro libro, tiene con otro significado (ninguna traducción en
+  común): la frase dice cuál se pide. Vale en la práctica, el castigo y Repaso.
+- **Un significado por capítulo:** una misma palabra puede significar otra cosa en otro libro o
+  en otro capítulo. Cada frase guarda el capítulo cuyo significado muestra. Practicar o castigar
+  un capítulo solo usa frases suyas, y lo que se acepta es el significado de ese capítulo. Repaso
+  usa frases de cualquier capítulo y juzga cada respuesta con el significado del capítulo de su
+  frase; responder con el significado que la palabra tiene en otro libro no es fallo: aviso
+  ámbar que nombra ese libro y un intento más.
 
-- **Banco por palabra:** solo frases reales del libro que tienen la palabra una sola vez (las
-  busca el código). Claude no escribe frases nuevas: tardaba minutos por capítulo y aportaba
-  poco. Las palabras pedidas en charlas no tienen libro y se preguntan sin frase.
-- **Una frase, una sola vez:** cada palabra recibe 1 frase, la de su capítulo o, si esa no sirve,
-  otra del libro. No se repone nunca, para no gastar tokens: una palabra que ya recibió frase no
-  se vuelve a pedir, aunque la frase se rechazara o se marcara como mala. Se prepara en segundo
+- **Banco por palabra y capítulo:** frases reales de su capítulo que tienen la palabra una sola
+  vez (las busca el código), y 5 que Claude escribe con el significado de ese capítulo, cada una
+  con la palabra una sola vez. Las palabras pedidas en charlas no tienen libro y se preguntan sin
+  frase.
+- **Una vez por capítulo:** en cada capítulo la palabra recibe 1 frase suya y se piden sus 5
+  escritas una sola vez. No se repone nunca, para no gastar tokens: lo ya pedido no se vuelve a
+  pedir, aunque se rechazara o se marcara como malo. Se prepara en segundo
   plano al abrir el capítulo y al entrar en Repaso, unas 10 palabras por petición, y cada
-  respuesta se guarda al llegar. Una palabra sin frase se pregunta como antes. Los bancos de
-  varias frases guardados antes de este cambio se conservan.
+  respuesta se guarda al llegar. Una palabra sin frase se pregunta como antes. Las frases
+  guardadas antes quedan atadas al capítulo cuyo texto o significado muestran; las que no se
+  pueden atribuir se retiran.
+- **Se practica con las frases listas:** al abrir un capítulo o Repaso se preparan las frases que
+  falten o que una actualización dejó para revisar otra vez; mientras tanto «Practicar», el
+  repaso rápido y «Empezar» esperan con un aviso de carga. Si la preparación falla, se puede
+  practicar igualmente y un aviso lo dice: las palabras sin frase se preguntan sin ella.
+- **Borrar un libro:** se van sus frases, salvo la frase con la que se aprendió cada palabra que
+  se queda y las escritas para ella; el historial de repaso no cambia. Su texto no se vuelve a
+  leer. Borrarlo para siempre lo quita todo.
 - **El modelo etiqueta, el código decide:** Claude solo dice qué es la palabra en la forma que
   tiene en cada frase y traduce la frase. Se guarda si la pista no contiene la palabra en inglés.
   Después una segunda petición la revisa; solo se usa si la da por buena. Lo rechazado se recuerda

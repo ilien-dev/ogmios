@@ -1,6 +1,7 @@
-//! The bank of sentences each word is asked with, by the word's key. How
-//! often one was shown is counted from the answers that name it; which one
-//! comes next is `books::sentences`.
+//! The bank of sentences each word is asked with, by the word's key and
+//! the chapter whose sense of it each one shows. How often one was shown is
+//! counted from the answers that name it; which one comes next is
+//! `books::sentences`.
 
 use chrono::{DateTime, Utc};
 use rusqlite::types::Type;
@@ -39,13 +40,16 @@ pub struct Sentence {
     /// The form a verb has in the sentence; none for any other word, and
     /// while it has not been labelled.
     pub verb_form: Option<VerbForm>,
+    /// The chapter whose sense of the word it shows; none for a word of a
+    /// conversation.
+    pub chapter_id: Option<String>,
 }
 
 const SENTENCE: &str = "SELECT s.id, s.key, s.source = 'book', s.sentence, s.form, s.hint,
             s.translation,
             (SELECT COUNT(*) FROM word_answers a WHERE a.sentence_id = s.id)
               + (SELECT COUNT(*) FROM word_events e WHERE e.sentence_id = s.id),
-            COALESCE(s.also, '[]'), COALESCE(s.hints, '[]'), s.verb_form
+            COALESCE(s.also, '[]'), COALESCE(s.hints, '[]'), s.verb_form, s.chapter_id
      FROM word_sentences s";
 
 /// A list kept as a JSON array in the column `at`.
@@ -68,17 +72,20 @@ fn sentence(row: &Row<'_>) -> rusqlite::Result<Sentence> {
         also: list(row, 8)?,
         hints: list(row, 9)?,
         verb_form: row.get(10)?,
+        chapter_id: row.get(11)?,
     })
 }
 
 /// The sentences a word can be asked with: looked at and found good, and
-/// not called bad since. The oldest first.
-pub fn bank(conn: &Connection, key: &str) -> Result<Vec<Sentence>> {
+/// not called bad since. With a `chapter`, only those of that chapter's
+/// sense of it; without, those of every chapter. The oldest first.
+pub fn bank(conn: &Connection, key: &str, chapter: Option<&str>) -> Result<Vec<Sentence>> {
     let mut stmt = conn.prepare(&format!(
         "{SENTENCE} WHERE s.key = ?1 AND s.reviewed AND NOT s.discarded
+           AND (?2 IS NULL OR s.chapter_id = ?2)
          ORDER BY s.created_at, s.rowid"
     ))?;
-    let rows = stmt.query_map([key], sentence)?;
+    let rows = stmt.query_map(params![key, chapter], sentence)?;
     Ok(rows.collect::<rusqlite::Result<_>>()?)
 }
 
@@ -130,12 +137,44 @@ pub fn forms(conn: &Connection, key: &str) -> Result<Vec<String>> {
     Ok(rows.collect::<rusqlite::Result<_>>()?)
 }
 
-/// Whether the word was ever given a sentence, whatever came of it: one
-/// that was is not asked about again.
-pub fn given(conn: &Connection, key: &str) -> Result<bool> {
+/// Whether the word was ever given a sentence of this chapter, whatever
+/// came of it: one that was is not asked about again there.
+pub fn given(conn: &Connection, key: &str, chapter: &str) -> Result<bool> {
     Ok(conn.query_row(
-        "SELECT EXISTS (SELECT 1 FROM word_sentences WHERE key = ?1)",
-        [key],
+        "SELECT EXISTS (SELECT 1 FROM word_sentences
+                        WHERE key = ?1 AND chapter_id = ?2 AND source = 'book')",
+        [key, chapter],
+        |row| row.get(0),
+    )?)
+}
+
+/// Whether the model was asked to write sentences for the word in this
+/// chapter's sense, whatever came of it.
+pub fn written(conn: &Connection, key: &str, chapter: &str) -> Result<bool> {
+    Ok(conn.query_row(
+        "SELECT EXISTS (SELECT 1 FROM sentence_writes WHERE key = ?1 AND chapter_id = ?2)",
+        [key, chapter],
+        |row| row.get(0),
+    )?)
+}
+
+/// The model was asked to write sentences for the word in this chapter's
+/// sense: it is not asked again.
+pub fn wrote(conn: &Connection, key: &str, chapter: &str, now: DateTime<Utc>) -> Result<()> {
+    conn.execute(
+        "INSERT OR IGNORE INTO sentence_writes (key, chapter_id, created_at) VALUES (?1, ?2, ?3)",
+        params![key, chapter, ts(now)],
+    )?;
+    Ok(())
+}
+
+/// Whether the chapter is of a deleted book: the sentences of its text are
+/// not asked about any more.
+pub fn archived(conn: &Connection, chapter: &str) -> Result<bool> {
+    Ok(conn.query_row(
+        "SELECT EXISTS (SELECT 1 FROM book_chapters c
+                        JOIN archived_books a ON a.book_id = c.book_id WHERE c.id = ?1)",
+        [chapter],
         |row| row.get(0),
     )?)
 }
@@ -143,6 +182,9 @@ pub fn given(conn: &Connection, key: &str) -> Result<bool> {
 /// What a sentence is kept with.
 pub struct NewSentence<'a> {
     pub key: &'a str,
+    /// The chapter whose sense of the word it shows; none for a word of a
+    /// conversation.
+    pub chapter: Option<&'a str>,
     pub book: bool,
     pub sentence: &'a str,
     pub form: &'a str,
@@ -155,8 +197,8 @@ pub struct NewSentence<'a> {
 pub fn add(conn: &Connection, new: &NewSentence<'_>, now: DateTime<Utc>) -> Result<()> {
     conn.execute(
         "INSERT OR IGNORE INTO word_sentences
-           (id, key, source, sentence, form, hint, translation, created_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+           (id, key, source, sentence, form, hint, translation, created_at, chapter_id)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
         params![
             new_id(),
             new.key,
@@ -165,20 +207,27 @@ pub fn add(conn: &Connection, new: &NewSentence<'_>, now: DateTime<Utc>) -> Resu
             new.form,
             new.hint,
             new.translation,
-            ts(now)
+            ts(now),
+            new.chapter
         ],
     )?;
     Ok(())
 }
 
-/// A sentence that is never to be asked with, kept so that it is not
-/// asked about again: one whose gloss the code refused.
-pub fn refuse(conn: &Connection, key: &str, sentence: &str, now: DateTime<Utc>) -> Result<()> {
+/// A sentence of the chapter that is never to be asked with, kept so that
+/// it is not asked about again: one whose gloss the code refused.
+pub fn refuse(
+    conn: &Connection,
+    (key, chapter): (&str, &str),
+    sentence: &str,
+    now: DateTime<Utc>,
+) -> Result<()> {
     conn.execute(
         "INSERT OR IGNORE INTO word_sentences
-           (id, key, source, sentence, form, hint, translation, reviewed, discarded, created_at)
-         VALUES (?1, ?2, 'model', ?3, '', '', '', 1, 1, ?4)",
-        params![new_id(), key, sentence, ts(now)],
+           (id, key, source, sentence, form, hint, translation, reviewed, discarded, created_at,
+            chapter_id)
+         VALUES (?1, ?2, 'book', ?3, '', '', '', 1, 1, ?4, ?5)",
+        params![new_id(), key, sentence, ts(now), chapter],
     )?;
     Ok(())
 }
@@ -274,7 +323,8 @@ pub fn regloss(conn: &Connection, sentence: &Sentence, labels: &Labels) -> Resul
 /// words its translation has.
 pub fn unaid(conn: &Connection, lang: &str) -> Result<usize> {
     let mut stmt = conn.prepare(
-        "SELECT id, form, hint, COALESCE(hints, '[]'), hints IS NULL, key, sentence, reviewed
+        "SELECT id, form, hint, COALESCE(hints, '[]'), hints IS NULL, key, sentence, reviewed,
+                chapter_id
          FROM word_sentences WHERE hint != ''",
     )?;
     let rows = stmt
@@ -288,6 +338,7 @@ pub fn unaid(conn: &Connection, lang: &str) -> Result<usize> {
                 key: row.get(5)?,
                 sentence: row.get(6)?,
                 reviewed: row.get(7)?,
+                chapter_id: row.get(8)?,
             })
         })?
         .collect::<rusqlite::Result<Vec<_>>>()?;
@@ -297,7 +348,7 @@ pub fn unaid(conn: &Connection, lang: &str) -> Result<usize> {
         if row.reviewed && (new_hint != row.hint || new_hints != row.hints) {
             // The word's own translations decide what is its own: read only
             // for the few sentences a negation outside the form changes.
-            let (_, base) = meaning(conn, &row.key)?;
+            let (_, base) = meaning(conn, &row.key, row.chapter_id.as_deref())?;
             (new_hint, new_hints) = unaided_all(&row, lang, &base);
         }
         if new_hint == row.hint && new_hints == row.hints {
@@ -326,6 +377,7 @@ struct Kept {
     hints: Vec<String>,
     unlabelled: bool,
     reviewed: bool,
+    chapter_id: Option<String>,
 }
 
 /// The hint and the other hints of a sentence kept, without the words for
@@ -400,27 +452,103 @@ pub fn chapter_keys(conn: &Connection, chapter_id: &str) -> Result<Vec<(String, 
     Ok(rows.collect::<rusqlite::Result<_>>()?)
 }
 
-/// The text of every chapter of a chapter's book: its own first, then the
-/// others in reading order.
-pub fn book_texts(conn: &Connection, chapter_id: &str) -> Result<Vec<String>> {
-    let mut stmt = conn.prepare(
-        "SELECT c.text FROM book_chapters c
-         WHERE c.book_id = (SELECT book_id FROM book_chapters WHERE id = ?1)
-         ORDER BY c.id != ?1, c.idx",
-    )?;
-    let rows = stmt.query_map([chapter_id], |row| row.get(0))?;
-    Ok(rows.collect::<rusqlite::Result<_>>()?)
+/// The text of a chapter: the only one whose sentences show its sense of
+/// its words.
+pub fn chapter_text(conn: &Connection, chapter_id: &str) -> Result<String> {
+    Ok(conn.query_row(
+        "SELECT text FROM book_chapters WHERE id = ?1",
+        [chapter_id],
+        |row| row.get(0),
+    )?)
 }
 
-/// What a word is called and what it means, by its key: as the first
-/// chapter that has it says, the translation the learner answers with most
-/// first, or, for a word of a conversation, as it was asked for there. A key
-/// nothing has any more is its own name.
-pub fn meaning(conn: &Connection, key: &str) -> Result<(String, Vec<String>)> {
+/// The word of `key` as a chapter has it; none when that chapter does not.
+pub fn word_in(conn: &Connection, key: &str, chapter: &str) -> Result<Option<String>> {
+    Ok(conn
+        .query_row(
+            "SELECT id FROM chapter_words WHERE key = ?1 AND chapter_id = ?2",
+            [key, chapter],
+            |row| row.get(0),
+        )
+        .optional()?)
+}
+
+/// Whether another chapter has the word of `key` in another sense than the
+/// chapter's word `word_id`: none of its translations is one of this one's.
+/// Then the sentence it is asked with is shown from the start, to tell which
+/// one is meant.
+pub fn senses_differ(conn: &Connection, key: &str, word_id: &str) -> Result<bool> {
+    Ok(conn.query_row(
+        "SELECT EXISTS (
+           SELECT 1 FROM chapter_words o
+           WHERE o.key = ?1 AND o.id != ?2
+             AND EXISTS (SELECT 1 FROM word_translations t WHERE t.word_id = o.id)
+             AND NOT EXISTS (
+               SELECT 1 FROM word_translations a
+               JOIN word_translations b ON lower(trim(a.text)) = lower(trim(b.text))
+               WHERE a.word_id = o.id AND b.word_id = ?2
+             )
+         )",
+        [key, word_id],
+        |row| row.get(0),
+    )?)
+}
+
+/// The words of `key` other chapters have in another sense than the
+/// chapter's word `word_id`, each with the title of its book and its
+/// translations: an answer that is one of those is no miss.
+pub fn other_senses(
+    conn: &Connection,
+    key: &str,
+    word_id: &str,
+) -> Result<Vec<(String, Vec<String>)>> {
+    let mut stmt = conn.prepare(
+        "SELECT o.id, b.title FROM chapter_words o
+         JOIN book_chapters c ON c.id = o.chapter_id
+         JOIN books b ON b.id = c.book_id
+         WHERE o.key = ?1 AND o.id != ?2
+         ORDER BY o.created_at, o.id",
+    )?;
+    let rows = stmt
+        .query_map([key, word_id], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    let mut said = conn.prepare("SELECT text FROM word_translations WHERE word_id = ?1")?;
+    let own: Vec<String> = said
+        .query_map([word_id], |row| row.get::<_, String>(0))?
+        .collect::<rusqlite::Result<_>>()?;
+    let own: Vec<String> = own.iter().map(|each| each.trim().to_lowercase()).collect();
+    let mut others = Vec::new();
+    for (id, title) in rows {
+        let theirs: Vec<String> = said
+            .query_map([&id], |row| row.get::<_, String>(0))?
+            .collect::<rusqlite::Result<_>>()?;
+        let shared = theirs
+            .iter()
+            .any(|each| own.contains(&each.trim().to_lowercase()));
+        if !theirs.is_empty() && !shared {
+            others.push((title, theirs));
+        }
+    }
+    Ok(others)
+}
+
+/// What a word is called and what it means, by its key: as `chapter` says
+/// when it has the word, otherwise as the first chapter that has it says,
+/// the translation the learner answers with most first; or, for a word of a
+/// conversation, as it was asked for there. A key nothing has any more is
+/// its own name.
+pub fn meaning(
+    conn: &Connection,
+    key: &str,
+    chapter: Option<&str>,
+) -> Result<(String, Vec<String>)> {
     let of_book: Option<(String, String)> = conn
         .query_row(
-            "SELECT id, lemma FROM chapter_words WHERE key = ?1 ORDER BY created_at, id LIMIT 1",
-            [key],
+            "SELECT id, lemma FROM chapter_words WHERE key = ?1
+             ORDER BY chapter_id IS NOT ?2, created_at, id LIMIT 1",
+            params![key, chapter],
             |row| Ok((row.get(0)?, row.get(1)?)),
         )
         .optional()?;

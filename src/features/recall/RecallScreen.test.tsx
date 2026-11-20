@@ -1,12 +1,16 @@
 import { describe, expect, test } from "bun:test";
 import type { ReactNode } from "react";
 import { useState } from "react";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { UserEvent } from "@testing-library/user-event";
 import type { Route } from "@/app/routes";
 import { showsNav } from "@/app/routes";
 import { seedMockReadiness } from "@/lib/ipcMockChapters";
+import {
+  holdMockSentences,
+  setMockSentencesFail,
+} from "@/lib/ipcMockSentences";
 import { useMockBackend } from "@/test/mockBackend";
 import { RecallScreen } from "./RecallScreen";
 
@@ -189,5 +193,30 @@ describe("the daily recall", () => {
     await user.keyboard("{Enter}");
     expect(await screen.findByText("1 word remembered")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Done" })).toHaveFocus();
+  });
+
+  test("a run waits for the words' sentences to be prepared", async () => {
+    seedMockReadiness();
+    const release = holdMockSentences();
+    render(<Section />);
+    const go = await screen.findByRole("button", { name: "Start" });
+    expect(go).toBeDisabled();
+    expect(
+      screen.getByText("Preparing your words' sentences…"),
+    ).toBeInTheDocument();
+    release();
+    await waitFor(() => {
+      expect(go).toBeEnabled();
+    });
+  });
+
+  test("sentences that cannot be prepared let a run start, and say so", async () => {
+    seedMockReadiness();
+    setMockSentencesFail("no key");
+    render(<Section />);
+    expect(
+      await screen.findByText(/sentences could not be prepared/),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Start" })).toBeEnabled();
   });
 });

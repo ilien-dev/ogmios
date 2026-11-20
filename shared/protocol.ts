@@ -626,14 +626,26 @@ const sentenceWordSchema = z.object({
   translations: z.array(z.string()),
   /** A sentence that fixes the sense the word has in its chapter. */
   sense: z.string(),
-  /** Sentences of the book that have the word, to be glossed. */
-  book: z.array(z.string()).min(1),
+  /** Sentences of the chapter that have the word, to be glossed. */
+  book: z.array(z.string()),
+  /** How many sentences to write in the sense of `sense`; 0 for none. */
+  write: z.number().int().min(0),
 });
 
-/** No sentence is written: the model glosses those the book has. */
+/**
+ * The model glosses the sentences the chapter has, and writes `write` more
+ * in the sense the chapter gives the word.
+ */
 export const sentenceWriteParams = z.object({
   nativeLang: z.string(),
-  words: z.array(sentenceWordSchema).min(1),
+  words: z
+    .array(
+      sentenceWordSchema.refine(
+        (word) => word.book.length > 0 || word.write > 0,
+        "a word is asked for something",
+      ),
+    )
+    .min(1),
 });
 export type SentenceWriteParams = z.infer<typeof sentenceWriteParams>;
 
@@ -644,9 +656,20 @@ const bookGlossSchema = z.object({
   translation: z.string(),
 });
 
+/** A sentence the model wrote, glossed as one of the book is. */
+const newSentenceSchema = z.object({
+  sentence: z.string(),
+  /** The word as the sentence writes it, copied from it. */
+  form: z.string(),
+  hint: z.string(),
+  translation: z.string(),
+});
+
 const writtenWordSchema = z.object({
   id: z.string(),
   book: z.array(bookGlossSchema),
+  /** Empty when none was asked for. */
+  written: z.array(newSentenceSchema),
 });
 
 /** What the model labels; what is kept is decided in `books::sentences`. */
@@ -657,6 +680,8 @@ export type SentencesWritten = z.infer<typeof sentencesWrittenSchema>;
 
 const reviewedSentenceSchema = z.object({
   id: z.string(),
+  /** From the book, not written for the learner. */
+  fromBook: z.boolean(),
   lemma: z.string(),
   meaning: z.array(z.string()),
   sentence: z.string(),

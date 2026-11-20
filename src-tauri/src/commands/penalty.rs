@@ -9,7 +9,7 @@ use chrono::{DateTime, Local, Utc};
 use rusqlite::Connection;
 use tauri::AppHandle;
 
-use super::practice::{all_small, item, plain, small, Tries};
+use super::practice::{all_small, item, plain, small, telling, Tries};
 use super::profile::require_profile;
 use super::run;
 use crate::books::penalty::{after_clean, after_slip, order, raised, reps, Standing};
@@ -65,7 +65,7 @@ pub(super) fn step(
     };
     let (rung, order) = drawn(&due);
     let (direction, answered) = at(&due, &order);
-    let word = practice::word(conn, &due.row.word_id)?;
+    let word = telling(conn, practice::word(conn, &due.row.word_id)?)?;
     let english = small(&word.lemma);
     let native = small(&word.shown_as().join(", "));
     Ok(Some(PracticeStep::Penalty {

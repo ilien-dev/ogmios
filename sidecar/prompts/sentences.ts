@@ -9,17 +9,25 @@ import {
   nativeVarietyParagraph,
 } from "./common.ts";
 
-/** Glosses the sentences of the book a word is asked with. */
+/**
+ * Glosses the sentences of the chapter a word is asked with, and writes the
+ * ones asked for in the sense the chapter gives it.
+ */
 export function sentenceWriteSystemPrompt(params: SentenceWriteParams): string {
   const native = languageName(params.nativeLang);
-  return `An adult English learner whose language is ${native} learns the words of a book by meeting each one in the sentences the book has it in. You are given words, each with sentences from the book, numbered from 0. Write no sentence of your own.
+  return `An adult English learner whose language is ${native} learns the words of a book by meeting each one in sentences. You are given words, each with sentences from its chapter, numbered from 0, and how many new sentences to write for it (<write>).
 
-For each sentence, give:
+For each sentence of the chapter, give:
 - index: its number.
 - translation: the whole sentence as a native ${native} writer would write it. The learner reads the book after this, so it must say what the sentence says the way ${native} says it, never English carried over. Not its word order, never English word order: adjectives stacked before an English noun are joined the way ${native} joins them ("pan oscuro y tosco" for "coarse brown bread", not "pan moreno basto"). Not its constructions either: where ${native} says it another way, use that way ("Para cuando llegaron" for "By the time they had arrived", "demasiado ancha para salvarse" for "too wide to be bridged"). Each word is the one a native would choose there.
 - hint: the words of your translation that stand for the word, copied from it exactly as they are written there: "removió" for "stirred" in "Removió la sopa", "setos" for "hedges". It is the word as that translation has it, in the form natural ${native} gives it there, even where that is not the form of the English word: "salvarse" for "bridged" in "demasiado ancha para salvarse", never "salvada", which that translation does not have. Only those words, as few as hold the word, never the sentence. Never an English word. It translates that word and nothing else: on its own it means what the word means, so that a learner who sees only the hint can arrive at the word. When the word heads a phrase, the hint is the word for the head, never one word for the whole phrase or for the word beside it: "lengua" for "wisp" in "a wisp of fire", never "llama", which is "flame". The translation keeps the word too ("una lengua de fuego"). The hint stands for the word alone, never the words for the English words around it: an auxiliary, a subject or a pronoun beside the word stays out of the hint, and so does the tense it says, even where the translation needs them: "empeñado en" for "made a point of" in "I'd made a point of smoking" (translated "me había empeñado en fumar"), never "me había empeñado en", which is "had made a point of"; "corriendo" for "running" in "she was running". A tense the translation writes in one word stays as it is ("se empeñó en"). A negation outside the word stays out as well: "tendría ninguna oportunidad" for "stand a chance" in "wouldn't stand a chance" (translated "no tendría ninguna oportunidad"), never "no tendría ninguna oportunidad", which is "wouldn't stand a chance".
 
 "sense" is the sentence that fixes the meaning of the word: translate the word in that meaning wherever the sentence uses it so.
+
+Then write as many new sentences as <write> says, none when it is 0, under "written". Each one uses the word exactly once, in the meaning "sense" gives it and never in another, so that the sentence alone makes that meaning clear. Natural, everyday English a careful native writer would write, one sentence of at most 25 words, each about something different, none copied from the chapter, and none that negates the word. Vary the form where the word has several (tenses, plural). For each, give:
+- sentence: the sentence.
+- form: the word as the sentence writes it, copied from it exactly.
+- translation and hint: as for the sentences of the chapter.
 
 Answer with one entry per word, with its id unchanged.${nativeVarietyParagraph(params.nativeLang)}`;
 }
@@ -37,6 +45,7 @@ export function sentenceWriteUserPrompt(params: SentenceWriteParams): string {
       `  <kind>${word.partOfSpeech ?? "unknown"}</kind>`,
       `  <meaning>${word.translations.join(" | ")}</meaning>`,
       `  <sense>${word.sense}</sense>`,
+      `  <write>${String(word.write)}</write>`,
       ...book,
       `</word>`,
     ].join("\n");
@@ -62,7 +71,7 @@ A sentence is good only if all of this holds:
 - The hint is the word the translation uses for it, copied as it is written there.
 - The hint, read on its own, with no sentence, means the word. It fails when it names the whole phrase the word heads, or the word beside it, and the word itself was left untranslated: "llama" for "wisp" in "a wisp of fire" is "flame", not "wisp".
 
-The sentences are from the book and none is written to replace one: refuse a sentence only when something above clearly fails.
+Some sentences are from the book (from="book") and others were written for the learner (from="written"). Refuse one from the book only when something above clearly fails. Refuse a written one also when it reads as unnatural, or when it could be read in another meaning of the word.
 
 Answer with one verdict per sentence, with its id unchanged:
 - good: true or false.
@@ -75,7 +84,7 @@ Answer with one verdict per sentence, with its id unchanged:
 export function sentenceReviewUserPrompt(params: SentenceReviewParams): string {
   const sentences = params.sentences.map((each) =>
     [
-      `<sentence id="${each.id}">`,
+      `<sentence id="${each.id}" from="${each.fromBook ? "book" : "written"}">`,
       `  <word>${each.lemma}</word>`,
       `  <meaning>${each.meaning.join(" | ")}</meaning>`,
       `  <text>${each.sentence}</text>`,

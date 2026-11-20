@@ -106,16 +106,21 @@ export function ChapterScreen({
     };
   }, [chapter.id]);
 
-  // The sentence each of its words is asked with is glossed in the
-  // background, once it is prepared and again whenever it is opened: a word
-  // never given one gets it. A failure is quiet: the words are asked as the
-  // chapter has them meanwhile.
+  // The sentences its words are asked with are prepared once it is
+  // prepared and again whenever it is opened: a word never given them gets
+  // them, and those an update left to look at again are. Practice waits for
+  // them, so that it asks what the update brought. A failure lets it go on,
+  // and says so: the words are asked as the chapter has them meanwhile.
   const [writing, setWriting] = useState<SentenceProgress | null>(null);
   const { prepared } = chapter;
+  const [readying, setReadying] = useState(prepared !== null);
+  const [unwritten, setUnwritten] = useState<string | null>(null);
   useEffect(() => {
     if (prepared === null) {
       return;
     }
+    setReadying(true);
+    setUnwritten(null);
     const unlisten = onSentenceProgress((heard) => {
       if (heard.chapterId === chapter.id) {
         setWriting(heard);
@@ -135,7 +140,17 @@ export function ChapterScreen({
       }
       await writeSentences(chapter.id);
     };
-    fill().catch(() => null);
+    fill()
+      .catch((error: unknown) => {
+        if (live) {
+          setUnwritten(errorMessage(error));
+        }
+      })
+      .finally(() => {
+        if (live) {
+          setReadying(false);
+        }
+      });
     return () => {
       live = false;
       void unlisten.then((stop) => {
@@ -231,6 +246,7 @@ export function ChapterScreen({
               open={open}
               ready={ready}
               refreshable={refreshable}
+              readying={readying}
               onPractise={onPractise}
               onRefresh={onRefresh}
               onTranslate={onTranslate}
@@ -239,6 +255,13 @@ export function ChapterScreen({
           </Reveal>
           <Reveal index={2} className="flex min-w-0 flex-1 flex-col gap-6">
             <Presence>
+              {unwritten !== null && (
+                <Reveal key="unwritten">
+                  <Notice tone="neutral">
+                    {t("books.sentences.failed", { message: unwritten })}
+                  </Notice>
+                </Reveal>
+              )}
               {failure !== null && (
                 <Reveal
                   key="failure"

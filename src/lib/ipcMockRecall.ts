@@ -183,6 +183,7 @@ function answer(
     step: stepOf(run),
     answerId: run.right + run.missed,
     ...PLAIN,
+    otherSense: null,
     helped: correct && hinted,
   };
 }

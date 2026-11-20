@@ -1095,6 +1095,9 @@ pub struct RecallAnswer {
     pub helped: bool,
     pub exact: Option<String>,
     pub sentence: Option<ShownSentence>,
+    /// The answer is what the word means in this book, not in the sentence
+    /// shown: no miss, one more try.
+    pub other_sense: Option<String>,
 }
 
 /// A word a review found the learner did not know, to add to practice.

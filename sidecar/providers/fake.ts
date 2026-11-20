@@ -267,7 +267,7 @@ function fakeHint(form: string, lang: string): string {
   return `palabra de ${String(form.length)} letras (${lang})`;
 }
 
-/** Every sentence of the book glossed. */
+/** Every sentence of the chapter glossed, and those asked for written. */
 function fakeSentences(params: SentenceWriteParams): SentencesWritten {
   const lang = params.nativeLang;
   return {
@@ -277,6 +277,16 @@ function fakeSentences(params: SentenceWriteParams): SentencesWritten {
         const hint = fakeHint(word.lemma, lang);
         // The hint is words of the translation: Rust keeps no other.
         return { index, hint, translation: `${hint}: ${sentence}` };
+      }),
+      written: Array.from({ length: word.write }, (_, at) => {
+        const hint = fakeHint(word.lemma, lang);
+        const sentence = `Written ${String(at + 1)}: the ${word.lemma} again.`;
+        return {
+          sentence,
+          form: word.lemma,
+          hint,
+          translation: `${hint}: ${sentence}`,
+        };
       }),
     })),
   };

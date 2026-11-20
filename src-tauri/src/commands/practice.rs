@@ -73,14 +73,15 @@ pub(super) fn step(
             progress: progress_over(&words, sitting.ways),
         });
     };
-    let word = practice::word(conn, question.word_id)?;
+    let word = telling(conn, practice::word(conn, question.word_id)?)?;
     Ok(PracticeStep::Item {
         item: in_sentence(conn, word, question.direction, &sitting.id)?,
         progress: progress(&words, sitting.ways),
     })
 }
 
-/// The sentence of its bank a word is asked with next, in the sitting or
+/// The sentence of its bank a word is asked with next, of its `chapter`
+/// when there is one, or of any when not, in the sitting or
 /// the run `drawn_for`; none for a word with no bank yet. Which one is
 /// `books::sentences::choose`, drawn for that sitting, that word and how
 /// often the word's sentences were shown: it is the same one until the word
@@ -88,9 +89,10 @@ pub(super) fn step(
 pub(super) fn next_sentence(
     conn: &Connection,
     (key, own): (&str, &str),
+    chapter: Option<&str>,
     drawn_for: &str,
 ) -> Result<Option<Sentence>> {
-    let held = sentences::bank(conn, key)?;
+    let held = sentences::bank(conn, key, chapter)?;
     let banked: Vec<Banked> = held.iter().map(|each| banked(each, own)).collect();
     let shown: u32 = held.iter().map(|each| each.shows).sum();
     let turn = usize::try_from(shown).unwrap_or(usize::MAX);
@@ -185,9 +187,22 @@ fn verb_form(part_of_speech: Option<PartOfSpeech>, sentence: &Sentence) -> Optio
     sentence.verb_form.filter(|_| verb)
 }
 
-/// The word as a session of practice asks it: with a sentence of its bank,
-/// a different one each time, or, until it has a bank, as its chapter has
-/// it ([`item`]).
+/// The word as it is asked: its sentence shows from the start, as the look
+/// of a word that needs it says, also when another chapter has the word in
+/// another sense (`db::sentences::senses_differ`): it tells which one is
+/// meant.
+pub(super) fn telling(conn: &Connection, mut word: WordRow) -> Result<WordRow> {
+    if sentences::senses_differ(conn, &word.key, &word.id)? {
+        word.context_there = Some(true);
+        word.context_back = Some(true);
+    }
+    Ok(word)
+}
+
+/// The word as a session of practice asks it: with a sentence of its
+/// chapter's bank, a different one each time, or, until it has a bank, as
+/// its chapter has it ([`item`]). The sentence is shown from the start when
+/// another chapter has the word in another sense.
 fn in_sentence(
     conn: &Connection,
     word: WordRow,
@@ -195,7 +210,12 @@ fn in_sentence(
     drawn_for: &str,
 ) -> Result<PracticeItem> {
     Ok(
-        match next_sentence(conn, (&word.key, &word.sentence), drawn_for)? {
+        match next_sentence(
+            conn,
+            (&word.key, &word.sentence),
+            Some(&word.chapter_id),
+            drawn_for,
+        )? {
             Some(sentence) => {
                 let alone = word.alone_in(&sentence.form).map(<[String]>::to_vec);
                 let shows = word.shows_context(direction);
@@ -441,7 +461,7 @@ pub(super) fn judged(
         Direction::Production => {
             let mut other = meaning.forms.clone();
             other.extend(
-                sentences::bank(conn, &sentence.key)?
+                sentences::bank(conn, &sentence.key, sentence.chapter_id.as_deref())?
                     .into_iter()
                     .map(|each| each.form),
             );
@@ -1854,6 +1874,7 @@ pub mod tests {
             also: Vec::new(),
             hints: Vec::new(),
             verb_form: None,
+            chapter_id: None,
         };
         let asked = |direction, shows| {
             asked_with(
@@ -1935,6 +1956,7 @@ pub mod tests {
             also: Vec::new(),
             hints: vec!["tendría posibilidades".into()],
             verb_form: None,
+            chapter_id: None,
         };
         let spelling = profile::spelling(&conn).expect("spelling");
         let meaning = Meaning::of(&conn, &row).expect("meaning");

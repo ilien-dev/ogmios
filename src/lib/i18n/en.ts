@@ -643,6 +643,8 @@ export const en = {
         "That's the word, but I'm after its base form: the infinitive. Try once more.",
       otherWord:
         "That's right, but I'm after another word here. Try once more.",
+      otherSense:
+        "That's what it means in “{{book}}”. This sentence means something else by it: read it and try once more.",
       otherKind:
         "Remember: I'm asking for “{{asked}}”{{form}}, not “{{given}}”. {{title}}: {{meaning}} Try once more.",
       exact: "In this sentence:",
@@ -726,6 +728,9 @@ export const en = {
     sentences: {
       writing: "Preparing the book's sentences: {{done}} of {{total}} words",
       bar: "Sentences from the book",
+      readying: "Preparing your words' sentences…",
+      failed:
+        "Your words' sentences could not be prepared ({{message}}). You can practise: a word without one is asked without it.",
     },
     refresh: {
       start: "Quick refresh before reading",

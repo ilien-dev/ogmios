@@ -62,6 +62,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("contexts.sql"),
     include_str!("tenses.sql"),
     include_str!("notes.sql"),
+    include_str!("chaptered.sql"),
 ];
 
 pub fn open(path: &Path) -> Result<Connection> {
@@ -386,7 +387,7 @@ mod tests {
 
         migrate(&conn).expect("migrate");
         let asked = |key: &str| -> Vec<String> {
-            sentences::bank(&conn, key)
+            sentences::bank(&conn, key, None)
                 .expect("bank")
                 .into_iter()
                 .map(|sentence| sentence.id)
@@ -437,7 +438,7 @@ mod tests {
 
         migrate(&conn).expect("migrate");
         // It is asked with as before, with no rival known yet.
-        let bank = sentences::bank(&conn, "notion").expect("bank");
+        let bank = sentences::bank(&conn, "notion", None).expect("bank");
         assert_eq!(bank.len(), 1);
         assert_eq!(bank[0].also, Vec::<String>::new());
         // Only one that is asked with is left to be labelled: the one
@@ -457,7 +458,7 @@ mod tests {
         };
         sentences::label(&conn, "used", &labels).expect("label");
         assert_eq!(
-            sentences::bank(&conn, "notion").expect("bank")[0].also,
+            sentences::bank(&conn, "notion", None).expect("bank")[0].also,
             ["ideas"]
         );
         assert_eq!(sentences::unlabelled(&conn).expect("list").len(), 0);
@@ -500,14 +501,23 @@ mod tests {
             list.into_iter().map(|each| each.id).collect()
         };
         // The one whose hint is a form of a translation is asked with still.
-        assert_eq!(ids(sentences::bank(&conn, "wisp").expect("bank")), ["fog"]);
+        assert_eq!(
+            ids(sentences::bank(&conn, "wisp", None).expect("bank")),
+            ["fog"]
+        );
         // The other waits for the second look; one called bad stays so.
         assert_eq!(ids(sentences::unreviewed(&conn).expect("list")), ["fire"]);
         // A word with no translation kept has nothing to go by.
-        assert_eq!(ids(sentences::bank(&conn, "peep").expect("bank")), ["lone"]);
+        assert_eq!(
+            ids(sentences::bank(&conn, "peep", None).expect("bank")),
+            ["lone"]
+        );
 
         sentences::review(&conn, "fire", false, &sentences::Labels::default()).expect("review");
-        assert_eq!(ids(sentences::bank(&conn, "wisp").expect("bank")), ["fog"]);
+        assert_eq!(
+            ids(sentences::bank(&conn, "wisp", None).expect("bank")),
+            ["fog"]
+        );
         assert_eq!(sentences::unreviewed(&conn).expect("list").len(), 0);
     }
 
@@ -565,7 +575,7 @@ mod tests {
         // Only the ones asked with whose list is not English.
         assert_eq!(listless(), ["meaning", "letter", "hint"]);
         // They are asked with meanwhile, with no rival known.
-        let bank = sentences::bank(&conn, "wisp").expect("bank");
+        let bank = sentences::bank(&conn, "wisp", None).expect("bank");
         assert_eq!(bank.len(), 5);
         assert_eq!(bank[0].also, ["curl", "puff"]);
         assert_eq!(bank[2].also, Vec::<String>::new());
@@ -602,7 +612,7 @@ mod tests {
 
         migrate(&conn).expect("migrate");
         // It is asked with as before: its hint alone, and no form known yet.
-        let bank = sentences::bank(&conn, "recede").expect("bank");
+        let bank = sentences::bank(&conn, "recede", None).expect("bank");
         assert_eq!(bank.len(), 1);
         assert_eq!(bank[0].also, ["withdrew"]);
         assert_eq!(bank[0].hints, Vec::<String>::new());
@@ -620,7 +630,7 @@ mod tests {
             verb_form: Some(crate::domain::VerbForm::Past),
         };
         sentences::label(&conn, "used", &labels).expect("label");
-        let bank = sentences::bank(&conn, "recede").expect("bank");
+        let bank = sentences::bank(&conn, "recede", None).expect("bank");
         assert_eq!(bank[0].hints, ["se retiró", "se alejó"]);
         assert_eq!(bank[0].verb_form, Some(crate::domain::VerbForm::Past));
         assert_eq!(sentences::unlabelled(&conn).expect("list").len(), 0);
@@ -1172,7 +1182,10 @@ mod tests {
             rows.collect::<rusqlite::Result<_>>().expect("key")
         };
         assert_eq!(keys("word_sentences"), ["sworn", "swore", "swear"]);
-        assert_eq!(sentences::bank(&conn, "swore").expect("bank").len(), 1);
+        assert_eq!(
+            sentences::bank(&conn, "swore", None).expect("bank").len(),
+            1
+        );
         assert_eq!(keys("word_events"), ["sworn"]);
         assert_eq!(keys("known_words"), ["recede", "receded"]);
         assert!(words::list(&conn, "c")
@@ -1314,5 +1327,114 @@ mod tests {
         assert_eq!(count("practice_sittings"), 0);
         assert_eq!(count("word_answers"), 0);
         assert_eq!(books::get_book(&conn, "b").expect("book").chapters.len(), 2);
+    }
+
+    #[test]
+    fn migration_thirty_nine_ties_each_sentence_to_the_chapter_whose_sense_it_shows() {
+        use rusqlite::OptionalExtension;
+        let conn = Connection::open_in_memory().expect("open");
+        conn.pragma_update(None, "foreign_keys", "ON")
+            .expect("keys");
+        for sql in &MIGRATIONS[..38] {
+            conn.execute_batch(sql).expect("migration");
+        }
+        conn.pragma_update(None, "user_version", 38)
+            .expect("version");
+        conn.execute_batch(
+            r#"INSERT INTO books VALUES ('cat', 'Cat', NULL, 'epub', 'h1', 'f1', '2026-01-01'),
+                                     ('pic', 'Picture', NULL, 'epub', 'h2', 'f2', '2026-01-01');
+             INSERT INTO book_chapters (id, book_id, idx, title, words, text)
+               VALUES ('c1', 'cat', 0, 'I', 4, 'The fuzzy cat slept. The fuzzy cat woke.'),
+                      ('c3', 'cat', 1, 'II', 4, 'A fuzzy dog barked.'),
+                      ('c2', 'pic', 0, 'I', 8, 'The picture was fuzzy. Fuzzy again, it was.');
+             INSERT INTO archived_books VALUES ('pic', '2026-01-05');
+             INSERT INTO chapter_words
+               (id, chapter_id, key, lemma, forms, sentence, occurrences, depth, created_at,
+                learned_at)
+             VALUES ('w1', 'c1', 'fuzzy', 'fuzzy', '["fuzzy"]', 'The fuzzy cat slept.',
+                     1, 'most', '2026-01-01', '2026-01-02'),
+                    ('w2', 'c2', 'fuzzy', 'fuzzy', '["fuzzy"]', 'The picture was fuzzy.',
+                     1, 'most', '2026-01-03', '2026-01-04');
+             INSERT INTO word_translations (word_id, text) VALUES ('w1', 'peludo'), ('w2', 'difuso');
+             INSERT INTO word_sentences
+               (id, key, source, sentence, form, hint, translation, reviewed, discarded,
+                created_at)
+             VALUES ('cat', 'fuzzy', 'book', 'The fuzzy cat slept.', 'fuzzy', 'peludo',
+                     'El gato peludo dormía.', 1, 0, '2026-01-01'),
+                    ('pic', 'fuzzy', 'book', 'The picture was fuzzy.', 'fuzzy', 'borrosa',
+                     'La imagen era borrosa.', 1, 0, '2026-01-02'),
+                    ('again', 'fuzzy', 'book', 'Fuzzy again, it was.', 'Fuzzy', 'borrosa',
+                     'Borrosa otra vez.', 1, 0, '2026-01-03'),
+                    ('fur', 'fuzzy', 'model', 'Its fuzzy fur shone.', 'fuzzy', 'peluda',
+                     'Su piel peluda brillaba.', 1, 0, '2026-01-04'),
+                    ('lost', 'fuzzy', 'model', 'Something fuzzy happened.', 'fuzzy', 'raro',
+                     'Pasó algo raro.', 1, 0, '2026-01-05'),
+                    ('refused', 'fuzzy', 'model', 'The fuzzy cat woke.', '', '',
+                     '', 1, 1, '2026-01-06'),
+                    ('dog', 'fuzzy', 'book', 'A fuzzy dog barked.', 'fuzzy', 'peludo',
+                     'Un perro peludo ladró.', 1, 0, '2026-01-07');
+             INSERT INTO practice_sittings (id, chapter_id, started_at)
+               VALUES ('s', 'c1', '2026-01-01');
+             INSERT INTO word_answers
+               (word_id, direction, sitting_id, answer, correct, created_at, sentence_id)
+             VALUES ('w1', 'recognition', 's', 'raro', 1, '2026-01-06', 'lost');"#,
+        )
+        .expect("rows");
+
+        migrate(&conn).expect("migrate");
+        let of = |id: &str| -> Option<(String, Option<String>)> {
+            conn.query_row(
+                "SELECT source, chapter_id FROM word_sentences WHERE id = ?1",
+                [id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .optional()
+            .expect("sentence")
+        };
+        let at = |source: &str, chapter: &str| Some((source.to_owned(), Some(chapter.to_owned())));
+        // By the chapter that has it, and by the translations its hint is.
+        assert_eq!(of("cat"), at("book", "c1"));
+        assert_eq!(of("fur"), at("model", "c1"));
+        // A refused sentence of the book is the book's: it is not asked again.
+        assert_eq!(of("refused"), at("book", "c1"));
+        // One that cannot be told apart goes; its answer stays, with none.
+        assert_eq!(of("lost"), None);
+        let answers: (i64, Option<String>) = conn
+            .query_row(
+                "SELECT COUNT(*), MAX(sentence_id) FROM word_answers",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .expect("answers");
+        assert_eq!(answers, (1, None));
+        // A deleted book keeps the sentence its word was learned with only.
+        assert_eq!(of("pic"), at("book", "c2"));
+        assert_eq!(of("again"), None);
+        // One of a chapter without the word came from another chapter: it
+        // goes, and the word's own chapter is read again.
+        assert_eq!(of("dog"), None);
+        // Looked at with another chapter's meaning: looked at again, with
+        // its own, before it is asked with.
+        let usable = sentences::bank(&conn, "fuzzy", None).expect("bank").len();
+        assert_eq!(usable, 0);
+        let waiting: Vec<(String, Option<String>)> = sentences::unreviewed(&conn)
+            .expect("unreviewed")
+            .into_iter()
+            .map(|each| (each.id, each.chapter_id))
+            .collect();
+        let chapter = |id: &str, at: &str| (id.to_owned(), Some(at.to_owned()));
+        assert_eq!(
+            waiting,
+            [
+                chapter("cat", "c1"),
+                chapter("pic", "c2"),
+                chapter("fur", "c1")
+            ]
+        );
+        let (lemma, meant) = sentences::meaning(&conn, "fuzzy", Some("c2")).expect("meaning");
+        assert_eq!(
+            (lemma.as_str(), meant),
+            ("fuzzy", vec!["difuso".to_owned()])
+        );
     }
 }

@@ -1,9 +1,12 @@
-//! Giving words the sentence they are asked with. A word that was never
-//! given one is given a sentence its book has it in, found here by code,
-//! and that once only: whatever comes of it, the word is not asked about
-//! again. No sentence is written for it: the model only says what the word
-//! is, in the form the sentence has it, in the learner's language, and
-//! translates the sentence.
+//! Giving words the sentences they are asked with. A word is given them by
+//! the chapter it is from, in the sense that chapter gives it: another book
+//! can mean something else by it. A word that was never given one in its
+//! chapter is given a sentence of that chapter that has it, found here by
+//! code, and that once only. The model says what the word is there, in the
+//! form the sentence has it, in the learner's language, and translates the
+//! sentence. It is also asked once to write [`WRITTEN`] sentences of its own
+//! in that chapter's sense. A chapter of a deleted book is not read again:
+//! only sentences written for it are asked for.
 //!
 //! The model labels, this code decides. A sentence is kept only if its hint
 //! does not give the word away and is words of its translation
@@ -35,12 +38,13 @@ use tauri::{AppHandle, Emitter};
 use super::profile::{agent, require_profile};
 use super::run;
 use crate::agent::protocol::{
-    BookGloss, ReviewedSentence, SentenceReviewParams, SentenceVerdict, SentenceVerdicts,
-    SentenceWord, SentenceWriteParams, SentencesWritten, WrittenWord,
+    BookGloss, NewSentence as Wrote, ReviewedSentence, SentenceReviewParams, SentenceVerdict,
+    SentenceVerdicts, SentenceWord, SentenceWriteParams, SentencesWritten, WrittenWord,
 };
 use crate::books::segment::{paragraphs, sentences as cut};
 use crate::books::sentences::{
-    found, hint_fits, in_translation, other_hints, shown_in, unaided, Banked, GIVEN, WORDS_PER_CALL,
+    fits, found, hint_fits, in_translation, other_hints, shown_in, unaided, Banked, GIVEN,
+    SENTENCE_CHARS, WORDS_PER_CALL,
 };
 use crate::books::variety::peninsular;
 use crate::db::recall::{self, Source};
@@ -52,6 +56,10 @@ use crate::Ctx;
 
 /// Sentences put to the second look in one request.
 const REVIEWED_PER_CALL: usize = 30;
+
+/// Sentences the model is asked to write for a word in a chapter's sense,
+/// the one time it is asked.
+pub const WRITTEN: u32 = 5;
 
 /// The two things the model is asked for; a stub in the tests.
 pub trait Model {
@@ -82,6 +90,7 @@ pub enum Scope<'a> {
 }
 
 /// A word that may be given sentences, with what glossing them takes.
+#[derive(Clone)]
 struct Wanted {
     key: String,
     lemma: String,
@@ -148,18 +157,17 @@ pub(super) fn banked(sentence: &Sentence, own: &str) -> Banked {
     }
 }
 
-/// The sentences of a chapter's book, its own chapter first.
-fn book_sentences(conn: &Connection, chapter_id: &str) -> Result<Vec<String>> {
+/// The sentences of a chapter: only its own show the sense it gives a word.
+fn chapter_sentences(conn: &Connection, chapter_id: &str) -> Result<Vec<String>> {
     let blocks = translate::lines_are_blocks(conn, chapter_id)?;
-    Ok(bank::book_texts(conn, chapter_id)?
+    Ok(paragraphs(&bank::chapter_text(conn, chapter_id)?, blocks)
         .iter()
-        .flat_map(|text| paragraphs(text, blocks))
-        .flat_map(|paragraph| cut(&paragraph))
+        .flat_map(|paragraph| cut(paragraph))
         .collect())
 }
 
-/// The sentences of the book the word is given, each with the form it has
-/// there: the one its chapter has it in, or when that one cannot ask it
+/// The sentences of its chapter the word is given, each with the form it
+/// has there: the one it was found in, or when that one cannot ask it
 /// another, not a piece of that one.
 fn in_book(word: &Wanted, book: &[(String, String)]) -> Vec<(String, String)> {
     let mut kept = found(std::slice::from_ref(&word.sense), &word.forms, GIVEN);
@@ -177,16 +185,25 @@ fn in_book(word: &Wanted, book: &[(String, String)]) -> Vec<(String, String)> {
     kept
 }
 
+/// A word with what it is due: to be read in its chapter, and how many
+/// sentences to be written for it.
+struct Due {
+    word: Wanted,
+    read: bool,
+    write: u32,
+}
+
 /// A word with the batch it is asked about.
 struct Asked {
     word: Wanted,
-    /// The sentences of the book in the batch, each with its form.
+    /// The sentences of its chapter in the batch, each with its form.
     book: Vec<(String, String)>,
     params: SentenceWord,
 }
 
-/// The word asked about these sentences of its book.
-fn asked_about(word: Wanted, from_book: Vec<(String, String)>) -> Asked {
+/// The word asked about these sentences of its chapter, and for `write`
+/// sentences of the model's own.
+fn asked_about(word: Wanted, from_book: Vec<(String, String)>, write: u32) -> Asked {
     Asked {
         params: SentenceWord {
             id: word.key.clone(),
@@ -198,18 +215,50 @@ fn asked_about(word: Wanted, from_book: Vec<(String, String)>) -> Asked {
                 .iter()
                 .map(|(sentence, _)| sentence.clone())
                 .collect(),
+            write,
         },
         book: from_book,
         word,
     }
 }
 
-/// What the word is asked about: the sentence of its book it is given.
-/// None when the book has none that can ask it: nothing is asked for that
-/// word.
-fn ask(word: Wanted, book: &[(String, String)]) -> Option<Asked> {
-    let from_book = in_book(&word, book);
-    (!from_book.is_empty()).then(|| asked_about(word, from_book))
+/// What the word is asked about: the sentence of its chapter it is given,
+/// when it is to be given one, and `write` sentences of the model's. None
+/// when that is nothing.
+fn ask(word: Wanted, chapter: Option<&[(String, String)]>, write: u32) -> Option<Asked> {
+    let from_book = chapter.map_or_else(Vec::new, |chapter| in_book(&word, chapter));
+    (!from_book.is_empty() || write > 0).then(|| asked_about(word, from_book, write))
+}
+
+/// Whether a form is one of the word: one its chapter writes, or one that
+/// starts as its base form does ("swore" is not, and is let go).
+fn of_word(form: &str, word: &Wanted) -> bool {
+    let form = form.to_lowercase();
+    let stem = |text: &str| text.chars().take(3).collect::<String>();
+    word.forms.iter().any(|each| each.to_lowercase() == form)
+        || stem(&form) == stem(&word.lemma.to_lowercase())
+}
+
+/// A sentence the model wrote, as it can be kept: one sentence short enough
+/// to read at a glance, with a form of the word in it exactly once, and a
+/// gloss that passes as one of the book does ([`gloss`]).
+fn written<'a>(
+    said: &'a Wrote,
+    word: &Wanted,
+    lang: &str,
+) -> Option<(&'a str, &'a str, String, &'a str)> {
+    let (sentence, form) = (said.sentence.trim(), said.form.trim());
+    let fit = !sentence.is_empty()
+        && sentence.chars().count() <= SENTENCE_CHARS
+        && fits(sentence, form)
+        && of_word(form, word);
+    let glossed = BookGloss {
+        index: 0,
+        hint: said.hint.clone(),
+        translation: said.translation.clone(),
+    };
+    let hint = gloss(&glossed, form, lang).map(|(hint, _)| hint)?;
+    fit.then_some((sentence, form, hint, said.translation.trim()))
 }
 
 /// What the model said of a sentence, as it can be kept: the hint, without
@@ -237,6 +286,9 @@ fn keep(
     now: DateTime<Utc>,
 ) -> Result<()> {
     let key = asked.word.key.as_str();
+    let Some(chapter) = asked.word.chapter.as_deref() else {
+        return Ok(());
+    };
     for gloss in &answer.book {
         let at = usize::try_from(gloss.index).unwrap_or(usize::MAX);
         let Some((sentence, form)) = asked.book.get(at) else {
@@ -245,6 +297,7 @@ fn keep(
         if let Some((hint, translation)) = self::gloss(gloss, form, lang) {
             let new = NewSentence {
                 key,
+                chapter: Some(chapter),
                 book: true,
                 sentence,
                 form,
@@ -256,7 +309,22 @@ fn keep(
     }
     // A sentence of the book the model said nothing of is not asked again.
     for (sentence, _) in &asked.book {
-        bank::refuse(conn, key, sentence, now)?;
+        bank::refuse(conn, (key, chapter), sentence, now)?;
+    }
+    let wanted = usize::try_from(asked.params.write).unwrap_or(usize::MAX);
+    for said in answer.written.iter().take(wanted) {
+        if let Some((sentence, form, hint, translation)) = written(said, &asked.word, lang) {
+            let new = NewSentence {
+                key,
+                chapter: Some(chapter),
+                book: false,
+                sentence,
+                form,
+                hint: &hint,
+                translation,
+            };
+            bank::add(conn, &new, now)?;
+        }
     }
     Ok(())
 }
@@ -273,9 +341,10 @@ fn labels(
         chunk
             .iter()
             .map(|each| {
-                let (lemma, meaning) = bank::meaning(&conn, &each.key)?;
+                let (lemma, meaning) = bank::meaning(&conn, &each.key, each.chapter_id.as_deref())?;
                 Ok(ReviewedSentence {
                     id: each.id.clone(),
+                    from_book: each.book,
                     lemma,
                     meaning,
                     sentence: each.text.clone(),
@@ -332,7 +401,7 @@ fn look(ctx: Ctx<'_>, model: &mut dyn Model, native_lang: &str) -> Result<()> {
         for each in chunk {
             let label = labels.get(&each.id);
             let good = label.is_some_and(|label| label.good);
-            let (_, base) = bank::meaning(&conn, &each.key)?;
+            let (_, base) = bank::meaning(&conn, &each.key, each.chapter_id.as_deref())?;
             bank::review(
                 &conn,
                 &each.id,
@@ -354,7 +423,7 @@ fn label(ctx: Ctx<'_>, model: &mut dyn Model, native_lang: &str) -> Result<()> {
         let labels = labels(ctx, model, native_lang, chunk)?;
         let conn = ctx.conn()?;
         for each in chunk {
-            let (_, base) = bank::meaning(&conn, &each.key)?;
+            let (_, base) = bank::meaning(&conn, &each.key, each.chapter_id.as_deref())?;
             let labels = kept(labels.get(&each.id), each, (&base, native_lang));
             bank::label(&conn, &each.id, &labels)?;
         }
@@ -374,7 +443,7 @@ struct Outdated {
 
 /// The sentences of a word's bank to be glossed again, if any.
 fn outdated(conn: &Connection, word: Wanted, lang: &str) -> Result<Option<Outdated>> {
-    let sentences: Vec<Sentence> = bank::bank(conn, &word.key)?
+    let sentences: Vec<Sentence> = bank::bank(conn, &word.key, word.chapter.as_deref())?
         .into_iter()
         .filter(|each| {
             !shown_in(&each.hint, &each.translation, lang) || peninsular(&each.translation, lang)
@@ -388,7 +457,7 @@ fn outdated(conn: &Connection, word: Wanted, lang: &str) -> Result<Option<Outdat
         .map(|each| (each.text.clone(), each.form.clone()))
         .collect();
     Ok(Some(Outdated {
-        asked: asked_about(word, book),
+        asked: asked_about(word, book, 0),
         sentences,
     }))
 }
@@ -439,7 +508,7 @@ fn renew(ctx: Ctx<'_>, model: &mut dyn Model, native_lang: &str, batch: &[Outdat
     for each in &glossed {
         let label = labels.get(&each.id);
         if label.is_some_and(|label| label.good) {
-            let (_, base) = bank::meaning(&conn, &each.key)?;
+            let (_, base) = bank::meaning(&conn, &each.key, each.chapter_id.as_deref())?;
             bank::regloss(&conn, each, &kept(label, each, (&base, native_lang)))?;
         } else {
             bank::discard(&conn, &each.id)?;
@@ -472,32 +541,48 @@ pub fn top_up(
     let mut stale: Vec<Outdated> = Vec::new();
     {
         let conn = ctx.conn()?;
-        // By the chapter they are from: the words of one book share its text.
-        let mut groups: Vec<(String, Vec<Wanted>)> = Vec::new();
+        // By the chapter they are from: the words of one chapter share its
+        // text. Each is to be read in it, or written for, or neither.
+        let mut groups: Vec<(String, Vec<Due>)> = Vec::new();
         for word in wanted(&conn, scope)? {
             // A word of a conversation is of no book: it has no sentence.
             let Some(chapter) = word.chapter.clone() else {
                 continue;
             };
-            if bank::given(&conn, &word.key)? {
-                stale.extend(outdated(&conn, word, &profile.native_lang)?);
+            let given = bank::given(&conn, &word.key, &chapter)?;
+            let read = !given && !bank::archived(&conn, &chapter)?;
+            let write = if bank::written(&conn, &word.key, &chapter)? {
+                0
+            } else {
+                WRITTEN
+            };
+            if given {
+                stale.extend(outdated(&conn, word.clone(), &profile.native_lang)?);
+            }
+            if !read && write == 0 {
                 continue;
             }
+            let due = Due { word, read, write };
             match groups.iter_mut().find(|(held, _)| *held == chapter) {
-                Some((_, words)) => words.push(word),
-                None => groups.push((chapter, vec![word])),
+                Some((_, words)) => words.push(due),
+                None => groups.push((chapter, vec![due])),
             }
         }
         for (chapter, words) in groups {
-            let book: Vec<(String, String)> = book_sentences(&conn, &chapter)?
-                .into_iter()
-                .map(|sentence| {
-                    let lower = sentence.to_lowercase();
-                    (sentence, lower)
-                })
-                .collect();
-            for word in words {
-                asked.extend(ask(word, &book));
+            let text: Vec<(String, String)> = if words.iter().any(|due| due.read) {
+                chapter_sentences(&conn, &chapter)?
+                    .into_iter()
+                    .map(|sentence| {
+                        let lower = sentence.to_lowercase();
+                        (sentence, lower)
+                    })
+                    .collect()
+            } else {
+                Vec::new()
+            };
+            for due in words {
+                let chapter = due.read.then_some(text.as_slice());
+                asked.extend(ask(due.word, chapter, due.write));
             }
         }
     }
@@ -519,6 +604,10 @@ pub fn top_up(
                 let answer = written.words.iter().find(|word| word.id == each.word.key);
                 if let Some(answer) = answer {
                     keep(&tx, (each, answer), &profile.native_lang, now)?;
+                }
+                // Asked once to write, whatever it wrote.
+                if let (Some(chapter), true) = (&each.word.chapter, each.params.write > 0) {
+                    bank::wrote(&tx, &each.word.key, chapter, now)?;
                 }
             }
             tx.commit()?;
@@ -583,6 +672,25 @@ pub mod tests {
         pub reviews: usize,
         /// The second look fails this many times before it answers.
         pub review_fails: usize,
+        /// It writes the sentences asked for ([`penned`]); none otherwise.
+        pub pen: bool,
+    }
+
+    /// The `at`th sentence the stub writes for a word: the word once in it.
+    pub fn penned(lemma: &str, at: u32) -> String {
+        format!("Story {at}: the {lemma} was there.")
+    }
+
+    /// The chapter that has the word of `key`, the first one.
+    pub fn chapter_having(conn: &Connection, key: &str) -> Option<String> {
+        use rusqlite::OptionalExtension;
+        conn.query_row(
+            "SELECT chapter_id FROM chapter_words WHERE key = ?1 ORDER BY created_at, id LIMIT 1",
+            [key],
+            |row| row.get(0),
+        )
+        .optional()
+        .expect("chapter")
     }
 
     pub fn hint(lemma: &str) -> String {
@@ -612,6 +720,14 @@ pub mod tests {
                 .iter()
                 .map(|word| WrittenWord {
                     id: word.id.clone(),
+                    written: (0..if self.pen { word.write } else { 0 })
+                        .map(|at| Wrote {
+                            sentence: penned(&word.lemma, at),
+                            form: word.lemma.clone(),
+                            hint: hint(&word.lemma),
+                            translation: format!("{} escrita {at}", hint(&word.lemma)),
+                        })
+                        .collect(),
                     book: (0..word.book.len())
                         .map(|index| BookGloss {
                             index: u32::try_from(index).expect("small"),
@@ -660,7 +776,7 @@ pub mod tests {
     }
 
     fn texts(desk: &Desk, key: &str) -> Vec<String> {
-        bank::bank(&desk.db.lock().expect("db"), key)
+        bank::bank(&desk.db.lock().expect("db"), key, None)
             .expect("bank")
             .into_iter()
             .map(|sentence| sentence.text)
@@ -680,8 +796,10 @@ pub mod tests {
     fn old_bank(desk: &Desk, key: &str, sentences: &[(&str, &str)]) {
         let conn = desk.db.lock().expect("db");
         for (at, (sentence, form)) in sentences.iter().enumerate() {
+            let there = chapter_having(&conn, key);
             let new = NewSentence {
                 key,
+                chapter: there.as_deref(),
                 book: true,
                 sentence,
                 form,
@@ -689,6 +807,10 @@ pub mod tests {
                 translation: &translation(key, at + 1),
             };
             bank::add(&conn, &new, Utc::now()).expect("add");
+            // Written for before: what is asked here is something else.
+            if let Some(chapter) = new.chapter {
+                bank::wrote(&conn, new.key, chapter, Utc::now()).expect("wrote");
+            }
         }
         for waiting in bank::unreviewed(&conn).expect("waiting") {
             bank::review(&conn, &waiting.id, true, &Labels::default()).expect("review");
@@ -724,7 +846,7 @@ pub mod tests {
         assert_eq!(asked.words[1].book, ["A sentence with w01."]);
 
         assert_eq!(texts(&desk, "w00"), ["A sentence with w00."]);
-        let own = &bank::bank(&desk.db.lock().expect("db"), "w00").expect("bank")[0];
+        let own = &bank::bank(&desk.db.lock().expect("db"), "w00", None).expect("bank")[0];
         assert!(own.book);
         assert_eq!(
             (
@@ -797,7 +919,7 @@ pub mod tests {
 
         let stub = stock(&desk, &chapter);
         assert_eq!((stub.writes.len(), stub.reviews), (0, 1));
-        let bank = bank::bank(&desk.db.lock().expect("db"), "peep").expect("bank");
+        let bank = bank::bank(&desk.db.lock().expect("db"), "peep", None).expect("bank");
         let also: Vec<&[String]> = bank.iter().map(|each| each.also.as_slice()).collect();
         assert_eq!(also, [["peepish"], ["peepish"]]);
 
@@ -810,7 +932,7 @@ pub mod tests {
             .expect("old rows");
         let stub = stock(&desk, &chapter);
         assert_eq!((stub.writes.len(), stub.reviews), (0, 1));
-        let bank = bank::bank(&desk.db.lock().expect("db"), "peep").expect("bank");
+        let bank = bank::bank(&desk.db.lock().expect("db"), "peep", None).expect("bank");
         for each in &bank {
             assert_eq!(each.hints, ["se peepó"]);
             assert_eq!(each.verb_form, Some(VerbForm::Past));
@@ -832,6 +954,7 @@ pub mod tests {
                 Ok(SentencesWritten {
                     words: vec![WrittenWord {
                         id: params.words[0].id.clone(),
+                        written: Vec::new(),
                         // The hint gives the word away.
                         book: vec![BookGloss {
                             index: 0,
@@ -895,8 +1018,10 @@ pub mod tests {
     /// translation: the hint in the form of the English word.
     fn kept_apart(desk: &Desk, sentence: &str) -> Sentence {
         let conn = desk.db.lock().expect("db");
+        let there = chapter_having(&conn, "peep");
         let new = NewSentence {
             key: "peep",
+            chapter: there.as_deref(),
             book: true,
             sentence,
             form: "peeped",
@@ -904,6 +1029,10 @@ pub mod tests {
             translation: "Demasiado alto para asomarse.",
         };
         bank::add(&conn, &new, Utc::now()).expect("add");
+        // Written for before: what is asked here is something else.
+        if let Some(chapter) = new.chapter {
+            bank::wrote(&conn, new.key, chapter, Utc::now()).expect("wrote");
+        }
         let waiting = bank::unreviewed(&conn).expect("waiting").remove(0);
         let labels = Labels {
             also: vec!["peered".into()],
@@ -935,7 +1064,7 @@ pub mod tests {
         assert_eq!(stub.writes[0].words[0].book, ["He peeped at it."]);
         // The same sentence, with the answer given to it, and what it is
         // now said to be.
-        let [new] = bank::bank(&desk.db.lock().expect("db"), "peep")
+        let [new] = bank::bank(&desk.db.lock().expect("db"), "peep", None)
             .expect("bank")
             .try_into()
             .expect("one sentence");
@@ -985,8 +1114,10 @@ pub mod tests {
         let chapter = chapter_of(&desk, text, &[peep()]);
         let old = {
             let conn = desk.db.lock().expect("db");
+            let there = chapter_having(&conn, "peep");
             let new = NewSentence {
                 key: "peep",
+                chapter: there.as_deref(),
                 book: true,
                 sentence: text,
                 form: "peeped",
@@ -994,6 +1125,10 @@ pub mod tests {
                 translation: "Os asomasteis.",
             };
             bank::add(&conn, &new, Utc::now()).expect("add");
+            // Written for before: what is asked here is something else.
+            if let Some(chapter) = new.chapter {
+                bank::wrote(&conn, new.key, chapter, Utc::now()).expect("wrote");
+            }
             let waiting = bank::unreviewed(&conn).expect("waiting").remove(0);
             bank::review(&conn, &waiting.id, true, &Labels::default()).expect("review");
             waiting
@@ -1001,7 +1136,7 @@ pub mod tests {
 
         let stub = stock(&desk, &chapter);
         assert_eq!((stub.writes.len(), stub.reviews), (1, 1));
-        let [new] = bank::bank(&desk.db.lock().expect("db"), "peep")
+        let [new] = bank::bank(&desk.db.lock().expect("db"), "peep", None)
             .expect("bank")
             .try_into()
             .expect("one sentence");
@@ -1027,8 +1162,10 @@ pub mod tests {
         // As a chapter prepared before this was asked for kept it.
         {
             let conn = desk.db.lock().expect("db");
+            let there = chapter_having(&conn, "make a point of");
             let new = NewSentence {
                 key: "make a point of",
+                chapter: there.as_deref(),
                 book: true,
                 sentence: text,
                 form: "made a point of",
@@ -1036,6 +1173,10 @@ pub mod tests {
                 translation: "Me había empeñado en fumar.",
             };
             bank::add(&conn, &new, Utc::now()).expect("add");
+            // Written for before: what is asked here is something else.
+            if let Some(chapter) = new.chapter {
+                bank::wrote(&conn, new.key, chapter, Utc::now()).expect("wrote");
+            }
             let waiting = bank::unreviewed(&conn).expect("waiting").remove(0);
             let labels = Labels {
                 also: Vec::new(),
@@ -1047,7 +1188,7 @@ pub mod tests {
 
         let stub = stock(&desk, &chapter);
         assert_eq!((stub.writes.len(), stub.reviews), (0, 0));
-        let [kept] = bank::bank(&desk.db.lock().expect("db"), "make a point of")
+        let [kept] = bank::bank(&desk.db.lock().expect("db"), "make a point of", None)
             .expect("bank")
             .try_into()
             .expect("one sentence");
@@ -1077,8 +1218,10 @@ pub mod tests {
         // As the chapter of the screenshot kept it, looked at and labelled.
         {
             let conn = desk.db.lock().expect("db");
+            let there = chapter_having(&conn, "stand a chance");
             let new = NewSentence {
                 key: "stand a chance",
+                chapter: there.as_deref(),
                 book: true,
                 sentence: text,
                 form: "stand a chance",
@@ -1086,6 +1229,10 @@ pub mod tests {
                 translation: "Y la pobre y tonta Donut no tendría ninguna oportunidad aquí fuera, con este frío.",
             };
             bank::add(&conn, &new, Utc::now()).expect("add");
+            // Written for before: what is asked here is something else.
+            if let Some(chapter) = new.chapter {
+                bank::wrote(&conn, new.key, chapter, Utc::now()).expect("wrote");
+            }
             let waiting = bank::unreviewed(&conn).expect("waiting").remove(0);
             let labels = Labels {
                 also: Vec::new(),
@@ -1098,7 +1245,7 @@ pub mod tests {
         let stub = stock(&desk, &chapter);
         // Nothing is glossed again for a hint its translation reads without "no".
         assert_eq!((stub.writes.len(), stub.reviews), (0, 0));
-        let [kept] = bank::bank(&desk.db.lock().expect("db"), "stand a chance")
+        let [kept] = bank::bank(&desk.db.lock().expect("db"), "stand a chance", None)
             .expect("bank")
             .try_into()
             .expect("one sentence");
@@ -1114,8 +1261,10 @@ pub mod tests {
         let dir = tempfile::tempdir().expect("tempdir");
         let desk = Desk::new(&dir);
         let conn = desk.db.lock().expect("db");
+        let there = chapter_having(&conn, "see");
         let new = NewSentence {
             key: "see",
+            chapter: there.as_deref(),
             book: true,
             sentence: "He had not seen it.",
             form: "seen",
@@ -1123,6 +1272,10 @@ pub mod tests {
             translation: "No lo había visto.",
         };
         bank::add(&conn, &new, Utc::now()).expect("add");
+        // Written for before: what is asked here is something else.
+        if let Some(chapter) = new.chapter {
+            bank::wrote(&conn, new.key, chapter, Utc::now()).expect("wrote");
+        }
         let waiting = bank::unreviewed(&conn).expect("waiting").remove(0);
         let labels = Labels {
             also: Vec::new(),
@@ -1131,7 +1284,7 @@ pub mod tests {
         };
         bank::review(&conn, &waiting.id, true, &labels).expect("review");
         assert_eq!(bank::unaid(&conn, "es").expect("unaid"), 1);
-        let [kept] = bank::bank(&conn, "see")
+        let [kept] = bank::bank(&conn, "see", None)
             .expect("bank")
             .try_into()
             .expect("one sentence");
@@ -1145,8 +1298,10 @@ pub mod tests {
         let desk = Desk::new(&dir);
         let text = "And poor, stupid Donut wouldn’t stand a chance out here in the cold.";
         let conn = desk.db.lock().expect("db");
+        let there = chapter_having(&conn, "stand a chance");
         let new = NewSentence {
             key: "stand a chance",
+            chapter: there.as_deref(),
             book: true,
             sentence: text,
             form: "stand a chance",
@@ -1154,6 +1309,10 @@ pub mod tests {
             translation: "Y la pobre y tonta Donut no tendría ninguna oportunidad aquí fuera.",
         };
         bank::add(&conn, &new, Utc::now()).expect("add");
+        // Written for before: what is asked here is something else.
+        if let Some(chapter) = new.chapter {
+            bank::wrote(&conn, new.key, chapter, Utc::now()).expect("wrote");
+        }
         assert_eq!(bank::unaid(&conn, "es").expect("unaid"), 0);
         let waiting = bank::unreviewed(&conn).expect("waiting").remove(0);
         assert_eq!(waiting.hint, "tendría ninguna oportunidad");
@@ -1394,6 +1553,7 @@ pub mod tests {
         assert!(words::put_also(&conn, &id, &asked, &none).expect("also"));
         let new = NewSentence {
             key: form,
+            chapter: Some(&chapter),
             book: true,
             sentence: text,
             form,
@@ -1401,6 +1561,10 @@ pub mod tests {
             translation,
         };
         bank::add(&conn, &new, Utc::now()).expect("add");
+        // Written for before: what is asked here is something else.
+        if let Some(chapter) = new.chapter {
+            bank::wrote(&conn, new.key, chapter, Utc::now()).expect("wrote");
+        }
         let waiting = bank::unreviewed(&conn).expect("waiting").remove(0);
         bank::review(&conn, &waiting.id, true, &Labels::default()).expect("review");
         drop(conn);
@@ -2012,8 +2176,10 @@ pub mod tests {
         let chapter = chapter_of(&desk, text, &[peep()]);
         {
             let conn = desk.db.lock().expect("db");
+            let there = chapter_having(&conn, "peep");
             let new = NewSentence {
                 key: "peep",
+                chapter: there.as_deref(),
                 book: true,
                 sentence: text,
                 form: "Peeped",
@@ -2021,6 +2187,10 @@ pub mod tests {
                 translation: "Asomó, eso hizo.",
             };
             bank::add(&conn, &new, Utc::now()).expect("add");
+            // Written for before: what is asked here is something else.
+            if let Some(chapter) = new.chapter {
+                bank::wrote(&conn, new.key, chapter, Utc::now()).expect("wrote");
+            }
             for waiting in bank::unreviewed(&conn).expect("waiting") {
                 bank::review(&conn, &waiting.id, true, &Labels::default()).expect("review");
             }
@@ -2442,5 +2612,253 @@ pub mod tests {
         let right = say("peeped", true);
         assert!(right.correct && right.helped);
         assert_eq!(right.another, None);
+    }
+
+    // ── a word's sense is its chapter's ───────────────────────────────────
+
+    /// "fuzzy" as a book about a cat has it.
+    fn furry() -> Word {
+        Word {
+            sentence: "The fuzzy cat slept.".into(),
+            ..word("fuzzy", &["peludo"], 1)
+        }
+    }
+
+    /// "fuzzy" as a book about a picture has it.
+    fn blurred() -> Word {
+        Word {
+            sentence: "The picture was fuzzy.".into(),
+            ..word("fuzzy", &["difuso"], 1)
+        }
+    }
+
+    /// A book about a cat whose second chapter has "fuzzy" too, unprepared,
+    /// and one about a picture: its chapters, [cat 1, cat 2, picture].
+    fn two_books(desk: &Desk, picture: &Word) -> [String; 3] {
+        let conn = desk.db.lock().expect("db");
+        let cat = words::tests::book(
+            &conn,
+            "cat",
+            &["The fuzzy cat slept.", "A fuzzy dog barked."],
+        );
+        let other = words::tests::book(&conn, "picture", &["The picture was fuzzy."]);
+        let depth = crate::domain::Depth::Most;
+        words::finish(&conn, &cat[0], depth, &[furry()], t0()).expect("words");
+        words::finish(&conn, &other[0], depth, std::slice::from_ref(picture), t0()).expect("words");
+        [cat[0].clone(), cat[1].clone(), other[0].clone()]
+    }
+
+    /// The sentences "fuzzy" can be asked with in a chapter.
+    fn fuzzy_in(desk: &Desk, chapter: &str) -> Vec<Sentence> {
+        bank::bank(&desk.db.lock().expect("db"), "fuzzy", Some(chapter)).expect("bank")
+    }
+
+    /// Every word of every chapter learned at `t0`.
+    fn learn_all(desk: &Desk) {
+        let at = crate::db::ts(t0());
+        desk.db
+            .lock()
+            .expect("db")
+            .execute(
+                "UPDATE chapter_words SET done_at = ?1, learned_at = ?1",
+                [&at],
+            )
+            .expect("learn");
+    }
+
+    #[test]
+    fn a_chapter_gives_its_word_sentences_of_its_own_and_of_no_other() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let desk = Desk::new(&dir);
+        let [cat, _, picture] = two_books(&desk, &blurred());
+        let stub = stock(&desk, &cat);
+        // Not the second chapter of the same book: it may mean another thing.
+        assert_eq!(stub.writes[0].words[0].book, ["The fuzzy cat slept."]);
+        // A word given a sentence in one book is still given one in another.
+        assert_eq!(stock(&desk, &picture).writes.len(), 1);
+        let texts = |chapter: &str| -> Vec<String> {
+            fuzzy_in(&desk, chapter)
+                .into_iter()
+                .map(|each| each.text)
+                .collect()
+        };
+        assert_eq!(texts(&cat), ["The fuzzy cat slept."]);
+        assert_eq!(texts(&picture), ["The picture was fuzzy."]);
+    }
+
+    #[test]
+    fn the_model_writes_sentences_once_in_the_sense_of_the_chapter() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let desk = Desk::new(&dir);
+        let [cat, ..] = two_books(&desk, &blurred());
+        let mut stub = Stub {
+            pen: true,
+            ..Stub::default()
+        };
+        top_up(desk.ctx(), Scope::Chapter(&cat), &mut stub, &|_, _| {}).expect("top up");
+        let asked = &stub.writes[0].words[0];
+        assert_eq!(
+            (asked.write, asked.sense.as_str()),
+            (WRITTEN, "The fuzzy cat slept.")
+        );
+        let bank = fuzzy_in(&desk, &cat);
+        assert_eq!(bank.iter().filter(|each| !each.book).count(), 5);
+        assert!(bank
+            .iter()
+            .all(|each| each.chapter_id.as_deref() == Some(cat.as_str())));
+        assert_eq!(stock(&desk, &cat).writes.len(), 0, "asked once");
+    }
+
+    #[test]
+    fn a_written_sentence_without_the_word_once_is_not_kept() {
+        let word = Wanted {
+            key: "fuzzy".into(),
+            lemma: "fuzzy".into(),
+            part_of_speech: None,
+            translations: vec!["peludo".into()],
+            sense: "The fuzzy cat slept.".into(),
+            forms: vec!["fuzzy".into()],
+            chapter: None,
+        };
+        let said = |sentence: &str, form: &str| Wrote {
+            sentence: sentence.into(),
+            form: form.into(),
+            hint: "peluda".into(),
+            translation: "Una manta peluda.".into(),
+        };
+        assert!(written(&said("A fuzzy blanket.", "fuzzy"), &word, "es").is_some());
+        assert!(written(&said("A fuzzy, fuzzy blanket.", "fuzzy"), &word, "es").is_none());
+        assert!(written(&said("A soft blanket.", "soft"), &word, "es").is_none());
+        let long = format!("A fuzzy {}.", "very ".repeat(60));
+        assert!(written(&said(&long, "fuzzy"), &word, "es").is_none());
+    }
+
+    #[test]
+    fn a_word_another_book_means_otherwise_shows_its_sentence_from_the_start() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let desk = Desk::new(&dir);
+        let [cat, _, picture] = two_books(&desk, &blurred());
+        stock(&desk, &cat);
+        stock(&desk, &picture);
+        let sitting = desk.start(&cat, t0());
+        let asked = item(&sitting.step);
+        let sentence = sentence_of(&desk, asked);
+        assert_eq!(sentence.chapter_id.as_deref(), Some(cat.as_str()));
+        assert!(asked.context.is_some() || asked.native_context.is_some());
+    }
+
+    #[test]
+    fn a_word_every_book_means_alike_is_asked_without_its_sentence() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let desk = Desk::new(&dir);
+        let alike = Word {
+            sentence: "The picture was fuzzy.".into(),
+            ..word("fuzzy", &["Peludo"], 1)
+        };
+        let [cat, _, picture] = two_books(&desk, &alike);
+        stock(&desk, &cat);
+        stock(&desk, &picture);
+        let sitting = desk.start(&cat, t0());
+        let asked = item(&sitting.step);
+        assert!(asked.sentence_id.is_some());
+        assert_eq!((&asked.context, &asked.native_context), (&None, &None));
+    }
+
+    #[test]
+    fn the_recall_judges_by_the_sense_of_its_sentence_and_another_books_is_no_miss() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let desk = Desk::new(&dir);
+        let [cat, _, picture] = two_books(&desk, &blurred());
+        stock(&desk, &cat);
+        stock(&desk, &picture);
+        learn_all(&desk);
+        let later = t0() + TimeDelta::days(1);
+        let run = recall::start(desk.ctx(), Ways::Recognition, later).expect("start");
+        let RecallStep::Item { item: asked, .. } = run.step.clone() else {
+            panic!("a word is due")
+        };
+        assert!(asked.context.is_some(), "the senses differ: it shows");
+        let sentence = sentence_of(&desk, &asked);
+        let (other, book) = if sentence.chapter_id.as_deref() == Some(cat.as_str()) {
+            ("difuso", "picture")
+        } else {
+            ("peludo", "cat")
+        };
+        let shown = Shown {
+            sentence_id: asked.sentence_id.as_deref(),
+            ..Shown::default()
+        };
+        let say = |text: &str| {
+            recall::answer_shown(desk.ctx(), &run.id, "fuzzy", (text, shown), later)
+                .expect("answer")
+        };
+        let told = say(other);
+        assert_eq!(
+            (told.again, told.correct, told.other_sense.as_deref()),
+            (true, false, Some(book))
+        );
+        assert_eq!(desk.count("SELECT COUNT(*) FROM word_events"), 0, "no miss");
+        let right = say(&sentence.hint);
+        assert!(right.correct);
+        assert_eq!(right.other_sense, None);
+    }
+
+    #[test]
+    fn a_deleted_book_keeps_only_the_sentence_a_word_was_learned_with_and_those_written() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let desk = Desk::new(&dir);
+        let [cat, ..] = two_books(&desk, &blurred());
+        let mut stub = Stub {
+            pen: true,
+            ..Stub::default()
+        };
+        top_up(desk.ctx(), Scope::Chapter(&cat), &mut stub, &|_, _| {}).expect("top up");
+        {
+            let conn = desk.db.lock().expect("db");
+            let new = NewSentence {
+                key: "fuzzy",
+                chapter: Some(&cat),
+                book: true,
+                sentence: "Its fuzzy tail moved.",
+                form: "fuzzy",
+                hint: "peluda",
+                translation: "Su cola peluda se movió.",
+            };
+            bank::add(&conn, &new, Utc::now()).expect("add");
+            let waiting = bank::unreviewed(&conn).expect("waiting").remove(0);
+            bank::review(&conn, &waiting.id, true, &Labels::default()).expect("review");
+        }
+        // Only the cat's: the recall asks it as that chapter has it.
+        desk.db
+            .lock()
+            .expect("db")
+            .execute(
+                "UPDATE chapter_words SET done_at = ?1, learned_at = ?1 WHERE chapter_id = ?2",
+                [crate::db::ts(t0()), cat.clone()],
+            )
+            .expect("learn");
+        assert_eq!(fuzzy_in(&desk, &cat).len(), 7);
+        crate::db::books::archive_book(&desk.db.lock().expect("db"), "cat", t0()).expect("archive");
+        let kept: Vec<(bool, String)> = fuzzy_in(&desk, &cat)
+            .into_iter()
+            .map(|each| (each.book, each.text))
+            .collect();
+        assert_eq!(kept.len(), 6);
+        assert!(kept.contains(&(true, "The fuzzy cat slept.".to_owned())));
+        assert!(!kept.iter().any(|(_, text)| text == "Its fuzzy tail moved."));
+
+        // Its chapter is not read again, but what it was never written is.
+        let mut stub = Stub::default();
+        top_up(desk.ctx(), Scope::Recall, &mut stub, &|_, _| {}).expect("top up");
+        assert_eq!(stub.writes.len(), 0);
+        desk.db
+            .lock()
+            .expect("db")
+            .execute_batch("DELETE FROM word_sentences; DELETE FROM sentence_writes;")
+            .expect("forget");
+        let mut stub = Stub::default();
+        top_up(desk.ctx(), Scope::Recall, &mut stub, &|_, _| {}).expect("top up");
+        let asked = &stub.writes[0].words[0];
+        assert_eq!((asked.book.len(), asked.write), (0, WRITTEN));
     }
 }

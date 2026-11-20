@@ -643,6 +643,8 @@ export const es: Catalog<typeof en> = {
       baseForm:
         "Es la palabra, pero la pido en su forma base: el infinitivo. Prueba otra vez.",
       otherWord: "Es correcto, pero aquí busco otra palabra. Prueba otra vez.",
+      otherSense:
+        "Eso significa en «{{book}}». Esta frase la usa con otro significado: léela y prueba otra vez.",
       otherKind:
         "Recuerda: busco «{{asked}}»{{form}}, no «{{given}}». {{title}}: {{meaning}} Prueba otra vez.",
       exact: "En esta frase:",
@@ -727,6 +729,9 @@ export const es: Catalog<typeof en> = {
       writing:
         "Preparando las frases del libro: {{done}} de {{total}} palabras",
       bar: "Frases del libro",
+      readying: "Preparando las frases de tus palabras…",
+      failed:
+        "No se pudieron preparar las frases ({{message}}). Puedes practicar: las palabras sin frase se preguntan sin ella.",
     },
     refresh: {
       start: "Repaso rápido antes de leer",

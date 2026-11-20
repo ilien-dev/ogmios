@@ -12,6 +12,10 @@ import {
   seedMockUnlabelled,
   setMockChapterRefusal,
 } from "@/lib/ipcMockChapters";
+import {
+  holdMockSentences,
+  setMockSentencesFail,
+} from "@/lib/ipcMockSentences";
 import { setMockWordKnown } from "@/lib/ipcMockWords";
 import { useMockBackend } from "@/test/mockBackend";
 import { BooksScreen } from "./BooksScreen";
@@ -393,5 +397,30 @@ describe("ChapterScreen", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Este capítulo no está en inglés, así que Ogmios no puede preparar sus palabras.",
     );
+  });
+
+  test("practice waits for the words' sentences to be prepared", async () => {
+    const release = holdMockSentences();
+    const user = userEvent.setup();
+    await openChapter(user, "I. Down the Rabbit-Hole");
+    const practise = await screen.findByRole("button", { name: "Practice" });
+    expect(practise).toBeDisabled();
+    expect(
+      screen.getByText("Preparing your words' sentences…"),
+    ).toBeInTheDocument();
+    release();
+    await waitFor(() => {
+      expect(practise).toBeEnabled();
+    });
+  });
+
+  test("sentences that cannot be prepared let practice start, and say so", async () => {
+    setMockSentencesFail("no key");
+    const user = userEvent.setup();
+    await openChapter(user, "I. Down the Rabbit-Hole");
+    expect(
+      await screen.findByText(/sentences could not be prepared/),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Practice" })).toBeEnabled();
   });
 });

@@ -911,6 +911,11 @@ export interface RecallAnswer extends SentenceVerdict {
   step: RecallStep;
   /** Names this answer, for calling its sentence bad. */
   answerId: number;
+  /**
+   * The answer is what the word means in the book of this title, not in the
+   * sentence shown: no miss, one more try.
+   */
+  otherSense: string | null;
 }
 
 /** Which way a chapter is translated: into the learner's language, or back. */
