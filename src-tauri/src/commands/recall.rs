@@ -19,15 +19,14 @@ use chrono::{DateTime, Utc};
 use rusqlite::Connection;
 use tauri::AppHandle;
 
+use super::ladder::{on_steps, rise, Climb, ALONE, SHOWN};
 use super::practice::{
     all_small, another, asked_with, climb, clue, in_place, item, judged, next_sentence, plain,
-    shown_sentence, small, telling, whole, Judged, Meaning, Shown, Tries,
+    shown_sentence, small, whole, Judged, Meaning, Shown, Tries,
 };
 use super::profile::require_profile;
 use super::run;
-use crate::books::practice::{
-    accepts_english, accepts_native, inflects, pass_progress, pick, seed,
-};
+use crate::books::practice::{accepts_english, pass_progress, pick, seed};
 use crate::books::sentences::{or_other, Verdict};
 use crate::books::spelling::Spelling;
 use crate::db::practice::WordRow;
@@ -52,10 +51,24 @@ fn asks(word: &RecallWord, ways: Ways) -> bool {
     }
 }
 
-/// How many words a run has asked: the turn of the one it is asking.
+/// How many words a run has asked: the turn of the one it is asking. A word
+/// understood only with its sentence was asked too.
 fn turn(conn: &Connection, run: &RunRow) -> Result<usize> {
     let (right, missed) = recall::answered(conn, &run.id)?;
-    Ok(usize::try_from(right.saturating_add(missed)).unwrap_or(usize::MAX))
+    let understood = recall::understood_keys(conn, &run.id)?.len();
+    Ok(usize::try_from(right.saturating_add(missed))
+        .unwrap_or(usize::MAX)
+        .saturating_add(understood))
+}
+
+/// The words due that the run can still ask: not the ones it found
+/// understood only with their sentence.
+fn due_in(conn: &Connection, run: &RunRow, now: DateTime<Utc>) -> Result<Vec<RecallWord>> {
+    let understood = recall::understood_keys(conn, &run.id)?;
+    Ok(due(conn, run.ways, now)?
+        .into_iter()
+        .filter(|word| !understood.contains(&word.key))
+        .collect())
 }
 
 /// Which way a run asks the word on this `turn` of it
@@ -112,7 +125,7 @@ fn asked(
     if let Some(sentence) = next_sentence(conn, (&word.key, &own), None, run_id)? {
         let (part_of_speech, needs_context, alone) = match &word.source {
             Source::Book { word_id } => {
-                let row = telling(conn, as_in(conn, word_id, &sentence)?)?;
+                let row = as_in(conn, word_id, &sentence)?;
                 let alone = row.alone_in(&sentence.form).map(<[String]>::to_vec);
                 let shows = row.shows_context(direction);
                 (row.part_of_speech, shows, alone)
@@ -129,7 +142,7 @@ fn asked(
     Ok(match &word.source {
         Source::Book { word_id } => PracticeItem {
             word_id: word.key.clone(),
-            ..item(telling(conn, practice::word(conn, word_id)?)?, direction)
+            ..item(practice::word(conn, word_id)?, direction)
         },
         Source::Chat { asked } => PracticeItem {
             word_id: word.key.clone(),
@@ -149,9 +162,9 @@ fn asked(
 /// share or none is due. That is its end, and it is stamped.
 fn step(conn: &Connection, run: &RunRow, now: DateTime<Utc>) -> Result<RecallStep> {
     let (right, missed) = recall::answered(conn, &run.id)?;
-    let answered = right.saturating_add(missed);
-    let due = due(conn, run.ways, now)?;
-    let turn = usize::try_from(answered).unwrap_or(usize::MAX);
+    let turn = turn(conn, run)?;
+    let answered = u32::try_from(turn).unwrap_or(u32::MAX);
+    let due = due_in(conn, run, now)?;
     let room = if run.finished {
         0
     } else {
@@ -266,30 +279,26 @@ fn check(
     }
 }
 
-/// The title of the book that has the word in the sense the answer gave,
-/// when that is not the sense of the sentence it was asked with: English →
-/// native, a learner who knows the word from another book is not wrong.
-fn other_sense(
+/// A word of a book as the chapter of its sentence has it, and what an
+/// answer on its steps comes to (`commands::ladder`): a word written alike
+/// to another one is told apart there. A word of a conversation has none.
+fn steps(
     conn: &Connection,
-    word: &RecallWord,
-    sentence: Option<&Sentence>,
-    (direction, answer): (Direction, &str),
-    (native_lang, spelling): (&str, Spelling),
-) -> Result<Option<String>> {
-    let (Source::Book { word_id }, Some(sentence), Direction::Recognition) =
-        (&word.source, sentence, direction)
-    else {
-        return Ok(None);
+    (word, sentence): (&RecallWord, Option<&Sentence>),
+    (direction, answer, rung): (Direction, &str, u8),
+    right: bool,
+    how: (&str, Spelling),
+) -> Result<(Option<WordRow>, Climb)> {
+    let row = match (&word.source, sentence) {
+        (Source::Book { word_id }, Some(each)) => Some(as_in(conn, word_id, each)?),
+        (Source::Book { word_id }, None) => Some(practice::word(conn, word_id)?),
+        (Source::Chat { .. }, _) => None,
     };
-    if answer.trim().is_empty() {
-        return Ok(None);
-    }
-    let row = as_in(conn, word_id, sentence)?;
-    let native = (native_lang, inflects(row.part_of_speech));
-    Ok(sentences::other_senses(conn, &word.key, &row.id)?
-        .into_iter()
-        .find(|(_, theirs)| accepts_native(answer, theirs, native, spelling))
-        .map(|(title, _)| title))
+    let climbed = match &row {
+        Some(row) => rise(conn, (row, sentence), (direction, answer, rung), right, how)?,
+        None => Climb::Off,
+    };
+    Ok((row, climbed))
 }
 
 /// What a hint to the word is made of (`commands::practice::clue`). A word
@@ -340,7 +349,7 @@ pub fn answer_shown(
     let spelling = profile::spelling(&conn)?;
     let tx = conn.transaction()?;
     let run = recall::run(&tx, run_id)?;
-    let word = due(&tx, run.ways, now)?
+    let word = due_in(&tx, &run, now)?
         .into_iter()
         .find(|word| word.key == key)
         .filter(|_| !run.finished)
@@ -354,33 +363,35 @@ pub fn answer_shown(
         (direction, answer),
         (&native_lang, spelling),
     )?;
-    let elsewhere = if judged.is_right() {
-        None
-    } else {
-        other_sense(
-            &tx,
-            &word,
-            sentence.as_ref(),
-            (direction, answer),
-            (&native_lang, spelling),
-        )?
-    };
-    if let Some(book) = elsewhere {
-        return Ok(RecallAnswer {
-            correct: false,
-            accepted: Vec::new(),
-            step: step(&tx, &run, now)?,
-            answer_id: 0,
-            again: true,
-            another: None,
-            other_kind: None,
-            helped: false,
-            exact: None,
-            sentence: None,
-            other_sense: Some(book),
-        });
+    let (row, climbed) = steps(
+        &tx,
+        (&word, sentence.as_ref()),
+        (direction, answer, shown.rung),
+        judged.is_right(),
+        (&native_lang, spelling),
+    )?;
+    match climbed {
+        Climb::Up(ladder) => {
+            return Ok(RecallAnswer {
+                ladder: Some(ladder),
+                ..unanswered(step(&tx, &run, now)?)
+            });
+        }
+        Climb::Understood(tip) => {
+            recall::understood(&tx, &run.id, key, now)?;
+            let step = step(&tx, &run, now)?;
+            tx.commit()?;
+            return Ok(RecallAnswer {
+                again: false,
+                accepted: all_small(&judged.accepted),
+                sentence: sentence.as_ref().map(whole),
+                understood: Some(tip),
+                ..unanswered(step)
+            });
+        }
+        Climb::Off => {}
     }
-    if judged.is_no_answer() && !shown.second {
+    if judged.is_no_answer() && !shown.second && shown.rung == ALONE {
         let told = if judged.verdict == Verdict::OtherWord {
             let (answer, context) = clue_of(&tx, &word, sentence.as_ref(), direction)?;
             Some(another(&answer, context))
@@ -388,26 +399,31 @@ pub fn answer_shown(
             None
         };
         return Ok(RecallAnswer {
-            correct: false,
-            accepted: Vec::new(),
-            step: step(&tx, &run, now)?,
-            answer_id: 0,
-            again: true,
             another: told,
             other_kind: judged.kind,
-            helped: false,
-            exact: None,
-            sentence: None,
-            other_sense: None,
+            ..unanswered(step(&tx, &run, now)?)
         });
     }
     let correct = judged.is_right();
+    // A sentence not shown before the answer of a word on its steps is not
+    // spent.
+    let on = match &row {
+        Some(row) => on_steps(&tx, row)?,
+        None => false,
+    };
+    let seen = shown.rung == SHOWN || shown.hinted || !on;
     let answer_id = recall::record(
         &tx,
         &run.id,
         (key, direction),
         (answer.trim(), correct),
-        (sentence.as_ref().map(|each| each.id.as_str()), now),
+        (
+            sentence
+                .as_ref()
+                .filter(|_| seen)
+                .map(|each| each.id.as_str()),
+            now,
+        ),
     )?;
     let step = step(&tx, &run, now)?;
     tx.commit()?;
@@ -422,8 +438,27 @@ pub fn answer_shown(
         helped: correct && shown.helped(),
         exact: judged.exact.as_deref().map(small),
         sentence: sentence.as_ref().map(whole),
-        other_sense: None,
+        ladder: None,
+        understood: None,
     })
+}
+
+/// An answer that keeps nothing: the learner has one more try.
+fn unanswered(step: RecallStep) -> RecallAnswer {
+    RecallAnswer {
+        correct: false,
+        accepted: Vec::new(),
+        step,
+        answer_id: 0,
+        again: true,
+        another: None,
+        other_kind: None,
+        helped: false,
+        exact: None,
+        sentence: None,
+        ladder: None,
+        understood: None,
+    }
 }
 
 /// The hint the learner asked for on the word a run is showing
@@ -437,7 +472,7 @@ pub fn hint(
 ) -> Result<WordHint> {
     let conn = ctx.conn()?;
     let run = recall::run(&conn, run_id)?;
-    let word = due(&conn, run.ways, now)?
+    let word = due_in(&conn, &run, now)?
         .into_iter()
         .find(|word| word.key == key)
         .filter(|_| !run.finished)

@@ -3,6 +3,7 @@ pub mod chapter;
 pub mod dispute;
 pub mod drill;
 pub mod label;
+pub mod ladder;
 pub mod listening;
 pub mod penalty;
 pub mod practice;

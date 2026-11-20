@@ -128,8 +128,8 @@ function Words({ sittings, nativeLang, onDone }: WordsProps): ReactNode {
     <SittingItem
       nativeLang={nativeLang}
       item={item}
-      check={(answer, second, hinted) =>
-        answerWord(sittingId, item, answer, second, hinted)
+      check={(answer, second, hinted, rung) =>
+        answerWord(sittingId, item, answer, second, hinted, rung)
       }
       hint={(asked) => hintWord(sittingId, item, asked)}
       bad={(result) => discardSentence(result.answerId)}

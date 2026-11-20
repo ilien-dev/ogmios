@@ -3,7 +3,13 @@
  * `PenaltyAnswer` in `src-tauri/src/domain.rs`, kept apart from `domain.ts`
  * only for its length. The rules are `src-tauri/src/books/penalty.rs`.
  */
-import type { Direction, PracticeItem, PracticeStep } from "./domain.ts";
+import type {
+  Direction,
+  Ladder,
+  PracticeItem,
+  PracticeStep,
+  SenseTip,
+} from "./domain.ts";
 
 /** A penalty under way, and the question it asks now. */
 export interface PenaltyStep {
@@ -41,4 +47,7 @@ export interface PenaltyAnswer {
    */
   finished: boolean;
   step: PracticeStep;
+  /** As in `AnswerResult`. */
+  ladder: Ladder | null;
+  understood: SenseTip | null;
 }

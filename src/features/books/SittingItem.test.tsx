@@ -68,7 +68,7 @@ interface Stage {
 /** The item on the screen, answered by `check`. */
 function stage(
   item: PracticeItem,
-  check: (answer: string, second: boolean) => Checked,
+  check: (answer: string, second: boolean, rung: number) => Checked,
   bad: (() => Promise<unknown>) | null = null,
 ): Stage {
   const held: Stage = { sent: [], went: [] };
@@ -76,9 +76,9 @@ function stage(
     <SittingItem
       nativeLang="es"
       item={item}
-      check={(answer, second) => {
+      check={(answer, second, _hinted, rung) => {
         held.sent.push([answer, second]);
-        return Promise.resolve(check(answer, second));
+        return Promise.resolve(check(answer, second, rung));
       }}
       know={null}
       dispute={null}
@@ -810,22 +810,99 @@ describe("telling which word is meant", () => {
     expect(held.sent).toEqual([["patada", false]]);
   });
 
-  test("the meaning a word has in another book is no answer yet, and that book is named", async () => {
+  test("a word written alike to another one climbs from what it is not to its sentence", async () => {
     const user = userEvent.setup();
-    const held = stage({ ...SHOWN, prompt: "fuzzy" }, (_answer, second) => ({
-      ...PLAIN,
-      correct: second,
-      accepted: second ? ["difuso"] : [],
-      step: "next",
-      again: !second,
-      otherSense: second ? null : "Dungeon Crawler Carl",
-    }));
-    await user.type(screen.getByLabelText("Your translation"), "peludo{Enter}");
+    const sentence = [
+      { text: "A ", marked: false },
+      { text: "spinning", marked: true },
+      { text: " wheel came at me.", marked: false },
+    ];
+    const held = stage(
+      {
+        ...SHOWN,
+        prompt: "spinning",
+        partOfSpeech: "adjective",
+        context: null,
+      },
+      (answer, _second, rung) => {
+        if (rung === 0) {
+          return {
+            ...PLAIN,
+            correct: false,
+            accepted: [],
+            step: "next",
+            again: true,
+            ladder: {
+              rung: 1,
+              hint: {
+                meaning: "dando vueltas",
+                book: null,
+                chapter: 1,
+                chapterTitle: "",
+                asked: "adjective",
+                given: "verb",
+              },
+              context: null,
+            },
+          };
+        }
+        if (rung === 1) {
+          return {
+            ...PLAIN,
+            correct: false,
+            accepted: [],
+            step: "next",
+            again: true,
+            ladder: { rung: 2, hint: null, context: sentence },
+          };
+        }
+        return {
+          ...PLAIN,
+          correct: false,
+          accepted: [answer],
+          step: "next",
+          understood: { kind: "adjective", kindsDiffer: true },
+        };
+      },
+    );
+    const field = screen.getByLabelText("Your translation");
+    // The other chapter's meaning: no answer yet, and what it is not.
+    await user.type(field, "dando vueltas{Enter}");
     expect(
       await screen.findByText(
-        "That's what it means in “Dungeon Crawler Carl”. This sentence means something else by it: read it and try once more.",
+        "That's right too, but it's not the one I'm after.",
       ),
     ).toBeInTheDocument();
-    expect(held.sent).toEqual([["peludo", false]]);
+    expect(
+      screen.getByText(
+        "“dando vueltas” is what it meant in chapter 1. Here it means something else.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("What is it like?")).toBeInTheDocument();
+    expect(document.querySelector('[data-kind-mark="verb"]')).not.toBeNull();
+    expect(
+      screen.queryByText("wheel came at me.", { exact: false }),
+    ).toBeNull();
+    // Missed again: the sentence shows.
+    await user.type(field, "girando{Enter}");
+    expect(
+      await screen.findByText(
+        "Read the sentence: it tells you which meaning we're after.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("spinning", { selector: "mark" })).toBeVisible();
+    // Right with it: understood, with what to look at next time.
+    await user.type(field, "giratoria{Enter}");
+    expect(
+      await screen.findByText(
+        "You got it with the sentence. It will come back so you can get it without.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Tip:")).toBeInTheDocument();
+    expect(held.sent.map(([answer]) => answer)).toEqual([
+      "dando vueltas",
+      "girando",
+      "giratoria",
+    ]);
   });
 });

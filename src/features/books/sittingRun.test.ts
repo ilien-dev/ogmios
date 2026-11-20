@@ -53,6 +53,8 @@ function miss(answerId: number, step: PracticeStep): AnswerResult {
     helped: false,
     exact: null,
     sentence: null,
+    ladder: null,
+    understood: null,
   };
 }
 

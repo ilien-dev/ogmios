@@ -280,7 +280,8 @@ function fakeSentences(params: SentenceWriteParams): SentencesWritten {
       }),
       written: Array.from({ length: word.write }, (_, at) => {
         const hint = fakeHint(word.lemma, lang);
-        const sentence = `Written ${String(at + 1)}: the ${word.lemma} again.`;
+        // Two senses of one word never get the same sentence.
+        const sentence = `Written ${String(at + 1)}.${String(word.sense.length)}: the ${word.lemma} again.`;
         return {
           sentence,
           form: word.lemma,

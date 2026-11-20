@@ -789,18 +789,27 @@ fn a_chapters_words_get_their_sentences_through_the_sidecar() {
         .iter()
         .all(|each| each.form == "hedge" && !each.hint.is_empty()));
 
-    // Learned and due in the recall, it is written five in its sense.
-    ctx.conn()
-        .expect("conn")
-        .execute(
-            "UPDATE chapter_words SET done_at = '2026-01-01T00:00:00.000Z',
-                                      learned_at = '2026-01-01T00:00:00.000Z'",
-            [],
-        )
-        .expect("learn");
-    top_up(ctx, Scope::Recall, &mut Sidecar(ctx), &|_, _| {}).expect("top up");
-    let held = bank::bank(&ctx.conn().expect("conn"), "hedge", Some(&chapter)).expect("bank");
-    assert_eq!(held.iter().filter(|each| !each.book).count(), 5);
+    // Another book means something else by it: both are written five.
+    let other = {
+        let conn = ctx.conn().expect("conn");
+        let other = shelf::book(&conn, "o", &["The hedge fund lost money."]).remove(0);
+        let list = [crate::books::vocab::Word {
+            sentence: "The hedge fund lost money.".into(),
+            ..shelf::word("hedge", &["fondo de cobertura"], 1)
+        }];
+        words::finish(&conn, &other, Depth::Most, &list, Utc::now()).expect("words");
+        other
+    };
+    top_up(ctx, Scope::Chapter(&other), &mut Sidecar(ctx), &|_, _| {}).expect("top up");
+    for each in [&chapter, &other] {
+        let held = bank::bank(&ctx.conn().expect("conn"), "hedge", Some(each)).expect("bank");
+        let texts: Vec<&str> = held.iter().map(|each| each.text.as_str()).collect();
+        assert_eq!(
+            held.iter().filter(|each| !each.book).count(),
+            5,
+            "{texts:?}"
+        );
+    }
 }
 
 #[test]

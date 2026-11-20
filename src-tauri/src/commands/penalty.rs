@@ -9,7 +9,8 @@ use chrono::{DateTime, Local, Utc};
 use rusqlite::Connection;
 use tauri::AppHandle;
 
-use super::practice::{all_small, item, plain, small, telling, Tries};
+use super::ladder::{rise, Climb, ALONE};
+use super::practice::{all_small, item, plain, small, Tries};
 use super::profile::require_profile;
 use super::run;
 use crate::books::penalty::{after_clean, after_slip, order, raised, reps, Standing};
@@ -65,7 +66,7 @@ pub(super) fn step(
     };
     let (rung, order) = drawn(&due);
     let (direction, answered) = at(&due, &order);
-    let word = telling(conn, practice::word(conn, &due.row.word_id)?)?;
+    let word = practice::word(conn, &due.row.word_id)?;
     let english = small(&word.lemma);
     let native = small(&word.shown_as().join(", "));
     Ok(Some(PracticeStep::Penalty {
@@ -146,16 +147,45 @@ pub fn answer(
     let word = practice::word(&tx, word_id)?;
     let judged = plain(&tx, &word, (direction, text), (&native_lang, spelling))?;
     let accepted = all_small(&judged.accepted);
-    if judged.is_no_answer() && !tries.second {
+    let unanswered = |step: PracticeStep| PenaltyAnswer {
+        correct: false,
+        accepted: Vec::new(),
+        again: true,
+        restarted: false,
+        finished: false,
+        step,
+        ladder: None,
+        understood: None,
+    };
+    match rise(
+        &tx,
+        (&word, None),
+        (direction, text, tries.rung),
+        judged.is_right(),
+        (&native_lang, spelling),
+    )? {
+        Climb::Up(ladder) => {
+            let step = super::practice::step(&tx, &sitting, now)?;
+            return Ok(PenaltyAnswer {
+                ladder: Some(ladder),
+                ..unanswered(step)
+            });
+        }
+        // Understood only with its sentence: the penalty stands where it was.
+        Climb::Understood(tip) => {
+            let step = super::practice::step(&tx, &sitting, now)?;
+            return Ok(PenaltyAnswer {
+                again: false,
+                accepted,
+                understood: Some(tip),
+                ..unanswered(step)
+            });
+        }
+        Climb::Off => {}
+    }
+    if judged.is_no_answer() && !tries.second && tries.rung == ALONE {
         let step = super::practice::step(&tx, &sitting, now)?;
-        return Ok(PenaltyAnswer {
-            correct: false,
-            accepted: Vec::new(),
-            again: true,
-            restarted: false,
-            finished: false,
-            step,
-        });
+        return Ok(unanswered(step));
     }
     let correct = judged.is_right();
     due.row.trigger_seq = Some(due.trigger);
@@ -187,6 +217,8 @@ pub fn answer(
         restarted: !correct,
         finished,
         step,
+        ladder: None,
+        understood: None,
     })
 }
 

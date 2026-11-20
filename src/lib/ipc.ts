@@ -318,6 +318,7 @@ export const answerWord = (
   answer: string,
   second = false,
   hinted = false,
+  rung = 0,
 ): Promise<AnswerResult> =>
   call("answer_word", {
     sittingId,
@@ -325,7 +326,7 @@ export const answerWord = (
     direction: item.direction,
     answer,
     sentenceId: item.sentenceId,
-    tries: { second, hinted },
+    tries: { second, hinted, rung },
   });
 /**
  * A hint on the word a sitting is showing, once `asked` others were given:
@@ -344,13 +345,14 @@ export const answerPenalty = (
   item: Asked,
   answer: string,
   second = false,
+  rung = 0,
 ): Promise<PenaltyAnswer> =>
   call("answer_penalty", {
     sittingId,
     wordId: item.wordId,
     direction: item.direction,
     answer,
-    tries: { second, hinted: false },
+    tries: { second, hinted: false, rung },
   });
 export const hintWord = (
   sittingId: string,
@@ -448,13 +450,14 @@ export const answerRecall = (
   answer: string,
   second = false,
   hinted = false,
+  rung = 0,
 ): Promise<RecallAnswer> =>
   call("answer_recall", {
     sittingId,
     wordId: item.wordId,
     answer,
     sentenceId: item.sentenceId,
-    tries: { second, hinted },
+    tries: { second, hinted, rung },
   });
 /** A hint on the word a run of the recall is showing: see `hintWord`. */
 export const hintRecall = (
