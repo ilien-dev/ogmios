@@ -34,9 +34,10 @@ export function updateCommands(
     if (pending === null) {
       throw new Error("no newer version");
     }
-    const steps = 20;
+    // One event per 100 ms, as `download_update` reports it.
+    const steps = 30;
     for (let step = 1; step <= steps; step += 1) {
-      await after(150, () => null);
+      await after(100, () => null);
       emit("update-download", {
         received: Math.round((BYTES * step) / steps),
         total: BYTES,
