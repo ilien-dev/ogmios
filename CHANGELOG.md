@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.21.0](https://github.com/ilien-dev/ogmios/compare/v0.20.0...v0.21.0) (2026-11-20)
+
+
+### Features
+
+* tell a word's meanings apart and write sentences only for rivals ([#45](https://github.com/ilien-dev/ogmios/issues/45)) ([86c7cec](https://github.com/ilien-dev/ogmios/commit/86c7cec08de2a85cac064463795c35166474606f))
+
 ## [0.20.0](https://github.com/ilien-dev/ogmios/compare/v0.19.1...v0.20.0) (2026-11-20)
 
 
