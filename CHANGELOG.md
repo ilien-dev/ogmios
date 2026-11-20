@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.20.0](https://github.com/ilien-dev/ogmios/compare/v0.19.1...v0.20.0) (2026-11-20)
+
+
+### Features
+
+* show a word's tags above it, each kind in its own colour ([#43](https://github.com/ilien-dev/ogmios/issues/43)) ([db0ced9](https://github.com/ilien-dev/ogmios/commit/db0ced9ed617921b1339eb4900e3b9904b9f4469))
+
 ## [0.19.1](https://github.com/ilien-dev/ogmios/compare/v0.19.0...v0.19.1) (2026-11-20)
 
 
