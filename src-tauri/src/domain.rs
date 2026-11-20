@@ -717,6 +717,12 @@ pub struct SentenceProgress {
     pub chapter_id: Option<String>,
     pub done: u32,
     pub total: u32,
+    /// The words of the chapter, or of the recall.
+    pub words: u32,
+    /// How many of those can be asked with a sentence already.
+    pub ready: u32,
+    /// The sentences those have.
+    pub sentences: u32,
 }
 
 /// A piece of a sentence from the book; the word being asked is `marked`.

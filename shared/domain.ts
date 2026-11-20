@@ -725,6 +725,12 @@ export interface SentenceProgress {
   chapterId: string | null;
   done: number;
   total: number;
+  /** The words of the chapter, or of the recall. */
+  words: number;
+  /** How many of those can be asked with a sentence already. */
+  ready: number;
+  /** The sentences those have. */
+  sentences: number;
 }
 
 /** How a sitting ended. */

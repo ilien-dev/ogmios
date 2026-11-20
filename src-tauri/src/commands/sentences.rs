@@ -4,9 +4,11 @@
 //! chapter is given a sentence of that chapter that has it, found here by
 //! code, and that once only. The model says what the word is there, in the
 //! form the sentence has it, in the learner's language, and translates the
-//! sentence. It is also asked once to write [`WRITTEN`] sentences of its own
-//! in that chapter's sense. A chapter of a deleted book is not read again:
-//! only sentences written for it are asked for.
+//! sentence. Once the word is learned and due in the daily recall, where it
+//! comes back for weeks, the model is also asked once to write [`WRITTEN`]
+//! sentences of its own in that chapter's sense: only then is variety worth
+//! what it costs. A chapter of a deleted book is not read again: only
+//! sentences written for it are asked for.
 //!
 //! The model labels, this code decides. A sentence is kept only if its hint
 //! does not give the word away and is words of its translation
@@ -102,6 +104,8 @@ struct Wanted {
     forms: Vec<String>,
     /// The chapter it is from; none for a word of a conversation.
     chapter: Option<String>,
+    /// Due in the daily recall: it is written sentences of its own.
+    due: bool,
 }
 
 /// A word of a chapter as it is wanted.
@@ -119,6 +123,7 @@ fn chapter_word(conn: &Connection, word_id: &str, key: String) -> Result<Wanted>
         sense: word.sentence,
         forms,
         chapter: Some(word.chapter_id),
+        due: false,
     })
 }
 
@@ -132,7 +137,10 @@ fn wanted(conn: &Connection, scope: Scope<'_>) -> Result<Vec<Wanted>> {
         Scope::Recall => recall::words(conn)?
             .into_iter()
             .map(|word| match word.source {
-                Source::Book { word_id } => chapter_word(conn, &word_id, word.key),
+                Source::Book { word_id } => Ok(Wanted {
+                    due: word.standing.due_at <= Utc::now(),
+                    ..chapter_word(conn, &word_id, word.key)?
+                }),
                 Source::Chat { asked } => Ok(Wanted {
                     key: word.key,
                     lemma: word.english,
@@ -141,6 +149,7 @@ fn wanted(conn: &Connection, scope: Scope<'_>) -> Result<Vec<Wanted>> {
                     sense: asked,
                     forms: word.forms,
                     chapter: None,
+                    due: false,
                 }),
             })
             .collect(),
@@ -551,10 +560,10 @@ pub fn top_up(
             };
             let given = bank::given(&conn, &word.key, &chapter)?;
             let read = !given && !bank::archived(&conn, &chapter)?;
-            let write = if bank::written(&conn, &word.key, &chapter)? {
-                0
-            } else {
+            let write = if word.due && !bank::written(&conn, &word.key, &chapter)? {
                 WRITTEN
+            } else {
+                0
             };
             if given {
                 stale.extend(outdated(&conn, word.clone(), &profile.native_lang)?);
@@ -626,6 +635,29 @@ pub fn top_up(
     Ok(total)
 }
 
+/// How far the words of the scope stand with their sentences: how many
+/// there are, how many can be asked with one, and how many sentences those
+/// have, in their chapter for a chapter and in any for the recall.
+pub fn stock(conn: &Connection, scope: Scope<'_>) -> Result<(u32, u32, u32)> {
+    let count = |len: usize| u32::try_from(len).unwrap_or(u32::MAX);
+    let mut words = 0_usize;
+    let (mut ready, mut sentences) = (0_usize, 0_usize);
+    for word in wanted(conn, scope)? {
+        let Some(chapter) = word.chapter.as_deref() else {
+            continue;
+        };
+        let within = match scope {
+            Scope::Chapter(_) => Some(chapter),
+            Scope::Recall => None,
+        };
+        let held = bank::bank(conn, &word.key, within)?.len();
+        words += 1;
+        ready += usize::from(held > 0);
+        sentences += held;
+    }
+    Ok((count(words), count(ready), count(sentences)))
+}
+
 /// One run at a time: a second one waits, and then finds little to do.
 static RUNNING: Mutex<()> = Mutex::new(());
 
@@ -640,10 +672,19 @@ pub async fn write_sentences(app: AppHandle, chapter_id: Option<String>) -> Resu
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         let scope = chapter_id.as_deref().map_or(Scope::Recall, Scope::Chapter);
         top_up(ctx, scope, &mut Sidecar(ctx), &|done, total| {
+            // What is ready so far; a count that cannot be read says nothing.
+            let (words, ready, sentences) = ctx
+                .conn()
+                .ok()
+                .and_then(|conn| stock(&conn, scope).ok())
+                .unwrap_or_default();
             let progress = SentenceProgress {
                 chapter_id: chapter_id.clone(),
                 done,
                 total,
+                words,
+                ready,
+                sentences,
             };
             // A closed window is the only way this fails; the work goes on.
             let _ = app.emit("sentence-progress", progress);
@@ -2860,5 +2901,62 @@ pub mod tests {
         top_up(desk.ctx(), Scope::Recall, &mut stub, &|_, _| {}).expect("top up");
         let asked = &stub.writes[0].words[0];
         assert_eq!((asked.book.len(), asked.write), (0, WRITTEN));
+    }
+
+    #[test]
+    fn a_word_written_alike_in_another_chapter_with_another_meaning_shows_its_sentence() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let desk = Desk::new(&dir);
+        let chapters = {
+            let conn = desk.db.lock().expect("db");
+            let chapters = words::tests::book(
+                &conn,
+                "dcc",
+                &[
+                    "I kept spinning in circles.",
+                    "A spinning wheel came at me.",
+                ],
+            );
+            let depth = crate::domain::Depth::Most;
+            // The first chapter has it in an expression, the second alone.
+            let circles = Word {
+                forms: vec!["spinning in circles".into()],
+                sentence: "I kept spinning in circles.".into(),
+                ..word("spin in circles", &["dar vueltas"], 1)
+            };
+            let wheel = Word {
+                sentence: "A spinning wheel came at me.".into(),
+                part_of_speech: Some(PartOfSpeech::Adjective),
+                ..word("spinning", &["giratorio"], 1)
+            };
+            words::finish(&conn, &chapters[0], depth, &[circles], t0()).expect("words");
+            words::finish(&conn, &chapters[1], depth, &[wheel], t0()).expect("words");
+            chapters
+        };
+        stock(&desk, &chapters[1]);
+        let sitting = desk.start(&chapters[1], t0());
+        let asked = item(&sitting.step);
+        assert!(asked.sentence_id.is_some());
+        assert!(
+            asked.context.is_some() || asked.native_context.is_some(),
+            "spinning means another thing in the first chapter"
+        );
+    }
+
+    #[test]
+    fn a_word_whose_translations_are_not_all_the_same_shows_its_sentence() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let desk = Desk::new(&dir);
+        let fewer = Word {
+            sentence: "The picture was fuzzy.".into(),
+            ..word("fuzzy", &["peludo", "velloso"], 1)
+        };
+        let [cat, _, picture] = two_books(&desk, &fewer);
+        stock(&desk, &cat);
+        stock(&desk, &picture);
+        let sitting = desk.start(&cat, t0());
+        let asked = item(&sitting.step);
+        // Not exactly the same meaning: the sentence says which.
+        assert!(asked.context.is_some() || asked.native_context.is_some());
     }
 }

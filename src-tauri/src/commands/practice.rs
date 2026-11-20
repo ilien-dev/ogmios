@@ -188,11 +188,11 @@ fn verb_form(part_of_speech: Option<PartOfSpeech>, sentence: &Sentence) -> Optio
 }
 
 /// The word as it is asked: its sentence shows from the start, as the look
-/// of a word that needs it says, also when another chapter has the word in
-/// another sense (`db::sentences::senses_differ`): it tells which one is
-/// meant.
+/// of a word that needs it says, also when a chapter, this one or another,
+/// has a word written alike that does not mean exactly the same
+/// (`db::sentences::senses_differ`): it tells which one is meant.
 pub(super) fn telling(conn: &Connection, mut word: WordRow) -> Result<WordRow> {
-    if sentences::senses_differ(conn, &word.key, &word.id)? {
+    if sentences::senses_differ(conn, &word.id)? {
         word.context_there = Some(true);
         word.context_back = Some(true);
     }

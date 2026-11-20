@@ -421,8 +421,10 @@ repaso rápido antes de leer no cambia.
   eso basta para saber qué traducción se pide. La frase es la primera pista (ver «Pista a
   petición») y sale completa tras responder. Solo las palabras marcadas como ambiguas, que
   necesitan su frase para distinguir el sentido, la muestran desde el principio, y también las
-  que otro capítulo, de este u otro libro, tiene con otro significado (ninguna traducción en
-  común): la frase dice cuál se pide. Vale en la práctica, el castigo y Repaso.
+  que un capítulo, este u otro de cualquier libro, tiene escritas igual («spinning») o dentro de
+  otra expresión («spinning in circles») sin significar exactamente lo mismo (otro tipo de
+  palabra u otras traducciones): la frase dice cuál se pide. Vale en la práctica, el castigo y
+  Repaso.
 - **Un significado por capítulo:** una misma palabra puede significar otra cosa en otro libro o
   en otro capítulo. Cada frase guarda el capítulo cuyo significado muestra. Practicar o castigar
   un capítulo solo usa frases suyas, y lo que se acepta es el significado de ese capítulo. Repaso

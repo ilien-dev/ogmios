@@ -473,25 +473,105 @@ pub fn word_in(conn: &Connection, key: &str, chapter: &str) -> Result<Option<Str
         .optional()?)
 }
 
-/// Whether another chapter has the word of `key` in another sense than the
-/// chapter's word `word_id`: none of its translations is one of this one's.
-/// Then the sentence it is asked with is shown from the start, to tell which
-/// one is meant.
-pub fn senses_differ(conn: &Connection, key: &str, word_id: &str) -> Result<bool> {
-    Ok(conn.query_row(
-        "SELECT EXISTS (
-           SELECT 1 FROM chapter_words o
-           WHERE o.key = ?1 AND o.id != ?2
-             AND EXISTS (SELECT 1 FROM word_translations t WHERE t.word_id = o.id)
-             AND NOT EXISTS (
-               SELECT 1 FROM word_translations a
-               JOIN word_translations b ON lower(trim(a.text)) = lower(trim(b.text))
-               WHERE a.word_id = o.id AND b.word_id = ?2
-             )
-         )",
-        [key, word_id],
-        |row| row.get(0),
-    )?)
+/// A word of a chapter as [`senses_differ`] weighs it.
+struct Sense {
+    key: String,
+    /// Every form its chapter writes it in, its lemma included, as words.
+    forms: Vec<Vec<String>>,
+    part_of_speech: Option<PartOfSpeech>,
+    /// Its translations, in small letters, sorted.
+    translations: Vec<String>,
+}
+
+/// The word `word_id` as [`Sense`] has it.
+fn sense_of(conn: &Connection, word_id: &str) -> Result<Sense> {
+    let (key, lemma, forms, part_of_speech): (String, String, String, Option<PartOfSpeech>) = conn
+        .query_row(
+            "SELECT key, lemma, forms, part_of_speech FROM chapter_words WHERE id = ?1",
+            [word_id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+        )?;
+    let mut written: Vec<String> = serde_json::from_str(&forms)?;
+    written.push(lemma);
+    let mut forms: Vec<Vec<String>> = written
+        .iter()
+        .map(|each| vocab::tokens(each))
+        .filter(|each| !each.is_empty())
+        .collect();
+    forms.sort();
+    forms.dedup();
+    let mut stmt = conn.prepare("SELECT text FROM word_translations WHERE word_id = ?1")?;
+    let mut translations: Vec<String> = stmt
+        .query_map([word_id], |row| row.get::<_, String>(0))?
+        .collect::<rusqlite::Result<Vec<_>>>()?
+        .iter()
+        .map(|each| each.trim().to_lowercase())
+        .collect();
+    translations.sort();
+    translations.dedup();
+    Ok(Sense {
+        key,
+        forms,
+        part_of_speech,
+        translations,
+    })
+}
+
+/// Whether `outer` has the words of `inner` one after another.
+fn holds(outer: &[String], inner: &[String]) -> bool {
+    !inner.is_empty() && outer.windows(inner.len()).any(|at| at == inner)
+}
+
+/// Whether two words are the same word to the learner: the same key, or
+/// one written as the other, or with it in it ("spinning in circles",
+/// "spinning").
+fn alike(one: &Sense, other: &Sense) -> bool {
+    one.key == other.key
+        || one.forms.iter().any(|mine| {
+            other
+                .forms
+                .iter()
+                .any(|theirs| holds(theirs, mine) || holds(mine, theirs))
+        })
+}
+
+/// Whether some chapter, this one or another, of any book, has the word
+/// `word_id` as another word or in another sense: written alike
+/// ([`alike`]), and not meaning exactly the same, by its kind or its
+/// translations. Then the sentence it is asked with is shown from the
+/// start, to tell which one is meant.
+pub fn senses_differ(conn: &Connection, word_id: &str) -> Result<bool> {
+    let own = sense_of(conn, word_id)?;
+    let mut ids: Vec<String> = Vec::new();
+    let mut stmt = conn.prepare(
+        "SELECT id FROM chapter_words
+         WHERE id != ?1 AND (key = ?2 OR instr(lower(forms), ?3) > 0 OR instr(?4, lower(lemma)) > 0)",
+    )?;
+    for form in &own.forms {
+        let text = form.join(" ");
+        let found = stmt
+            .query_map(params![word_id, own.key, text, text], |row| {
+                row.get::<_, String>(0)
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        ids.extend(found);
+    }
+    ids.sort();
+    ids.dedup();
+    for id in ids {
+        let other = sense_of(conn, &id)?;
+        if !alike(&own, &other) {
+            continue;
+        }
+        let kinds = matches!(
+            (own.part_of_speech, other.part_of_speech),
+            (Some(mine), Some(theirs)) if mine != theirs
+        );
+        if kinds || own.translations != other.translations {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 /// The words of `key` other chapters have in another sense than the
