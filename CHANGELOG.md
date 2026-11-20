@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.19.0](https://github.com/ilien-dev/ogmios/compare/v0.18.0...v0.19.0) (2026-11-20)
+
+
+### Features
+
+* tie each word's sentences and meaning to its chapter ([#38](https://github.com/ilien-dev/ogmios/issues/38)) ([be0b915](https://github.com/ilien-dev/ogmios/commit/be0b915ff2efa0e2a1396dc30e6db00ffa3bdf82))
+
 ## [0.18.0](https://github.com/ilien-dev/ogmios/compare/v0.17.3...v0.18.0) (2026-11-20)
 
 
