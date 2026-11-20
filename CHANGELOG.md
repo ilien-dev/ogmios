@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.19.1](https://github.com/ilien-dev/ogmios/compare/v0.19.0...v0.19.1) (2026-11-20)
+
+
+### Bug Fixes
+
+* keep the update bar moving while a release downloads ([#40](https://github.com/ilien-dev/ogmios/issues/40)) ([85b448c](https://github.com/ilien-dev/ogmios/commit/85b448c832a70569f4fa8bbb654c72eef8e78032))
+
 ## [0.19.0](https://github.com/ilien-dev/ogmios/compare/v0.18.0...v0.19.0) (2026-11-20)
 
 
