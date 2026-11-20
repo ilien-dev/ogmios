@@ -1,0 +1,111 @@
+{
+  "name": "Ogmios",
+  "repo": "ilien-dev/ogmios",
+  "defaultBranch": "main",
+  "purpose": "is a desktop app for macOS and Windows to practice spoken English with Claude: you talk, nobody corrects you mid-sentence, and at the end you get one thing to focus on.",
+  "shipped": [
+    "src/**",
+    "src-tauri/**",
+    "sidecar/**",
+    "shared/**",
+    "package.json",
+    "bun.lock"
+  ],
+  "issueFirst": false,
+  "measured": {
+    "enabled": true,
+    "types": [
+      "feat",
+      "fix",
+      "perf"
+    ],
+    "methods": [
+      "A fix: the test that fails on main and passes on your branch.",
+      "A change in what the partner or the report does: `cargo test -- --ignored commands::` from `src-tauri/` (the learner loop against the fake provider, `OGMIOS_FAKE=1`), on main and on your branch."
+    ]
+  },
+  "commands": [
+    "bun run check"
+  ],
+  "ci": {
+    "requiredChecks": [
+      "check",
+      "bundle (ubuntu-24.04)",
+      "bundle (macos-15)",
+      "bundle (windows-2022)"
+    ]
+  },
+  "release": {
+    "kind": "desktop",
+    "currentVersion": "0.17.3",
+    "versionFiles": [
+      {
+        "path": "package.json",
+        "jsonpath": "$.version"
+      },
+      {
+        "path": "src-tauri/Cargo.toml",
+        "jsonpath": "$.package.version"
+      },
+      {
+        "path": "src-tauri/Cargo.lock",
+        "type": "toml",
+        "jsonpath": "$.package[?(@.name==\"ogmios\")].version"
+      }
+    ],
+    "build": [
+      {
+        "name": "macOS arm64",
+        "os": "macos-15",
+        "run": "bash scripts/release-build.sh aarch64-apple-darwin aarch64",
+        "artifacts": "out/*"
+      },
+      {
+        "name": "Windows x64",
+        "os": "windows-2022",
+        "run": "bash scripts/release-build.sh x86_64-pc-windows-msvc x64",
+        "artifacts": "out/*"
+      }
+    ],
+    "buildSecrets": [
+      "TAURI_SIGNING_PRIVATE_KEY",
+      "TAURI_SIGNING_PRIVATE_KEY_PASSWORD"
+    ],
+    "finish": [
+      "npm install --global bun",
+      "mkdir sigs && gh release download \"$TAG\" --pattern '*.sig' --dir sigs",
+      "bun scripts/updater-manifest.ts \"$VERSION\" \"$GITHUB_REPOSITORY\" sigs latest.json",
+      "gh release upload \"$TAG\" latest.json --clobber",
+      "{ gh release view \"$TAG\" --json body --jq .body; echo; cat .github/release-notes.md; } > notes.md",
+      "gh release edit \"$TAG\" --title \"Ogmios $VERSION\" --notes-file notes.md"
+    ],
+    "npmPrepare": [],
+    "bootstrapSha": "d7e1a0e3ec6137a78f14c93223507f34e3ba5cf0"
+  },
+  "standard": 1,
+  "branch": {
+    "types": [
+      "feat",
+      "fix",
+      "perf",
+      "refactor",
+      "docs",
+      "test",
+      "build",
+      "ci",
+      "chore",
+      "style",
+      "revert"
+    ],
+    "maxWords": 5
+  },
+  "title": {
+    "max": 72
+  },
+  "releaseTypes": [
+    "feat",
+    "fix",
+    "perf",
+    "revert"
+  ]
+}

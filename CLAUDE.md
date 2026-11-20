@@ -19,10 +19,13 @@ the old one.
 
 ## Releases
 
-- Every PR bumps the version in `package.json` and `src-tauri/Cargo.toml`
-  (patch for fixes, minor for features); CI rejects a PR that doesn't. Merging
-  to main publishes `v<version>` for macOS and Windows
-  (`.github/workflows/release.yml`); installed apps update from its `latest.json`.
+- Nobody writes a version: the PR title decides it and release-please raises
+  `package.json`, `src-tauri/Cargo.toml` and `Cargo.lock`. A release stays a
+  draft until both builds and the `latest.json` installed apps update from
+  are attached.
+- Nabu generates `release.yml`, `CONTRIBUTING.md` and the PR template from
+  `.github/repo-rules.json`: edit that and re-render. `CONTRIBUTING.md` holds
+  branches and PR format; load `uncontributing` before a branch, commit or PR.
 - Never regenerate or commit the updater key (`~/.tauri/ogmios.key`, secrets
   `TAURI_SIGNING_PRIVATE_KEY*`): installed apps would stop updating.
 
