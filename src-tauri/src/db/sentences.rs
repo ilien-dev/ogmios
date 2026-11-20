@@ -473,65 +473,11 @@ pub fn word_in(conn: &Connection, key: &str, chapter: &str) -> Result<Option<Str
         .optional()?)
 }
 
-/// Whether another chapter has the word of `key` in another sense than the
-/// chapter's word `word_id`: none of its translations is one of this one's.
-/// Then the sentence it is asked with is shown from the start, to tell which
-/// one is meant.
-pub fn senses_differ(conn: &Connection, key: &str, word_id: &str) -> Result<bool> {
-    Ok(conn.query_row(
-        "SELECT EXISTS (
-           SELECT 1 FROM chapter_words o
-           WHERE o.key = ?1 AND o.id != ?2
-             AND EXISTS (SELECT 1 FROM word_translations t WHERE t.word_id = o.id)
-             AND NOT EXISTS (
-               SELECT 1 FROM word_translations a
-               JOIN word_translations b ON lower(trim(a.text)) = lower(trim(b.text))
-               WHERE a.word_id = o.id AND b.word_id = ?2
-             )
-         )",
-        [key, word_id],
-        |row| row.get(0),
-    )?)
-}
-
-/// The words of `key` other chapters have in another sense than the
-/// chapter's word `word_id`, each with the title of its book and its
-/// translations: an answer that is one of those is no miss.
-pub fn other_senses(
-    conn: &Connection,
-    key: &str,
-    word_id: &str,
-) -> Result<Vec<(String, Vec<String>)>> {
-    let mut stmt = conn.prepare(
-        "SELECT o.id, b.title FROM chapter_words o
-         JOIN book_chapters c ON c.id = o.chapter_id
-         JOIN books b ON b.id = c.book_id
-         WHERE o.key = ?1 AND o.id != ?2
-         ORDER BY o.created_at, o.id",
-    )?;
-    let rows = stmt
-        .query_map([key, word_id], |row| {
-            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
-        })?
-        .collect::<rusqlite::Result<Vec<_>>>()?;
-    let mut said = conn.prepare("SELECT text FROM word_translations WHERE word_id = ?1")?;
-    let own: Vec<String> = said
-        .query_map([word_id], |row| row.get::<_, String>(0))?
-        .collect::<rusqlite::Result<_>>()?;
-    let own: Vec<String> = own.iter().map(|each| each.trim().to_lowercase()).collect();
-    let mut others = Vec::new();
-    for (id, title) in rows {
-        let theirs: Vec<String> = said
-            .query_map([&id], |row| row.get::<_, String>(0))?
-            .collect::<rusqlite::Result<_>>()?;
-        let shared = theirs
-            .iter()
-            .any(|each| own.contains(&each.trim().to_lowercase()));
-        if !theirs.is_empty() && !shared {
-            others.push((title, theirs));
-        }
-    }
-    Ok(others)
+/// Whether a chapter, this one or another of any book, has a word written
+/// alike to `word_id` that does not mean exactly the same
+/// (`db::spellings::rivals`).
+pub fn senses_differ(conn: &Connection, word_id: &str) -> Result<bool> {
+    Ok(!super::spellings::rivals(conn, word_id)?.is_empty())
 }
 
 /// What a word is called and what it means, by its key: as `chapter` says

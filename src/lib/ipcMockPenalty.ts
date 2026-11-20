@@ -233,6 +233,8 @@ export function answerPenaltyIn(
     restarted: !correct,
     finished,
     step: next(),
+    ladder: null,
+    understood: null,
   };
 }
 

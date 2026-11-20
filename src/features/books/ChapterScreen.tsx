@@ -16,7 +16,6 @@ import { Reveal } from "@/components/motion/Reveal";
 import { BackLink } from "@/components/ui/BackLink";
 import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
-import { ProgressBar } from "@/components/ui/ProgressBar";
 import { Spinner } from "@/components/ui/Spinner";
 import { errorMessage } from "@/lib/errors";
 import {
@@ -247,6 +246,7 @@ export function ChapterScreen({
               ready={ready}
               refreshable={refreshable}
               readying={readying}
+              writing={writing}
               onPractise={onPractise}
               onRefresh={onRefresh}
               onTranslate={onTranslate}
@@ -315,27 +315,6 @@ export function ChapterScreen({
                   key="words"
                   className="flex flex-col gap-6 rounded-xl bg-surface p-6 shadow-card nav:p-8"
                 >
-                  <Presence>
-                    {writing !== null && writing.done < writing.total && (
-                      <Reveal
-                        key="total"
-                        className="flex w-full flex-col gap-2"
-                      >
-                        <p className="text-sm text-ink-faint">
-                          {t("books.sentences.writing", {
-                            done: writing.done,
-                            total: writing.total,
-                          })}
-                        </p>
-                        <ProgressBar
-                          label={t("books.sentences.bar")}
-                          value={writing.done}
-                          total={writing.total}
-                          tone="book"
-                        />
-                      </Reveal>
-                    )}
-                  </Presence>
                   <WordList
                     words={words}
                     onKnown={(word, known) => void setKnown(word, known)}

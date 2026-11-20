@@ -643,8 +643,10 @@ export const es: Catalog<typeof en> = {
       baseForm:
         "Es la palabra, pero la pido en su forma base: el infinitivo. Prueba otra vez.",
       otherWord: "Es correcto, pero aquí busco otra palabra. Prueba otra vez.",
-      otherSense:
-        "Eso significa en «{{book}}». Esta frase la usa con otro significado: léela y prueba otra vez.",
+      otherMeaning: "También es correcta, pero no es la que busco.",
+      readSentence: "Lee la frase: te dice qué significado buscamos.",
+      understood:
+        "Lo entendiste con la frase. Volverá para que la aciertes sin ella.",
       otherKind:
         "Recuerda: busco «{{asked}}»{{form}}, no «{{given}}». {{title}}: {{meaning}} Prueba otra vez.",
       exact: "En esta frase:",
@@ -725,11 +727,68 @@ export const es: Catalog<typeof en> = {
       inBook: "Verla en el libro",
       hideBook: "Ocultar la frase",
     },
+    sense: {
+      placeChapter: "«{{title}}»",
+      placeSection: "la sección {{n}}",
+      placeBook: "«{{book}}»",
+      notThis:
+        "«{{meaning}}» es lo que significaba en {{place}}. Aquí significa otra cosa.",
+      was: "En {{place}} era",
+      is: "Aquí es",
+      likeYours: ", como «{{meaning}}».",
+      like: ", como en {{example}}.",
+      ask: "Pregúntate:",
+      tipTitle: "Consejo:",
+      tipTag: "antes de responder, mira la etiqueta junto a la palabra (",
+      tipTagEnd: "). Te dice qué significado buscamos.",
+      tipWords:
+        "antes de responder, piensa en qué palabras la acompañan: te dicen qué significado buscamos.",
+      kinds: {
+        noun: {
+          article: "un",
+          does: "es el nombre de una persona, un animal, una cosa o un lugar",
+          example: "«el perro» o «la casa»",
+          question: "¿Qué es? ¿Quién es?",
+        },
+        verb: {
+          article: "un",
+          does: "dice lo que alguien hace o lo que pasa",
+          example: "«el niño corre»",
+          question: "¿Qué hace? ¿Qué pasa?",
+        },
+        phrasalVerb: {
+          article: "un",
+          does: "es un verbo con una palabra pegada que le cambia el significado",
+          example: "«give up», rendirse",
+          question: "¿Qué hace, con las dos palabras juntas?",
+        },
+        adjective: {
+          article: "un",
+          does: "dice cómo es una persona o una cosa",
+          example: "«una pelota roja» o «una casa grande»",
+          question: "¿Cómo es?",
+        },
+        adverb: {
+          article: "un",
+          does: "dice cómo, cuándo o dónde pasa algo",
+          example: "«corre rápido» o «llegó ayer»",
+          question: "¿Cómo pasa? ¿Cuándo? ¿Dónde?",
+        },
+        expression: {
+          article: "una",
+          does: "son varias palabras que juntas quieren decir una sola cosa",
+          example: "«a piece of cake», pan comido",
+          question: "¿Qué quieren decir juntas?",
+        },
+      },
+    },
     sentences: {
-      writing:
-        "Preparando las frases del libro: {{done}} de {{total}} palabras",
-      bar: "Frases del libro",
+      bar: "Palabras con frase",
       readying: "Preparando las frases de tus palabras…",
+      stock_one:
+        "Frases listas: {{ready}} de {{words}} palabras · {{count}} frase",
+      stock_other:
+        "Frases listas: {{ready}} de {{words}} palabras · {{count}} frases",
       failed:
         "No se pudieron preparar las frases ({{message}}). Puedes practicar: las palabras sin frase se preguntan sin ella.",
     },

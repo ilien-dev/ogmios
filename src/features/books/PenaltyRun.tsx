@@ -263,8 +263,8 @@ export function PenaltyRun({
             <SittingItem<PenaltyAnswer>
               nativeLang={nativeLang}
               item={penalty.item}
-              check={(answer, second) =>
-                answerPenalty(sittingId, penalty.item, answer, second)
+              check={(answer, second, _hinted, rung) =>
+                answerPenalty(sittingId, penalty.item, answer, second, rung)
               }
               know={null}
               dispute={null}

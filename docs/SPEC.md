@@ -420,22 +420,36 @@ repaso rápido antes de leer no cambia.
 - **La frase no se ve de entrada:** se muestra solo la palabra y la etiqueta del tipo de palabra;
   eso basta para saber qué traducción se pide. La frase es la primera pista (ver «Pista a
   petición») y sale completa tras responder. Solo las palabras marcadas como ambiguas, que
-  necesitan su frase para distinguir el sentido, la muestran desde el principio, y también las
-  que otro capítulo, de este u otro libro, tiene con otro significado (ninguna traducción en
-  común): la frase dice cuál se pide. Vale en la práctica, el castigo y Repaso.
+  necesitan su frase para distinguir el sentido, la muestran desde el principio.
+- **Palabras escritas igual con otro significado:** una palabra tiene _rivales_ cuando un
+  capítulo, este u otro de cualquier libro, la tiene escrita igual («spinning») o al principio de
+  otra expresión («spinning in circles») sin significar exactamente lo mismo (otro tipo de
+  palabra u otras traducciones). Un índice de cómo se escribe cada palabra las encuentra al
+  momento. Se pregunta en tres intentos, en la práctica, el castigo y Repaso:
+  1. **Sola**, sin frase. Si responde con el significado de un rival, no es fallo: «También es
+     correcta, pero no es la que busco».
+  2. **Qué no es**: «"dando vueltas" es lo que significaba en "1. Strange Business"», con el nombre que la app da al capítulo (o el libro, si es otro), y si son de otro
+     tipo, qué es cada tipo (resaltado como su etiqueta), con un ejemplo y la pregunta que lleva a
+     la respuesta («¿Cómo es?»). Acertar aquí es acierto con ayuda. Nunca se dan letras.
+  3. **La frase** arriba, el último intento. Acertar con ella no es fallo ni acierto: la palabra
+     no avanza y vuelve más adelante, con un consejo (mirar la etiqueta, o las palabras que la
+     acompañan si los tipos coinciden). Fallar es fallo completo y se muestra la respuesta.
+     Cualquier error dentro de los intentos pasa al siguiente. La frase se muestra siempre tras
+     responder, y por eso cuenta como vista: la próxima vez sale otra del banco.
 - **Un significado por capítulo:** una misma palabra puede significar otra cosa en otro libro o
   en otro capítulo. Cada frase guarda el capítulo cuyo significado muestra. Practicar o castigar
   un capítulo solo usa frases suyas, y lo que se acepta es el significado de ese capítulo. Repaso
   usa frases de cualquier capítulo y juzga cada respuesta con el significado del capítulo de su
-  frase; responder con el significado que la palabra tiene en otro libro no es fallo: aviso
-  ámbar que nombra ese libro y un intento más.
+  frase.
 
 - **Banco por palabra y capítulo:** frases reales de su capítulo que tienen la palabra una sola
-  vez (las busca el código), y 5 que Claude escribe con el significado de ese capítulo, cada una
-  con la palabra una sola vez. Las palabras pedidas en charlas no tienen libro y se preguntan sin
-  frase.
-- **Una vez por capítulo:** en cada capítulo la palabra recibe 1 frase suya y se piden sus 5
-  escritas una sola vez. No se repone nunca, para no gastar tokens: lo ya pedido no se vuelve a
+  vez (las busca el código), y, solo para las palabras con rivales, 5 que Claude escribe con el
+  significado de ese capítulo, cada una con la palabra una sola vez: son las únicas que se
+  pueden confundir. Cuando un capítulo trae el primer rival de una palabra, se escriben para las
+  dos; con un tercer significado, solo para el nuevo. Las palabras pedidas en charlas no tienen
+  libro y se preguntan sin frase.
+- **Una vez por capítulo:** en cada capítulo la palabra recibe 1 frase suya y, si tiene rivales,
+  se piden sus 5 escritas una sola vez. No se repone nunca, para no gastar tokens: lo ya pedido no se vuelve a
   pedir, aunque se rechazara o se marcara como malo. Se prepara en segundo
   plano al abrir el capítulo y al entrar en Repaso, unas 10 palabras por petición, y cada
   respuesta se guarda al llegar. Una palabra sin frase se pregunta como antes. Las frases
@@ -443,7 +457,8 @@ repaso rápido antes de leer no cambia.
   pueden atribuir se retiran.
 - **Se practica con las frases listas:** al abrir un capítulo o Repaso se preparan las frases que
   falten o que una actualización dejó para revisar otra vez; mientras tanto «Practicar», el
-  repaso rápido y «Empezar» esperan con un aviso de carga. Si la preparación falla, se puede
+  repaso rápido y «Empezar» esperan con un aviso que dice cuántas palabras tienen ya frase y
+  cuántas frases hay («Frases listas: 12 de 20 palabras · 58 frases»). Si la preparación falla, se puede
   practicar igualmente y un aviso lo dice: las palabras sin frase se preguntan sin ella.
 - **Borrar un libro:** se van sus frases, salvo la frase con la que se aprendió cada palabra que
   se queda y las escritas para ella; el historial de repaso no cambia. Su texto no se vuelve a

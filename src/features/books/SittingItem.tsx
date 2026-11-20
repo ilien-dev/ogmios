@@ -5,7 +5,11 @@ import { ArrowRight } from "lucide-react";
 import type {
   AnotherWord,
   KindReminder,
+  Ladder,
   PracticeItem,
+  SenseHint,
+  SenseTip,
+  SentencePart,
   ShownSentence,
   WordHint,
 } from "@shared/domain";
@@ -25,6 +29,7 @@ import type { DisputeState } from "./sittingRun";
 import { Key } from "./TriageRun";
 import { VerbFormTag } from "./VerbFormTag";
 import { kindLine, retryKey } from "./retryLine";
+import { SenseHintCard, SenseTipLine } from "./SenseHelp";
 import { Context, whole } from "./SentenceContext";
 
 /**
@@ -55,8 +60,10 @@ export interface Checked {
   again?: boolean;
   another?: AnotherWord | null;
   otherKind?: KindReminder | null;
-  /** The answer is what the word means in the book of this title. */
-  otherSense?: string | null;
+  /** No answer yet: the next step of a word written alike to another one. */
+  ladder?: Ladder | null;
+  /** Right only with its sentence: neither right nor a miss. */
+  understood?: SenseTip | null;
   helped?: boolean;
   exact?: string | null;
   sentence?: ShownSentence | null;
@@ -78,6 +85,17 @@ function Verdict({ result, unknown, heard }: VerdictProps): ReactNode {
     ? "neutral"
     : grade(result.correct, result.helped === true);
   const exact = result.exact ?? null;
+  const understood = result.understood ?? null;
+  if (understood !== null) {
+    return (
+      <div className="flex flex-col items-center gap-2">
+        <VerdictLine tone="partial">
+          {t("books.sitting.understood")}
+        </VerdictLine>
+        <SenseTipLine tip={understood} />
+      </div>
+    );
+  }
   return (
     <div className="flex flex-col items-center gap-2">
       <VerdictLine tone={tone}>
@@ -204,10 +222,16 @@ interface SittingItemProps<Result extends Checked> {
   item: PracticeItem;
   /**
    * Checks an answer; an empty one says the learner does not know. `second`
-   * says it is the second try at a word that came in the wrong form, and
-   * `hinted` that the learner asked for a hint first.
+   * says it is the second try at a word that came in the wrong form,
+   * `hinted` that the learner asked for a hint first, and `rung` the step a
+   * word written alike to another one is on.
    */
-  check: (answer: string, second: boolean, hinted: boolean) => Promise<Result>;
+  check: (
+    answer: string,
+    second: boolean,
+    hinted: boolean,
+    rung: number,
+  ) => Promise<Result>;
   /**
    * The hint to this word once that many were asked for; null where no
    * hint is offered.
@@ -261,9 +285,13 @@ interface SittingItemProps<Result extends Checked> {
  * what was shown is no answer yet either: it is right for what the learner
  * saw, so the line says another word is wanted, and the sentence comes with
  * the first letter of that word. Once it
- * is answered the sentence shows whole, with its translation. In the
- * recall, the meaning the word has in another book is no answer yet either:
- * the line names that book and asks for the sense of this sentence.
+ * is answered the sentence shows whole, with its translation.
+ *
+ * A word written alike to another one in another sense climbs steps. The
+ * other word's meaning is no answer yet: a card says which word that was
+ * and, when they are different kinds, what each kind is. A miss after that
+ * shows the sentence. Right with the sentence it was understood, not known:
+ * the verdict says so, with what to look at next time.
  *
  * Its English is read aloud, never its other language: the word, with its
  * sentence when it shows from the start, or, asked for in English, the
@@ -292,8 +320,11 @@ export function SittingItem<Result extends Checked>({
   const [other, setOther] = useState(false);
   /** What came was a word of another kind from its root. */
   const [kind, setKind] = useState<KindReminder | null>(null);
-  /** What came is what the word means in the book of this title. */
-  const [sense, setSense] = useState<string | null>(null);
+  /** The step a word written alike to another one is on, from 0. */
+  const [rung, setRung] = useState(0);
+  /** On its steps: which word the answer was, and then its sentence. */
+  const [sense, setSense] = useState<SenseHint | null>(null);
+  const [steps, setSteps] = useState<SentencePart[] | null>(null);
   const [result, setResult] = useState<Result | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   /** The hint asked for, and how often: each time gives a little more. */
@@ -331,13 +362,26 @@ export function SittingItem<Result extends Checked>({
     setChecking(true);
     setFailure(null);
     try {
-      const verdict = await check(text, again, hints > 0);
+      const verdict = await check(text, again, hints > 0, rung);
       if (verdict.again === true) {
         setAgain(true);
+        const ladder = verdict.ladder ?? null;
+        if (ladder !== null) {
+          setRung(ladder.rung);
+          setOther(false);
+          setKind(null);
+          if (ladder.hint !== null) {
+            setSense(ladder.hint);
+          }
+          if (ladder.context !== null) {
+            setSteps(ladder.context);
+          }
+          setResponse("");
+          return;
+        }
         const told = verdict.another ?? null;
         setOther(told !== null);
         setKind(verdict.otherKind ?? null);
-        setSense(verdict.otherSense ?? null);
         if (told !== null) {
           // What tells the two words apart; hints that gave more stay.
           if (hints <= told.asked) {
@@ -413,21 +457,31 @@ export function SittingItem<Result extends Checked>({
   };
 
   // Only a typed miss can be stood by, and once: again if it could not be asked.
+  // Nor one understood only with its sentence: it was no miss.
+  const understood = (result?.understood ?? null) !== null;
   const disputable =
     result !== null &&
     !result.correct &&
     !unknown &&
+    !understood &&
     (dispute === null || dispute.status === "failed");
   // An answer put to "I was right" stands: its sentence is not called bad.
-  const discardable = bad !== null && dispute === null;
+  const discardable = bad !== null && dispute === null && !understood;
 
-  // Why the answer is none yet: another book's sense, another kind, or the
-  // form or the word the sentence does not want.
-  const retry =
-    sense === null
-      ? (kindLine(kind, t, item.verbForm) ??
-        t(retryKey(other, item.sentenceId !== null, toEnglish, item.verbForm)))
-      : t("books.sitting.otherSense", { book: sense });
+  // Why the answer is none yet: the step of a word written alike, another
+  // kind, or the form or the word the sentence does not want.
+  const retry = (): string => {
+    if (rung === 1) {
+      return t("books.sitting.otherMeaning");
+    }
+    if (rung === 2) {
+      return t("books.sitting.readSentence");
+    }
+    return (
+      kindLine(kind, t, item.verbForm) ??
+      t(retryKey(other, item.sentenceId !== null, toEnglish, item.verbForm))
+    );
+  };
 
   // Only a kind worth naming, or a verb's form, earns the row of tags.
   const tagged =
@@ -486,6 +540,18 @@ export function SittingItem<Result extends Checked>({
               <Context parts={item.nativeContext} blanked={false} native />
             </Reveal>
           )}
+          {steps !== null && (
+            <Reveal key="steps">
+              <Context parts={steps} blanked={false} />
+            </Reveal>
+          )}
+        </Presence>
+        <Presence>
+          {sense !== null && result === null && (
+            <Reveal key="sense" className="w-full">
+              <SenseHintCard hint={sense} />
+            </Reveal>
+          )}
         </Presence>
         <Presence>
           {clue !== null && result === null && (
@@ -540,7 +606,7 @@ export function SittingItem<Result extends Checked>({
         <Presence>
           {result === null && again && (
             <Reveal key="again" className="flex justify-center">
-              <VerdictLine tone="partial">{retry}</VerdictLine>
+              <VerdictLine tone="partial">{retry()}</VerdictLine>
             </Reveal>
           )}
         </Presence>

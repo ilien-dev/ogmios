@@ -637,9 +637,16 @@ pub fn session_words(conn: &Connection, sitting: &SittingRow) -> Result<Vec<Sess
 /// The answers given in a sitting, oldest first: the order its questions
 /// were asked in.
 pub fn session_log(conn: &Connection, sitting_id: &str) -> Result<Vec<Asked>> {
+    // An answer understood only with its sentence is asked in its turn, as
+    // one not right: the word comes back later (`understood`).
     let mut stmt = conn.prepare(
-        "SELECT word_id, direction, correct FROM word_answers
-         WHERE sitting_id = ?1 ORDER BY seq",
+        "SELECT word_id, direction, correct FROM (
+           SELECT word_id, direction, correct, created_at, seq, 0 AS late FROM word_answers
+           WHERE sitting_id = ?1
+           UNION ALL
+           SELECT word_id, direction, 0, created_at, seq, 1 FROM understood_answers
+           WHERE sitting_id = ?1
+         ) ORDER BY created_at, late, seq",
     )?;
     let rows = stmt.query_map([sitting_id], |row| {
         Ok(Asked {
@@ -649,6 +656,22 @@ pub fn session_log(conn: &Connection, sitting_id: &str) -> Result<Vec<Asked>> {
         })
     })?;
     Ok(rows.collect::<rusqlite::Result<_>>()?)
+}
+
+/// An answer of the sitting was right only once the sentence was shown: it
+/// counts neither as right nor as a miss, but it was asked in its turn.
+pub fn understood(
+    conn: &Connection,
+    sitting_id: &str,
+    (word_id, direction): (&str, Direction),
+    now: DateTime<Utc>,
+) -> Result<()> {
+    conn.execute(
+        "INSERT INTO understood_answers (sitting_id, word_id, direction, created_at)
+         VALUES (?1, ?2, ?3, ?4)",
+        params![sitting_id, word_id, direction, ts(now)],
+    )?;
+    Ok(())
 }
 
 /// The chapter's session of practice that was left before it ran out of

@@ -69,6 +69,8 @@ export const PLAIN = {
   helped: false,
   exact: null,
   sentence: null,
+  ladder: null,
+  understood: null,
 };
 
 /** A word as an exercise shows it: `commands::practice::small`. */

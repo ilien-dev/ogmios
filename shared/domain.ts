@@ -7,8 +7,10 @@
  */
 
 import type { PenaltyStep } from "./penalty.ts";
+import type { Ladder, SenseTip } from "./sense.ts";
 
 export type { PenaltyAnswer, PenaltyStep } from "./penalty.ts";
+export type { Ladder, SenseHint, SenseTip, SentenceProgress } from "./sense.ts";
 
 export type Level = "basic" | "intermediate" | "advanced";
 export type Cefr = "A1" | "A2" | "B1" | "B2" | "C1" | "C2";
@@ -717,14 +719,10 @@ export interface SentenceVerdict {
   exact: string | null;
   /** The sentence the word was asked with, when it was asked with one. */
   sentence: ShownSentence | null;
-}
-
-/** Event `sentence-progress`: words given their sentences so far. */
-export interface SentenceProgress {
-  /** The chapter whose words they are; null for the words of the recall. */
-  chapterId: string | null;
-  done: number;
-  total: number;
+  /** No answer yet: the next step of a word written alike to another one. */
+  ladder: Ladder | null;
+  /** Right only with its sentence: neither right nor a miss. */
+  understood: SenseTip | null;
 }
 
 /** How a sitting ended. */
@@ -911,11 +909,6 @@ export interface RecallAnswer extends SentenceVerdict {
   step: RecallStep;
   /** Names this answer, for calling its sentence bad. */
   answerId: number;
-  /**
-   * The answer is what the word means in the book of this title, not in the
-   * sentence shown: no miss, one more try.
-   */
-  otherSense: string | null;
 }
 
 /** Which way a chapter is translated: into the learner's language, or back. */

@@ -11,6 +11,7 @@ pub mod recall;
 pub mod refresh;
 pub mod sentences;
 pub mod sessions;
+pub mod spellings;
 pub mod structures;
 pub mod translate;
 pub mod words;
@@ -63,6 +64,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("tenses.sql"),
     include_str!("notes.sql"),
     include_str!("chaptered.sql"),
+    include_str!("spellings.sql"),
 ];
 
 pub fn open(path: &Path) -> Result<Connection> {

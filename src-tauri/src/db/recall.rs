@@ -257,6 +257,24 @@ pub fn answered(conn: &Connection, run_id: &str) -> Result<(u32, u32)> {
     )?)
 }
 
+/// The word of `key` was right in the run only once its sentence was
+/// shown: it stays due as it was, and the run does not ask it again.
+pub fn understood(conn: &Connection, run_id: &str, key: &str, now: DateTime<Utc>) -> Result<()> {
+    conn.execute(
+        "INSERT OR IGNORE INTO understood_recalls (sitting_id, key, created_at)
+         VALUES (?1, ?2, ?3)",
+        params![run_id, key, ts(now)],
+    )?;
+    Ok(())
+}
+
+/// The keys of the words understood only with their sentence in the run.
+pub fn understood_keys(conn: &Connection, run_id: &str) -> Result<Vec<String>> {
+    let mut stmt = conn.prepare("SELECT key FROM understood_recalls WHERE sitting_id = ?1")?;
+    let rows = stmt.query_map([run_id], |row| row.get(0))?;
+    Ok(rows.collect::<rusqlite::Result<_>>()?)
+}
+
 /// Keeps one answer of a run.
 pub fn record(
     conn: &Connection,

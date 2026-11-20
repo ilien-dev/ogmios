@@ -717,6 +717,12 @@ pub struct SentenceProgress {
     pub chapter_id: Option<String>,
     pub done: u32,
     pub total: u32,
+    /// The words of the chapter, or of the recall.
+    pub words: u32,
+    /// How many of those can be asked with a sentence already.
+    pub ready: u32,
+    /// The sentences those have.
+    pub sentences: u32,
 }
 
 /// A piece of a sentence from the book; the word being asked is `marked`.
@@ -881,6 +887,9 @@ pub struct PenaltyAnswer {
     /// the sitting asks next.
     pub finished: bool,
     pub step: PracticeStep,
+    /// As in `AnswerResult`.
+    pub ladder: Option<Ladder>,
+    pub understood: Option<SenseTip>,
 }
 
 /// A sitting just started, or the unfinished one gone on with.
@@ -960,6 +969,51 @@ pub struct AnswerResult {
     pub exact: Option<String>,
     /// The sentence the word was asked with, when it was asked with one.
     pub sentence: Option<ShownSentence>,
+    /// No answer yet: the next step of a word written alike to another one.
+    pub ladder: Option<Ladder>,
+    /// Right only with its sentence: neither right nor a miss.
+    pub understood: Option<SenseTip>,
+}
+
+/// What a word written alike to another one in another sense is asked with
+/// on its next step (`commands::ladder`): told which word the answer was
+/// and the kind asked for, then shown its sentence.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Ladder {
+    /// The step it is on now: 1 told the kind of word, 2 shown the sentence.
+    pub rung: u8,
+    /// On step 1: which word the answer was.
+    pub hint: Option<SenseHint>,
+    /// On step 2: the sentence, the word marked.
+    pub context: Option<Vec<SentencePart>>,
+}
+
+/// The other word an answer meant: what it means, where it is from, and
+/// both kinds of word.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SenseHint {
+    /// What the answer said, as that word means it.
+    pub meaning: String,
+    /// The title of its book; none when it is the book of the word asked.
+    pub book: Option<String>,
+    /// Its chapter, from 1, and the chapter's title.
+    pub chapter: u32,
+    pub chapter_title: String,
+    /// The kind of the word asked, and of the other one.
+    pub asked: Option<PartOfSpeech>,
+    pub given: Option<PartOfSpeech>,
+}
+
+/// Right only once the sentence was shown: what to look at next time.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SenseTip {
+    /// The kind of the word asked.
+    pub kind: Option<PartOfSpeech>,
+    /// Its rivals are another kind of word: its tag tells them apart.
+    pub kinds_differ: bool,
 }
 
 /// An answer that is a word of another kind from the root of the one
@@ -1095,9 +1149,9 @@ pub struct RecallAnswer {
     pub helped: bool,
     pub exact: Option<String>,
     pub sentence: Option<ShownSentence>,
-    /// The answer is what the word means in this book, not in the sentence
-    /// shown: no miss, one more try.
-    pub other_sense: Option<String>,
+    /// As in `AnswerResult`.
+    pub ladder: Option<Ladder>,
+    pub understood: Option<SenseTip>,
 }
 
 /// A word a review found the learner did not know, to add to practice.

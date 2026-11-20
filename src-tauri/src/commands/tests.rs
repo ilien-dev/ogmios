@@ -780,15 +780,36 @@ fn a_chapters_words_get_their_sentences_through_the_sidecar() {
         top_up(ctx, Scope::Chapter(&chapter), &mut Sidecar(ctx), &|_, _| {}).expect("top up");
     assert_eq!(given, 1);
 
-    // The sentence of its chapter glossed, and five written in its sense.
+    // The sentence of its chapter glossed, and none written yet.
     let held = bank::bank(&ctx.conn().expect("conn"), "hedge", Some(&chapter)).expect("bank");
     let texts: Vec<&str> = held.iter().map(|each| each.text.as_str()).collect();
-    assert_eq!(texts[0], "A sentence with hedge.");
+    assert_eq!(texts, ["A sentence with hedge."]);
     assert!(held[0].book);
-    assert_eq!(held.iter().filter(|each| !each.book).count(), 5);
     assert!(held
         .iter()
         .all(|each| each.form == "hedge" && !each.hint.is_empty()));
+
+    // Another book means something else by it: both are written five.
+    let other = {
+        let conn = ctx.conn().expect("conn");
+        let other = shelf::book(&conn, "o", &["The hedge fund lost money."]).remove(0);
+        let list = [crate::books::vocab::Word {
+            sentence: "The hedge fund lost money.".into(),
+            ..shelf::word("hedge", &["fondo de cobertura"], 1)
+        }];
+        words::finish(&conn, &other, Depth::Most, &list, Utc::now()).expect("words");
+        other
+    };
+    top_up(ctx, Scope::Chapter(&other), &mut Sidecar(ctx), &|_, _| {}).expect("top up");
+    for each in [&chapter, &other] {
+        let held = bank::bank(&ctx.conn().expect("conn"), "hedge", Some(each)).expect("bank");
+        let texts: Vec<&str> = held.iter().map(|each| each.text.as_str()).collect();
+        assert_eq!(
+            held.iter().filter(|each| !each.book).count(),
+            5,
+            "{texts:?}"
+        );
+    }
 }
 
 #[test]

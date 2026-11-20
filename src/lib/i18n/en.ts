@@ -643,8 +643,11 @@ export const en = {
         "That's the word, but I'm after its base form: the infinitive. Try once more.",
       otherWord:
         "That's right, but I'm after another word here. Try once more.",
-      otherSense:
-        "That's what it means in “{{book}}”. This sentence means something else by it: read it and try once more.",
+      otherMeaning: "That's right too, but it's not the one I'm after.",
+      readSentence:
+        "Read the sentence: it tells you which meaning we're after.",
+      understood:
+        "You got it with the sentence. It will come back so you can get it without.",
       otherKind:
         "Remember: I'm asking for “{{asked}}”{{form}}, not “{{given}}”. {{title}}: {{meaning}} Try once more.",
       exact: "In this sentence:",
@@ -725,10 +728,68 @@ export const en = {
       inBook: "See it in the book",
       hideBook: "Hide the sentence",
     },
+    sense: {
+      placeChapter: "“{{title}}”",
+      placeSection: "section {{n}}",
+      placeBook: "“{{book}}”",
+      notThis:
+        "“{{meaning}}” is what it meant in {{place}}. Here it means something else.",
+      was: "In {{place}} it was",
+      is: "Here it is",
+      likeYours: ", like “{{meaning}}”.",
+      like: ", like {{example}}.",
+      ask: "Ask yourself:",
+      tipTitle: "Tip:",
+      tipTag: "before you answer, look at the tag beside the word (",
+      tipTagEnd: "). It tells you which meaning we're after.",
+      tipWords:
+        "before you answer, think about the words around it: they tell you which meaning we're after.",
+      kinds: {
+        noun: {
+          article: "a",
+          does: "the name of a person, an animal, a thing or a place",
+          example: "“the dog” or “the house”",
+          question: "What is it? Who is it?",
+        },
+        verb: {
+          article: "a",
+          does: "says what someone does or what happens",
+          example: "“the boy runs”",
+          question: "What does it do? What happens?",
+        },
+        phrasalVerb: {
+          article: "a",
+          does: "a verb with a small word stuck to it that changes its meaning",
+          example: "“give up”, to quit",
+          question: "What does it do, with both words together?",
+        },
+        adjective: {
+          article: "an",
+          does: "says what a person or a thing is like",
+          example: "“a red ball” or “a big house”",
+          question: "What is it like?",
+        },
+        adverb: {
+          article: "an",
+          does: "says how, when or where something happens",
+          example: "“runs fast” or “came yesterday”",
+          question: "How? When? Where?",
+        },
+        expression: {
+          article: "an",
+          does: "several words that together mean one thing",
+          example: "“a piece of cake”, very easy",
+          question: "What do they mean together?",
+        },
+      },
+    },
     sentences: {
-      writing: "Preparing the book's sentences: {{done}} of {{total}} words",
-      bar: "Sentences from the book",
+      bar: "Words with a sentence",
       readying: "Preparing your words' sentences…",
+      stock_one:
+        "Sentences ready: {{ready}} of {{words}} words · {{count}} sentence",
+      stock_other:
+        "Sentences ready: {{ready}} of {{words}} words · {{count}} sentences",
       failed:
         "Your words' sentences could not be prepared ({{message}}). You can practise: a word without one is asked without it.",
     },

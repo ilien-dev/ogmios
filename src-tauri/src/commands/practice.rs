@@ -13,6 +13,7 @@ use chrono::{DateTime, Utc};
 use rusqlite::Connection;
 use tauri::AppHandle;
 
+use super::ladder::{rise, Climb, ALONE};
 use super::penalty;
 use super::profile::require_profile;
 use super::run;
@@ -73,7 +74,7 @@ pub(super) fn step(
             progress: progress_over(&words, sitting.ways),
         });
     };
-    let word = telling(conn, practice::word(conn, question.word_id)?)?;
+    let word = practice::word(conn, question.word_id)?;
     Ok(PracticeStep::Item {
         item: in_sentence(conn, word, question.direction, &sitting.id)?,
         progress: progress(&words, sitting.ways),
@@ -187,22 +188,11 @@ fn verb_form(part_of_speech: Option<PartOfSpeech>, sentence: &Sentence) -> Optio
     sentence.verb_form.filter(|_| verb)
 }
 
-/// The word as it is asked: its sentence shows from the start, as the look
-/// of a word that needs it says, also when another chapter has the word in
-/// another sense (`db::sentences::senses_differ`): it tells which one is
-/// meant.
-pub(super) fn telling(conn: &Connection, mut word: WordRow) -> Result<WordRow> {
-    if sentences::senses_differ(conn, &word.key, &word.id)? {
-        word.context_there = Some(true);
-        word.context_back = Some(true);
-    }
-    Ok(word)
-}
-
 /// The word as a session of practice asks it: with a sentence of its
 /// chapter's bank, a different one each time, or, until it has a bank, as
-/// its chapter has it ([`item`]). The sentence is shown from the start when
-/// another chapter has the word in another sense.
+/// its chapter has it ([`item`]). A word written alike to another one in
+/// another sense comes alone, and is told apart on its steps
+/// (`commands::ladder`).
 fn in_sentence(
     conn: &Connection,
     word: WordRow,
@@ -238,6 +228,8 @@ pub struct Shown<'a> {
     pub sentence_id: Option<&'a str>,
     pub second: bool,
     pub hinted: bool,
+    /// The step of a word written alike to another one (`commands::ladder`).
+    pub rung: u8,
 }
 
 /// How an answer was come by, as the screen says: on the second try at the
@@ -247,6 +239,8 @@ pub struct Shown<'a> {
 pub struct Tries {
     pub second: bool,
     pub hinted: bool,
+    /// The step of a word written alike to another one (`commands::ladder`).
+    pub rung: u8,
 }
 
 impl<'a> Shown<'a> {
@@ -257,6 +251,7 @@ impl<'a> Shown<'a> {
             sentence_id,
             second: tries.second,
             hinted: tries.hinted,
+            rung: tries.rung,
         }
     }
 }
@@ -264,7 +259,7 @@ impl<'a> Shown<'a> {
 impl Shown<'_> {
     /// A right answer given with this was helped: it is not a clean one.
     pub(super) fn helped(self) -> bool {
-        self.second || self.hinted
+        self.second || self.hinted || self.rung > 0
     }
 }
 
@@ -1054,22 +1049,44 @@ pub fn answer_shown(
     } else {
         plain(&tx, &word, (direction, answer), (&native_lang, spelling))?
     };
-    if judged.is_no_answer() && !shown.second {
+    let climbed = rise(
+        &tx,
+        (&word, sentence.as_ref()),
+        (direction, answer, shown.rung),
+        judged.is_right(),
+        (&native_lang, spelling),
+    )?;
+    match climbed {
+        Climb::Up(ladder) => {
+            return Ok(AnswerResult {
+                ladder: Some(ladder),
+                ..unanswered(step(&tx, &sitting, now)?)
+            });
+        }
+        Climb::Understood(tip) => {
+            practice::understood(&tx, &sitting.id, (word_id, direction), now)?;
+            let step = step(&tx, &sitting, now)?;
+            tx.commit()?;
+            return Ok(AnswerResult {
+                again: false,
+                accepted: all_small(&judged.accepted),
+                sentence: sentence.as_ref().map(whole),
+                understood: Some(tip),
+                ..unanswered(step)
+            });
+        }
+        Climb::Off => {}
+    }
+    // Past the first step a word written alike is judged as it stands.
+    if judged.is_no_answer() && !shown.second && shown.rung == ALONE {
         let another = (judged.verdict == Verdict::OtherWord).then(|| {
             let (answer, context) = clue(&word, sentence.as_ref(), direction);
             another(&answer, context)
         });
         return Ok(AnswerResult {
-            answer_id: 0,
-            correct: false,
-            accepted: Vec::new(),
-            step: step(&tx, &sitting, now)?,
-            again: true,
             another,
             other_kind: judged.kind,
-            helped: false,
-            exact: None,
-            sentence: None,
+            ..unanswered(step(&tx, &sitting, now)?)
         });
     }
     let correct = judged.is_right();
@@ -1080,6 +1097,8 @@ pub fn answer_shown(
         (answer.trim(), correct),
         now,
     )?;
+    // Shown once the answer is given, the sentence is spent: the next time
+    // another one of the bank comes.
     if let Some(sentence) = &sentence {
         practice::tag(&tx, answer_id, &sentence.id)?;
     }
@@ -1098,7 +1117,27 @@ pub fn answer_shown(
         helped: correct && shown.helped(),
         exact: judged.exact.as_deref().map(small),
         sentence: sentence.as_ref().map(whole),
+        ladder: None,
+        understood: None,
     })
+}
+
+/// An answer that keeps nothing: the learner has one more try.
+fn unanswered(step: PracticeStep) -> AnswerResult {
+    AnswerResult {
+        answer_id: 0,
+        correct: false,
+        accepted: Vec::new(),
+        step,
+        again: true,
+        another: None,
+        other_kind: None,
+        helped: false,
+        exact: None,
+        sentence: None,
+        ladder: None,
+        understood: None,
+    }
 }
 
 /// "This sentence is bad" on the answer just given: the sentence is never

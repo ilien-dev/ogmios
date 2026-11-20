@@ -93,9 +93,12 @@ function Round({ ways, nativeLang, onMore, onDone }: RoundProps): ReactNode {
       <SittingItem
         nativeLang={nativeLang}
         item={step.item}
-        check={(answer: string, second: boolean, hinted: boolean) =>
-          answerRecall(id, step.item, answer, second, hinted)
-        }
+        check={(
+          answer: string,
+          second: boolean,
+          hinted: boolean,
+          rung: number,
+        ) => answerRecall(id, step.item, answer, second, hinted, rung)}
         hint={(asked) => hintRecall(id, step.item, asked)}
         bad={(result) => discardRecallSentence(id, result.answerId)}
         know={null}
