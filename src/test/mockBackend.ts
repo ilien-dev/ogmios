@@ -8,6 +8,7 @@ import { resetMockListening } from "@/lib/ipcMockListening";
 import { resetMockPractice } from "@/lib/ipcMockPractice";
 import { resetMockRecall } from "@/lib/ipcMockRecall";
 import { resetMockRefresh } from "@/lib/ipcMockRefresh";
+import { resetMockSentences } from "@/lib/ipcMockSentences";
 import { resetMockSpeech } from "@/lib/ipcMockSpeech";
 import { resetMockStructures } from "@/lib/ipcMockStructures";
 import { resetMockTranslate } from "@/lib/ipcMockTranslate";
@@ -28,6 +29,7 @@ export function useMockBackend(onboarded = true): void {
     resetMockPractice();
     resetMockRefresh();
     resetMockRecall();
+    resetMockSentences();
     resetMockStructures();
     resetMockListening();
     resetMockTranslate();

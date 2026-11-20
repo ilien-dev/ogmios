@@ -7,6 +7,7 @@ import { Reveal } from "@/components/motion/Reveal";
 import { Button } from "@/components/ui/Button";
 import { Orb } from "@/components/ui/Orb";
 import { ProgressBar } from "@/components/ui/ProgressBar";
+import { Spinner } from "@/components/ui/Spinner";
 import { cn } from "@/lib/cn";
 
 interface ChapterAsideProps {
@@ -23,6 +24,11 @@ interface ChapterAsideProps {
   ready: boolean;
   /** The chapter is ready and has done words to go over once more. */
   refreshable: boolean;
+  /**
+   * The sentences its words are asked with are being prepared: nothing that
+   * asks them starts until they are.
+   */
+  readying: boolean;
   onPractise: () => void;
   onRefresh: () => void;
   onTranslate: () => void;
@@ -37,16 +43,42 @@ interface ChapterAsideProps {
 const ALIGN = "items-center sm:items-start wide:items-center";
 const JUSTIFY = "justify-center sm:justify-start wide:justify-center";
 
+/** Says the sentences are being prepared, while they are. */
+function Readying({ readying }: { readying: boolean }): ReactNode {
+  const { t } = useTranslation();
+  return (
+    <Presence>
+      {readying && (
+        <Reveal
+          key="readying"
+          as="p"
+          aria-live="polite"
+          className="flex items-center gap-2 text-sm text-ink-soft"
+        >
+          <Spinner />
+          {t("books.sentences.readying")}
+        </Reveal>
+      )}
+    </Presence>
+  );
+}
+
 /** How far the words stand, and which way into them is on offer. */
 function Actions(props: ChapterAsideProps): ReactNode {
   const { t } = useTranslation();
-  const { open, ready, refreshable } = props;
+  const { open, ready, refreshable, readying } = props;
   if (open) {
     return (
       <div className={cn("flex flex-col gap-3", ALIGN)}>
-        <Button variant="primaryBook" size="lg" onClick={props.onPractise}>
+        <Button
+          variant="primaryBook"
+          size="lg"
+          disabled={readying}
+          onClick={props.onPractise}
+        >
           {t("books.chapter.practise")}
         </Button>
+        <Readying readying={readying} />
         <div className={cn("flex flex-wrap gap-2", JUSTIFY)}>
           <Button variant="learn" onClick={props.onTranslate}>
             {t("books.translate.start")}
@@ -65,11 +97,12 @@ function Actions(props: ChapterAsideProps): ReactNode {
           <CircleCheck aria-hidden className="size-5" />
           {t("books.ready")}
         </p>
+        <Readying readying={readying && refreshable} />
         <div className={cn("flex flex-wrap gap-2", JUSTIFY)}>
           <Presence>
             {refreshable && (
               <Reveal key="refresh" as="span" kind="fade">
-                <Button onClick={props.onRefresh}>
+                <Button disabled={readying} onClick={props.onRefresh}>
                   {t("books.refresh.start")}
                 </Button>
               </Reveal>
@@ -78,7 +111,7 @@ function Actions(props: ChapterAsideProps): ReactNode {
           <Presence>
             {refreshable && (
               <Reveal key="practise" as="span" kind="fade">
-                <Button onClick={props.onPractise}>
+                <Button disabled={readying} onClick={props.onPractise}>
                   {t("books.chapter.practise")}
                 </Button>
               </Reveal>

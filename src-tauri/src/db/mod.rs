@@ -1345,6 +1345,7 @@ mod tests {
                                      ('pic', 'Picture', NULL, 'epub', 'h2', 'f2', '2026-01-01');
              INSERT INTO book_chapters (id, book_id, idx, title, words, text)
                VALUES ('c1', 'cat', 0, 'I', 4, 'The fuzzy cat slept. The fuzzy cat woke.'),
+                      ('c3', 'cat', 1, 'II', 4, 'A fuzzy dog barked.'),
                       ('c2', 'pic', 0, 'I', 8, 'The picture was fuzzy. Fuzzy again, it was.');
              INSERT INTO archived_books VALUES ('pic', '2026-01-05');
              INSERT INTO chapter_words
@@ -1369,7 +1370,9 @@ mod tests {
                     ('lost', 'fuzzy', 'model', 'Something fuzzy happened.', 'fuzzy', 'raro',
                      'Pasó algo raro.', 1, 0, '2026-01-05'),
                     ('refused', 'fuzzy', 'model', 'The fuzzy cat woke.', '', '',
-                     '', 1, 1, '2026-01-06');
+                     '', 1, 1, '2026-01-06'),
+                    ('dog', 'fuzzy', 'book', 'A fuzzy dog barked.', 'fuzzy', 'peludo',
+                     'Un perro peludo ladró.', 1, 0, '2026-01-07');
              INSERT INTO practice_sittings (id, chapter_id, started_at)
                VALUES ('s', 'c1', '2026-01-01');
              INSERT INTO word_answers
@@ -1407,11 +1410,31 @@ mod tests {
         // A deleted book keeps the sentence its word was learned with only.
         assert_eq!(of("pic"), at("book", "c2"));
         assert_eq!(of("again"), None);
-        let in_cat: Vec<String> = sentences::bank(&conn, "fuzzy", Some("c1"))
-            .expect("bank")
+        // One of a chapter without the word came from another chapter: it
+        // goes, and the word's own chapter is read again.
+        assert_eq!(of("dog"), None);
+        // Looked at with another chapter's meaning: looked at again, with
+        // its own, before it is asked with.
+        let usable = sentences::bank(&conn, "fuzzy", None).expect("bank").len();
+        assert_eq!(usable, 0);
+        let waiting: Vec<(String, Option<String>)> = sentences::unreviewed(&conn)
+            .expect("unreviewed")
             .into_iter()
-            .map(|each| each.id)
+            .map(|each| (each.id, each.chapter_id))
             .collect();
-        assert_eq!(in_cat, ["cat", "fur"]);
+        let chapter = |id: &str, at: &str| (id.to_owned(), Some(at.to_owned()));
+        assert_eq!(
+            waiting,
+            [
+                chapter("cat", "c1"),
+                chapter("pic", "c2"),
+                chapter("fur", "c1")
+            ]
+        );
+        let (lemma, meant) = sentences::meaning(&conn, "fuzzy", Some("c2")).expect("meaning");
+        assert_eq!(
+            (lemma.as_str(), meant),
+            ("fuzzy", vec!["difuso".to_owned()])
+        );
     }
 }

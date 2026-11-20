@@ -441,6 +441,10 @@ repaso rápido antes de leer no cambia.
   respuesta se guarda al llegar. Una palabra sin frase se pregunta como antes. Las frases
   guardadas antes quedan atadas al capítulo cuyo texto o significado muestran; las que no se
   pueden atribuir se retiran.
+- **Se practica con las frases listas:** al abrir un capítulo o Repaso se preparan las frases que
+  falten o que una actualización dejó para revisar otra vez; mientras tanto «Practicar», el
+  repaso rápido y «Empezar» esperan con un aviso de carga. Si la preparación falla, se puede
+  practicar igualmente y un aviso lo dice: las palabras sin frase se preguntan sin ella.
 - **Borrar un libro:** se van sus frases, salvo la frase con la que se aprendió cada palabra que
   se queda y las escritas para ella; el historial de repaso no cambia. Su texto no se vuelve a
   leer. Borrarlo para siempre lo quita todo.

@@ -728,6 +728,9 @@ export const en = {
     sentences: {
       writing: "Preparing the book's sentences: {{done}} of {{total}} words",
       bar: "Sentences from the book",
+      readying: "Preparing your words' sentences…",
+      failed:
+        "Your words' sentences could not be prepared ({{message}}). You can practise: a word without one is asked without it.",
     },
     refresh: {
       start: "Quick refresh before reading",

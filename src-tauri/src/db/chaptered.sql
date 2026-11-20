@@ -32,6 +32,15 @@ UPDATE word_sentences SET chapter_id = (
 )
 WHERE source = 'book' AND sentence != '';
 
+-- One a chapter has, but no chapter that has the word, came from another
+-- chapter of its book, which may mean something else by it: it goes, and
+-- the word's own chapter is read for it again.
+DELETE FROM word_sentences
+WHERE source = 'book' AND chapter_id IS NULL AND sentence != ''
+  AND EXISTS (
+    SELECT 1 FROM book_chapters c WHERE instr(c.text, word_sentences.sentence) > 0
+  );
+
 -- Or of the chapter whose own sentence of the word it is.
 UPDATE word_sentences SET chapter_id = (
   SELECT w.chapter_id FROM chapter_words w
@@ -78,4 +87,14 @@ WHERE source = 'book'
       AND w.sentence != '' AND word_sentences.sentence != ''
       AND (instr(w.sentence, word_sentences.sentence) > 0
         OR instr(word_sentences.sentence, w.sentence) > 0)
+  );
+
+-- A sentence was looked at with the meaning of the first chapter that had
+-- its word, whatever chapter it is of. Of a word more than one chapter has,
+-- it is looked at again, with its own chapter's meaning: whether it is
+-- good, and the other translations taken for it.
+UPDATE word_sentences SET reviewed = 0, also = NULL, hints = NULL
+WHERE reviewed AND NOT discarded AND chapter_id IS NOT NULL
+  AND key IN (
+    SELECT key FROM chapter_words GROUP BY key HAVING COUNT(DISTINCT chapter_id) > 1
   );

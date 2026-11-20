@@ -1,7 +1,12 @@
 import { useEffect, useState } from "react";
 import type { ReactNode, SyntheticEvent } from "react";
 import { useTranslation } from "react-i18next";
-import type { RecallState, Strength, Ways } from "@shared/domain";
+import type {
+  RecallState,
+  SentenceProgress,
+  Strength,
+  Ways,
+} from "@shared/domain";
 import { Presence } from "@/components/motion/Presence";
 import { Reveal } from "@/components/motion/Reveal";
 import type { Navigate } from "@/app/routes";
@@ -10,7 +15,8 @@ import { ChoiceGroup } from "@/components/ui/ChoiceGroup";
 import { Notice } from "@/components/ui/Notice";
 import { Spinner } from "@/components/ui/Spinner";
 import { errorMessage } from "@/lib/errors";
-import { recallState, writeSentences } from "@/lib/ipc";
+import { ProgressBar } from "@/components/ui/ProgressBar";
+import { onSentenceProgress, recallState, writeSentences } from "@/lib/ipc";
 import { languageName } from "@/lib/text";
 import { RecallRun } from "./RecallRun";
 import { StrengthMark } from "./StrengthMark";
@@ -29,11 +35,21 @@ function counts(state: RecallState): Array<[Strength, number]> {
 interface TodayProps {
   state: RecallState;
   nativeLang: string;
+  /** The words' sentences are being prepared: the run waits for them. */
+  readying: boolean;
+  /** How far that is, once it says. */
+  writing: SentenceProgress | null;
   onStart: (ways: Ways) => void;
 }
 
 /** What is due today and the way to start it, over how the words stand. */
-function Today({ state, nativeLang, onStart }: TodayProps): ReactNode {
+function Today({
+  state,
+  nativeLang,
+  readying,
+  writing,
+  onStart,
+}: TodayProps): ReactNode {
   const { t, i18n } = useTranslation();
   const [ways, setWays] = useState<Ways>("both");
   const english = languageName("en", i18n.language);
@@ -45,7 +61,9 @@ function Today({ state, nativeLang, onStart }: TodayProps): ReactNode {
   };
   const start = (event: SyntheticEvent): void => {
     event.preventDefault();
-    onStart(ways);
+    if (!readying) {
+      onStart(ways);
+    }
   };
   return (
     <>
@@ -74,9 +92,35 @@ function Today({ state, nativeLang, onStart }: TodayProps): ReactNode {
                   onChange={setWays}
                 />
               </div>
-              <Button type="submit" variant="primaryBook">
+              <Button type="submit" variant="primaryBook" disabled={readying}>
                 {t("recall.start")}
               </Button>
+              <Presence>
+                {readying && (
+                  <Reveal
+                    key="readying"
+                    aria-live="polite"
+                    className="flex w-full flex-col gap-2"
+                  >
+                    <p className="flex items-center gap-2 text-sm text-ink-soft">
+                      <Spinner />
+                      {t("books.sentences.readying")}
+                    </p>
+                    <Presence>
+                      {writing !== null && writing.total > 0 && (
+                        <Reveal key="bar" kind="fade">
+                          <ProgressBar
+                            label={t("books.sentences.bar")}
+                            value={writing.done}
+                            total={writing.total}
+                            tone="book"
+                          />
+                        </Reveal>
+                      )}
+                    </Presence>
+                  </Reveal>
+                )}
+              </Presence>
             </Reveal>
           )}
         </Presence>
@@ -112,10 +156,36 @@ function Between({ nativeLang, onStart }: BetweenProps): ReactNode {
   const [state, setState] = useState<RecallState | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
 
-  // In the background, and quietly: a word without sentences yet is asked
-  // as it was learned.
+  // The run waits for the words' sentences, so that it asks what an update
+  // brought. A failure lets it start, and says so: a word without sentences
+  // yet is asked as it was learned.
+  const [readying, setReadying] = useState(true);
+  const [writing, setWriting] = useState<SentenceProgress | null>(null);
+  const [unwritten, setUnwritten] = useState<string | null>(null);
   useEffect(() => {
-    writeSentences(null).catch(() => null);
+    let live = true;
+    const unlisten = onSentenceProgress((heard) => {
+      if (heard.chapterId === null && live) {
+        setWriting(heard);
+      }
+    });
+    writeSentences(null)
+      .catch((error: unknown) => {
+        if (live) {
+          setUnwritten(errorMessage(error));
+        }
+      })
+      .finally(() => {
+        if (live) {
+          setReadying(false);
+        }
+      });
+    return () => {
+      live = false;
+      void unlisten.then((stop) => {
+        stop();
+      });
+    };
   }, []);
 
   useEffect(() => {
@@ -161,6 +231,15 @@ function Between({ nativeLang, onStart }: BetweenProps): ReactNode {
           <Presence swap>
             <Reveal key={showing()} className="flex flex-col gap-12">
               <Presence>
+                {unwritten !== null && (
+                  <Reveal key="unwritten">
+                    <Notice tone="neutral">
+                      {t("books.sentences.failed", { message: unwritten })}
+                    </Notice>
+                  </Reveal>
+                )}
+              </Presence>
+              <Presence>
                 {failure !== null && (
                   <Notice key="failure" tone="danger">
                     {t("common.error", { message: failure })}
@@ -187,6 +266,8 @@ function Between({ nativeLang, onStart }: BetweenProps): ReactNode {
                     <Today
                       state={state}
                       nativeLang={nativeLang}
+                      readying={readying}
+                      writing={writing}
                       onStart={onStart}
                     />
                   </Reveal>
