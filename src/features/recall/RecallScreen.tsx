@@ -15,9 +15,9 @@ import { ChoiceGroup } from "@/components/ui/ChoiceGroup";
 import { Notice } from "@/components/ui/Notice";
 import { Spinner } from "@/components/ui/Spinner";
 import { errorMessage } from "@/lib/errors";
-import { ProgressBar } from "@/components/ui/ProgressBar";
 import { onSentenceProgress, recallState, writeSentences } from "@/lib/ipc";
 import { languageName } from "@/lib/text";
+import { SentenceStock } from "@/features/books/SentenceStock";
 import { RecallRun } from "./RecallRun";
 import { StrengthMark } from "./StrengthMark";
 
@@ -95,32 +95,7 @@ function Today({
               <Button type="submit" variant="primaryBook" disabled={readying}>
                 {t("recall.start")}
               </Button>
-              <Presence>
-                {readying && (
-                  <Reveal
-                    key="readying"
-                    aria-live="polite"
-                    className="flex w-full flex-col gap-2"
-                  >
-                    <p className="flex items-center gap-2 text-sm text-ink-soft">
-                      <Spinner />
-                      {t("books.sentences.readying")}
-                    </p>
-                    <Presence>
-                      {writing !== null && writing.total > 0 && (
-                        <Reveal key="bar" kind="fade">
-                          <ProgressBar
-                            label={t("books.sentences.bar")}
-                            value={writing.done}
-                            total={writing.total}
-                            tone="book"
-                          />
-                        </Reveal>
-                      )}
-                    </Presence>
-                  </Reveal>
-                )}
-              </Presence>
+              <SentenceStock readying={readying} writing={writing} />
             </Reveal>
           )}
         </Presence>

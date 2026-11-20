@@ -780,15 +780,27 @@ fn a_chapters_words_get_their_sentences_through_the_sidecar() {
         top_up(ctx, Scope::Chapter(&chapter), &mut Sidecar(ctx), &|_, _| {}).expect("top up");
     assert_eq!(given, 1);
 
-    // The sentence of its chapter glossed, and five written in its sense.
+    // The sentence of its chapter glossed, and none written yet.
     let held = bank::bank(&ctx.conn().expect("conn"), "hedge", Some(&chapter)).expect("bank");
     let texts: Vec<&str> = held.iter().map(|each| each.text.as_str()).collect();
-    assert_eq!(texts[0], "A sentence with hedge.");
+    assert_eq!(texts, ["A sentence with hedge."]);
     assert!(held[0].book);
-    assert_eq!(held.iter().filter(|each| !each.book).count(), 5);
     assert!(held
         .iter()
         .all(|each| each.form == "hedge" && !each.hint.is_empty()));
+
+    // Learned and due in the recall, it is written five in its sense.
+    ctx.conn()
+        .expect("conn")
+        .execute(
+            "UPDATE chapter_words SET done_at = '2026-01-01T00:00:00.000Z',
+                                      learned_at = '2026-01-01T00:00:00.000Z'",
+            [],
+        )
+        .expect("learn");
+    top_up(ctx, Scope::Recall, &mut Sidecar(ctx), &|_, _| {}).expect("top up");
+    let held = bank::bank(&ctx.conn().expect("conn"), "hedge", Some(&chapter)).expect("bank");
+    assert_eq!(held.iter().filter(|each| !each.book).count(), 5);
 }
 
 #[test]

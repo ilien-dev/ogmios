@@ -433,9 +433,10 @@ repaso rápido antes de leer no cambia.
   ámbar que nombra ese libro y un intento más.
 
 - **Banco por palabra y capítulo:** frases reales de su capítulo que tienen la palabra una sola
-  vez (las busca el código), y 5 que Claude escribe con el significado de ese capítulo, cada una
-  con la palabra una sola vez. Las palabras pedidas en charlas no tienen libro y se preguntan sin
-  frase.
+  vez (las busca el código), y, cuando la palabra ya se aprendió y le toca en Repaso, 5 que
+  Claude escribe con el significado de ese capítulo, cada una con la palabra una sola vez: la
+  variedad vale lo que cuesta solo en las palabras que vuelven durante semanas. Las palabras
+  pedidas en charlas no tienen libro y se preguntan sin frase.
 - **Una vez por capítulo:** en cada capítulo la palabra recibe 1 frase suya y se piden sus 5
   escritas una sola vez. No se repone nunca, para no gastar tokens: lo ya pedido no se vuelve a
   pedir, aunque se rechazara o se marcara como malo. Se prepara en segundo
@@ -445,7 +446,8 @@ repaso rápido antes de leer no cambia.
   pueden atribuir se retiran.
 - **Se practica con las frases listas:** al abrir un capítulo o Repaso se preparan las frases que
   falten o que una actualización dejó para revisar otra vez; mientras tanto «Practicar», el
-  repaso rápido y «Empezar» esperan con un aviso de carga. Si la preparación falla, se puede
+  repaso rápido y «Empezar» esperan con un aviso que dice cuántas palabras tienen ya frase y
+  cuántas frases hay («Frases listas: 12 de 20 palabras · 58 frases»). Si la preparación falla, se puede
   practicar igualmente y un aviso lo dice: las palabras sin frase se preguntan sin ella.
 - **Borrar un libro:** se van sus frases, salvo la frase con la que se aprendió cada palabra que
   se queda y las escritas para ella; el historial de repaso no cambia. Su texto no se vuelve a

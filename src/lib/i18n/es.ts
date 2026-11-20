@@ -726,10 +726,12 @@ export const es: Catalog<typeof en> = {
       hideBook: "Ocultar la frase",
     },
     sentences: {
-      writing:
-        "Preparando las frases del libro: {{done}} de {{total}} palabras",
-      bar: "Frases del libro",
+      bar: "Palabras con frase",
       readying: "Preparando las frases de tus palabras…",
+      stock_one:
+        "Frases listas: {{ready}} de {{words}} palabras · {{count}} frase",
+      stock_other:
+        "Frases listas: {{ready}} de {{words}} palabras · {{count}} frases",
       failed:
         "No se pudieron preparar las frases ({{message}}). Puedes practicar: las palabras sin frase se preguntan sin ella.",
     },

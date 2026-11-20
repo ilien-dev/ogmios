@@ -726,9 +726,12 @@ export const en = {
       hideBook: "Hide the sentence",
     },
     sentences: {
-      writing: "Preparing the book's sentences: {{done}} of {{total}} words",
-      bar: "Sentences from the book",
+      bar: "Words with a sentence",
       readying: "Preparing your words' sentences…",
+      stock_one:
+        "Sentences ready: {{ready}} of {{words}} words · {{count}} sentence",
+      stock_other:
+        "Sentences ready: {{ready}} of {{words}} words · {{count}} sentences",
       failed:
         "Your words' sentences could not be prepared ({{message}}). You can practise: a word without one is asked without it.",
     },

@@ -1,14 +1,14 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { CircleCheck } from "lucide-react";
-import type { Book, BookWord } from "@shared/domain";
+import type { Book, BookWord, SentenceProgress } from "@shared/domain";
 import { Presence } from "@/components/motion/Presence";
 import { Reveal } from "@/components/motion/Reveal";
 import { Button } from "@/components/ui/Button";
 import { Orb } from "@/components/ui/Orb";
 import { ProgressBar } from "@/components/ui/ProgressBar";
-import { Spinner } from "@/components/ui/Spinner";
 import { cn } from "@/lib/cn";
+import { SentenceStock } from "./SentenceStock";
 
 interface ChapterAsideProps {
   book: Book;
@@ -29,6 +29,8 @@ interface ChapterAsideProps {
    * asks them starts until they are.
    */
   readying: boolean;
+  /** How far the sentences stand, once their preparation says. */
+  writing: SentenceProgress | null;
   onPractise: () => void;
   onRefresh: () => void;
   onTranslate: () => void;
@@ -43,30 +45,10 @@ interface ChapterAsideProps {
 const ALIGN = "items-center sm:items-start wide:items-center";
 const JUSTIFY = "justify-center sm:justify-start wide:justify-center";
 
-/** Says the sentences are being prepared, while they are. */
-function Readying({ readying }: { readying: boolean }): ReactNode {
-  const { t } = useTranslation();
-  return (
-    <Presence>
-      {readying && (
-        <Reveal
-          key="readying"
-          as="p"
-          aria-live="polite"
-          className="flex items-center gap-2 text-sm text-ink-soft"
-        >
-          <Spinner />
-          {t("books.sentences.readying")}
-        </Reveal>
-      )}
-    </Presence>
-  );
-}
-
 /** How far the words stand, and which way into them is on offer. */
 function Actions(props: ChapterAsideProps): ReactNode {
   const { t } = useTranslation();
-  const { open, ready, refreshable, readying } = props;
+  const { open, ready, refreshable, readying, writing } = props;
   if (open) {
     return (
       <div className={cn("flex flex-col gap-3", ALIGN)}>
@@ -78,7 +60,7 @@ function Actions(props: ChapterAsideProps): ReactNode {
         >
           {t("books.chapter.practise")}
         </Button>
-        <Readying readying={readying} />
+        <SentenceStock readying={readying} writing={writing} />
         <div className={cn("flex flex-wrap gap-2", JUSTIFY)}>
           <Button variant="learn" onClick={props.onTranslate}>
             {t("books.translate.start")}
@@ -97,7 +79,7 @@ function Actions(props: ChapterAsideProps): ReactNode {
           <CircleCheck aria-hidden className="size-5" />
           {t("books.ready")}
         </p>
-        <Readying readying={readying && refreshable} />
+        <SentenceStock readying={readying && refreshable} writing={writing} />
         <div className={cn("flex flex-wrap gap-2", JUSTIFY)}>
           <Presence>
             {refreshable && (

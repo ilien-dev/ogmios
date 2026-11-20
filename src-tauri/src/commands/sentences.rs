@@ -2728,15 +2728,24 @@ pub mod tests {
     }
 
     #[test]
-    fn the_model_writes_sentences_once_in_the_sense_of_the_chapter() {
+    fn the_model_writes_sentences_once_in_its_chapters_sense_when_the_word_is_due() {
         let dir = tempfile::tempdir().expect("tempdir");
         let desk = Desk::new(&dir);
         let [cat, ..] = two_books(&desk, &blurred());
-        let mut stub = Stub {
+        let pen = || Stub {
             pen: true,
             ..Stub::default()
         };
+        // Practising the chapter gives it its sentence of the book only.
+        let mut stub = pen();
         top_up(desk.ctx(), Scope::Chapter(&cat), &mut stub, &|_, _| {}).expect("top up");
+        assert_eq!(stub.writes[0].words[0].write, 0);
+        assert!(fuzzy_in(&desk, &cat).iter().all(|each| each.book));
+
+        // Learned and due in the recall, it is written for, once.
+        learn_in(&desk, &cat);
+        let mut stub = pen();
+        top_up(desk.ctx(), Scope::Recall, &mut stub, &|_, _| {}).expect("top up");
         let asked = &stub.writes[0].words[0];
         assert_eq!(
             (asked.write, asked.sense.as_str()),
@@ -2744,10 +2753,25 @@ pub mod tests {
         );
         let bank = fuzzy_in(&desk, &cat);
         assert_eq!(bank.iter().filter(|each| !each.book).count(), 5);
-        assert!(bank
-            .iter()
-            .all(|each| each.chapter_id.as_deref() == Some(cat.as_str())));
-        assert_eq!(stock(&desk, &cat).writes.len(), 0, "asked once");
+        let mut again = pen();
+        top_up(desk.ctx(), Scope::Recall, &mut again, &|_, _| {}).expect("top up");
+        assert_eq!(again.writes.len(), 0, "asked once");
+        assert_eq!(
+            super::stock(&desk.db.lock().expect("db"), Scope::Recall).expect("stock"),
+            (1, 1, 6)
+        );
+    }
+
+    /// The words of a chapter learned at `t0`: due in the recall since.
+    fn learn_in(desk: &Desk, chapter: &str) {
+        desk.db
+            .lock()
+            .expect("db")
+            .execute(
+                "UPDATE chapter_words SET done_at = ?1, learned_at = ?1 WHERE chapter_id = ?2",
+                [crate::db::ts(t0()), chapter.to_owned()],
+            )
+            .expect("learn");
     }
 
     #[test]
@@ -2760,6 +2784,7 @@ pub mod tests {
             sense: "The fuzzy cat slept.".into(),
             forms: vec!["fuzzy".into()],
             chapter: None,
+            due: false,
         };
         let said = |sentence: &str, form: &str| Wrote {
             sentence: sentence.into(),
@@ -2849,11 +2874,14 @@ pub mod tests {
         let dir = tempfile::tempdir().expect("tempdir");
         let desk = Desk::new(&dir);
         let [cat, ..] = two_books(&desk, &blurred());
+        stock(&desk, &cat);
+        // Only the cat's: the recall asks it as that chapter has it.
+        learn_in(&desk, &cat);
         let mut stub = Stub {
             pen: true,
             ..Stub::default()
         };
-        top_up(desk.ctx(), Scope::Chapter(&cat), &mut stub, &|_, _| {}).expect("top up");
+        top_up(desk.ctx(), Scope::Recall, &mut stub, &|_, _| {}).expect("top up");
         {
             let conn = desk.db.lock().expect("db");
             let new = NewSentence {
@@ -2869,15 +2897,6 @@ pub mod tests {
             let waiting = bank::unreviewed(&conn).expect("waiting").remove(0);
             bank::review(&conn, &waiting.id, true, &Labels::default()).expect("review");
         }
-        // Only the cat's: the recall asks it as that chapter has it.
-        desk.db
-            .lock()
-            .expect("db")
-            .execute(
-                "UPDATE chapter_words SET done_at = ?1, learned_at = ?1 WHERE chapter_id = ?2",
-                [crate::db::ts(t0()), cat.clone()],
-            )
-            .expect("learn");
         assert_eq!(fuzzy_in(&desk, &cat).len(), 7);
         crate::db::books::archive_book(&desk.db.lock().expect("db"), "cat", t0()).expect("archive");
         let kept: Vec<(bool, String)> = fuzzy_in(&desk, &cat)
