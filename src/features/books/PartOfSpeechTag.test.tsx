@@ -43,6 +43,23 @@ describe("PartOfSpeechTag", () => {
     expect(screen.queryByRole("tooltip")).toBeNull();
   });
 
+  test("a phrasal verb wears the colour of a verb, outlined", () => {
+    render(
+      <>
+        <PartOfSpeechTag kind="verb" />
+        <PartOfSpeechTag kind="phrasalVerb" />
+      </>,
+    );
+    const verb = screen.getByRole("button", { name: "verb" }).className;
+    const phrasal = screen.getByRole("button", {
+      name: "phrasal verb",
+    }).className;
+    expect(verb).toContain("text-verb");
+    expect(phrasal).toContain("text-verb");
+    expect(verb).not.toContain("ring-verb");
+    expect(phrasal).toContain("ring-verb");
+  });
+
   test("a word of no kind worth naming has no tag", () => {
     const { container } = render(
       <>

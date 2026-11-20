@@ -24,8 +24,11 @@
  * `correct` is green, `partial` an orange amber (right only with help, or
  * something to work on), `wrong` red. `danger` is for destructive actions and
  * failed requests. `known` is the green of a word the learner already knows.
- * `noun`, `verb`, `adjective` and `adverb` tell the kinds of word apart on
- * their tags. `learned` is indigo, and only ever a line or a dot.
+ * `noun` (blue), `verb` (purple), `adjective` (mustard) and `adverb` (pink)
+ * tell the kinds of word apart on their tags by colour alone, so none of
+ * them is the red, orange or green of the verdict scale. A verb's form is
+ * outlined in `verb`: a detail of the verb. `learned` is indigo, and only
+ * ever a line or a dot.
  *
  * The values below are the light theme. Dark is the same token names
  * redefined further down, chosen by the system preference or by
@@ -79,8 +82,8 @@
   --color-noun-soft: oklch(0.62 0.13 245 / 0.14);
   --color-verb: oklch(0.5 0.15 300);
   --color-verb-soft: oklch(0.62 0.15 300 / 0.14);
-  --color-adjective: oklch(0.48 0.085 200);
-  --color-adjective-soft: oklch(0.62 0.09 200 / 0.16);
+  --color-adjective: oklch(0.5 0.11 90);
+  --color-adjective-soft: oklch(0.72 0.13 90 / 0.2);
   --color-adverb: oklch(0.52 0.16 345);
   --color-adverb-soft: oklch(0.64 0.16 345 / 0.13);
   --color-learned: oklch(0.52 0.16 275);
@@ -279,8 +282,8 @@
     --color-noun-soft: oklch(0.8 0.1 245 / 0.15);
     --color-verb: oklch(0.8 0.11 300);
     --color-verb-soft: oklch(0.8 0.11 300 / 0.15);
-    --color-adjective: oklch(0.82 0.09 200);
-    --color-adjective-soft: oklch(0.82 0.09 200 / 0.14);
+    --color-adjective: oklch(0.85 0.11 92);
+    --color-adjective-soft: oklch(0.85 0.11 92 / 0.15);
     --color-adverb: oklch(0.82 0.1 345);
     --color-adverb-soft: oklch(0.82 0.1 345 / 0.15);
     --color-learned: oklch(0.78 0.12 275);
@@ -323,6 +326,10 @@
     --color-verb-soft: oklch(0.8 0.11 300 / 0.16);
     --color-noun: oklch(0.82 0.1 245);
     --color-noun-soft: oklch(0.8 0.1 245 / 0.16);
+    --color-adjective: oklch(0.86 0.11 92);
+    --color-adjective-soft: oklch(0.85 0.11 92 / 0.16);
+    --color-adverb: oklch(0.83 0.1 345);
+    --color-adverb-soft: oklch(0.82 0.1 345 / 0.16);
     --shadow-card: 0 4px 18px rgb(0 0 0 / 0.35);
     --shadow-glow-book: 0 20px 80px rgb(247 168 203 / 0.22);
     background-color: var(--color-canvas);

@@ -9,7 +9,8 @@ interface VerbFormTagProps {
 
 /**
  * The form a verb has in the sentence it is asked with, on a small tag
- * beside the kind of word it is: the form its answer is asked in.
+ * beside the kind of word it is: the form its answer is asked in. It is
+ * outlined in the colour of a verb, a detail of the verb.
  */
 export function VerbFormTag({ form }: VerbFormTagProps): ReactNode {
   const { t } = useTranslation();
@@ -19,7 +20,7 @@ export function VerbFormTag({ form }: VerbFormTagProps): ReactNode {
   return (
     <span
       data-verb-form={form}
-      className="rounded-sm bg-raised px-2 py-0.5 text-xs font-medium text-ink-soft"
+      className="rounded-sm px-2 py-0.5 text-xs font-medium text-verb ring-1 ring-verb ring-inset"
     >
       {t(`books.sitting.verbForm.${form}`)}
     </span>

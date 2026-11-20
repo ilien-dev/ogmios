@@ -38,6 +38,15 @@ describe("a word's card while sorting", () => {
     expect(screen.getByText("past simple")).toBeInTheDocument();
   });
 
+  test("the form sits above the word, on a row of its own", () => {
+    render(<TriageCard word={word()} position="1 / 2" />);
+    const lemma = screen.getByRole("heading", { level: 1, name: "dropped" });
+    const form = document.querySelector("[data-verb-form]");
+    // Stacked right before the word, never beside it.
+    expect(lemma.previousElementSibling?.contains(form ?? null)).toBe(true);
+    expect(lemma.parentElement?.className).toContain("flex-col");
+  });
+
   test("a verb in its base form, or any other word, carries no form", () => {
     const { rerender } = render(
       <TriageCard word={word({ verbForm: "base" })} position="1 / 2" />,
