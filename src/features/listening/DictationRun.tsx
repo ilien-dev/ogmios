@@ -13,6 +13,7 @@ import { errorMessage } from "@/lib/errors";
 import {
   answerDictation,
   closeDictation,
+  dictationMeaning,
   getDictation,
   hearDictation,
   startDictation,
@@ -46,6 +47,8 @@ export function DictationRun({
   const [sitting, setSitting] = useState<Dictation | null>(null);
   const [result, setResult] = useState<DictationResult | null>(null);
   const [sent, setSent] = useState("");
+  /** What the sentence answered means, once it has come. */
+  const [meaning, setMeaning] = useState<string | null>(null);
   /** The pace picked on the way; null for the one it was started at. */
   const [picked, setPicked] = useState<Pace | null>(null);
   const [playing, setPlaying] = useState(false);
@@ -161,6 +164,16 @@ export function DictationRun({
       void run(async () => {
         setResult(await answerDictation(sittingId, item.index, written, pace));
         setSent(written);
+        // What it means comes after the verdict, never holding it up; one
+        // that comes late, or not at all, is simply not shown.
+        const mine = turns.now();
+        dictationMeaning(sittingId, item.index)
+          .then((meant) => {
+            if (turns.now() === mine) {
+              setMeaning(meant);
+            }
+          })
+          .catch(() => null);
       });
     };
     const next = (): void => {
@@ -173,6 +186,7 @@ export function DictationRun({
         setSitting(await getDictation(sittingId));
         setResult(null);
         setSent("");
+        setMeaning(null);
       });
     };
     /** Pauses the dictation, or finishes it and shows how it went. */
@@ -218,6 +232,7 @@ export function DictationRun({
                   item={item}
                   result={result}
                   sent={sent}
+                  meaning={meaning}
                   checking={busy && result === null}
                   last={
                     answered >= sitting.total && result?.verdict !== "wrong"

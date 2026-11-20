@@ -586,6 +586,15 @@ export const answerDictation = (
 ): Promise<DictationResult> =>
   call("answer_dictation", { sittingId, index, answer, pace });
 
+/**
+ * What an answered sentence of a dictation means, in the learner's
+ * language; null when it is no longer in the book.
+ */
+export const dictationMeaning = (
+  sittingId: string,
+  index: number,
+): Promise<string | null> => call("dictation_meaning", { sittingId, index });
+
 /** Leaves a dictation: paused, or finished as it is. */
 export const closeDictation = (
   sittingId: string,

@@ -17,6 +17,8 @@ interface DictationWritingProps {
   result: DictationResult | null;
   /** What was typed for the sentence judged. */
   sent: string;
+  /** What the sentence judged means, in the learner's language, once known. */
+  meaning: string | null;
   checking: boolean;
   /** The sentence judged is the last of the dictation. */
   last: boolean;
@@ -30,6 +32,7 @@ export function DictationWriting({
   item,
   result,
   sent,
+  meaning,
   checking,
   last,
   onCheck,
@@ -189,6 +192,13 @@ export function DictationWriting({
                   ))}
                   <SpeakButton text={result.sentence} />
                 </p>
+                <Presence>
+                  {meaning !== null && (
+                    <Reveal key="meaning" as="p" className="text-ink-soft">
+                      {meaning}
+                    </Reveal>
+                  )}
+                </Presence>
               </div>
               <Button
                 ref={next}

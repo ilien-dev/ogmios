@@ -2,7 +2,8 @@
 //! of its sentences. Everything here is code's: the sentences are the
 //! book's own, cut as they are for translating, and what the learner typed
 //! is compared with them word by word (`listening`). The model is asked
-//! nothing.
+//! only what an answered sentence means, by the version of its paragraph
+//! in the learner's language that translating a chapter keeps.
 //!
 //! A dictation left is paused and can be gone on with; one finished says
 //! how it went and may suggest another pace. A missed sentence comes back
@@ -14,7 +15,7 @@ use rusqlite::Connection;
 use tauri::{AppHandle, Emitter, Manager};
 
 use super::profile::require_profile;
-use super::translate::cut;
+use super::translate::{cut, version_of, Model, Sidecar};
 use super::{run, tts};
 use crate::books::practice::{mark, seed};
 use crate::db::listening::{self as db, Answer, Answered, ItemRow, NewItem};
@@ -305,6 +306,57 @@ pub fn answer(
     })
 }
 
+/// What the sentence at `index` means in the learner's language, once it
+/// is answered: its line in the version of its paragraph, kept or written
+/// now. None when it is no longer in the book.
+pub fn meaning(
+    ctx: Ctx<'_>,
+    sitting_id: &str,
+    index: u32,
+    model: &mut dyn Model,
+    now: DateTime<Utc>,
+) -> Result<Option<String>> {
+    let found = {
+        let conn = ctx.conn()?;
+        let Some(chapter_id) = db::sitting(&conn, sitting_id)?.chapter_id else {
+            return Ok(None);
+        };
+        let items = db::items(&conn, sitting_id)?;
+        let sentence = items
+            .iter()
+            .find(|item| item.index == index && item.answered.is_some())
+            .map(|item| item.item.planned.sentence.clone())
+            .ok_or_else(|| Error::Invalid("the sentence is not answered yet".into()))?;
+        let mut chapters = vec![chapter_id.clone()];
+        chapters.extend(
+            db::book_of(&conn, &chapter_id)?
+                .1
+                .into_iter()
+                .filter(|id| *id != chapter_id),
+        );
+        let mut found = None;
+        for id in chapters {
+            let place = cut(&conn, &id)?.iter().enumerate().find_map(|(at, lines)| {
+                lines
+                    .iter()
+                    .position(|line| *line == sentence)
+                    .map(|line| (count(at), line))
+            });
+            if let Some((paragraph, line)) = place {
+                found = Some((id, paragraph, line));
+                break;
+            }
+        }
+        found
+    };
+    let Some((chapter_id, paragraph, line)) = found else {
+        return Ok(None);
+    };
+    Ok(version_of(ctx, &chapter_id, paragraph, model, now)?
+        .get(line)
+        .cloned())
+}
+
 /// Leaves a dictation: paused, to go on with, or `finished` as it is. One
 /// with nothing answered is not kept at all.
 pub fn close(ctx: Ctx<'_>, sitting_id: &str, finished: bool, now: DateTime<Utc>) -> Result<()> {
@@ -415,6 +467,19 @@ pub async fn answer_dictation(
 ) -> Result<DictationResult> {
     run(app, move |_, ctx| {
         self::answer(ctx, &sitting_id, (index, answer.trim(), pace), Utc::now())
+    })
+    .await
+}
+
+/// What an answered sentence of a dictation means, in the learner's language.
+#[tauri::command]
+pub async fn dictation_meaning(
+    app: AppHandle,
+    sitting_id: String,
+    index: u32,
+) -> Result<Option<String>> {
+    run(app, move |_, ctx| {
+        meaning(ctx, &sitting_id, index, &mut Sidecar(ctx), Utc::now())
     })
     .await
 }
@@ -738,5 +803,135 @@ mod tests {
             start(world.ctx(), "c", Pace::Normal, Utc::now()),
             Err(Error::Invalid(_))
         ));
+    }
+
+    /// The model as a stub: writes each sentence back marked, and counts
+    /// the versions it is asked for.
+    #[derive(Default)]
+    struct Stub {
+        versions: usize,
+    }
+
+    impl Model for Stub {
+        fn brief(
+            &mut self,
+            _: &crate::agent::protocol::ChapterBriefParams,
+        ) -> Result<crate::agent::protocol::ChapterBrief> {
+            Ok(crate::agent::protocol::ChapterBrief {
+                brief: "Un gato.".into(),
+            })
+        }
+
+        fn version(
+            &mut self,
+            params: &crate::agent::protocol::ParagraphVersionParams,
+        ) -> Result<crate::agent::protocol::ParagraphVersion> {
+            self.versions += 1;
+            Ok(crate::agent::protocol::ParagraphVersion {
+                sentences: params
+                    .sentences
+                    .iter()
+                    .map(|sentence| format!(" es: {sentence} "))
+                    .collect(),
+            })
+        }
+
+        fn review(
+            &mut self,
+            _: &crate::agent::protocol::ParagraphReviewParams,
+        ) -> Result<crate::agent::protocol::ParagraphReview> {
+            Err(Error::Internal("a dictation reviews nothing".into()))
+        }
+
+        fn summary(
+            &mut self,
+            _: &crate::agent::protocol::AttemptSummaryParams,
+        ) -> Result<crate::agent::protocol::AttemptSummary> {
+            Err(Error::Internal("a dictation sums up nothing".into()))
+        }
+    }
+
+    /// A dictation on chapter "c" of the one sentence given.
+    fn dictate(world: &World, sentence: &str) -> String {
+        let conn = world.db.lock().expect("db");
+        let item = NewItem {
+            planned: crate::listening::Planned {
+                sentence: sentence.into(),
+                reinforces: None,
+            },
+            retry_of: None,
+        };
+        db::start(&conn, "s", "c", Pace::Normal, &[item], Utc::now()).expect("start");
+        "s".into()
+    }
+
+    #[test]
+    fn an_answered_sentence_says_what_it_means_from_its_paragraphs_version() {
+        let world = World::new();
+        let ctx = world.ctx();
+        let id = dictate(&world, &line(3));
+        let mut model = Stub::default();
+        // Not before it is answered: the sentence is only heard until then.
+        assert!(matches!(
+            meaning(ctx, &id, 0, &mut model, Utc::now()),
+            Err(Error::Invalid(_))
+        ));
+        answer(ctx, &id, (0, "", Pace::Normal), Utc::now()).expect("answer");
+        let said = meaning(ctx, &id, 0, &mut model, Utc::now()).expect("meaning");
+        assert_eq!(said, Some(format!("es: {}", line(3))));
+        // The version is kept: the next sentence of it asks nothing.
+        meaning(ctx, &id, 0, &mut model, Utc::now()).expect("again");
+        assert_eq!(model.versions, 1);
+    }
+
+    #[test]
+    fn a_sentence_from_elsewhere_in_the_book_is_found_in_its_own_chapter() {
+        let world = World::new();
+        let ctx = world.ctx();
+        let other = "Nobody in the whole town had ever seen them.";
+        let id = dictate(&world, other);
+        answer(ctx, &id, (0, other, Pace::Normal), Utc::now()).expect("answer");
+        let mut model = Stub::default();
+        let said = meaning(ctx, &id, 0, &mut model, Utc::now()).expect("meaning");
+        assert_eq!(said, Some(format!("es: {other}")));
+        let conn = world.db.lock().expect("db");
+        let kept = crate::db::translate::versions(&conn, "d", "es").expect("versions");
+        assert_eq!(kept.len(), 1);
+    }
+
+    #[test]
+    fn a_kept_version_that_says_vosotros_is_written_again() {
+        let world = World::new();
+        let ctx = world.ctx();
+        let other = "Nobody in the whole town had ever seen them.";
+        crate::db::translate::store_version(
+            &world.db.lock().expect("db"),
+            "d",
+            "es",
+            0,
+            &["Vosotros nunca los habéis visto.".into()],
+            Utc::now(),
+        )
+        .expect("store");
+        let id = dictate(&world, other);
+        answer(ctx, &id, (0, "", Pace::Normal), Utc::now()).expect("answer");
+        let mut model = Stub::default();
+        let said = meaning(ctx, &id, 0, &mut model, Utc::now()).expect("meaning");
+        assert_eq!(said, Some(format!("es: {other}")));
+        assert_eq!(model.versions, 1);
+    }
+
+    #[test]
+    fn a_sentence_no_longer_in_the_book_means_nothing_and_asks_nothing() {
+        let world = World::new();
+        let ctx = world.ctx();
+        let id = dictate(&world, "A sentence the book never had.");
+        answer(ctx, &id, (0, "", Pace::Normal), Utc::now()).expect("answer");
+        let mut model = Stub::default();
+        assert_eq!(
+            meaning(ctx, &id, 0, &mut model, Utc::now()).expect("meaning"),
+            None
+        );
+        assert_eq!(model.versions, 0);
     }
 }

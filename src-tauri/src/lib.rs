@@ -173,6 +173,7 @@ macro_rules! every_command {
             commands::listening::get_dictation,
             commands::listening::hear_dictation,
             commands::listening::answer_dictation,
+            commands::listening::dictation_meaning,
             commands::listening::close_dictation,
             commands::progress::get_progress,
             commands::stt::stt_status,

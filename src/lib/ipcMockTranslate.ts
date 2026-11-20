@@ -81,6 +81,17 @@ export function mockEnglish(): ReadonlyArray<readonly string[]> {
   return PARAGRAPHS.map((paragraph) => paragraph.english);
 }
 
+/** What a sentence of the mock's chapters means; null for one it lacks. */
+export function mockNative(sentence: string): string | null {
+  for (const paragraph of PARAGRAPHS) {
+    const at = paragraph.english.indexOf(sentence);
+    if (at !== -1) {
+      return paragraph.native[at] ?? null;
+    }
+  }
+  return null;
+}
+
 /** One thing a fixed review says about a sentence. */
 interface Note {
   sentence: number;
