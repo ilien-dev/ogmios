@@ -44,10 +44,9 @@ pub struct Banked {
 /// The sentence a word is asked with next; none for a word with no bank.
 /// Never the one it was asked with the last time, nor one already shown in
 /// the same sitting, while there is another, so that no sentence is learned
-/// by heart. The first time, the one of the
-/// chapter itself, or failing that another of the book. After that one of
-/// those not yet spent, drawn by `draw` among that many; and when all are
-/// spent, the one shown least.
+/// by heart. The first time, the one of the chapter itself, or failing that
+/// another of the book. After that one of those shown least, drawn by
+/// `draw` among that many: they rotate, never in an order.
 pub fn choose(bank: &[Banked], draw: impl Fn(usize) -> Option<usize>) -> Option<&Banked> {
     let fresh: Vec<&Banked> = bank.iter().filter(|sentence| !sentence.last).collect();
     let pool: Vec<&Banked> = if fresh.is_empty() {
@@ -64,15 +63,12 @@ pub fn choose(bank: &[Banked], draw: impl Fn(usize) -> Option<usize>) -> Option<
             return Some(first);
         }
     }
-    let unspent: Vec<&Banked> = pool
-        .iter()
-        .copied()
-        .filter(|sentence| sentence.shows < SHOWS)
+    let least = pool.iter().map(|sentence| sentence.shows).min()?;
+    let candidates: Vec<&Banked> = pool
+        .into_iter()
+        .filter(|sentence| sentence.shows == least)
         .collect();
-    if unspent.is_empty() {
-        return pool.into_iter().min_by_key(|sentence| sentence.shows);
-    }
-    draw(unspent.len()).and_then(|at| unspent.get(at).copied())
+    draw(candidates.len()).and_then(|at| candidates.get(at).copied())
 }
 
 /// How many more times the sentences of a bank can be shown before every
@@ -839,14 +835,17 @@ mod tests {
     }
 
     #[test]
-    fn after_the_first_time_one_not_spent_is_drawn() {
+    fn after_the_first_time_one_shown_least_is_drawn_at_random() {
         let bank = [
             banked("a", true, true, 1),
             banked("b", false, false, 2),
             banked("c", false, false, 0),
+            banked("d", false, false, 0),
         ];
-        assert_eq!(chosen(&bank, 0), Some("a"));
-        assert_eq!(chosen(&bank, 1), Some("c"));
+        // Only the least shown are drawn from, never in an order.
+        assert_eq!(chosen(&bank, 0), Some("c"));
+        assert_eq!(chosen(&bank, 1), Some("d"));
+        assert_eq!(chosen(&bank, 2), None);
     }
 
     #[test]

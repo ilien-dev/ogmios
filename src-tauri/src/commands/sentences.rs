@@ -209,7 +209,12 @@ fn to_write(conn: &Connection, word: &Wanted, chapter: &str) -> Result<u32> {
     };
     let first = bank::senses_differ(conn, id)? && !bank::written(conn, &word.key, chapter)?;
     let again = refill_due(conn, (id, &word.key, chapter), Utc::now())?;
-    Ok(if first || again { WRITTEN } else { 0 })
+    if !first && !again {
+        return Ok(0);
+    }
+    // Never past the most a word is written.
+    let room = MOST_WRITTEN.saturating_sub(bank::written_count(conn, &word.key, chapter)?);
+    Ok(WRITTEN.min(room))
 }
 
 /// What a word means in the chapters that have it written alike
@@ -239,15 +244,25 @@ fn avoided(conn: &Connection, due: &Due, chapter: &str) -> Result<Vec<String>> {
         .collect())
 }
 
-/// Hours between two refills of a word: about one sitting, so that a word
-/// missed many times in a row is written for at most once in it.
+/// The window refills of a word are counted in: about one sitting.
 const REFILL_GAP_HOURS: i64 = 12;
 
+/// Batches a word is written in one [`REFILL_GAP_HOURS`] window, its first
+/// one included: a word missed many times in a row gets up to a third, and
+/// then reuses what it has.
+const BATCHES_PER_GAP: u32 = 3;
+
+/// Sentences the model writes for a word in one chapter's sense, ever.
+/// Past them nothing more is written: they rotate, the least shown first,
+/// at random, so that none is learned by heart.
+pub const MOST_WRITTEN: u32 = 30;
+
 /// Whether a word written alike to another one has run low on the
-/// sentences of its chapter's sense ([`LOW`] uses or fewer left) and was
-/// not written for in the last [`REFILL_GAP_HOURS`]: then more are written,
-/// in the background, before the ones it has run out. A word never written
-/// for is not due here: it is written for once in any case.
+/// sentences of its chapter's sense ([`LOW`] uses or fewer left): then more
+/// are written, in the background, before the ones it has run out. Not
+/// while it was written for [`BATCHES_PER_GAP`] times in the last
+/// [`REFILL_GAP_HOURS`], nor once it has [`MOST_WRITTEN`]. A word never
+/// written for is not due here: it is written for once in any case.
 pub fn refill_due(
     conn: &Connection,
     (word_id, key, chapter): (&str, &str, &str),
@@ -264,11 +279,11 @@ pub fn refill_due(
         .filter(|each| !tied || super::practice::fixed(each))
         .map(|each| banked(each, "", &[]))
         .collect();
-    if left(&held) > LOW {
+    if left(&held) > LOW || bank::written_count(conn, key, chapter)? >= MOST_WRITTEN {
         return Ok(false);
     }
-    let gap = TimeDelta::hours(REFILL_GAP_HOURS);
-    Ok(bank::last_write(conn, key, chapter)?.is_none_or(|at| now - at >= gap))
+    let since = now - TimeDelta::hours(REFILL_GAP_HOURS);
+    Ok(bank::writes_since(conn, key, chapter, since)? < BATCHES_PER_GAP)
 }
 
 /// After an answer to the word `word_id`: the chapter whose sentences of it
@@ -959,7 +974,17 @@ pub mod tests {
                             each.meaning.first().cloned().unwrap_or_default(),
                         ],
                         verb_form: Some(VerbForm::Past),
-                        cue: Vec::new(),
+                        // The word after it, as the fake sidecar says.
+                        cue: each
+                            .sentence
+                            .split_whitespace()
+                            .skip_while(|word| !word.starts_with(each.form.as_str()))
+                            .nth(1)
+                            .map(|word| {
+                                word.trim_matches(|c: char| !c.is_alphanumeric()).to_owned()
+                            })
+                            .into_iter()
+                            .collect(),
                     })
                     .collect(),
             })
@@ -2892,7 +2917,12 @@ pub mod tests {
         // A word given a sentence in one book is still given one in another:
         // its rival in the picture's chapter was read with it.
         assert_eq!(stub.writes[0].words.len(), 2);
-        assert_eq!(stock(&desk, &picture).writes.len(), 0);
+        // Its book's sentence is never read again from the other chapter.
+        assert!(stock(&desk, &picture)
+            .writes
+            .iter()
+            .flat_map(|each| each.words.iter())
+            .all(|each| each.book.is_empty()));
         let texts = |chapter: &str| -> Vec<String> {
             fuzzy_in(&desk, chapter)
                 .into_iter()
@@ -3025,21 +3055,11 @@ pub mod tests {
         assert_eq!(due(now), None);
         // Three sentences left: six uses, still enough.
         spend_all_but(&desk, &cat, 3);
-        assert_eq!(due(now + TimeDelta::hours(REFILL_GAP_HOURS)), None);
-        // Two left: four uses, the threshold.
+        assert_eq!(due(now), None);
+        // Two left: four uses, the threshold. Written once so far: a second
+        // batch may come at once.
         spend_all_but(&desk, &cat, 2);
-        assert_eq!(due(now), None, "written for a moment ago");
-        let later = now + TimeDelta::hours(REFILL_GAP_HOURS);
-        assert_eq!(due(later), Some(cat.clone()));
-        // A run past the gap writes for it again, and once only.
-        desk.db
-            .lock()
-            .expect("db")
-            .execute(
-                "UPDATE sentence_writes SET created_at = '2026-01-01T00:00:00.000Z'",
-                [],
-            )
-            .expect("old");
+        assert_eq!(due(now), Some(cat.clone()));
         let mut again = pen();
         top_up(desk.ctx(), Scope::Chapter(&cat), &mut again, &|_, _| {}).expect("top up");
         assert!(written_for(&again).contains(&"The fuzzy cat slept.".to_owned()));
@@ -3056,9 +3076,34 @@ pub mod tests {
             asked.avoid
         );
         assert_eq!(desk.count("SELECT COUNT(*) FROM sentence_refills"), 1);
-        let mut third = pen();
-        top_up(desk.ctx(), Scope::Chapter(&cat), &mut third, &|_, _| {}).expect("top up");
-        assert!(!written_for(&third).contains(&"The fuzzy cat slept.".to_owned()));
+        // Three batches in the window, the first one included, and no more.
+        {
+            let conn = desk.db.lock().expect("db");
+            conn.execute(
+                "INSERT INTO sentence_refills (key, chapter_id, created_at) VALUES ('fuzzy', ?1, ?2)",
+                rusqlite::params![&cat, crate::db::ts(now)],
+            )
+            .expect("third");
+        }
+        spend_all_but(&desk, &cat, 2);
+        assert_eq!(due(now), None, "a third batch in the window already");
+        let later = now + TimeDelta::hours(REFILL_GAP_HOURS) + TimeDelta::minutes(1);
+        assert_eq!(due(later), Some(cat.clone()));
+        // Once it was written 30 sentences, never again: they rotate.
+        {
+            let conn = desk.db.lock().expect("db");
+            for at in 0..MOST_WRITTEN {
+                conn.execute(
+                    "INSERT INTO word_sentences
+                       (id, key, source, sentence, form, hint, translation, created_at,
+                        chapter_id, reviewed, discarded)
+                     VALUES (?1, 'fuzzy', 'model', ?2, 'fuzzy', 'x', 'x', '2026-01-01', ?3, 1, 1)",
+                    rusqlite::params![format!("filler{at}"), format!("Filler {at} fuzzy."), &cat],
+                )
+                .expect("filler");
+            }
+        }
+        assert_eq!(due(later), None, "the most a word is written");
     }
 
     #[test]
