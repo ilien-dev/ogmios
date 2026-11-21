@@ -1,0 +1,85 @@
+<!--palette
+bg          #0e0f1a #f6f7fb
+panel       #191b2b #ffffff
+raised      #23263a #eef0f7
+edge        #4a4e68 #c9ccdb
+line        #23263b #e1e4ee
+muted       #6d7190 #7a7e94
+ink         #f1f2fa #23233a
+body        #a9acc4 #5c5f74
+accent      #7fdccb #0f766e
+book        #9fb8ff #2d55c4
+book_soft   #1c2749 #e3eaff
+tally       #f7a8cb #a3245f
+correct     #6fd58a #1f7a3d
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 448" role="img" aria-label="Your book, alice.epub, becomes a chart with a bar per chapter: the first three are ready to read. Chapter four has words still to learn; one of them, curtsey, is learned with the book's own sentence, She tried to curtsey as she spoke, comes back after 1, 3, 7, 21 and 60 days, and chapter four fills up and becomes ready.">
+<style>
+/* 12 s  ring    |==ch4==|
+         parcel        |--go--|
+         card                 |lit|==================================|
+         check                     |pop|=============================|
+         days                            |1|3|7|21|60|
+         ch4 ready                                    |in|=======|out| */
+@keyframes ring{0%,2%{opacity:0}5%,22%{opacity:1}26%,100%{opacity:0}}
+@keyframes go{0%,10%{transform:translate(0,0);opacity:0}11.5%{opacity:1}22%{transform:translate(356px,-90px);opacity:1}24%,100%{transform:translate(356px,-90px);opacity:0}}
+@keyframes card{0%,22%{opacity:.55}26%,96%{opacity:1}100%{opacity:.55}}
+@keyframes pop{0%,30%{transform:scale(.6);opacity:0}34%,94%{transform:scale(1);opacity:1}98%,100%{transform:scale(.6);opacity:0}}
+@keyframes day{0%,38%{opacity:.55}41%,47%{opacity:1}52%,100%{opacity:.55}}
+@keyframes ready{0%,74%{opacity:0}80%,94%{opacity:1}99%,100%{opacity:0}}
+@keyframes flow{to{stroke-dashoffset:-24}}
+.ring{animation:ring 12s ease-in-out infinite}
+.go{animation:go 12s cubic-bezier(.4,0,.2,1) infinite}
+.card{animation:card 12s ease-in-out infinite}
+.pop{animation:pop 12s cubic-bezier(0,0,.2,1) infinite;transform-box:fill-box;transform-origin:center}
+.day{animation:day 12s ease-in-out infinite}
+.ready{animation:ready 12s ease-in-out infinite}
+.flow{animation:flow 1.2s linear infinite}
+</style>
+<rect width="1280" height="448" fill="$bg"/>
+<g id="backdrop" data-backdrop="plus still"><defs><pattern id="bd-plus" width="36" height="36" patternUnits="userSpaceOnUse"><path d="M14 18H22M18 14V22" fill="none" stroke="$line" stroke-width="1.5" stroke-linecap="round"/></pattern></defs><rect x="-36" y="-36" width="1352" height="520" fill="url(#bd-plus)"/></g>
+
+<text id="eyebrow" class="m" x="40" y="56" font-size="15" fill="$accent" letter-spacing="2">YOUR BOOKS</text>
+<text id="title" class="b" x="40" y="108" font-size="44" fill="$ink">Know the words before you read</text>
+<text id="sub" class="s" x="40" y="148" font-size="22" fill="$body">Each word is learned with the book's own sentence.</text>
+
+<g id="stage">
+<!-- the book -->
+<g data-asset="fluent-emoji-high-contrast:closed-book" data-icon="your book" data-size="96" transform="translate(60 196) scale(3)" fill="$book"><path fill="$book" d="M6.5 1.5a2 2 0 0 0-2 2v25a2 2 0 0 0 2 2h19a2 2 0 0 0 1.886-1.333l.236-.667H7a.5.5 0 0 1 0-1h20.5V4A2.5 2.5 0 0 0 25 1.5zm20 24h-18v-23H25A1.5 1.5 0 0 1 26.5 4z"/></g>
+<g data-kit="file"><path d="M40.0 322.0a6 6 0 0 1 6-6H166.0L176.0 326.0V350.0a6 6 0 0 1-6 6H46.0a6 6 0 0 1-6-6Z" fill="$panel" stroke="$edge" stroke-width="1.5"/><rect x="52.0" y="328.0" width="14" height="16" rx="3" fill="$book"/><text x="76.0" y="341.0" class="m" font-size="14" fill="$ink">alice.epub</text></g>
+<path class="flow" d="M190 300H244" fill="none" stroke="$muted" stroke-width="2" stroke-dasharray="8 16"/>
+<path d="M240 292l10 8-10 8" fill="none" stroke="$muted" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+
+<!-- the chapters -->
+<rect x="260" y="186" width="440" height="234" rx="14" fill="$panel" stroke="$edge" stroke-width="1.5"/>
+<text class="b" x="282" y="218" font-size="17" fill="$ink">Chapters you can read</text>
+<g fill="$raised">
+<rect x="284" y="240" width="22" height="160" rx="6"/><rect x="318" y="240" width="22" height="160" rx="6"/><rect x="352" y="240" width="22" height="160" rx="6"/><rect x="386" y="240" width="22" height="160" rx="6"/><rect x="420" y="240" width="22" height="160" rx="6"/><rect x="454" y="240" width="22" height="160" rx="6"/><rect x="488" y="240" width="22" height="160" rx="6"/><rect x="522" y="240" width="22" height="160" rx="6"/><rect x="556" y="240" width="22" height="160" rx="6"/><rect x="590" y="240" width="22" height="160" rx="6"/><rect x="624" y="240" width="22" height="160" rx="6"/><rect x="658" y="240" width="22" height="160" rx="6"/>
+</g>
+<g fill="$accent"><rect x="284" y="240" width="22" height="160" rx="6"/><rect x="318" y="240" width="22" height="160" rx="6"/><rect x="352" y="240" width="22" height="160" rx="6"/></g>
+<g fill="$book"><rect x="386" y="304" width="22" height="96" rx="6"/><rect x="420" y="288" width="22" height="112" rx="6"/><rect x="454" y="320" width="22" height="80" rx="6"/><rect x="488" y="312" width="22" height="88" rx="6"/><rect x="522" y="336" width="22" height="64" rx="6"/><rect x="556" y="328" width="22" height="72" rx="6"/><rect x="590" y="352" width="22" height="48" rx="6"/><rect x="624" y="344" width="22" height="56" rx="6"/><rect x="658" y="360" width="22" height="40" rx="6"/></g>
+<rect class="ready" x="386" y="240" width="22" height="160" rx="6" fill="$accent"/>
+<rect class="ring" x="378" y="232" width="38" height="176" rx="10" fill="none" stroke="$tally" stroke-width="2.5"/>
+
+<!-- the word, on its way -->
+<g transform="translate(384 300)"><rect class="go" opacity="0" width="28" height="28" rx="8" fill="$book"/></g>
+
+<!-- the word card -->
+<g class="card"><rect x="740" y="186" width="500" height="234" rx="14" fill="$panel" stroke="$book" stroke-width="2"/>
+<g data-asset="lucide:book-open" data-icon="a word from your book" data-size="24" transform="translate(762 208) scale(1)" fill="$book"><path fill="none" stroke="$book" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v16m8.001-2A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2a5 5 0 0 1 4-2z"/></g>
+<text class="b" x="798" y="230" font-size="26" fill="$book">curtsey</text>
+<rect x="760" y="250" width="460" height="48" rx="10" fill="$book_soft"/>
+<text class="s" x="778" y="280" font-size="17" fill="$ink">She tried to curtsey as she spoke</text>
+<text class="s" x="762" y="330" font-size="16" fill="$body">Into your language and back</text>
+<text class="s" x="762" y="390" font-size="16" fill="$body">Back after</text>
+<g data-asset="lucide:calendar" data-icon="the days it comes back" data-size="24" transform="translate(854 372) scale(1)" fill="$accent"><g fill="none" stroke="$accent" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M8 2v3m8-3v3"/><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/></g></g>
+</g>
+<g class="pop"><g data-asset="lucide:check" data-icon="answered right" data-size="32" transform="translate(1180 310) scale(1.333)" fill="$correct"><path fill="none" stroke="$correct" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 6L9 17l-5-5"/></g></g>
+<g class="day"><rect x="890" y="366" width="44" height="36" rx="10" fill="$raised" stroke="$accent" stroke-width="1.5"/><text class="b" x="912" y="390" font-size="16" fill="$ink" text-anchor="middle">1</text></g>
+<g class="day" style="animation-delay:-11.28s"><rect x="942" y="366" width="44" height="36" rx="10" fill="$raised" stroke="$accent" stroke-width="1.5"/><text class="b" x="964" y="390" font-size="16" fill="$ink" text-anchor="middle">3</text></g>
+<g class="day" style="animation-delay:-10.56s"><rect x="994" y="366" width="44" height="36" rx="10" fill="$raised" stroke="$accent" stroke-width="1.5"/><text class="b" x="1016" y="390" font-size="16" fill="$ink" text-anchor="middle">7</text></g>
+<g class="day" style="animation-delay:-9.84s"><rect x="1046" y="366" width="44" height="36" rx="10" fill="$raised" stroke="$accent" stroke-width="1.5"/><text class="b" x="1068" y="390" font-size="16" fill="$ink" text-anchor="middle">21</text></g>
+<g class="day" style="animation-delay:-9.12s"><rect x="1098" y="366" width="44" height="36" rx="10" fill="$raised" stroke="$accent" stroke-width="1.5"/><text class="b" x="1120" y="390" font-size="16" fill="$ink" text-anchor="middle">60</text></g>
+<text class="s" x="1156" y="390" font-size="16" fill="$body">days</text>
+</g>
+</svg>

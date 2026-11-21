@@ -14,7 +14,8 @@ import { Orb } from "@/components/ui/Orb";
 import { Select } from "@/components/ui/Select";
 import { TextInput } from "@/components/ui/TextInput";
 import { ConnectionPanel } from "@/features/settings/ConnectionPanel";
-import { VoiceModels } from "@/features/settings/VoiceModels";
+import { SpeechProvider } from "@/features/speech/speech";
+import { VoiceRows } from "@/features/speech/VoiceCard";
 import { cn } from "@/lib/cn";
 import { errorMessage } from "@/lib/errors";
 import { setUiLang } from "@/lib/i18n/i18n";
@@ -208,12 +209,15 @@ export function Onboarding({
         }}
       />
     ),
+    // The app's own voice is not up yet: the step brings one for itself.
     voice: (
-      <VoiceModels
-        onSelected={(sttModel) => {
-          setSettings((held) => ({ ...held, sttModel }));
-        }}
-      />
+      <SpeechProvider>
+        <VoiceRows
+          settings={settings}
+          onSettingsChange={setSettings}
+          persist={false}
+        />
+      </SpeechProvider>
     ),
     variant: (
       <ChoiceGroup<Variant>
@@ -268,26 +272,30 @@ export function Onboarding({
         noValidate
         className="mx-auto flex w-full max-w-xl flex-1 flex-col px-8 pt-16 pb-10"
       >
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 rounded-full glass py-2.5 pr-5 pl-3">
           <Logo className="size-6 shrink-0" />
           <ol aria-hidden className="flex flex-1 gap-1.5">
             {STEPS.map((name, i) => (
               <li
                 key={name}
                 className={cn(
-                  "h-1 flex-1 rounded-full transition-colors duration-300",
-                  i <= index ? "bg-accent" : "bg-line",
+                  "h-1 flex-1 rounded-full transition-colors duration-300 ease-out-expo",
+                  i < index && "bg-accent",
+                  i === index && "animate-pulse-soft bg-accent",
+                  i > index && "bg-line",
                 )}
               />
             ))}
           </ol>
-          <p className="text-sm text-ink-faint tabular-nums">
+          <p className="font-mono text-xs text-ink-faint tabular-nums">
             {t("onboarding.step", { current: index + 1, total: STEPS.length })}
           </p>
         </div>
 
         {/* The orb stays out of the swap, so it goes on drifting from step to step. */}
-        <Orb size="md" className="mt-10" />
+        <div className="mt-10 w-fit animate-float">
+          <Orb size="md" />
+        </div>
 
         <div className="relative mt-10">
           <Presence swap>
@@ -311,7 +319,13 @@ export function Onboarding({
               <Reveal key="index" as="span" kind="fade">
                 <Button
                   variant="ghost"
-                  icon={<ArrowLeft aria-hidden className="size-4" />}
+                  className="group"
+                  icon={
+                    <ArrowLeft
+                      aria-hidden
+                      className="size-4 transition-transform duration-300 ease-out-expo group-hover:-translate-x-0.5"
+                    />
+                  }
                   onClick={() => {
                     setProblem(null);
                     setIndex((held) => held - 1);
@@ -341,9 +355,17 @@ export function Onboarding({
                 </Reveal>
               )}
             </Presence>
-            <Button type="submit" variant="primary" disabled={saving}>
+            <Button
+              type="submit"
+              variant="primary"
+              className="group"
+              disabled={saving}
+            >
               {last ? t("onboarding.finish") : t("common.next")}
-              <ArrowRight aria-hidden className="size-4" />
+              <ArrowRight
+                aria-hidden
+                className="size-4 transition-transform duration-300 ease-out-expo group-hover:translate-x-0.5"
+              />
             </Button>
           </div>
         </div>

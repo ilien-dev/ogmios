@@ -52,7 +52,7 @@ export function Score({ score }: ScoreProps): ReactNode {
   return (
     <span
       aria-label={t("books.translate.score", { score })}
-      className={`font-display text-title font-normal tabular-nums ${GRADE_TEXT[scoreGrade(score)]}`}
+      className={`font-display text-title font-light tracking-tight tabular-nums ${GRADE_TEXT[scoreGrade(score)]}`}
     >
       {score}
     </span>
@@ -327,7 +327,7 @@ export function WritingRow({
       key={offset}
       type="button"
       aria-label={t("books.translate.rewrite", { text })}
-      className="mr-1 inline rounded-sm text-left hover:bg-raised"
+      className="mr-1 inline rounded-sm text-left transition-control hover:bg-raised"
       onClick={() => {
         setAgain(offset);
         setDraft(text);
@@ -340,7 +340,7 @@ export function WritingRow({
   return (
     <SessionRow
       data-writing
-      className={cn(ROW, "rounded-xl border-b-0 bg-surface px-6 shadow-card")}
+      className="grid grid-cols-2 gap-x-10 rounded-2xl glass p-6"
     >
       <div className="flex min-w-0 flex-col gap-3">
         <Presence>

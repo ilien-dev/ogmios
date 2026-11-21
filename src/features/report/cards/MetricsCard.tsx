@@ -2,17 +2,18 @@ import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { ArrowDownRight, ArrowUpRight, Minus } from "lucide-react";
 import type { SessionMetrics } from "@shared/domain";
+import { CountUp } from "@/components/motion/CountUp";
 import { Presence } from "@/components/motion/Presence";
 import { Reveal } from "@/components/motion/Reveal";
 import { Stagger } from "@/components/motion/Stagger";
 import { cn } from "@/lib/cn";
 import { formatNumber } from "@/lib/text";
 import type { Step } from "../steps";
-import { CardTitle } from "./CardTitle";
+import { trend } from "../trend";
 
 type MetricsStep = Extract<Step, { kind: "metrics" }>;
 
-type MetricKey =
+export type MetricKey =
   | "speechMinutes"
   | "userWords"
   | "wordsPerTurn"
@@ -21,17 +22,23 @@ type MetricKey =
   | "errorsPer100";
 
 /** Whether a rise is good news. Slips are the one metric where less is more. */
-const ROWS: Array<{ key: MetricKey; higherIsBetter: boolean; digits: number }> =
-  [
-    { key: "speechMinutes", higherIsBetter: true, digits: 1 },
-    { key: "userWords", higherIsBetter: true, digits: 0 },
-    { key: "wordsPerTurn", higherIsBetter: true, digits: 0 },
-    { key: "userShare", higherIsBetter: true, digits: 0 },
-    { key: "mtld", higherIsBetter: true, digits: 0 },
-    { key: "errorsPer100", higherIsBetter: false, digits: 1 },
-  ];
+export const ROWS: Array<{
+  key: MetricKey;
+  higherIsBetter: boolean;
+  digits: number;
+}> = [
+  { key: "speechMinutes", higherIsBetter: true, digits: 1 },
+  { key: "userWords", higherIsBetter: true, digits: 0 },
+  { key: "wordsPerTurn", higherIsBetter: true, digits: 0 },
+  { key: "userShare", higherIsBetter: true, digits: 0 },
+  { key: "mtld", higherIsBetter: true, digits: 0 },
+  { key: "errorsPer100", higherIsBetter: false, digits: 1 },
+];
 
-function value(metrics: SessionMetrics, key: MetricKey): number | null {
+export function metricValue(
+  metrics: SessionMetrics,
+  key: MetricKey,
+): number | null {
   const raw = metrics[key];
   if (raw === null) {
     return null;
@@ -55,34 +62,41 @@ export function MetricsCard({
   };
 
   return (
-    <div className="flex flex-col gap-8">
-      <Reveal className="flex flex-col gap-3">
-        <CardTitle>{t("report.metrics.title")}</CardTitle>
-        <p className="text-ink-soft">
-          {card.previous === null
-            ? t("report.metrics.baseline", { modality })
-            : t("report.metrics.against", { modality })}
-        </p>
+    <div className="flex flex-col gap-6">
+      <Reveal as="p" className="text-ink-soft">
+        {card.previous === null
+          ? t("report.metrics.baseline", { modality })
+          : t("report.metrics.against", { modality })}
       </Reveal>
-      <Stagger as="dl" className="grid grid-cols-2 gap-x-10 gap-y-8">
+      <Stagger as="dl" className="grid grid-cols-2 gap-3 nav:grid-cols-3">
         {ROWS.map(({ key, higherIsBetter, digits }) => {
-          const now = value(card.current, key);
+          const now = metricValue(card.current, key);
           if (now === null) {
             return null;
           }
           const before =
-            card.previous === null ? null : value(card.previous, key);
-          const delta = before === null ? 0 : now - before;
-          const flat = before === null || Math.abs(delta) < 10 ** -digits / 2;
-          const better = flat ? null : delta > 0 === higherIsBetter;
+            card.previous === null ? null : metricValue(card.previous, key);
+          const { delta, flat, better } = trend(
+            now,
+            before,
+            digits,
+            higherIsBetter,
+          );
           const Icon = flat ? Minus : delta > 0 ? ArrowUpRight : ArrowDownRight;
           return (
-            <Reveal key={key} className="flex flex-col gap-1.5">
-              <dt className="text-sm text-ink-soft">
+            <Reveal
+              key={key}
+              className="flex flex-col gap-1.5 rounded-xl border border-line bg-sunken/70 px-4 py-3.5"
+            >
+              <dt className="text-sm text-ink-faint">
                 {t(`report.metrics.${key}`)}
               </dt>
-              <dd className="text-title font-semibold text-ink tabular-nums">
-                {show(key, now, digits)}
+              <dd className="font-display text-4xl leading-none font-light tracking-tight text-ink tabular-nums">
+                <CountUp
+                  value={now}
+                  from={0}
+                  format={(n) => show(key, n, digits)}
+                />
               </dd>
               <Presence>
                 {before !== null && (
@@ -90,15 +104,15 @@ export function MetricsCard({
                     key="before"
                     as="dd"
                     className={cn(
-                      "flex items-center gap-1 text-sm",
+                      "flex items-center gap-1 font-mono text-xs",
                       better === null
                         ? "text-ink-faint"
                         : better
-                          ? "text-correct"
+                          ? "text-accent-text"
                           : "text-partial",
                     )}
                   >
-                    <Icon aria-hidden className="size-4" />
+                    <Icon aria-hidden className="size-3.5" />
                     {flat
                       ? t("report.metrics.same")
                       : t(

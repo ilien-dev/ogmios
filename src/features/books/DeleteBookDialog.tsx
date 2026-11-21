@@ -39,11 +39,11 @@ interface FateProps {
 /** One thing that happens to the book's words, under its own mark. */
 function Fate({ icon, tone, title, children }: FateProps): ReactNode {
   return (
-    <div className="flex items-start gap-4 rounded-lg bg-sunken p-4">
+    <div className="flex items-start gap-4 rounded-lg bg-sunken/60 p-4">
       <span
         aria-hidden
         className={cn(
-          "flex size-8 shrink-0 items-center justify-center rounded-md",
+          "flex size-8 shrink-0 items-center justify-center rounded-full",
           tone,
         )}
       >
@@ -197,7 +197,10 @@ export function DeleteBookDialog({
       <div className="flex items-center gap-4">
         <BookCover book={book} className="w-12 shrink-0" />
         <div className="flex min-w-0 flex-col gap-1">
-          <h2 id={titleId} className="text-lead font-medium text-ink">
+          <h2
+            id={titleId}
+            className="font-display text-lead font-medium tracking-tight text-ink"
+          >
             {archived
               ? t("books.deleting.purgeTitle", { title: book.title })
               : t("books.deleting.title", { title: book.title })}

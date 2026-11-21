@@ -31,11 +31,8 @@ export function StartBar({
     onStart();
   };
   return (
-    <form
-      onSubmit={start}
-      className="shrink-0 bg-surface px-6 py-5 shadow-card nav:px-10"
-    >
-      <div className="mx-auto flex max-w-3xl flex-col gap-3">
+    <form onSubmit={start} className="shrink-0">
+      <div className="flex flex-col gap-3 rounded-xl glass px-5.5 py-4.5">
         <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
           <p className="text-sm text-ink-soft">{note}</p>
           <Button type="submit" variant="primaryBook" disabled={starting}>

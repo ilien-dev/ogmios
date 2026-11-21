@@ -25,6 +25,13 @@ const VERDICT = {
   wrong: "report.correction.notFixed",
 } as const;
 
+/** The soft box the verdict sits in, in its colour. */
+const VERDICT_BOX = {
+  right: "border-correct/30 bg-correct-soft",
+  partial: "border-partial/30 bg-partial-soft",
+  wrong: "border-wrong/30 bg-wrong-soft",
+} as const;
+
 interface CorrectionViewProps {
   card: CorrectionCard;
   compact?: boolean;
@@ -77,26 +84,38 @@ export function CorrectionView({
   };
 
   return (
-    <div className={cn("flex flex-col", compact ? "gap-4" : "gap-6")}>
-      {card.recurrence !== null && (
-        <Reveal
-          key="recurrence"
-          as="p"
-          className="flex items-center gap-2 text-sm text-partial"
-        >
-          <Repeat aria-hidden className="size-4" />
-          {card.recurrence}
-        </Reveal>
-      )}
+    <div className={cn("flex flex-col", compact ? "gap-4" : "gap-5")}>
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+        <span className="flex items-center gap-2 font-mono text-xs tracking-wider text-accent-text uppercase">
+          <span
+            aria-hidden
+            className="size-1.5 animate-breathe rounded-full bg-mint"
+          />
+          {card.role === "focus"
+            ? t("report.board.tag.focus")
+            : t("report.board.tag.minor")}
+        </span>
+        {card.recurrence !== null && (
+          <Reveal
+            key="recurrence"
+            as="p"
+            kind="fade"
+            className="flex items-center gap-1.5 font-mono text-xs text-ink-faint"
+          >
+            <Repeat aria-hidden className="size-3.5 text-partial" />
+            {card.recurrence}
+          </Reveal>
+        )}
+      </div>
 
-      <div className="flex flex-col gap-2">
-        <p className="text-sm font-semibold text-ink-soft">
+      <div className="flex flex-col gap-1.5">
+        <p className="text-sm text-ink-faint">
           {t("report.correction.yourSentence")}
         </p>
         <p
           className={cn(
-            "leading-snug text-ink",
-            compact ? "text-lead" : "text-2xl",
+            "leading-normal text-ink",
+            compact ? "text-xl" : "text-2xl",
           )}
         >
           <Highlighted text={card.original} spans={[card.highlight]} />
@@ -114,31 +133,39 @@ export function CorrectionView({
             >
               <Presence>
                 {outcome !== null && (
-                  <Reveal key="outcome">
+                  <Reveal
+                    key="outcome"
+                    className={cn(
+                      "rounded-xl border px-3.5 py-3",
+                      VERDICT_BOX[outcome],
+                    )}
+                  >
                     <VerdictLine tone={outcome}>
                       {t(VERDICT[outcome])}
                     </VerdictLine>
                   </Reveal>
                 )}
               </Presence>
-              <div className="flex flex-col gap-2">
-                <p className="text-sm font-semibold text-ink-soft">
+              <div className="flex flex-col gap-1.5">
+                <p className="text-sm text-ink-faint">
                   {t("conversation.partner")} · {t("report.correction.better")}
                 </p>
                 <p
                   className={cn(
                     "font-medium text-ink",
-                    compact ? "text-lg" : "text-2xl",
+                    compact ? "text-lg" : "text-xl",
                   )}
                 >
                   {card.corrected}
                 </p>
               </div>
-              <div className="flex flex-col gap-1.5 rounded-lg bg-raised px-5 py-4">
-                <p className="text-sm font-semibold text-ink-soft">
+              <div className="flex flex-col gap-1">
+                <p className="text-sm text-ink-faint">
                   {t("report.correction.why")}
                 </p>
-                <p className="leading-relaxed text-ink">{card.explanation}</p>
+                <p className="leading-relaxed text-ink-soft">
+                  {card.explanation}
+                </p>
               </div>
             </Reveal>
           ) : (
@@ -150,20 +177,17 @@ export function CorrectionView({
             >
               <form
                 onSubmit={(event) => void check(event)}
-                className="flex flex-col gap-3"
+                className="flex flex-col gap-2.5"
               >
-                <label
-                  htmlFor={inputId}
-                  className="text-sm font-semibold text-ink-soft"
-                >
+                <label htmlFor={inputId} className="text-sm text-ink-faint">
                   {t("report.correction.fixPrompt")}
                 </label>
-                <div className="flex flex-wrap items-center gap-2 rounded-xl bg-raised p-1.5 pl-5">
+                <div className="flex flex-wrap items-center gap-2.5">
                   <input
                     id={inputId}
                     value={attempt}
                     spellCheck={false}
-                    className="h-11 min-w-48 flex-1 bg-transparent text-lead text-ink focus-visible:outline-none"
+                    className="h-12 min-w-48 flex-1 rounded-xl border border-correct/40 bg-sunken/70 px-3.5 text-lead text-ink transition-colors duration-300 ease-out-expo hover:border-correct/70 focus-visible:border-correct focus-visible:outline-none"
                     onChange={(event) => {
                       setDraft(event.target.value);
                     }}
@@ -194,11 +218,11 @@ export function CorrectionView({
                         as="p"
                         kind="fade"
                         index={0}
-                        className="flex items-center gap-2 text-sm text-ink"
+                        className="flex items-center gap-2 rounded-xl border border-partial/30 bg-partial-soft px-3.5 py-2.5 text-sm text-ink"
                       >
                         <Lightbulb
                           aria-hidden
-                          className="size-4 text-partial"
+                          className="size-4 shrink-0 animate-breathe text-partial"
                         />
                         {t("report.correction.hint", { hint })}
                       </Reveal>
@@ -223,7 +247,7 @@ export function CorrectionView({
                   onClick={() => {
                     setStage("revealed");
                   }}
-                  className="self-start rounded-sm text-sm text-ink-soft underline underline-offset-4 hover:text-ink"
+                  className="cursor-pointer self-start rounded-sm text-sm text-ink-soft underline decoration-line-strong underline-offset-4 transition-control hover:text-ink hover:decoration-ink"
                 >
                   {t("report.correction.showAnswer")}
                 </button>

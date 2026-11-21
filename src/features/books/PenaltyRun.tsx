@@ -8,6 +8,7 @@ import type {
   PenaltyStep,
   PracticeStep,
 } from "@shared/domain";
+import { CountUp } from "@/components/motion/CountUp";
 import { Presence } from "@/components/motion/Presence";
 import { Reveal } from "@/components/motion/Reveal";
 import { Button } from "@/components/ui/Button";
@@ -55,7 +56,7 @@ function Ladder({ rung, passed }: LadderProps): ReactNode {
             kind="scale"
             aria-label={t(label, { reps })}
             className={cn(
-              "flex flex-1 items-end justify-center rounded-sm border-2 pb-2 text-sm font-bold transition-colors duration-300",
+              "flex flex-1 items-end justify-center rounded-lg border-2 pb-2 font-mono text-sm font-bold transition-colors duration-300",
               HEIGHTS[at],
               done && "border-correct bg-correct-soft text-correct",
               now && "border-book bg-book text-canvas",
@@ -100,12 +101,12 @@ function Count({ penalty }: CountProps): ReactNode {
   const done = penalty.answered.length;
   return (
     <div className="flex flex-col items-center gap-3">
-      <p className="font-display text-display font-light text-ink">
+      <p className="font-display text-display font-light tracking-tight text-ink tabular-nums">
         <span className="sr-only">
           {t("books.sitting.penalty.count", { done, total })}
         </span>
         <span aria-hidden>
-          {done}
+          <CountUp value={done} />
           <span className="text-ink-faint">{` / ${String(total)}`}</span>
         </span>
       </p>
@@ -118,6 +119,7 @@ function Count({ penalty }: CountProps): ReactNode {
               className={cn(
                 "size-3 rounded-full border-2 transition-colors duration-300",
                 way === undefined ? "border-line-strong" : WAY[way],
+                at === done && "animate-breathe border-book",
               )}
             />
           );
@@ -183,7 +185,7 @@ export function PenaltyRun({
           {t("books.sitting.penalty.resists")}
         </Reveal>
         <Reveal as="div" className="flex flex-col items-center gap-1">
-          <h1 className="font-display text-display font-light text-ink">
+          <h1 className="font-display text-display font-light tracking-tight text-ink">
             {penalty.english}
           </h1>
           <p className="text-lead text-ink-soft">{penalty.native}</p>

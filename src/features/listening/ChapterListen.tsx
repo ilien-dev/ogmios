@@ -9,6 +9,7 @@ import { BackLink } from "@/components/ui/BackLink";
 import { Notice } from "@/components/ui/Notice";
 import { chapterName } from "@/features/books/chapterName";
 import { SittingWait } from "@/features/books/SittingParts";
+import { RunBackdrop, RunCard } from "@/features/drills/ScreenParts";
 import { errorMessage } from "@/lib/errors";
 import {
   chapterReading,
@@ -19,6 +20,76 @@ import {
 import { ListenPlayer } from "./ListenPlayer";
 import { ListenText } from "./ListenText";
 import { useHushed } from "./useHushed";
+
+interface ReadingCardProps {
+  reading: ChapterReading;
+  failure: string | null;
+  hidden: boolean;
+  place: number;
+  onJump: (to: number) => void;
+  onBack: () => void;
+}
+
+/** The chapter on its glass card: its name, and its text unless hidden. */
+function ReadingCard({
+  reading,
+  failure,
+  hidden,
+  place,
+  onJump,
+  onBack,
+}: ReadingCardProps): ReactNode {
+  const { t } = useTranslation();
+  return (
+    <div className="px-4 py-8">
+      <RunCard wide>
+        <Stagger className="flex flex-col gap-8">
+          <Reveal as="header" className="flex flex-col gap-3">
+            <BackLink
+              label={t("nav.backTo", { place: t("nav.places.book") })}
+              onClick={onBack}
+            />
+            <p className="font-mono text-xs text-ink-faint">
+              {reading.bookTitle}
+            </p>
+            <h1 className="font-display text-display font-light tracking-tight text-ink">
+              {chapterName(reading.chapter, t)}
+            </h1>
+          </Reveal>
+          <Presence>
+            {failure !== null && (
+              <Notice key="failure" tone="danger">
+                {t("common.error", { message: failure })}
+              </Notice>
+            )}
+          </Presence>
+          <div className="relative">
+            <Presence swap>
+              {hidden ? (
+                <Reveal
+                  as="p"
+                  key="hidden"
+                  kind="fade"
+                  className="text-ink-faint"
+                >
+                  {t("listening.reading.hidden")}
+                </Reveal>
+              ) : (
+                <Reveal key="text" kind="fade">
+                  <ListenText
+                    paragraphs={reading.paragraphs}
+                    place={place}
+                    onJump={onJump}
+                  />
+                </Reveal>
+              )}
+            </Presence>
+          </div>
+        </Stagger>
+      </RunCard>
+    </div>
+  );
+}
 
 interface ChapterListenProps {
   chapterId: string;
@@ -34,7 +105,6 @@ export function ChapterListen({
   chapterId,
   onBack,
 }: ChapterListenProps): ReactNode {
-  const { t } = useTranslation();
   const [reading, setReading] = useState<ChapterReading | null>(null);
   const [place, setPlace] = useState(0);
   const [playing, setPlaying] = useState(false);
@@ -112,85 +182,54 @@ export function ChapterListen({
   };
 
   return (
-    <main className="flex h-full flex-col">
-      <div className="relative min-h-0 flex-1 overflow-y-auto">
-        <Presence swap>
-          {reading === null ? (
-            <Reveal key="wait" kind="fade" className="h-full">
-              <SittingWait failure={failure} />
-            </Reveal>
-          ) : (
-            <Reveal key="text" kind="fade">
-              <Stagger className="mx-auto flex max-w-3xl flex-col gap-8 px-6 py-12 nav:px-10">
-                <Reveal as="header" className="flex flex-col gap-3">
-                  <BackLink
-                    label={t("listening.reading.back")}
-                    onClick={onBack}
-                  />
-                  <p className="text-sm text-ink-faint">{reading.bookTitle}</p>
-                  <h1 className="font-display text-display font-light text-ink">
-                    {chapterName(reading.chapter, t)}
-                  </h1>
-                </Reveal>
-                <Presence>
-                  {failure !== null && (
-                    <Notice key="failure" tone="danger">
-                      {t("common.error", { message: failure })}
-                    </Notice>
-                  )}
-                </Presence>
-                <div className="relative">
-                  <Presence swap>
-                    {hidden ? (
-                      <Reveal
-                        as="p"
-                        key="hidden"
-                        kind="fade"
-                        className="text-ink-faint"
-                      >
-                        {t("listening.reading.hidden")}
-                      </Reveal>
-                    ) : (
-                      <Reveal key="text" kind="fade">
-                        <ListenText
-                          paragraphs={reading.paragraphs}
-                          place={place}
-                          onJump={jump}
-                        />
-                      </Reveal>
-                    )}
-                  </Presence>
-                </div>
-              </Stagger>
+    <RunBackdrop>
+      <main className="flex h-full flex-col">
+        <div className="relative min-h-0 flex-1 overflow-y-auto">
+          <Presence swap>
+            {reading === null ? (
+              <Reveal key="wait" kind="fade" className="h-full">
+                <SittingWait failure={failure} />
+              </Reveal>
+            ) : (
+              <Reveal key="text" kind="fade">
+                <ReadingCard
+                  reading={reading}
+                  failure={failure}
+                  hidden={hidden}
+                  place={place}
+                  onJump={jump}
+                  onBack={onBack}
+                />
+              </Reveal>
+            )}
+          </Presence>
+        </div>
+        <Presence>
+          {reading !== null && (
+            <Reveal key="player" className="shrink-0 px-6 pb-4 nav:px-10">
+              <ListenPlayer
+                place={place}
+                total={total}
+                playing={playing}
+                pace={pace}
+                hidden={hidden}
+                onJump={jump}
+                onPlay={() => {
+                  play(place, pace);
+                }}
+                onPause={pause}
+                onPace={(next) => {
+                  setPace(next);
+                  if (playing) {
+                    play(place, next);
+                  }
+                }}
+                onHidden={setHidden}
+              />
             </Reveal>
           )}
         </Presence>
-      </div>
-      <Presence>
-        {reading !== null && (
-          <Reveal key="player" className="shrink-0 px-6 pb-4 nav:px-10">
-            <ListenPlayer
-              place={place}
-              total={total}
-              playing={playing}
-              pace={pace}
-              hidden={hidden}
-              onJump={jump}
-              onPlay={() => {
-                play(place, pace);
-              }}
-              onPause={pause}
-              onPace={(next) => {
-                setPace(next);
-                if (playing) {
-                  play(place, next);
-                }
-              }}
-              onHidden={setHidden}
-            />
-          </Reveal>
-        )}
-      </Presence>
-    </main>
+      </main>
+    </RunBackdrop>
   );
 }

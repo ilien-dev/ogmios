@@ -1,12 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import type { ReactNode } from "react";
-import { useState } from "react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { UserEvent } from "@testing-library/user-event";
-import type { Route } from "@/app/routes";
+import { BookSection } from "@/test/BookSection";
 import { useMockBackend } from "@/test/mockBackend";
-import { BooksScreen } from "./BooksScreen";
 
 /** A right answer to each prompt of the mock chapter, whichever way. */
 const RIGHT: Record<string, string> = {
@@ -32,23 +30,7 @@ const RIGHT: Record<string, string> = {
 const MISSED = new Set(["rabbit hole", "madriguera"]);
 
 function Shelf(): ReactNode {
-  const [route, setRoute] = useState<Route>({
-    name: "books",
-    bookId: "book-alice",
-    chapterId: "book-alice-0",
-  });
-  if (route.name !== "books") {
-    return null;
-  }
-  return (
-    <BooksScreen
-      nativeLang="es"
-      bookId={route.bookId}
-      chapterId={route.chapterId ?? null}
-      practising={route.practising === true}
-      navigate={setRoute}
-    />
-  );
+  return <BookSection chapterId="book-alice-0" />;
 }
 
 function prompt(): string {

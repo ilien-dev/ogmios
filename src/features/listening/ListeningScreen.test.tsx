@@ -1,14 +1,16 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import type { ReactNode } from "react";
 import { useState } from "react";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { UserEvent } from "@testing-library/user-event";
 import type { Route } from "@/app/routes";
 import { showsNav } from "@/app/routes";
 import { SpeechProvider } from "@/features/speech/speech";
+import { listeningState } from "@/lib/ipc";
 import { mockSpoken, resetMockSpeech } from "@/lib/ipcMockSpeech";
 import { useMockBackend } from "@/test/mockBackend";
+import { ListenTab } from "./ListenTab";
 import { ListeningScreen } from "./ListeningScreen";
 
 /** The sentences the mock dictates, in its order. */
@@ -25,31 +27,40 @@ const DICTATED = [
   "When he opened his eyes again, the room was gone.",
 ];
 
-/** The listening section, as the app holds it. */
+const CHAPTER = "book-alice-0";
+const TAB: Route = { name: "book", tab: "listen" };
+
+/** The chapter's listening tab, and what it starts, as the app holds them. */
 function Section(): ReactNode {
-  const [route, setRoute] = useState<Route>({ name: "listening" });
-  if (route.name !== "listening") {
+  const [route, setRoute] = useState<Route>(TAB);
+  if (route.name !== "listening" && route.name !== "book") {
     return <p>{`Left for ${route.name}`}</p>;
   }
   return (
     <SpeechProvider>
-      {showsNav(route) && <nav aria-label="Sections" />}
-      <ListeningScreen
-        running={route.running ?? null}
-        reading={route.reading ?? null}
-        chapterId={route.chapterId ?? null}
-        navigate={setRoute}
-      />
+      {showsNav(route) && <nav aria-label="Places" />}
+      {route.name === "book" ? (
+        <ListenTab chapterId={CHAPTER} navigate={setRoute} />
+      ) : (
+        <ListeningScreen
+          running={route.running ?? null}
+          reading={route.reading ?? null}
+          navigate={setRoute}
+          onLeave={() => {
+            setRoute(TAB);
+          }}
+        />
+      )}
     </SpeechProvider>
   );
 }
 
-/** The menu on the screen, with its chapter. */
+/** The tab on the screen, with what its chapter offers. */
 async function open(): Promise<UserEvent> {
   const user = userEvent.setup();
   render(<Section />);
   await screen.findByRole("heading", { name: "Listening" });
-  await screen.findByLabelText("Chapter");
+  await screen.findByText("Dictation");
   return user;
 }
 
@@ -84,16 +95,11 @@ async function next(user: UserEvent): Promise<void> {
 describe("listening", () => {
   useMockBackend();
 
-  test("leaves the way out to the menu", async () => {
-    await open();
-
-    expect(screen.queryByRole("button", { name: "Book" })).toBeNull();
-  });
   beforeEach(() => {
     resetMockSpeech(true);
   });
 
-  test("without the voice the menu only offers to download it", async () => {
+  test("without the voice the tab only offers to download it", async () => {
     resetMockSpeech(false);
     render(<Section />);
     expect(
@@ -105,12 +111,8 @@ describe("listening", () => {
     expect(screen.queryByText("Dictation")).not.toBeInTheDocument();
   });
 
-  test("the menu is on a chapter, with no pace understood yet", async () => {
+  test("the tab offers the chapter read aloud and a dictation of it", async () => {
     await open();
-    expect(screen.getByText("No pace yet")).toBeInTheDocument();
-    expect(screen.getByLabelText("Chapter")).toHaveValue("book-alice-0");
-    const paces = within(screen.getByRole("list", { name: "By pace" }));
-    expect(paces.getAllByText("Not tried yet")).toHaveLength(3);
     // A dictation is offered at the normal pace before anything is known.
     expect(screen.getByRole("button", { name: "Normal" })).toHaveAttribute(
       "aria-pressed",
@@ -206,7 +208,7 @@ describe("listening", () => {
     expect(screen.getByText(/You slowed it down/)).toBeInTheDocument();
   });
 
-  test("a dictation paused waits in the menu to be gone on with", async () => {
+  test("a dictation paused waits in the tab to be gone on with", async () => {
     const user = await begin();
     await write(user, FIRST);
     await user.click(screen.getByRole("button", { name: "Pause" }));
@@ -220,7 +222,7 @@ describe("listening", () => {
     const user = await begin();
     await user.click(screen.getByRole("button", { name: "Pause" }));
     await screen.findByRole("heading", { name: "Listening" });
-    await screen.findByLabelText("Chapter");
+    await screen.findByText("Dictation");
     expect(screen.queryByText("Paused")).not.toBeInTheDocument();
   });
 
@@ -280,11 +282,10 @@ describe("listening", () => {
     ).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Done" }));
-    await screen.findByLabelText("Chapter");
-    expect(screen.getByText("You already understand at")).toBeInTheDocument();
-    expect(screen.queryByText("No pace yet")).not.toBeInTheDocument();
-    expect(screen.getByText("100% · 10 sentences")).toBeInTheDocument();
-    expect(screen.getAllByLabelText("This pace is yours")).toHaveLength(1);
+    await screen.findByText("Dictation");
+    const state = await listeningState(CHAPTER);
+    expect(state.understood).toBe("normal");
+    expect(state.standings.filter((each) => each.held)).toHaveLength(1);
     // The next one is offered a pace above.
     expect(screen.getByRole("button", { name: "Fast" })).toHaveAttribute(
       "aria-pressed",
@@ -307,7 +308,7 @@ describe("listening", () => {
       }
     }
     await user.click(screen.getByRole("button", { name: "Done" }));
-    await screen.findByLabelText("Chapter");
+    await screen.findByText("Dictation");
     expect(screen.getByText("What escapes you most")).toBeInTheDocument();
     // Missed twice, "boy" is shown. "the" is twice in the sentence: missed
     // four times, it is reinforced as well.
@@ -341,7 +342,7 @@ describe("listening", () => {
       screen.getByText("The text is hidden. Just listen."),
     ).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Listening" }));
-    await screen.findByLabelText("Chapter");
+    await user.click(screen.getByRole("button", { name: "Back to Book" }));
+    await screen.findByText("Dictation");
   });
 });

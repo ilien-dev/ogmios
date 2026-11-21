@@ -99,7 +99,7 @@ export function ArchivedShelf(): ReactNode {
             <div className="flex flex-col gap-1">
               <h2
                 id="archived"
-                className="flex items-center gap-2 text-sm font-medium text-ink-faint"
+                className="flex items-center gap-2 font-mono text-xs font-medium text-ink-faint"
               >
                 <Archive aria-hidden className="size-4" />
                 {t("books.archived.title")}
@@ -108,7 +108,7 @@ export function ArchivedShelf(): ReactNode {
                 {t("books.archived.intro")}
               </p>
             </div>
-            <ul className="flex flex-col divide-y divide-line rounded-lg bg-surface shadow-card">
+            <ul className="flex flex-col divide-y divide-line rounded-xl glass">
               <Presence>
                 {books.map((book) => (
                   <Reveal

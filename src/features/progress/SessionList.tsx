@@ -49,21 +49,24 @@ function SessionLine({ session, navigate }: SessionLineProps): ReactNode {
           name: "report",
           sessionId: session.id,
           report: null,
-          origin: "progress",
+          origin: "past",
         });
       }}
-      className="flex min-w-0 flex-1 items-center gap-4 px-2 py-4 text-left hover:bg-raised"
+      className="group flex min-w-0 flex-1 items-center gap-4 rounded-lg px-3 py-4 text-left transition-control hover:bg-sunken/60"
     >
       {summary}
       <span className="flex items-center gap-1 text-sm text-accent-text">
-        {t("progress.viewReport")}
-        <ChevronRight aria-hidden className="size-4" />
+        {t("home.past.viewReport")}
+        <ChevronRight
+          aria-hidden
+          className="size-4 transition-transform duration-300 ease-out-expo group-hover:translate-x-0.5"
+        />
       </span>
     </button>
   ) : (
-    <div className="flex min-w-0 flex-1 items-center gap-4 px-2 py-4">
+    <div className="flex min-w-0 flex-1 items-center gap-4 px-3 py-4">
       {summary}
-      <span className="text-sm text-ink-faint">{t("progress.noReport")}</span>
+      <span className="text-sm text-ink-faint">{t("home.past.noReport")}</span>
     </div>
   );
 }
@@ -94,7 +97,7 @@ export function SessionList({
 
   return (
     <div className="flex flex-col gap-4">
-      <ul className="flex flex-col divide-y divide-line border-y border-line">
+      <ul className="flex flex-col divide-y divide-line">
         <Presence>
           {sessions.map((session) => (
             <Reveal
@@ -111,10 +114,10 @@ export function SessionList({
                     key="confirm"
                     kind="fade"
                     index={0}
-                    className="flex flex-wrap items-center gap-2 px-2 py-4"
+                    className="flex flex-wrap items-center gap-2 px-3 py-4"
                   >
                     <p className="min-w-0 flex-1 text-ink">
-                      {t("progress.deleteConfirm")}
+                      {t("home.past.deleteConfirm")}
                     </p>
                     <Button
                       variant="danger"
@@ -122,7 +125,7 @@ export function SessionList({
                       disabled={deleting}
                       onClick={() => void remove(session.id)}
                     >
-                      {t("progress.deleteYes")}
+                      {t("home.past.deleteYes")}
                     </Button>
                     <Button
                       variant="ghost"
@@ -146,10 +149,16 @@ export function SessionList({
                     <Button
                       variant="ghost"
                       size="sm"
-                      aria-label={t("progress.delete", {
+                      className="group"
+                      aria-label={t("home.past.delete", {
                         topic: session.topic,
                       })}
-                      icon={<Trash2 aria-hidden className="size-4" />}
+                      icon={
+                        <Trash2
+                          aria-hidden
+                          className="size-4 transition-transform duration-300 ease-out-expo group-hover:-rotate-12"
+                        />
+                      }
                       onClick={() => {
                         setFailure(null);
                         setConfirming(session.id);

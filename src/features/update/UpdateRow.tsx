@@ -45,7 +45,7 @@ export function UpdateRow(): ReactNode {
                 key="version"
                 as="span"
                 kind="fade"
-                className="px-3 text-sm text-ink-soft"
+                className="px-3 font-mono text-xs text-ink-soft"
               >
                 {t("update.short", { version })}
               </Reveal>
@@ -54,9 +54,12 @@ export function UpdateRow(): ReactNode {
           <button
             type="button"
             onClick={unfold}
-            className="flex h-9 items-center gap-2 rounded-md px-3 text-sm font-medium text-accent-text transition-control hover:bg-raised"
+            className="group flex h-9 items-center gap-2 rounded-full px-3.5 text-sm font-medium text-accent-text transition-control hover:bg-accent-soft"
           >
-            <ArrowUpCircle aria-hidden className="size-4" />
+            <ArrowUpCircle
+              aria-hidden
+              className="size-4 animate-float transition-transform duration-300 ease-out-expo group-hover:scale-110"
+            />
             {t("update.hint", { version: newer })}
           </button>
         </Reveal>
@@ -91,7 +94,7 @@ export function UpdateRow(): ReactNode {
     }
     return (
       <Reveal key="version" kind="fade" className="flex items-center gap-1">
-        <span className="px-3 text-sm text-ink-soft">
+        <span className="px-3 font-mono text-xs text-ink-soft">
           {t(asked ? "update.upToDate" : "update.short", { version })}
         </span>
         <button
@@ -100,9 +103,12 @@ export function UpdateRow(): ReactNode {
             setAsked(true);
             check();
           }}
-          className="flex h-9 items-center gap-2 rounded-md px-3 text-sm text-ink-soft transition-control hover:bg-raised hover:text-ink"
+          className="group flex h-9 items-center gap-2 rounded-full px-3.5 text-sm text-ink-soft transition-control hover:bg-raised hover:text-ink"
         >
-          <RefreshCw aria-hidden className="size-4" />
+          <RefreshCw
+            aria-hidden
+            className="size-4 transition-transform duration-500 ease-out-expo group-hover:rotate-180"
+          />
           {t("update.check")}
         </button>
       </Reveal>

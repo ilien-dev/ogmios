@@ -5,7 +5,6 @@ import type { NativeRewrite } from "@shared/domain";
 import { Presence } from "@/components/motion/Presence";
 import { Reveal } from "@/components/motion/Reveal";
 import { Stagger } from "@/components/motion/Stagger";
-import { CardTitle } from "./CardTitle";
 import { Highlighted } from "./Highlighted";
 
 /**
@@ -19,14 +18,13 @@ export function NativeRewriteCard({
 }): ReactNode {
   const { t } = useTranslation();
   return (
-    <div className="flex flex-col gap-8">
-      <Reveal className="flex flex-col gap-3">
-        <CardTitle>{t("report.nativeRewrite.title")}</CardTitle>
-        <p className="text-ink-soft">{t("report.nativeRewrite.intro")}</p>
+    <div className="flex flex-col gap-6">
+      <Reveal as="p" className="text-ink-soft">
+        {t("report.nativeRewrite.intro")}
       </Reveal>
-      <Reveal className="grid grid-cols-2 gap-6">
-        <div className="flex flex-col gap-2">
-          <p className="text-sm font-semibold text-ink-soft">
+      <Reveal className="grid gap-4 nav:grid-cols-2">
+        <div className="flex flex-col gap-2 rounded-xl border border-line bg-sunken/70 px-4 py-3.5">
+          <p className="font-mono text-xs tracking-wider text-ink-faint uppercase">
             {t("report.nativeRewrite.original")}
           </p>
           <p className="leading-relaxed text-ink-soft">
@@ -37,8 +35,8 @@ export function NativeRewriteCard({
             />
           </p>
         </div>
-        <div className="flex flex-col gap-2">
-          <p className="text-sm font-semibold text-ink-soft">
+        <div className="flex flex-col gap-2 rounded-xl border border-accent/35 bg-accent-soft px-4 py-3.5">
+          <p className="font-mono text-xs tracking-wider text-accent-text uppercase">
             {t("report.nativeRewrite.rewritten")}
           </p>
           <p className="leading-relaxed font-medium text-ink">
@@ -52,8 +50,8 @@ export function NativeRewriteCard({
       </Reveal>
       <Presence>
         {rewrite.notes.length > 0 && (
-          <Reveal key="notes" className="flex flex-col gap-4">
-            <h3 className="text-sm font-semibold text-ink-soft">
+          <Reveal key="notes" className="flex flex-col gap-3">
+            <h3 className="text-sm text-ink-faint">
               {t("report.nativeRewrite.changes")}
             </h3>
             <Stagger as="ul" className="flex flex-col gap-3">
@@ -61,7 +59,7 @@ export function NativeRewriteCard({
                 <Reveal
                   key={`${note.from}-${note.to}`}
                   as="li"
-                  className="flex flex-col gap-1 rounded-lg bg-raised px-5 py-4"
+                  className="flex flex-col gap-1 rounded-xl border border-line bg-sunken/70 px-4 py-3"
                 >
                   <p className="flex flex-wrap items-center gap-x-2 text-ink">
                     <span className="text-ink-soft">
@@ -72,7 +70,7 @@ export function NativeRewriteCard({
                     </span>
                     <ArrowRight
                       aria-hidden
-                      className="size-4 shrink-0 text-correct"
+                      className="size-4 shrink-0 text-accent-text"
                     />
                     <span className="font-medium">
                       <span className="sr-only">

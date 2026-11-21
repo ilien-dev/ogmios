@@ -24,17 +24,17 @@ describe("WeeklyBars", () => {
     ]);
   });
 
-  test("the bars grow from their foot and keep their height in the style", () => {
+  test("the bars grow from their start and keep their width in the style", () => {
     const { container } = render(<WeeklyBars weeks={WEEKS} />);
 
-    const bars = [...container.querySelectorAll<HTMLElement>(".origin-bottom")];
-    expect(bars.map((bar) => bar.style.height)).toEqual([
-      "80%",
-      "40%",
-      `${(0.5 / 30) * 80}%`,
+    const bars = [...container.querySelectorAll<HTMLElement>(".origin-left")];
+    expect(bars.map((bar) => bar.style.width)).toEqual([
+      "100%",
+      "50%",
+      `${(0.5 / 30) * 100}%`,
     ]);
     for (const bar of bars) {
-      expect(bar).not.toHaveClass("transition-[height]");
+      expect(bar).not.toHaveClass("transition-[width]");
     }
   });
 });

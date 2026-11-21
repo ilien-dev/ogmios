@@ -16,9 +16,9 @@ export function Standing({ state }: { state: ListeningState }): ReactNode {
         as="li"
         key={standing.pace}
         index={index}
-        className="flex items-center gap-4 px-5 py-3"
+        className="flex items-center gap-4 py-2.5"
       >
-        <span className="flex w-28 shrink-0 items-center gap-2 font-medium text-ink">
+        <span className="flex w-28 shrink-0 items-center gap-2 font-display font-medium tracking-tight text-ink">
           {name}
           <Presence>
             {standing.held && (
@@ -40,7 +40,7 @@ export function Standing({ state }: { state: ListeningState }): ReactNode {
             tone="book"
           />
         </span>
-        <span className="w-40 shrink-0 text-right text-sm text-ink-faint tabular-nums">
+        <span className="w-40 shrink-0 text-right font-mono text-xs text-ink-faint tabular-nums">
           {standing.sentences === 0
             ? t("listening.standing.none")
             : t("listening.standing.count", {
@@ -52,15 +52,15 @@ export function Standing({ state }: { state: ListeningState }): ReactNode {
     );
   };
   return (
-    <section className="flex flex-col gap-5">
-      <div className="flex flex-col gap-1">
-        <p className="text-sm text-ink-faint">
+    <section className="flex flex-col gap-3 rounded-xl glass px-5.5 py-4.5">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <p className="font-display text-base tracking-tight text-ink">
           {t("listening.understood.label")}
         </p>
         <Presence swap>
           {state.understood === null ? (
             <Reveal key="none" className="flex flex-col gap-1">
-              <p className="font-display text-title font-normal text-ink-soft">
+              <p className="font-display text-title font-light tracking-tight text-ink-soft">
                 {t("listening.understood.none")}
               </p>
               <p className="text-sm text-ink-soft">
@@ -71,7 +71,7 @@ export function Standing({ state }: { state: ListeningState }): ReactNode {
             <Reveal
               key="understood"
               as="p"
-              className="font-display text-display font-light text-accent-text"
+              className="font-display text-title font-light tracking-tight text-accent-text"
             >
               {t(`listening.pace.${state.understood}`)}
             </Reveal>
@@ -80,7 +80,7 @@ export function Standing({ state }: { state: ListeningState }): ReactNode {
       </div>
       <ul
         aria-label={t("listening.standing.title")}
-        className="flex flex-col divide-y divide-line rounded-xl bg-surface py-1 shadow-card"
+        className="flex flex-col divide-y divide-line"
       >
         {[...state.standings].reverse().map(row)}
       </ul>

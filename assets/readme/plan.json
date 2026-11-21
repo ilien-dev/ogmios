@@ -1,0 +1,121 @@
+{
+  "audience": "general",
+  "audience_confirmed": true,
+  "sentence": "An adult learning English talks with an AI partner who never stops them to correct a mistake, then gets one thing to work on in their own language, and learns the words of their own books before reading them.",
+  "language": "en",
+  "translations": ["README.es.md"],
+  "unfinished": [],
+  "captures_agreed": true,
+  "backdrop": "plus still",
+  "hero": {
+    "file": "assets/hero.src.svg",
+    "shows": [
+      "a microphone and the learner's voice going in",
+      "a laptop running Ogmios with the conversation on screen",
+      "a focus card where the learner's sentence is fixed",
+      "a word card from the learner's book with its sentence",
+      "a chip with the day the word comes back"
+    ]
+  },
+  "sections": [
+    {
+      "heading": "Talk, and nobody stops you",
+      "role": "demo",
+      "docs": null,
+      "picture": {
+        "file": "assets/readme/talk.src.svg",
+        "type": "capture",
+        "claim": "You talk with the partner by voice or by typing, and nothing corrects you while the conversation runs.",
+        "shows": [
+          "the real conversation screen",
+          "the microphone button held down",
+          "the note No corrections now. Just talk"
+        ]
+      }
+    },
+    {
+      "heading": "How it helps you improve",
+      "role": "how",
+      "docs": "docs/HOW-IT-WORKS.md",
+      "picture": {
+        "file": "assets/readme/improve.src.svg",
+        "type": "drawn",
+        "claim": "A mistake you repeat climbs from detected to mastered, and it only reaches mastered when you get it right in real conversations.",
+        "shows": [
+          "one repeated mistake as a card",
+          "the four steps detected, in focus, improving, mastered",
+          "a short drill",
+          "a later conversation where it comes out right"
+        ]
+      }
+    },
+    {
+      "heading": "Learn the words of your own books",
+      "role": "features",
+      "docs": null,
+      "picture": {
+        "file": "assets/readme/books.src.svg",
+        "type": "drawn",
+        "claim": "Add a book and see which chapters you can already read; each new word is learned with the book's own sentence and comes back before you forget it.",
+        "shows": [
+          "an EPUB book",
+          "a bar per chapter that fills as you learn",
+          "a word card with the book's sentence",
+          "a calendar of review days"
+        ]
+      }
+    },
+    {
+      "heading": "Your data stays on your computer",
+      "role": "privacy",
+      "docs": null,
+      "picture": {
+        "file": "assets/readme/privacy.src.svg",
+        "type": "drawn",
+        "claim": "Your voice, books and progress stay on your computer; only the text of the conversation goes to Claude.",
+        "shows": [
+          "the computer as a place with walls",
+          "voice turned into text inside it",
+          "the saved books and progress inside it",
+          "only text leaving for Claude"
+        ]
+      }
+    },
+    {
+      "heading": "Install",
+      "role": "install",
+      "docs": "docs/CLAUDE-SETUP.md",
+      "picture": null
+    },
+    {
+      "heading": "Questions",
+      "role": "faq",
+      "docs": null,
+      "picture": null
+    },
+    {
+      "heading": "For developers",
+      "role": "develop",
+      "docs": "docs/DEVELOPMENT.md",
+      "picture": null
+    },
+    {
+      "heading": "Licence",
+      "role": "license",
+      "docs": null,
+      "picture": null
+    }
+  ],
+  "assets": {
+    "icons": {
+      "family": "lucide",
+      "variant": null,
+      "why": "the app itself draws every icon with lucide-react: 2 px round line, the same look as the interface"
+    },
+    "objects": {
+      "family": "fluent-emoji-high-contrast",
+      "variant": null,
+      "why": "one-colour objects take palette roles and sit beside lucide line icons"
+    }
+  }
+}

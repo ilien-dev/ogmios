@@ -5,7 +5,6 @@ import { Reveal } from "@/components/motion/Reveal";
 import { Stagger } from "@/components/motion/Stagger";
 import { VerdictLine } from "@/components/ui/Verdict";
 import type { Step } from "../steps";
-import { CardTitle } from "./CardTitle";
 
 type ChallengeStep = Extract<Step, { kind: "challenge" }>;
 
@@ -16,17 +15,20 @@ export function ChallengeCard({
 }): ReactNode {
   const { t } = useTranslation();
   return (
-    <Stagger className="flex flex-col gap-8">
-      <Reveal>
-        <CardTitle>{t("report.challenge.title")}</CardTitle>
-      </Reveal>
-      <Reveal as="p" className="flex gap-4 text-lead font-medium text-ink">
-        <Flag aria-hidden className="mt-1.5 size-5 shrink-0 text-accent-text" />
+    <Stagger className="flex flex-col gap-6">
+      <Reveal as="p" className="flex gap-4 text-2xl leading-snug text-ink">
+        <Flag
+          aria-hidden
+          className="mt-1.5 size-6 shrink-0 animate-float text-accent-text"
+        />
         {card.text}
       </Reveal>
 
       {card.previousAchieved !== null && (
-        <Reveal key="previousAchieved">
+        <Reveal
+          key="previousAchieved"
+          className="rounded-xl border border-line bg-sunken/70 px-4 py-3"
+        >
           <VerdictLine
             tone={card.previousAchieved ? "right" : "partial"}
             className="font-normal"

@@ -115,9 +115,12 @@ export function AttemptRow({
                 onClick={() => {
                   setConfirming(true);
                 }}
-                className="grid size-8 place-items-center rounded-full text-ink-faint transition-control hover:bg-danger-soft hover:text-danger"
+                className="group grid size-8 place-items-center rounded-full text-ink-faint transition-control hover:bg-danger-soft hover:text-danger"
               >
-                <Trash2 aria-hidden className="size-4" />
+                <Trash2
+                  aria-hidden
+                  className="size-4 transition-transform duration-300 ease-out-expo group-hover:scale-110"
+                />
               </button>
             </Reveal>
           )}

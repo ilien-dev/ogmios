@@ -35,7 +35,7 @@ export function StrengthMark({
           key={dot}
           aria-hidden
           className={cn(
-            "size-1.5 rounded-full",
+            "size-1.5 rounded-full transition-colors duration-300",
             dot <= FILLED[strength] ? "bg-learned" : "bg-line-strong",
           )}
         />

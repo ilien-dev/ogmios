@@ -249,6 +249,12 @@ test("CountUp starts on its value and counts to the next through format", async 
   expect(await screen.findByText("13 days")).toBeInTheDocument();
 });
 
+test("CountUp counts up from `from` when it first appears", async () => {
+  render(<CountUp value={8} from={0} />);
+  expect(screen.getByText("0")).toBeInTheDocument();
+  expect(await screen.findByText("8")).toBeInTheDocument();
+});
+
 test("CountUp ends exactly on a value that is not whole", async () => {
   const { rerender } = render(<CountUp value={1} />);
   rerender(<CountUp value={2.5} />);

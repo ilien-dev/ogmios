@@ -3,12 +3,14 @@ import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { DictationSummary, Pace } from "@shared/listening";
 import { PACES } from "@shared/listening";
+import { CountUp } from "@/components/motion/CountUp";
 import { Presence } from "@/components/motion/Presence";
 import { Reveal } from "@/components/motion/Reveal";
 import { Stagger } from "@/components/motion/Stagger";
 import { Button } from "@/components/ui/Button";
 import { Orb } from "@/components/ui/Orb";
 import { GRADE_TEXT } from "@/components/ui/Verdict";
+import { RunCard } from "@/features/drills/ScreenParts";
 import { cn } from "@/lib/cn";
 import { PaceChoice } from "./PaceChoice";
 
@@ -55,92 +57,98 @@ export function DictationEnd({
     ["wrong", summary.wrong, t("listening.summary.wrong")],
   ] as const;
   return (
-    <main className="h-full overflow-y-auto">
-      <Stagger className="mx-auto flex max-w-lg flex-col gap-8 px-6 py-12 nav:py-16">
-        <Reveal kind="scale" className="self-center">
-          <Orb size="md" section="book" />
-        </Reveal>
-        <Reveal as="header" className="flex flex-col gap-2">
-          <h1 className="font-display text-display font-light text-ink">
-            {t("listening.summary.title")}
-          </h1>
-          <p className="text-lead text-ink-soft">
-            {t("listening.summary.lead", {
-              right: summary.right,
-              total: summary.total,
-              pace: t(`listening.pace.${summary.pace}`).toLowerCase(),
-            })}
-          </p>
-        </Reveal>
-        <Reveal>
-          <dl className="flex gap-10">
-            {tallies.map(([grade, count, label]) => (
-              <div key={grade} className="flex flex-col">
-                <dd
-                  className={cn(
-                    "font-display text-title font-normal tabular-nums",
-                    GRADE_TEXT[grade],
-                  )}
-                >
-                  {count}
-                </dd>
-                <dt className="text-sm text-ink-soft">{label}</dt>
-              </div>
-            ))}
-          </dl>
-        </Reveal>
-        <Reveal className="flex flex-col gap-2">
-          <p className="font-medium text-accent-text">
-            {summary.understood === null
-              ? t("listening.summary.notYet")
-              : t("listening.summary.understood", {
-                  pace: t(`listening.pace.${summary.understood}`).toLowerCase(),
-                })}
-          </p>
-          <Presence>
-            {summary.hint !== null && (
-              <Reveal key="hint" as="p" className="text-ink-soft">
-                {t(`listening.summary.hint.${summary.hint}`)}
-              </Reveal>
-            )}
-          </Presence>
-        </Reveal>
-        <Presence>
-          {again && (
-            <Reveal key="again" className="flex flex-col items-start gap-2">
-              <p className="text-sm text-ink-faint">
-                {t("listening.summary.next")}
-              </p>
-              <PaceChoice value={pace} onChange={setPace} />
-            </Reveal>
-          )}
-        </Presence>
-        <Reveal className="flex gap-2">
+    <main className="h-full overflow-y-auto px-4 py-10">
+      <RunCard className="max-w-lg">
+        <Stagger className="flex flex-col gap-8">
+          <Reveal kind="scale" className="self-center">
+            <div className="animate-float">
+              <Orb size="md" section="book" />
+            </div>
+          </Reveal>
+          <Reveal as="header" className="flex flex-col gap-2">
+            <h1 className="font-display text-display font-light tracking-tight text-ink">
+              {t("listening.summary.title")}
+            </h1>
+            <p className="text-lead text-ink-soft">
+              {t("listening.summary.lead", {
+                right: summary.right,
+                total: summary.total,
+                pace: t(`listening.pace.${summary.pace}`).toLowerCase(),
+              })}
+            </p>
+          </Reveal>
+          <Reveal>
+            <dl className="flex gap-10 border-y border-line py-4">
+              {tallies.map(([grade, count, label]) => (
+                <div key={grade} className="flex flex-col">
+                  <dd
+                    className={cn(
+                      "font-display text-title font-light tabular-nums",
+                      GRADE_TEXT[grade],
+                    )}
+                  >
+                    <CountUp value={count} />
+                  </dd>
+                  <dt className="font-mono text-xs text-ink-soft">{label}</dt>
+                </div>
+              ))}
+            </dl>
+          </Reveal>
+          <Reveal className="flex flex-col gap-2">
+            <p className="font-medium text-accent-text">
+              {summary.understood === null
+                ? t("listening.summary.notYet")
+                : t("listening.summary.understood", {
+                    pace: t(
+                      `listening.pace.${summary.understood}`,
+                    ).toLowerCase(),
+                  })}
+            </p>
+            <Presence>
+              {summary.hint !== null && (
+                <Reveal key="hint" as="p" className="text-ink-soft">
+                  {t(`listening.summary.hint.${summary.hint}`)}
+                </Reveal>
+              )}
+            </Presence>
+          </Reveal>
           <Presence>
             {again && (
-              <Reveal key="again" as="span" kind="fade">
-                <Button
-                  ref={first}
-                  variant="primaryBook"
-                  disabled={starting}
-                  onClick={() => {
-                    onAgain(pace);
-                  }}
-                >
-                  {t("listening.summary.again")}
-                </Button>
+              <Reveal key="again" className="flex flex-col items-start gap-2">
+                <p className="font-mono text-xs text-ink-faint">
+                  {t("listening.summary.next")}
+                </p>
+                <PaceChoice value={pace} onChange={setPace} />
               </Reveal>
             )}
           </Presence>
-          <Button
-            ref={again ? undefined : first}
-            variant="ghost"
-            onClick={onDone}
-          >
-            {t("common.done")}
-          </Button>
-        </Reveal>
-      </Stagger>
+          <Reveal className="flex gap-2">
+            <Presence>
+              {again && (
+                <Reveal key="again" as="span" kind="fade">
+                  <Button
+                    ref={first}
+                    variant="primaryBook"
+                    disabled={starting}
+                    onClick={() => {
+                      onAgain(pace);
+                    }}
+                  >
+                    {t("listening.summary.again")}
+                  </Button>
+                </Reveal>
+              )}
+            </Presence>
+            <Button
+              ref={again ? undefined : first}
+              variant="ghost"
+              onClick={onDone}
+            >
+              {t("common.done")}
+            </Button>
+          </Reveal>
+        </Stagger>
+      </RunCard>
     </main>
   );
 }

@@ -5,7 +5,7 @@ import { segments } from "./segments";
 const TONES = {
   /** The span that holds the error. */
   error:
-    "bg-wrong-soft text-ink underline decoration-wrong decoration-wavy decoration-1 underline-offset-4",
+    "bg-transparent text-wrong underline decoration-wrong decoration-2 underline-offset-4",
   /** The learner's wording that a fluent speaker would change. */
   before:
     "bg-transparent text-inherit underline decoration-line-strong underline-offset-4",

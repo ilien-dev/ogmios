@@ -29,7 +29,9 @@ export function TriageCard({ word, position }: TriageCardProps): ReactNode {
   const shown = word.translations.join(", ");
   return (
     <>
-      <p className="text-sm text-ink-faint">{position}</p>
+      <p className="font-mono text-xs text-ink-faint tabular-nums">
+        {position}
+      </p>
       <div className="flex flex-col items-center gap-2">
         <Presence>
           {form !== null && (
@@ -38,7 +40,7 @@ export function TriageCard({ word, position }: TriageCardProps): ReactNode {
             </Reveal>
           )}
         </Presence>
-        <h1 className="text-5xl font-semibold tracking-tight wrap-anywhere text-ink">
+        <h1 className="font-display text-5xl font-semibold tracking-tight wrap-anywhere text-ink">
           {word.lemma}
         </h1>
       </div>

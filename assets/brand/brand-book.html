@@ -1,0 +1,1545 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=1200" />
+    <meta
+      name="generator"
+      content="kothar · https://github.com/ilien-dev/kothar"
+    />
+    <title>Ogmios · Brand book</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700&amp;family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;family=Space+Grotesk:wght@700&amp;family=Plus+Jakarta+Sans:wght@500;600&amp;display=block"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --brand: #f2b544;
+        --on-brand: #141518;
+        --brand-dark: #9a6200;
+        --ink: #141518;
+        --paper: #f3f2ee;
+        --grey: #e8e8e6;
+        --font-name: "Space Grotesk", sans-serif;
+        --font-name-weight: 700;
+        --font-name-tracking: -0.04em;
+        --accent: var(--brand);
+        --font-display: "Inter Tight", sans-serif;
+        --font-text: "Inter", sans-serif;
+        --font-mono: "JetBrains Mono", ui-monospace, monospace;
+      }
+      /* ── Report chrome: keep ──────────────────────────────────────────────── */
+      :root {
+        --muted: #5f5f5f;
+        --line: #e3e3df;
+        --desk: #d6d6d1;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        background: var(--desk);
+      }
+      body {
+        margin: 0;
+        font-family: var(--font-text);
+        color: var(--ink);
+        -webkit-font-smoothing: antialiased;
+      }
+      .deck {
+        width: 1120px;
+        margin: 40px auto;
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
+      }
+      .s {
+        width: 1120px;
+        height: 630px;
+        flex: none;
+        background: #fff;
+        position: relative;
+        padding: 40px 56px 56px;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+      }
+      .hd {
+        display: flex;
+        justify-content: space-between;
+        font: 500 11px/1 var(--font-mono);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+        border-top: 2px solid var(--ink);
+        padding-top: 10px;
+        margin-bottom: 32px;
+      }
+      .ft {
+        position: absolute;
+        left: 56px;
+        right: 56px;
+        bottom: 20px;
+        display: flex;
+        justify-content: space-between;
+        font: 400 10px/1 var(--font-mono);
+        color: var(--muted);
+      }
+      .h {
+        font: 600 40px/1.04 var(--font-display);
+        letter-spacing: -0.03em;
+        margin: 0;
+      }
+      .k {
+        font: 500 11px/1.3 var(--font-mono);
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin: 0 0 8px;
+      }
+      .p {
+        font: 400 14px/1.55 var(--font-text);
+        margin: 0;
+        color: #2a2a2a;
+      }
+      .wm {
+        font-family: var(--font-name);
+        font-weight: var(--font-name-weight);
+        letter-spacing: var(--font-name-tracking);
+        line-height: 0.8;
+      }
+      .brand {
+        background: var(--brand);
+        color: var(--on-brand);
+      }
+      .ink {
+        background: var(--ink);
+        color: var(--paper);
+      }
+      .paper {
+        background: var(--paper);
+      }
+      .tile {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .box {
+        border: 1px solid var(--line);
+        position: relative;
+        overflow: hidden;
+      }
+      .cap {
+        font: 500 10px/1.2 var(--font-mono);
+        color: var(--muted);
+        margin-top: 8px;
+        letter-spacing: 0.04em;
+      }
+      .bar {
+        display: block;
+        height: 6px;
+        border-radius: 3px;
+        background: #e6e6e2;
+      }
+      .g12 {
+        display: grid;
+        grid-template-columns: repeat(12, minmax(0, 1fr));
+        column-gap: 20px;
+        flex: 1;
+      }
+      .mk {
+        display: block;
+        flex: none;
+      }
+      .guide {
+        fill: none;
+        stroke: var(--ink);
+        stroke-width: 1;
+        stroke-dasharray: 4 4;
+        opacity: 0.55;
+      }
+      .sheet {
+        background: #fff;
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
+        display: flex;
+        flex-direction: column;
+      }
+      .colo {
+        width: 1120px;
+        margin: 0 auto 48px;
+        padding: 28px 56px;
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        border-top: 1px solid #9a9a95;
+        color: #3a3a3a;
+      }
+      .colo a {
+        color: var(--ink);
+        text-decoration: none;
+        border-bottom: 1px solid #9a9a95;
+        font: 500 12px/1 var(--font-mono);
+      }
+      .colo a:hover {
+        border-bottom-color: var(--ink);
+      }
+      @media print {
+        @page {
+          size: 1120px 630px;
+          margin: 0;
+        }
+        html {
+          background: none;
+        }
+        .deck {
+          margin: 0;
+          gap: 0;
+        }
+        .s {
+          break-after: page;
+        }
+        .s:last-of-type {
+          break-after: auto;
+        }
+        .colo {
+          display: none;
+        }
+        .credit {
+          display: inline;
+        }
+      }
+      .credit {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <svg width="0" height="0" style="position: absolute" aria-hidden="true">
+      <defs>
+        <symbol id="mark" viewBox="0 0 256 256">
+          <path
+            fill="currentColor"
+            d="M80 54L202 54L202 202L54 202L54 98L158 98L158 158L98 158L98 142L98 142L98 116L72 116L72 184L184 184L184 72L28 72L28 228L228 228L228 28L80 28Z"
+          />
+          <path
+            style="fill: var(--accent, currentColor)"
+            d="M114 113H146V145H114Z"
+          />
+        </symbol>
+        <symbol id="mark-small" viewBox="0 0 256 256">
+          <path
+            fill="currentColor"
+            d="M88 62L194 62L194 194L62 194L62 120L136 120L136 136L112 136L112 170L170 170L170 86L28 86L28 228L228 228L228 28L88 28Z"
+          />
+        </symbol>
+      </defs>
+    </svg>
+    <main class="deck">
+      <!-- page: cover -->
+      <section class="s" style="padding: 0; flex-direction: row">
+        <div
+          style="
+            flex: 1;
+            padding: 40px 56px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+          "
+        >
+          <div class="k">Brand book · v1.0 · 20.11.2026</div>
+          <div>
+            <img
+              src="logo/ogmios-wordmark.svg"
+              alt=""
+              style="display: block; height: 150px; color: #141518"
+            />
+            <p
+              class="p"
+              style="font-size: 20px; margin-top: 30px; max-width: 470px"
+            >
+              Talk freely, with nobody stopping you. Learn from it after.
+            </p>
+          </div>
+          <div class="k" style="margin: 0">
+            Prepared for ilien-dev · Identity v1
+          </div>
+        </div>
+        <div class="tile" style="width: 460px; flex: none; background: #141518">
+          <svg
+            class="mk"
+            viewBox="0 0 256 256"
+            style="
+              width: 290px;
+              height: 290px;
+              color: #f3f2ee;
+              --accent: #f2b544;
+            "
+            aria-hidden="true"
+          >
+            <use href="#mark" />
+          </svg>
+        </div>
+      </section>
+
+      <!-- page: brief -->
+      <section class="s">
+        <div class="hd">
+          <span>01 · The brief</span><span>Brief and references</span>
+        </div>
+        <div class="g12">
+          <div
+            style="
+              grid-column: span 6;
+              display: flex;
+              flex-direction: column;
+              gap: 14px;
+            "
+          >
+            <h2 class="h" style="font-size: 32px">
+              A free desktop app where you practise spoken English with Claude,
+              and nobody corrects you mid-sentence.
+            </h2>
+            <p class="p">
+              After each conversation: one focus and at most two smaller points,
+              in your own language. It remembers what you repeat until you
+              master it in real conversation, and teaches the words of your
+              books.
+            </p>
+            <div>
+              <div class="k">Adjectives</div>
+              <p class="p" style="font-weight: 600">
+                Warm · Friendly · Modern · Minimal · Playful like a modern game
+                · Clear
+              </p>
+            </div>
+            <div>
+              <div class="k">Avoid</div>
+              <p class="p">
+                Speech bubbles, flags, mascots, microphones, sound waves, soft
+                exaggerated curves, the previous logo.
+              </p>
+            </div>
+          </div>
+          <div
+            style="
+              grid-column: 8 / span 5;
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              grid-template-rows: 1fr 1fr;
+              gap: 12px;
+            "
+          >
+            <div
+              style="
+                background: #141518;
+                color: #f3f2ee;
+                padding: 16px;
+                display: flex;
+                flex-direction: column;
+                justify-content: flex-end;
+                gap: 6px;
+              "
+            >
+              <b style="font: 600 15px var(--font-display)">Refinity</b
+              ><span
+                style="font: 400 12px/1.45 var(--font-text); color: #c4c5cc"
+                >Graphite, one warm accent for what is active, a solid
+                monogram.</span
+              ><span class="cap" style="color: #8d8f99; margin: 0"
+                >Reference, dashboard UI</span
+              >
+            </div>
+            <div
+              style="
+                background: #141518;
+                color: #f3f2ee;
+                padding: 16px;
+                display: flex;
+                flex-direction: column;
+                justify-content: flex-end;
+                gap: 6px;
+              "
+            >
+              <b style="font: 600 15px var(--font-display)">Splunk</b
+              ><span
+                style="font: 400 12px/1.45 var(--font-text); color: #c4c5cc"
+                >Status colours, and rings you read without text.</span
+              ><span class="cap" style="color: #8d8f99; margin: 0"
+                >Reference, dashboard UI</span
+              >
+            </div>
+            <div
+              style="
+                background: #141518;
+                color: #f3f2ee;
+                padding: 16px;
+                display: flex;
+                flex-direction: column;
+                justify-content: flex-end;
+                gap: 6px;
+              "
+            >
+              <b style="font: 600 15px var(--font-display)"
+                >Traffic management</b
+              ><span
+                style="font: 400 12px/1.45 var(--font-text); color: #c4c5cc"
+                >Dark glass panels, big light numbers, pill chips.</span
+              ><span class="cap" style="color: #8d8f99; margin: 0"
+                >Reference, dashboard UI</span
+              >
+            </div>
+            <div
+              style="
+                background: #141518;
+                color: #f3f2ee;
+                padding: 16px;
+                display: flex;
+                flex-direction: column;
+                justify-content: flex-end;
+                gap: 6px;
+              "
+            >
+              <b style="font: 600 15px var(--font-display)">Mount</b
+              ><span
+                style="font: 400 12px/1.45 var(--font-text); color: #c4c5cc"
+                >One bright accent on black, expressive bars, a game-like
+                feel.</span
+              ><span class="cap" style="color: #8d8f99; margin: 0"
+                >Reference, dashboard UI</span
+              >
+            </div>
+          </div>
+        </div>
+        <div class="ft"><span>ogmios · Brand book</span><span>02</span></div>
+      </section>
+
+      <!-- page: idea -->
+      <section class="s">
+        <div class="hd"><span>02 · The idea</span><span>The ear</span></div>
+        <div class="g12">
+          <div class="paper tile" style="grid-column: span 6">
+            <svg
+              class="mk"
+              viewBox="0 0 256 256"
+              style="
+                width: 400px;
+                height: 400px;
+                color: #141518;
+                --accent: #9a6200;
+              "
+              aria-hidden="true"
+            >
+              <use href="#mark" />
+              <line class="guide" x1="0" y1="41" x2="256" y2="41" />
+              <line class="guide" x1="41" y1="0" x2="41" y2="256" />
+              <line class="guide" x1="0" y1="85" x2="256" y2="85" />
+              <line class="guide" x1="85" y1="0" x2="85" y2="256" />
+              <line class="guide" x1="0" y1="129" x2="256" y2="129" />
+              <line class="guide" x1="129" y1="0" x2="129" y2="256" />
+              <line class="guide" x1="0" y1="171" x2="256" y2="171" />
+              <line class="guide" x1="171" y1="0" x2="171" y2="256" />
+              <line class="guide" x1="0" y1="215" x2="256" y2="215" />
+              <line class="guide" x1="215" y1="0" x2="215" y2="256" />
+              <rect class="guide" x="98" y="116" width="26" height="26" />
+            </svg>
+          </div>
+          <div
+            style="
+              grid-column: 8 / span 5;
+              display: flex;
+              flex-direction: column;
+              gap: 16px;
+              justify-content: center;
+            "
+          >
+            <h2 class="h" style="font-size: 34px">
+              Ogmios led his listeners by chains of gold and amber, from his
+              tongue to their ears.
+            </h2>
+            <p class="p">
+              The symbol is where that chain arrives. One squared line winds
+              inwards like an ear and is never cut, the way you talk in Ogmios
+              without being stopped. At its centre: one amber square, the one
+              focus you take away.
+            </p>
+            <div
+              style="
+                border-top: 1px solid var(--line);
+                padding-top: 12px;
+                display: flex;
+                flex-direction: column;
+                gap: 7px;
+              "
+            >
+              <p class="p">
+                — The myth without the figure: no god, no chain drawn, only
+                where it lands and its gold.
+              </p>
+              <p class="p">
+                — Construction: one line of width u = 26 on a 256 grid, its
+                centre-lines 44 apart, square joins, an open start.
+              </p>
+              <p class="p">
+                — The square is 32, a little more than u, so it reads as the
+                line's destination.
+              </p>
+            </div>
+          </div>
+        </div>
+        <div class="ft"><span>ogmios · Brand book</span><span>03</span></div>
+      </section>
+
+      <!-- page: symbol -->
+      <section class="s">
+        <div class="hd">
+          <span>03 · Symbol</span><span>Sizes and screens</span>
+        </div>
+        <div
+          style="
+            display: flex;
+            align-items: flex-end;
+            gap: 34px;
+            padding-bottom: 22px;
+            border-bottom: 1px solid var(--line);
+          "
+        >
+          <div>
+            <svg
+              class="mk"
+              viewBox="0 0 256 256"
+              style="
+                width: 192px;
+                height: 192px;
+                color: #141518;
+                --accent: #9a6200;
+              "
+              aria-hidden="true"
+            >
+              <use href="#mark" />
+            </svg>
+            <div class="cap">192 px</div>
+          </div>
+          <div>
+            <svg
+              class="mk"
+              viewBox="0 0 256 256"
+              style="
+                width: 96px;
+                height: 96px;
+                color: #141518;
+                --accent: #9a6200;
+              "
+              aria-hidden="true"
+            >
+              <use href="#mark" />
+            </svg>
+            <div class="cap">96</div>
+          </div>
+          <div>
+            <svg
+              class="mk"
+              viewBox="0 0 256 256"
+              style="
+                width: 64px;
+                height: 64px;
+                color: #141518;
+                --accent: #9a6200;
+              "
+              aria-hidden="true"
+            >
+              <use href="#mark" />
+            </svg>
+            <div class="cap">64</div>
+          </div>
+          <div>
+            <svg
+              class="mk"
+              viewBox="0 0 256 256"
+              style="
+                width: 32px;
+                height: 32px;
+                color: #141518;
+                --accent: #9a6200;
+              "
+              aria-hidden="true"
+            >
+              <use href="#mark" />
+            </svg>
+            <div class="cap">32</div>
+          </div>
+          <div>
+            <svg
+              class="mk"
+              viewBox="0 0 256 256"
+              style="
+                width: 24px;
+                height: 24px;
+                color: #141518;
+                --accent: #9a6200;
+              "
+              aria-hidden="true"
+            >
+              <use href="#mark-small" />
+            </svg>
+            <div class="cap">24 · small</div>
+          </div>
+          <div>
+            <svg
+              class="mk"
+              viewBox="0 0 256 256"
+              style="
+                width: 16px;
+                height: 16px;
+                color: #141518;
+                --accent: #9a6200;
+              "
+              aria-hidden="true"
+            >
+              <use href="#mark-small" />
+            </svg>
+            <div class="cap">16 · small</div>
+          </div>
+          <div style="flex: 1"></div>
+          <div style="max-width: 250px">
+            <div class="k">Small-size cut</div>
+            <p class="p" style="font-size: 12px">
+              Below 32 px: one and a half turns, a thicker line, no square. The
+              full symbol is used from 32 px.
+            </p>
+          </div>
+        </div>
+        <div
+          style="
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 16px;
+            margin-top: 22px;
+            flex: 1;
+          "
+        >
+          <div class="box" style="background: #ecedef; padding: 14px">
+            <div
+              style="
+                display: flex;
+                gap: 6px;
+                align-items: center;
+                background: #fff;
+                border-radius: 8px 8px 0 0;
+                padding: 8px 10px;
+                width: 200px;
+              "
+            >
+              <img
+                src="web/favicon.svg"
+                alt=""
+                style="display: block; width: 16px; height: 16px"
+              /><span style="font-size: 11px">Ogmios · Practise English</span>
+            </div>
+            <div style="background: #fff; height: 120px; padding: 12px">
+              <span class="bar" style="width: 70%"></span
+              ><span class="bar" style="width: 50%; margin-top: 8px"></span>
+            </div>
+            <div class="cap">Browser tab · favicon</div>
+          </div>
+          <div class="box paper tile" style="gap: 18px; flex-direction: column">
+            <div style="display: flex; gap: 22px">
+              <img
+                src="web/icon-192.png"
+                alt=""
+                style="
+                  display: block;
+                  width: 84px;
+                  height: 84px;
+                  filter: drop-shadow(0 10px 14px rgba(0, 0, 0, 0.2));
+                "
+              /><img
+                src="web/maskable-512.png"
+                alt=""
+                style="
+                  display: block;
+                  width: 84px;
+                  height: 84px;
+                  border-radius: 50%;
+                  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.18);
+                "
+              />
+            </div>
+            <div class="cap">App icon · macOS / Windows · maskable</div>
+          </div>
+          <div
+            class="box tile"
+            style="flex-direction: column; gap: 14px; background: #141518"
+          >
+            <svg
+              class="mk"
+              viewBox="0 0 256 256"
+              style="
+                width: 120px;
+                height: 120px;
+                color: #f3f2ee;
+                --accent: #f2b544;
+              "
+              aria-hidden="true"
+            >
+              <use href="#mark" />
+            </svg>
+            <div class="cap" style="color: #bdbdbd">
+              On graphite, its home ground
+            </div>
+          </div>
+        </div>
+        <div class="ft"><span>ogmios · Brand book</span><span>04</span></div>
+      </section>
+
+      <!-- page: colour and type -->
+      <section class="s">
+        <div class="hd">
+          <span>04 · Colour and type</span
+          ><span>Graphite first, one amber</span>
+        </div>
+        <div
+          style="
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr;
+            gap: 12px;
+            height: 220px;
+          "
+        >
+          <div
+            style="
+              background: #141518;
+              color: #f3f2ee;
+              padding: 14px;
+              display: flex;
+              flex-direction: column;
+              justify-content: flex-end;
+            "
+          >
+            <b style="font-size: 14px">Graphite</b
+            ><span class="cap" style="color: #f3f2ee; opacity: 0.85"
+              >#141518 · 20 21 24<br />The ground, the line, text</span
+            >
+          </div>
+          <div
+            style="
+              background: #f2b544;
+              color: #141518;
+              padding: 14px;
+              display: flex;
+              flex-direction: column;
+              justify-content: flex-end;
+            "
+          >
+            <b style="font-size: 14px">Amber</b
+            ><span class="cap" style="color: #141518; opacity: 0.85"
+              >#F2B544 · 242 181 68<br />The square, highlights · dark
+              only</span
+            >
+          </div>
+          <div
+            style="
+              background: #9a6200;
+              color: #fff;
+              padding: 14px;
+              display: flex;
+              flex-direction: column;
+              justify-content: flex-end;
+            "
+          >
+            <b style="font-size: 14px">Bronze</b
+            ><span class="cap" style="color: #fff; opacity: 0.85"
+              >#9A6200 · 154 98 0<br />Amber's role on light</span
+            >
+          </div>
+          <div
+            style="
+              background: #f3f2ee;
+              color: #141518;
+              padding: 14px;
+              display: flex;
+              flex-direction: column;
+              justify-content: flex-end;
+              border: 1px solid var(--line);
+            "
+          >
+            <b style="font-size: 14px">Paper</b
+            ><span class="cap" style="color: #141518; opacity: 0.85"
+              >#F3F2EE · 243 242 238<br />Light grounds, the line on dark</span
+            >
+          </div>
+        </div>
+        <p class="cap" style="margin-top: 10px">
+          Contrast: amber on graphite 10.0:1 · paper on graphite 16.3:1 · bronze
+          on paper 4.6:1 · amber on paper 1.6:1, so never amber on a light
+          ground. Red is not a brand colour: in the app it marks a wrong answer
+          and destructive actions.
+        </p>
+        <div
+          style="
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+            border-top: 1px solid var(--line);
+            padding-top: 18px;
+          "
+        >
+          <div>
+            <div class="k">Name and headings · Space Grotesk 700</div>
+            <div
+              style="
+                font: 700 54px/1 &quot;Space Grotesk&quot;;
+                letter-spacing: -0.04em;
+              "
+            >
+              Aa ogmios
+            </div>
+            <p class="cap">Lowercase for the name, tracking -0.04 em</p>
+          </div>
+          <div>
+            <div class="k">Text · Plus Jakarta Sans</div>
+            <div
+              style="
+                font: 500 54px/1 &quot;Plus Jakarta Sans&quot;;
+                letter-spacing: -0.02em;
+              "
+            >
+              Aa Gg
+            </div>
+            <p class="cap">The app and documents</p>
+          </div>
+          <div>
+            <div class="k">Numbers and code · JetBrains Mono</div>
+            <div style="font: 400 48px/1 &quot;JetBrains Mono&quot;">87%</div>
+            <p class="cap">Stats that must align</p>
+          </div>
+        </div>
+        <div class="ft"><span>ogmios · Brand book</span><span>05</span></div>
+      </section>
+
+      <!-- page: lockups -->
+      <section class="s">
+        <div class="hd">
+          <span>05 · Lockups</span><span>Versions, clear space, misuse</span>
+        </div>
+        <div
+          style="
+            display: grid;
+            grid-template-columns: 1.4fr 1.4fr 1fr;
+            gap: 16px;
+            height: 230px;
+          "
+        >
+          <div class="paper tile">
+            <img
+              src="logo/ogmios-horizontal.svg"
+              alt=""
+              style="display: block; width: 300px"
+            />
+          </div>
+          <div class="tile" style="background: #141518">
+            <img
+              src="logo/ogmios-horizontal-on-dark.svg"
+              alt=""
+              style="display: block; width: 300px"
+            />
+          </div>
+          <div class="paper tile">
+            <img
+              src="logo/ogmios-stacked.svg"
+              alt=""
+              style="display: block; height: 150px"
+            />
+          </div>
+        </div>
+        <div class="g12" style="margin-top: 20px; column-gap: 16px">
+          <div class="box tile" style="grid-column: span 4">
+            <div style="border: 1px dashed #9a9a9a; padding: 26px">
+              <img
+                src="logo/ogmios-horizontal.svg"
+                alt=""
+                style="display: block; width: 220px"
+              />
+            </div>
+            <span
+              class="cap"
+              style="position: absolute; left: 12px; bottom: 10px"
+              >Clear space = 2u (u = the line's width)</span
+            >
+          </div>
+          <div
+            style="
+              grid-column: span 8;
+              display: grid;
+              grid-template-columns: repeat(4, minmax(0, 1fr));
+              gap: 12px;
+            "
+          >
+            <div class="box tile" style="flex-direction: column">
+              <img
+                src="logo/ogmios-wordmark.svg"
+                alt=""
+                style="display: block; width: 100px; transform: scaleX(1.6)"
+              /><span class="cap">Do not stretch</span>
+            </div>
+            <div class="box tile" style="flex-direction: column">
+              <svg
+                class="mk"
+                viewBox="0 0 256 256"
+                style="
+                  width: 60px;
+                  height: 60px;
+                  color: #141518;
+                  --accent: #9a6200;
+                  transform: rotate(-18deg);
+                "
+                aria-hidden="true"
+              >
+                <use href="#mark" /></svg
+              ><span class="cap">Do not rotate</span>
+            </div>
+            <div class="box tile" style="flex-direction: column">
+              <svg
+                class="mk"
+                viewBox="0 0 256 256"
+                style="
+                  width: 60px;
+                  height: 60px;
+                  color: #f2b544;
+                  --accent: #f2b544;
+                "
+                aria-hidden="true"
+              >
+                <use href="#mark" /></svg
+              ><span class="cap">No amber on light</span>
+            </div>
+            <div class="box tile" style="flex-direction: column">
+              <span
+                style="
+                  font:
+                    400 40px/1 Georgia,
+                    serif;
+                "
+                >ogmios</span
+              ><span class="cap">No other font</span>
+            </div>
+          </div>
+        </div>
+        <div class="ft"><span>ogmios · Brand book</span><span>06</span></div>
+      </section>
+
+      <!-- page: in the product -->
+      <section class="s">
+        <div class="hd">
+          <span>06 · In the product</span
+          ><span>App, README, website, splash</span>
+        </div>
+        <div
+          style="
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            grid-template-rows: repeat(2, minmax(0, 1fr));
+            gap: 16px;
+            flex: 1;
+          "
+        >
+          <div
+            style="
+              background: #0f1013;
+              border-radius: 10px;
+              overflow: hidden;
+              display: flex;
+              border: 1px solid #23252b;
+            "
+          >
+            <div
+              style="
+                width: 150px;
+                background: #16171b;
+                padding: 14px 12px;
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+                border-right: 1px solid #23252b;
+              "
+            >
+              <div style="display: flex; align-items: center; gap: 8px">
+                <svg
+                  class="mk"
+                  viewBox="0 0 256 256"
+                  style="
+                    width: 22px;
+                    height: 22px;
+                    color: #f3f2ee;
+                    --accent: #f2b544;
+                  "
+                  aria-hidden="true"
+                >
+                  <use href="#mark" /></svg
+                ><span class="wm" style="font-size: 17px; color: #f3f2ee"
+                  >ogmios</span
+                >
+              </div>
+              <div
+                style="
+                  background: #2a2417;
+                  border-radius: 6px;
+                  padding: 7px 8px;
+                  display: flex;
+                  align-items: center;
+                  gap: 6px;
+                "
+              >
+                <i style="width: 7px; height: 7px; background: #f2b544"></i
+                ><span style="font: 600 10px var(--font-text); color: #f2b544"
+                  >Talk</span
+                >
+              </div>
+              <span
+                style="
+                  font: 500 10px var(--font-text);
+                  color: #8d8f99;
+                  padding-left: 8px;
+                "
+                >Patterns</span
+              ><span
+                style="
+                  font: 500 10px var(--font-text);
+                  color: #8d8f99;
+                  padding-left: 8px;
+                "
+                >Books</span
+              >
+            </div>
+            <div
+              style="
+                flex: 1;
+                padding: 14px;
+                display: flex;
+                flex-direction: column;
+                gap: 10px;
+              "
+            >
+              <div style="display: flex; gap: 8px">
+                <div
+                  style="
+                    flex: 1;
+                    background: #1a1b20;
+                    border-radius: 6px;
+                    padding: 10px;
+                  "
+                >
+                  <span
+                    class="bar"
+                    style="width: 60%; background: #2c2e35"
+                  ></span
+                  ><span
+                    class="bar"
+                    style="width: 40%; margin-top: 8px; background: #f2b544"
+                  ></span>
+                </div>
+                <div
+                  style="
+                    flex: 1;
+                    background: #1a1b20;
+                    border-radius: 6px;
+                    padding: 10px;
+                  "
+                >
+                  <span
+                    class="bar"
+                    style="width: 60%; background: #2c2e35"
+                  ></span
+                  ><span
+                    class="bar"
+                    style="width: 40%; margin-top: 8px; background: #5ed39a"
+                  ></span>
+                </div>
+                <div
+                  style="
+                    flex: 1;
+                    background: #1a1b20;
+                    border-radius: 6px;
+                    padding: 10px;
+                  "
+                >
+                  <span
+                    class="bar"
+                    style="width: 60%; background: #2c2e35"
+                  ></span
+                  ><span
+                    class="bar"
+                    style="width: 40%; margin-top: 8px; background: #f3f2ee"
+                  ></span>
+                </div>
+              </div>
+              <div
+                style="
+                  background: #1a1b20;
+                  border-radius: 6px;
+                  padding: 10px;
+                  flex: 1;
+                  display: flex;
+                  align-items: flex-end;
+                  gap: 5px;
+                "
+              >
+                <i
+                  style="
+                    flex: 1;
+                    height: 30%;
+                    background: #3a3c44;
+                    border-radius: 2px;
+                  "
+                ></i
+                ><i
+                  style="
+                    flex: 1;
+                    height: 44%;
+                    background: #3a3c44;
+                    border-radius: 2px;
+                  "
+                ></i
+                ><i
+                  style="
+                    flex: 1;
+                    height: 38%;
+                    background: #3a3c44;
+                    border-radius: 2px;
+                  "
+                ></i
+                ><i
+                  style="
+                    flex: 1;
+                    height: 56%;
+                    background: #3a3c44;
+                    border-radius: 2px;
+                  "
+                ></i
+                ><i
+                  style="
+                    flex: 1;
+                    height: 50%;
+                    background: #3a3c44;
+                    border-radius: 2px;
+                  "
+                ></i
+                ><i
+                  style="
+                    flex: 1;
+                    height: 70%;
+                    background: #3a3c44;
+                    border-radius: 2px;
+                  "
+                ></i
+                ><i
+                  style="
+                    flex: 1;
+                    height: 66%;
+                    background: #3a3c44;
+                    border-radius: 2px;
+                  "
+                ></i
+                ><i
+                  style="
+                    flex: 1;
+                    height: 82%;
+                    background: #f2b544;
+                    border-radius: 2px;
+                  "
+                ></i>
+              </div>
+              <span class="cap" style="margin: 0; color: #8d8f99"
+                >App · skeleton, not the current interface</span
+              >
+            </div>
+          </div>
+          <div
+            style="
+              background: #0d1117;
+              border-radius: 8px;
+              padding: 16px;
+              color: #e6edf3;
+            "
+          >
+            <div
+              style="
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                border-bottom: 1px solid #30363d;
+                padding-bottom: 12px;
+              "
+            >
+              <img
+                src="logo/ogmios-horizontal-on-dark.svg"
+                alt=""
+                style="display: block; width: 200px"
+              />
+            </div>
+            <div
+              style="
+                display: flex;
+                gap: 6px;
+                margin: 12px 0;
+                justify-content: center;
+              "
+            >
+              <i
+                style="
+                  width: 54px;
+                  height: 12px;
+                  border-radius: 3px;
+                  background: #30363d;
+                "
+              ></i
+              ><i
+                style="
+                  width: 54px;
+                  height: 12px;
+                  border-radius: 3px;
+                  background: #30363d;
+                "
+              ></i
+              ><i
+                style="
+                  width: 54px;
+                  height: 12px;
+                  border-radius: 3px;
+                  background: #30363d;
+                "
+              ></i>
+            </div>
+            <span class="bar" style="background: #21262d; width: 90%"></span
+            ><span
+              class="bar"
+              style="background: #21262d; width: 70%; margin-top: 8px"
+            ></span>
+            <div class="cap" style="color: #8b949e; margin-top: 12px">
+              README · GitHub, dark theme
+            </div>
+          </div>
+          <div
+            class="box"
+            style="
+              display: flex;
+              flex-direction: column;
+              background: #141518;
+              border-color: #23252b;
+            "
+          >
+            <div
+              style="
+                height: 38px;
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                padding: 0 14px;
+                border-bottom: 1px solid #23252b;
+              "
+            >
+              <svg
+                class="mk"
+                viewBox="0 0 256 256"
+                style="
+                  width: 18px;
+                  height: 18px;
+                  color: #f3f2ee;
+                  --accent: #f2b544;
+                "
+                aria-hidden="true"
+              >
+                <use href="#mark" /></svg
+              ><span class="wm" style="font-size: 17px; color: #f3f2ee"
+                >ogmios</span
+              ><span style="flex: 1"></span
+              ><span class="bar" style="width: 40px; background: #2c2e35"></span
+              ><span class="bar" style="width: 40px; background: #2c2e35"></span
+              ><span
+                style="
+                  width: 64px;
+                  height: 20px;
+                  border-radius: 5px;
+                  background: #f2b544;
+                "
+              ></span>
+            </div>
+            <div style="padding: 16px 14px; display: flex; gap: 16px; flex: 1">
+              <div style="flex: 1">
+                <b
+                  style="
+                    font: 700 19px/1.15 &quot;Space Grotesk&quot;;
+                    letter-spacing: -0.02em;
+                    display: block;
+                    margin-bottom: 10px;
+                    color: #f3f2ee;
+                  "
+                  >Talk freely. Learn from it after.</b
+                ><span
+                  class="bar"
+                  style="width: 80%; background: #2c2e35"
+                ></span
+                ><span
+                  class="bar"
+                  style="width: 60%; margin-top: 6px; background: #2c2e35"
+                ></span>
+              </div>
+              <div class="tile" style="width: 130px; background: #1c1d22">
+                <svg
+                  class="mk"
+                  viewBox="0 0 256 256"
+                  style="
+                    width: 70px;
+                    height: 70px;
+                    color: #f3f2ee;
+                    --accent: #f2b544;
+                  "
+                  aria-hidden="true"
+                >
+                  <use href="#mark" />
+                </svg>
+              </div>
+            </div>
+            <div class="cap" style="padding: 0 14px 8px; color: #8d8f99">
+              Website · skeleton
+            </div>
+          </div>
+          <div
+            style="
+              background: #141518;
+              border-radius: 10px;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              justify-content: center;
+              gap: 12px;
+            "
+          >
+            <img
+              src="motion/ogmios-animated.svg"
+              alt=""
+              style="display: block; width: 96px; height: 96px"
+            /><span class="cap" style="color: #8d8f99; margin: 0"
+              >Splash · the animated logo</span
+            >
+          </div>
+        </div>
+        <div class="ft"><span>ogmios · Brand book</span><span>07</span></div>
+      </section>
+
+      <!-- page: social (GitHub only) -->
+      <section class="s">
+        <div class="hd"><span>07 · Social</span><span>GitHub</span></div>
+        <div
+          style="
+            display: grid;
+            grid-template-columns: 2.2fr 1fr;
+            gap: 20px;
+            flex: 1;
+            align-items: start;
+          "
+        >
+          <div>
+            <img
+              src="social/github-social-preview.png"
+              alt=""
+              style="display: block; width: 100%"
+            />
+            <div class="cap">
+              github-social-preview.png · 1280 × 640 · Repository settings →
+              Social preview
+            </div>
+          </div>
+          <div>
+            <img
+              src="social/github-avatar.png"
+              alt=""
+              style="display: block; width: 200px; border-radius: 50%"
+            />
+            <div class="cap">
+              github-avatar.png · 500 × 500 · organisation or profile, safe in a
+              circle
+            </div>
+            <div
+              style="
+                margin-top: 22px;
+                display: flex;
+                align-items: center;
+                gap: 10px;
+              "
+            >
+              <img
+                src="social/github-avatar.png"
+                alt=""
+                style="display: block; width: 40px; border-radius: 50%"
+              />
+              <div>
+                <b style="font-size: 13px">ilien-dev / ogmios</b>
+                <div style="font-size: 11px; color: var(--muted)">
+                  How it shows in a list
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="ft"><span>ogmios · Brand book</span><span>08</span></div>
+      </section>
+
+      <!-- page: motion and delivery -->
+      <section class="s">
+        <div class="hd">
+          <span>08 · Motion and delivery</span
+          ><span>Animated logo, files, next steps</span>
+        </div>
+        <div
+          style="
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 12px;
+            height: 170px;
+          "
+        >
+          <div class="tile" style="flex-direction: column; background: #141518">
+            <svg
+              class="mk"
+              viewBox="0 0 256 256"
+              style="width: 80px; height: 80px"
+            >
+              <path
+                fill="none"
+                stroke="#F3F2EE"
+                stroke-width="26"
+                stroke-linejoin="miter"
+                pathLength="100"
+                stroke-dasharray="25 100"
+                d="M80 41H215V215H41V85H171V171H85V129H98"
+              /></svg
+            ><span class="cap" style="color: #bdbdbd"
+              >0.3 s · the line starts</span
+            >
+          </div>
+          <div class="tile" style="flex-direction: column; background: #141518">
+            <svg
+              class="mk"
+              viewBox="0 0 256 256"
+              style="width: 80px; height: 80px"
+            >
+              <path
+                fill="none"
+                stroke="#F3F2EE"
+                stroke-width="26"
+                stroke-linejoin="miter"
+                pathLength="100"
+                stroke-dasharray="55.00000000000001 100"
+                d="M80 41H215V215H41V85H171V171H85V129H98"
+              /></svg
+            ><span class="cap" style="color: #bdbdbd">0.6 s · it winds in</span>
+          </div>
+          <div class="tile" style="flex-direction: column; background: #141518">
+            <svg
+              class="mk"
+              viewBox="0 0 256 256"
+              style="width: 80px; height: 80px"
+            >
+              <path
+                fill="none"
+                stroke="#F3F2EE"
+                stroke-width="26"
+                stroke-linejoin="miter"
+                pathLength="100"
+                stroke-dasharray="97 100"
+                d="M80 41H215V215H41V85H171V171H85V129H98"
+              /></svg
+            ><span class="cap" style="color: #bdbdbd">1.0 s · it arrives</span>
+          </div>
+          <div class="tile" style="flex-direction: column; background: #141518">
+            <svg
+              class="mk"
+              viewBox="0 0 256 256"
+              style="
+                width: 80px;
+                height: 80px;
+                color: #f3f2ee;
+                --accent: #f2b544;
+              "
+              aria-hidden="true"
+            >
+              <use href="#mark" /></svg
+            ><span class="cap" style="color: #bdbdbd"
+              >1.4 s · the focus lands</span
+            >
+          </div>
+        </div>
+        <div class="g12" style="margin-top: 24px">
+          <div
+            style="
+              grid-column: span 7;
+              font: 400 12px/1.75 var(--font-mono);
+              background: var(--paper);
+              padding: 18px 20px;
+            "
+          >
+            assets/brand/<br />├─ logo/ symbol, small cut, horizontal, stacked,
+            wordmark · colour, on dark, black, white · png/<br />├─ web/
+            favicon.svg · favicon.ico · app icons · og-image · manifest · head
+            snippet<br />├─ social/ github-social-preview · github-avatar<br />├─
+            motion/ ogmios-animated.svg<br />├─ tokens.json · README.md<br />└─
+            brand-book.html · this document
+          </div>
+          <div
+            style="
+              grid-column: 9 / span 4;
+              display: flex;
+              flex-direction: column;
+              gap: 12px;
+            "
+          >
+            <div class="k">Next steps</div>
+            <p class="p">
+              1 · A trademark search: square spirals are an old ornament.
+            </p>
+            <p class="p">
+              2 · Replace the app icon, the README hero and the site's logo with
+              these files.
+            </p>
+            <p class="p">
+              3 · Upload the social preview in the repository settings.
+            </p>
+          </div>
+        </div>
+        <div class="ft">
+          <span>ogmios · Brand book</span
+          ><span class="credit"
+            >Identity made with kothar · github.com/ilien-dev/kothar</span
+          ><span>09</span>
+        </div>
+      </section>
+    </main>
+
+    <!-- Credit: keep in every report. One ink, quiet, at the very end. -->
+    <footer class="colo">
+      <svg
+        viewBox="6 6 52 52"
+        style="width: 28px; height: 28px; flex: none; color: #151515"
+        role="img"
+        aria-label="kothar logo"
+      >
+        <path fill="currentColor" d="M8 8h48v14H22v34H8z" />
+        <circle fill="currentColor" cx="43" cy="43" r="12" />
+      </svg>
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <span style="font: 600 13px/1 var(--font-text)"
+          >Identity made with kothar</span
+        >
+        <span style="font: 400 11px/1.3 var(--font-mono); color: #4a4a4a"
+          >Name, logo and brand for a project, with an AI agent</span
+        >
+      </div>
+      <span style="flex: 1"></span>
+      <a href="https://github.com/ilien-dev/kothar"
+        >github.com/ilien-dev/kothar</a
+      >
+    </footer>
+  </body>
+</html>

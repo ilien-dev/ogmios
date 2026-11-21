@@ -22,7 +22,7 @@ export function DepthChoice({ depths, onChoose }: DepthChoiceProps): ReactNode {
             onClick={() => {
               onChoose(depth);
             }}
-            className="group flex w-full items-center gap-4 rounded-md bg-raised px-4 py-3 text-left text-ink transition-control hover:bg-book-soft"
+            className="group flex w-full items-center gap-4 rounded-lg bg-sunken/60 px-4 py-3 text-left text-ink transition-control hover:bg-book-soft"
           >
             <span className="flex min-w-0 flex-1 flex-col gap-1">
               <span className="font-medium text-ink">
@@ -34,7 +34,7 @@ export function DepthChoice({ depths, onChoose }: DepthChoiceProps): ReactNode {
             </span>
             <ChevronRight
               aria-hidden
-              className="size-4 shrink-0 text-ink-faint transition-transform duration-150 group-hover:translate-x-0.5 group-hover:text-ink"
+              className="size-4 shrink-0 text-ink-faint transition-transform duration-300 ease-out-expo group-hover:translate-x-1 group-hover:text-ink"
             />
           </button>
         </Reveal>

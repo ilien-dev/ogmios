@@ -22,7 +22,8 @@ import {
   Score,
 } from "./TranslateRows";
 
-const LABEL = "text-xs font-semibold tracking-wide uppercase text-ink-faint";
+const LABEL =
+  "font-mono text-xs font-semibold tracking-wide uppercase text-ink-faint";
 const CHIP = "rounded-sm px-1 py-0.5 text-ink";
 
 interface SummaryProps {
@@ -48,7 +49,7 @@ export function Summary({ translation, failure }: SummaryProps): ReactNode {
       (paragraph) => (paragraph.review?.marks.length ?? 0) === 0,
     );
   return (
-    <section className="flex flex-col gap-6 rounded-xl bg-surface p-6 shadow-card">
+    <section className="flex flex-col gap-6 rounded-2xl glass p-6">
       <Presence>
         {score !== null && (
           <Reveal key="score" as="p" className="flex items-baseline gap-3">
@@ -219,10 +220,7 @@ export function DetailRow({
   const { t } = useTranslation();
   const { review } = paragraph;
   return (
-    <Reveal
-      as="li"
-      className="grid grid-cols-2 gap-x-10 rounded-xl bg-surface p-6 shadow-card"
-    >
+    <Reveal as="li" className="grid grid-cols-2 gap-x-10 rounded-xl glass p-6">
       <div className="flex min-w-0 flex-col gap-4">
         <ReviewState
           review={review}
@@ -232,7 +230,7 @@ export function DetailRow({
         <Presence>
           {review !== null && review.good !== null && (
             <Reveal key="good" as="p" className="text-ink-soft">
-              <span className="mr-2 text-xs font-semibold tracking-wide text-correct uppercase">
+              <span className="mr-2 font-mono text-xs font-semibold tracking-wide text-correct uppercase">
                 {t("books.translate.detail.good")}
               </span>
               {review.good}

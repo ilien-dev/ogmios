@@ -52,8 +52,6 @@ const ROUTERS = new Set([
   "src/features/books/BooksScreen.tsx",
   "src/features/books/SittingScreen.tsx",
   "src/features/listening/ListeningScreen.tsx",
-  "src/features/recall/RecallScreen.tsx",
-  "src/features/structures/StructuresScreen.tsx",
 ]);
 
 /** Not an appearance: the browser draws these only when the control opens. */
@@ -81,11 +79,6 @@ const ALLOWED: readonly Allowance[] = [
     file: "src/features/books/BookCover.tsx",
     when: "book.author !== null",
     why: "A book's author: fixed for the cover, which is drawn whole.",
-  },
-  {
-    file: "src/features/progress/WeeklyBars.tsx",
-    when: "i % 2 === lastIndex % 2",
-    why: "Which bars carry a label: arithmetic on their place, never a change.",
   },
   {
     file: "src/components/ui/Notice.tsx",

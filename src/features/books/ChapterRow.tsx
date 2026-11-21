@@ -55,7 +55,7 @@ export function ChapterRow({
   return (
     <Reveal as="li" className="flex flex-col gap-2 px-4 py-3">
       <div className="flex items-baseline gap-4">
-        <span className="w-6 shrink-0 text-right text-sm text-ink-faint tabular-nums">
+        <span className="w-6 shrink-0 text-right font-mono text-xs text-ink-faint tabular-nums">
           {chapter.index + 1}
         </span>
         <div className="relative flex min-w-0 flex-1 items-baseline">
@@ -71,7 +71,7 @@ export function ChapterRow({
                   onClick={() => {
                     onOpen(chapter);
                   }}
-                  className="min-w-0 flex-1 truncate text-left text-ink hover:underline"
+                  className="min-w-0 flex-1 truncate text-left text-ink underline-offset-4 transition-control hover:text-book hover:underline"
                 >
                   {name}
                 </button>

@@ -31,13 +31,15 @@ export function HubCard({
     <button
       type="button"
       onClick={onClick}
-      className="group flex size-full flex-col gap-1.5 rounded-xl bg-surface px-5 pt-5 pb-4 text-left shadow-card transition-control hover:shadow-float"
+      className="group flex size-full flex-col gap-1.5 rounded-xl glass px-5 pt-5 pb-4 text-left transition-control hover:border-accent/40 hover:shadow-lift"
     >
       <span className="flex items-center gap-2">
-        <span className="text-base font-semibold text-ink">{title}</span>
+        <span className="font-display text-lg font-semibold tracking-tight text-ink">
+          {title}
+        </span>
         <ArrowRight
           aria-hidden
-          className="ml-auto size-4 shrink-0 text-ink-faint transition-transform duration-150 group-hover:translate-x-0.5 group-hover:text-accent-text"
+          className="ml-auto size-4 shrink-0 text-ink-faint transition-transform duration-300 ease-out-expo group-hover:translate-x-1 group-hover:text-accent-text"
         />
       </span>
       <span className="text-sm text-ink-soft">{text}</span>

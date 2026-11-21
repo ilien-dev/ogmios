@@ -30,7 +30,7 @@ export function Key({ children }: { children: string }): ReactNode {
   return (
     <kbd
       aria-hidden
-      className="grid h-6 min-w-6 place-items-center rounded-sm border border-line-strong bg-canvas px-1 font-sans text-xs font-medium text-ink-soft"
+      className="grid h-6 min-w-6 place-items-center rounded-sm border border-line-strong bg-canvas px-1 font-mono text-xs font-medium text-ink-soft"
     >
       {children}
     </kbd>
@@ -313,7 +313,7 @@ export function TriageRun({
               <Reveal
                 key={word.id}
                 kind="scale"
-                className="flex w-full flex-col items-center gap-3 rounded-xl bg-surface px-8 py-12 text-center shadow-card"
+                className="flex w-full flex-col items-center gap-3 rounded-2xl glass px-8 py-12 text-center"
               >
                 <TriageCard
                   word={word}

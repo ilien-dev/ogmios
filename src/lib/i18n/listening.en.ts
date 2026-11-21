@@ -8,8 +8,6 @@ export const listeningEn = {
     get: "Download the voice ({{size}})",
     getting: "Downloading the voice · {{percent}}%",
   },
-  noBook: "What you listen to is your own reading. Add a book first.",
-  toBooks: "Go to Books",
   pace: {
     label: "Pace",
     slow: "Slow",
@@ -29,9 +27,6 @@ export const listeningEn = {
     none: "Not tried yet",
     held: "This pace is yours",
     note: "A pace is yours when you hear 90% of the words, over your last 30 sentences at it.",
-  },
-  chapter: {
-    label: "Chapter",
   },
   dictation: {
     title: "Dictation",
@@ -62,7 +57,6 @@ export const listeningEn = {
     hint: "Your next dictations keep sentences for these words, until you hear each one three times running.",
   },
   reading: {
-    back: "Listening",
     play: "Play",
     pause: "Pause",
     previous: "Previous sentence",

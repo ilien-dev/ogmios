@@ -23,7 +23,7 @@ function Glyph({
   children: ReactNode;
 }): ReactNode {
   return (
-    <span className="relative grid place-items-center">
+    <span className="relative grid place-items-center transition-transform duration-300 ease-out-expo group-enabled:group-hover:scale-110">
       <Presence swap firstStatic>
         <Reveal key={name} as="span" kind="scale" className="grid">
           {children}
@@ -45,7 +45,7 @@ export function SpeakButton({ text, className }: SpeakButtonProps): ReactNode {
     return null;
   }
   const shape = cn(
-    "inline-grid size-8 shrink-0 place-items-center rounded-sm align-middle text-ink-faint hover:bg-raised hover:text-ink",
+    "group inline-grid size-8 shrink-0 place-items-center rounded-full align-middle text-ink-faint transition-control hover:bg-raised hover:text-ink",
     className,
   );
   if (!status.downloaded) {

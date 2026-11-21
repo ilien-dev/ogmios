@@ -1,7 +1,6 @@
 import { useId, useLayoutEffect, useRef, useState } from "react";
 import type { ReactNode, SyntheticEvent } from "react";
 import { Trans, useTranslation } from "react-i18next";
-import { ArrowRight } from "lucide-react";
 import type {
   AnotherWord,
   KindReminder,
@@ -30,6 +29,7 @@ import { Key } from "./TriageRun";
 import { VerbFormTag } from "./VerbFormTag";
 import { kindLine, retryKey } from "./retryLine";
 import { SenseHintCard, SenseTipLine } from "./SenseHelp";
+import { NextArrow } from "./SittingParts";
 import { Context, whole } from "./SentenceContext";
 
 /**
@@ -204,7 +204,7 @@ function Whole({ sentence, onBad, busy }: WholeProps): ReactNode {
                 type="button"
                 disabled={busy}
                 onClick={onBad}
-                className="rounded-sm underline-offset-4 hover:text-ink hover:underline"
+                className="rounded-sm underline-offset-4 transition-control hover:text-ink hover:underline"
               >
                 {t("books.sitting.badSentence")}
               </button>
@@ -519,7 +519,7 @@ export function SittingItem<Result extends Checked>({
             </Reveal>
           )}
         </Presence>
-        <h1 className="font-display text-display font-light text-balance text-ink">
+        <h1 className="font-display text-display font-light tracking-tight text-balance text-ink">
           {item.prompt}
           <Presence>
             {!toEnglish && (
@@ -564,7 +564,7 @@ export function SittingItem<Result extends Checked>({
         <label htmlFor={fieldId} className="sr-only">
           {t("books.sitting.answer")}
         </label>
-        <div className="flex items-center gap-2 rounded-lg bg-surface py-1.5 pr-1.5 pl-6 shadow-card transition-shadow duration-150 focus-within:shadow-glow-book">
+        <div className="flex items-center gap-2 rounded-xl glass py-1.5 pr-1.5 pl-6 transition-shadow duration-300 ease-out-expo focus-within:shadow-glow-book">
           <input
             ref={field}
             id={fieldId}
@@ -697,12 +697,13 @@ export function SittingItem<Result extends Checked>({
                 <Button
                   ref={onward}
                   variant="primaryBook"
+                  className="group"
                   onClick={() => {
                     onNext(result.step);
                   }}
                 >
                   {t("books.sitting.next")}
-                  <ArrowRight aria-hidden className="size-4" />
+                  <NextArrow />
                 </Button>
                 <Presence>
                   {disputable && onDispute !== null && (

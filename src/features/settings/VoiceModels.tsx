@@ -5,6 +5,7 @@ import { Check, Download } from "lucide-react";
 import type { SttStatus } from "@shared/domain";
 import { Presence } from "@/components/motion/Presence";
 import { Reveal } from "@/components/motion/Reveal";
+import { Stagger } from "@/components/motion/Stagger";
 import { Swap } from "@/components/motion/Swap";
 import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
@@ -111,18 +112,19 @@ export function VoiceModels({ onSelected }: VoiceModelsProps): ReactNode {
 
     return (
       <div className="flex flex-col gap-3">
-        <ul className="flex flex-col gap-2">
+        <Stagger as="ul" className="flex flex-col gap-2">
           {status.models.map((model) => {
             const fraction = progress[model.id];
             const inUse = status.selected === model.id;
             return (
-              <li
+              <Reveal
+                as="li"
                 key={model.id}
                 className={cn(
-                  "flex flex-col gap-3 rounded-md border px-4 py-3.5",
+                  "flex flex-col gap-3 rounded-lg border px-4 py-3.5 transition-colors duration-300 ease-out-expo",
                   inUse
                     ? "border-accent-strong bg-accent-soft"
-                    : "border-line-strong",
+                    : "border-line bg-sunken/60",
                 )}
               >
                 <div className="flex items-center justify-between gap-4">
@@ -153,6 +155,7 @@ export function VoiceModels({ onSelected }: VoiceModelsProps): ReactNode {
                       <Reveal key="download" as="span" kind="fade">
                         <Button
                           size="sm"
+                          className="group"
                           disabled={fraction !== undefined}
                           icon={
                             <Swap
@@ -161,7 +164,10 @@ export function VoiceModels({ onSelected }: VoiceModelsProps): ReactNode {
                               }
                             >
                               {fraction === undefined ? (
-                                <Download aria-hidden className="size-4" />
+                                <Download
+                                  aria-hidden
+                                  className="size-4 transition-transform duration-300 ease-out-expo group-hover:translate-y-0.5"
+                                />
                               ) : (
                                 <Spinner />
                               )}
@@ -201,10 +207,10 @@ export function VoiceModels({ onSelected }: VoiceModelsProps): ReactNode {
                     </Reveal>
                   )}
                 </Presence>
-              </li>
+              </Reveal>
             );
           })}
-        </ul>
+        </Stagger>
         <Presence>
           {failure !== null && (
             <Notice key="failure" tone="danger">

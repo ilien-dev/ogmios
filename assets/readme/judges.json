@@ -1,0 +1,170 @@
+{
+  "picture:talk.src.svg": {
+    "sha": "8dc0a24c581eb16f",
+    "pass": true,
+    "answer": "A chat window titled \u0027Ogmios\u0027 where the user talks with an AI conversation partner in English, with the labels \u0027No corrections now. Just talk.\u0027 and \u0027Stuck? Ask how to say it.\u0027 The user\u0027s message about finishing a big report is already sent, and the partner has replied with a question about how the team reacted. The reply box holds \u0027Honestly, I did a big effort, but in the end it worked\u0027 with a \u002712 of about 40 words\u0027 counter. The cursor moves to the microphone button and turns into a hand to press it. A waveform pill appears above the button while it records, then goes away and a ring shows around the mic. Next the partner\u0027s message gets a purple outline, the mic ring stays on, and the cursor waits near the input. The final frame shows the outlined partner message, the waveform pill, the ringed mic button and a \u0027How do I say...?\u0027 chip.",
+    "why": "Chat with an AI partner, No corrections now, mic and reply box: talk by voice or typing, no corrections mid-conversation."
+  },
+  "section:Talk, and nobody stops you": {
+    "sha": "eb8da21d63f116ac",
+    "pass": true,
+    "answer": "You choose a topic and a level (basic to advanced), then speak by holding the microphone or type. An AI partner asks questions and follows the conversation without correcting you. A \"How do I say…?\" button suggests English phrasings from your own language. Speech is turned into text on your computer, and you can edit that text before sending it.",
+    "why": "The reader understood the section as its claim, in substance."
+  },
+  "picture:improve.src.svg": {
+    "sha": "e7ed6aa61994b19c",
+    "pass": true,
+    "answer": "The stages a mistake goes through as it is learned: Detected, In focus, Improving, Mastered, set on a timeline that runs left to right. Four cards sit in a row: \u0027Detected / In your report\u0027 with \u0027I did a big effort\u0027 struck out, \u0027In focus / Your partner steers to it\u0027 with placeholder bars, \u0027Improving / A two-minute drill\u0027 with \u0027made an effort\u0027, and \u0027Mastered / Right in a real talk\u0027 with \u0027I made a big effort\u0027. A pink dot moves along the dashed line below them, and each card lights up as the dot reaches it. At the end a check mark appears on Mastered. The final frame shows all four cards lit, the first two pink and the last two green.",
+    "why": "Mistake moves Detected, In focus, Improving, Mastered with Mastered as right in a real talk."
+  },
+  "section:How it helps you improve": {
+    "sha": "a9abd4e2b224014b",
+    "pass": true,
+    "answer": "After a conversation you get what went well, one main thing to work on and at most two smaller points. For grammar, you try to fix your own sentence first. Repeated mistakes become patterns that move through detected, in focus, improving and mastered. Later conversations steer you toward them, optional two-minute drills exist, and a pattern counts as mastered only when you get it right in real conversation.",
+    "why": "The reader understood the section as its claim, in substance."
+  },
+  "picture:books.src.svg": {
+    "sha": "0fcab2d91e67942a",
+    "pass": true,
+    "answer": "Reading a book file (\u0027alice.epub\u0027): a chart of which chapters you can read, plus a vocabulary card for a word taken from the book with a review schedule. A book icon labelled alice.epub points to a \u0027Chapters you can read\u0027 bar chart where the first three bars are full and green and the rest are shorter and blue. A pink highlight passes over the fourth bar, which then becomes full and green. Beside it, a card for \u0027curtsey\u0027 shows the sentence \u0027She tried to curtsey as she spoke\u0027, then \u0027Into your language and back\u0027 with a check mark that appears. Under \u0027Back after\u0027 the day buttons 1, 3, 7, 21 and 60 light up one after another. The final frame shows four green chapters with the fourth highlighted, the checked card and all five day buttons outlined.",
+    "why": "Book file to chapters-you-can-read chart, word card with the book sentence, review at 1/3/7/21/60 days."
+  },
+  "section:Learn the words of your own books": {
+    "sha": "95c3bfaf3033cff7",
+    "pass": true,
+    "answer": "You add an English EPUB or PDF and Ogmios prepares it chapter by chapter. A bar per chapter fills as you learn its words, and a full bar means the chapter is ready to read. Each word is practised with a sentence from the book, translated into your language and back. You can skip words you already know. Words come back after 1, 3, 7, 21 and 60 days and the partner uses them in conversation. A chapter can also be translated sentence by sentence, used to practise sentence structures, or used for dictations.",
+    "why": "The reader understood the section as its claim, in substance."
+  },
+  "picture:privacy.src.svg": {
+    "sha": "a838b6f278fd35d6",
+    "pass": true,
+    "answer": "Privacy and data flow: voice and data stay on \u0027Your computer\u0027, and only text goes out to \u0027Claude\u0027. Inside a box labelled \u0027Your computer\u0027 with a lock, a \u0027Your voice\u0027 waveform is turned into the text \u0027Honestly, I did a big effort,\u0027 under \u0027Turned into text\u0027. A small green square moves from that text through the box\u0027s edge along a dashed arrow toward the \u0027Claude\u0027 box, which lights up. A purple square then comes back into the computer box, and a purple reply bubble \u0027How did your team react?\u0027 appears. \u0027Books and progress\u0027 with progress bars stays inside the computer box the whole time. The final frame shows the full flow with \u0027Only text goes out\u0027 under Claude.",
+    "why": "Voice, books and progress stay inside Your computer; only text goes out to Claude."
+  },
+  "section:Your data stays on your computer": {
+    "sha": "dbbf9a0ec7231f65",
+    "pass": true,
+    "answer": "Conversations, recordings, books and progress are saved locally and there is no Ogmios account. Speech recognition runs on your machine, so your voice never leaves it. Claude receives only the text of your conversations and, when you prepare a chapter, the text of that chapter.",
+    "why": "The reader understood the section as its claim, in substance."
+  },
+  "icon:hero.src.svg#1": {
+    "sha": "da198e4219370a86",
+    "pass": true,
+    "answer": "Microphone on a green background: Record or dictate with your voice (sure)",
+    "why": "Read cold as intended, sure."
+  },
+  "icon:hero.src.svg#2": {
+    "sha": "471e1f7cde663414",
+    "pass": true,
+    "answer": "Target or bullseye in pink: Focus, or the current goal (\u0027In focus\u0027) (sure)",
+    "why": "Read cold as intended, sure."
+  },
+  "icon:hero.src.svg#3": {
+    "sha": "e2559af252255115",
+    "pass": true,
+    "answer": "Open book: Vocabulary entry, dictionary or reading (sure)",
+    "why": "Read cold as intended, sure."
+  },
+  "icon:hero.src.svg#4": {
+    "sha": "3753f9c14abb76cb",
+    "pass": true,
+    "answer": "Calendar: Schedule or date, here when a word comes back for review (sure)",
+    "why": "Read cold as intended, sure."
+  },
+  "icon:talk.src.svg#1": {
+    "sha": "fbab977369ec643e",
+    "pass": true,
+    "answer": "Letter i in a circle: Information or hint (sure)",
+    "why": "Read cold as intended, sure."
+  },
+  "icon:talk.src.svg#2": {
+    "sha": "5dc4ca9fa953bb23",
+    "pass": true,
+    "answer": "Translate glyph (a Chinese-style character and the letter A): Translate, or ask how to say something (sure)",
+    "why": "Read cold as intended, sure."
+  },
+  "icon:improve.src.svg#1": {
+    "sha": "8015386cb8bc127f",
+    "pass": true,
+    "answer": "Magnifying glass in pink: Search, or detected or found (\u0027Detected\u0027) (sure)",
+    "why": "Read cold as intended, sure."
+  },
+  "icon:improve.src.svg#2": {
+    "sha": "3aa7fb61e2498a30",
+    "pass": true,
+    "answer": "Target or bullseye in pink, the same as 2: Focus or goal (sure)",
+    "why": "Read cold as intended, sure."
+  },
+  "icon:improve.src.svg#3": {
+    "sha": "0ad84c2e76384f08",
+    "pass": true,
+    "answer": "Stopwatch or timer: Timed exercise, such as the two-minute drill (sure)",
+    "why": "Read cold as intended, sure."
+  },
+  "icon:improve.src.svg#4": {
+    "sha": "b4834a2aef4d61af",
+    "pass": true,
+    "answer": "Speech bubble: Conversation or chat (the \u0027Mastered\u0027 stage, right in a real talk) (sure)",
+    "why": "Read cold as intended, sure."
+  },
+  "icon:improve.src.svg#5": {
+    "sha": "47e1bd719dae8e06",
+    "pass": true,
+    "answer": "Check mark in green: Done, correct or mastered (sure)",
+    "why": "Read cold as intended, sure."
+  },
+  "icon:books.src.svg#1": {
+    "sha": "6a089248d2377ddd",
+    "pass": true,
+    "answer": "Large closed book in blue: A book file or library (the imported epub) (sure)",
+    "why": "Read cold as intended, sure."
+  },
+  "icon:books.src.svg#2": {
+    "sha": "01a359d6c8a437de",
+    "pass": true,
+    "answer": "Open book, the same as 3: Vocabulary word or reading (sure)",
+    "why": "Read cold as intended, sure."
+  },
+  "icon:books.src.svg#3": {
+    "sha": "e049f4e51c788434",
+    "pass": true,
+    "answer": "Calendar, the same as 4: Review schedule (sure)",
+    "why": "Read cold as intended, sure."
+  },
+  "icon:books.src.svg#4": {
+    "sha": "eb5cae68f900f3fb",
+    "pass": true,
+    "answer": "Check mark in green, the same as 11: Correct or confirmed (sure)",
+    "why": "Read cold as intended, sure."
+  },
+  "icon:privacy.src.svg#1": {
+    "sha": "73d53efc24186d51",
+    "pass": true,
+    "answer": "Padlock: Private, local or secure (sure)",
+    "why": "Read cold as intended, sure."
+  },
+  "icon:privacy.src.svg#2": {
+    "sha": "e4f471fbf82f535b",
+    "pass": true,
+    "answer": "Microphone in green: Voice input (sure)",
+    "why": "Read cold as intended, sure."
+  },
+  "icon:privacy.src.svg#3": {
+    "sha": "83cb4d7d53d3fbf3",
+    "pass": true,
+    "answer": "Database cylinder: Stored data (books and progress) (sure)",
+    "why": "Read cold as intended, sure."
+  },
+  "icon:privacy.src.svg#4": {
+    "sha": "6daca410bfcfa135",
+    "pass": true,
+    "answer": "Sparkles: AI or the AI model (Claude) (sure)",
+    "why": "Read cold as intended, sure."
+  },
+  "readme": {
+    "sha": "1b0932aefd430b20",
+    "pass": true,
+    "answer": "Ogmios is a free desktop app for macOS and Windows that lets English learners practise speaking with Claude without being interrupted, then gives them one focused correction in their native language, tracks their repeated mistakes until they are mastered in conversation, and teaches the vocabulary of English books they want to read.",
+    "why": "Reader summary matches: speak with Claude uninterrupted, one focused correction, book vocabulary."
+  }
+}

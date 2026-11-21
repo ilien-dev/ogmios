@@ -144,7 +144,7 @@ export function TranslateSession({
               data-writing
               className="flex flex-col gap-2 py-6"
             >
-              <h2 className="text-lead font-semibold text-ink">
+              <h2 className="font-display text-lead font-semibold tracking-tight text-ink">
                 {finished
                   ? t(
                       direction === "toNative"

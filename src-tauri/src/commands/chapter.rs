@@ -128,6 +128,17 @@ pub fn prepare(
     chapter_words(ctx, chapter_id)
 }
 
+/// The learner picked the chapter: it is the one they are on, whatever of it
+/// they open next.
+#[tauri::command]
+pub async fn open_chapter(app: AppHandle, id: String) -> Result<()> {
+    run(app, move |_, ctx| {
+        crate::db::structures::mark_opened(&*ctx.conn()?, &id, Utc::now())?;
+        Ok(())
+    })
+    .await
+}
+
 #[tauri::command]
 pub async fn get_chapter_words(app: AppHandle, id: String) -> Result<ChapterWords> {
     run(app, move |_, ctx| {

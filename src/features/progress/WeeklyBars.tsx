@@ -1,80 +1,117 @@
 import { motion } from "motion/react";
+import type { TFunction } from "i18next";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
+import type { WeekMinutes } from "@shared/domain";
+import { Presence } from "@/components/motion/Presence";
+import { Reveal } from "@/components/motion/Reveal";
+import { BigNumber } from "@/components/scene/Stats";
+import { cn } from "@/lib/cn";
 import { DURATION, EASE_OUT, animated, staggerDelay } from "@/lib/motion";
 import { formatWeek, speechDuration } from "@/lib/text";
+import { weekAverage, weekDeltas } from "./ladder";
 
 interface WeeklyBarsProps {
-  weeks: Array<{ week: string; minutes: number }>;
+  weeks: WeekMinutes[];
 }
 
-function Spoken({ minutes }: { minutes: number }): ReactNode {
-  const { t } = useTranslation();
+function spoken(t: TFunction, minutes: number): string {
   const { unit, count } = speechDuration(minutes);
   return t(`common.${unit}`, { count });
 }
 
+/** The week number of an ISO week, `2026-W39` → `39`. */
+function weekNumber(week: string): string {
+  const at = week.indexOf("W");
+  return at === -1 ? week : String(Number(week.slice(at + 1)));
+}
+
 /**
- * Minutes of speech per week as plain CSS bars: one series, one hue, the
- * latest week labelled directly, each bar's value on hover and focus, and the
- * same numbers as a table for screen readers.
+ * Minutes of speech in the last weeks, as in the proposal: this week big and
+ * thin, then a row per week with its minutes, its change from the week before
+ * and a bar; every week as a table for screen readers.
  */
 export function WeeklyBars({ weeks }: WeeklyBarsProps): ReactNode {
   const { t, i18n } = useTranslation();
-  const max = Math.max(1, ...weeks.map((week) => week.minutes));
-  const lastIndex = weeks.length - 1;
+  const shown = weekDeltas(weeks);
+  const max = Math.max(1, ...shown.map((week) => week.minutes));
+  const lastIndex = shown.length - 1;
+  const thisWeek = shown.at(-1)?.minutes ?? 0;
 
   return (
     <figure className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-baseline gap-2.5">
+        <BigNumber
+          value={Math.round(thisWeek)}
+          unit={t("progress.weekUnit")}
+          size="md"
+        />
+        <span className="text-sm text-ink-faint">
+          {t("progress.weekThis", {
+            average: spoken(t, weekAverage(weeks)),
+          })}
+        </span>
+      </div>
       <div
         aria-hidden
-        className="flex h-40 items-end gap-0.5 border-b border-line"
+        className="grid grid-cols-5 items-center gap-x-3 gap-y-2 text-sm"
       >
-        {weeks.map((week, i) => (
-          <div
-            key={week.week}
-            className="group relative flex h-full flex-1 flex-col items-center justify-end"
-          >
-            <span
-              className={
-                i === lastIndex
-                  ? "mb-1.5 text-xs font-medium text-ink tabular-nums"
-                  : "invisible mb-1.5 rounded-sm bg-raised px-1.5 py-0.5 text-xs text-ink tabular-nums shadow-card group-hover:visible"
-              }
-            >
-              <Spoken minutes={week.minutes} />
-            </span>
-            <motion.span
-              // Grown from its foot with `transform`, never its height: the
-              // bar has its size from the start, and only its scale arrives.
-              initial={animated() ? { scaleY: 0 } : false}
-              animate={{ scaleY: 1 }}
-              transition={{
-                duration: DURATION.enterSlow,
-                ease: EASE_OUT,
-                delay: staggerDelay(i),
-              }}
-              className={
-                i === lastIndex
-                  ? "w-full max-w-9 origin-bottom rounded-t-sm bg-accent"
-                  : "w-full max-w-9 origin-bottom rounded-t-sm bg-accent/55 transition-colors duration-150 group-hover:bg-accent"
-              }
-              style={{ height: `${(week.minutes / max) * 80}%` }}
-            />
-          </div>
-        ))}
-      </div>
-      <div aria-hidden className="flex gap-0.5">
-        {weeks.map((week, i) => (
+        <span />
+        {shown.map((week) => (
           <span
             key={week.week}
-            className="flex min-w-0 flex-1 justify-center text-xs text-ink-faint tabular-nums"
+            className="font-mono text-xs tracking-wider text-ink-faint uppercase"
           >
-            {i % 2 === lastIndex % 2 && (
-              <span className="whitespace-nowrap">
-                {formatWeek(week.week, i18n.language)}
-              </span>
-            )}
+            {t("progress.weekShort", { week: weekNumber(week.week) })}
+          </span>
+        ))}
+        {Array.from({ length: 4 - shown.length }, (_, at) => (
+          <span key={`gap-${at}`} />
+        ))}
+        <span className="self-start justify-self-start rounded-full bg-sunken px-2.5 py-0.5 text-xs font-semibold text-ink-soft">
+          {t("progress.weekUnit")}
+        </span>
+        {shown.map((week, i) => (
+          <span key={week.week} className="group flex items-center gap-1.5">
+            <span className="font-mono text-ink tabular-nums">
+              {spoken(t, week.minutes)}
+            </span>
+            <Presence>
+              {week.delta !== null && week.delta !== 0 && (
+                <Reveal
+                  key="delta"
+                  as="span"
+                  kind="fade"
+                  index={i}
+                  className={cn(
+                    "font-mono text-xs tabular-nums",
+                    week.delta > 0 ? "text-accent-text" : "text-ink-faint",
+                  )}
+                >
+                  {week.delta > 0 ? `+${week.delta}` : `−${-week.delta}`}
+                </Reveal>
+              )}
+            </Presence>
+            <span className="h-1.5 min-w-4 flex-1 overflow-hidden rounded-full bg-line">
+              <motion.span
+                // Grown from its start with `transform`, never its width: the
+                // bar has its size from the start, and only its scale arrives.
+                initial={animated() ? { scaleX: 0 } : false}
+                animate={{ scaleX: 1 }}
+                transition={{
+                  duration: DURATION.enterSlow,
+                  ease: EASE_OUT,
+                  delay: 0.3 + staggerDelay(i),
+                }}
+                className={cn(
+                  "block h-full origin-left rounded-full",
+                  i === lastIndex
+                    ? "bg-mint"
+                    : "bg-ink-faint/60 transition-colors duration-150 group-hover:bg-ink-faint",
+                )}
+                style={{ width: `${(week.minutes / max) * 100}%` }}
+              />
+            </span>
           </span>
         ))}
       </div>
@@ -84,9 +121,7 @@ export function WeeklyBars({ weeks }: WeeklyBarsProps): ReactNode {
           {weeks.map((week) => (
             <tr key={week.week}>
               <th scope="row">{formatWeek(week.week, i18n.language)}</th>
-              <td>
-                <Spoken minutes={week.minutes} />
-              </td>
+              <td>{spoken(t, week.minutes)}</td>
             </tr>
           ))}
         </tbody>

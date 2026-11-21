@@ -1,0 +1,93 @@
+<!--palette
+bg          #0e0f1a #f6f7fb
+panel       #191b2b #ffffff
+raised      #23263a #eef0f7
+edge        #4a4e68 #c9ccdb
+line        #23263b #e1e4ee
+muted       #6d7190 #7a7e94
+ink         #f1f2fa #23233a
+body        #a9acc4 #5c5f74
+accent      #7fdccb #0f766e
+you_soft    #14393a #dff2ee
+you_line    #2a6a66 #9bd3c8
+partner     #c4b5fd #5b21b6
+partner_soft #26244a #ece9fb
+tally       #f7a8cb #a3245f
+wrong       #f58b80 #c0342b
+correct     #6fd58a #1f7a3d
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 448" role="img" aria-label="Un error que repites, I did a big effort, recorre cuatro paradas: detectado en tu reporte, en foco cuando tu compañero lleva las siguientes charlas hacia él, mejorando en un ejercicio de dos minutos, y dominado solo cuando dices bien I made a big effort en una conversación real.">
+<style>
+/* 12 s  token  s1====|hop|==s2====|hop|==s3====|hop|==s4====|fade|
+         lit1   ====|
+         lit2              |=====|
+         lit3                           |=====|
+         lit4                                        |=======|      */
+@keyframes token{0%{transform:translateX(0);opacity:0}3%,20%{transform:translateX(0);opacity:1}28%,45%{transform:translateX(296px);opacity:1}53%,70%{transform:translateX(592px);opacity:1}78%,94%{transform:translateX(888px);opacity:1}98%,100%{transform:translateX(888px);opacity:0}}
+@keyframes lit1{0%,22%{opacity:1}27%,95%{opacity:.55}100%{opacity:1}}
+@keyframes lit2{0%,24%{opacity:.55}28%,47%{opacity:1}52%,100%{opacity:.55}}
+@keyframes lit3{0%,49%{opacity:.55}53%,72%{opacity:1}77%,100%{opacity:.55}}
+@keyframes lit4{0%,74%{opacity:.55}78%,96%{opacity:1}100%{opacity:.55}}
+@keyframes pop{0%,78%{transform:scale(.6);opacity:0}82%,94%{transform:scale(1);opacity:1}98%,100%{transform:scale(.6);opacity:0}}
+@keyframes bar{0%,100%{opacity:.55}50%{opacity:1}}
+@keyframes flow{to{stroke-dashoffset:-24}}
+.token{animation:token 12s cubic-bezier(.4,0,.2,1) infinite}
+.lit1{animation:lit1 12s ease-in-out infinite}
+.lit2{animation:lit2 12s ease-in-out infinite}
+.lit3{animation:lit3 12s ease-in-out infinite}
+.lit4{animation:lit4 12s ease-in-out infinite}
+.pop{animation:pop 12s cubic-bezier(0,0,.2,1) infinite;transform-box:fill-box;transform-origin:center}
+.bar{animation:bar 3s ease-in-out infinite}
+.flow{animation:flow 1.2s linear infinite}
+</style>
+<rect width="1280" height="448" fill="$bg"/>
+<g id="backdrop" data-backdrop="plus still"><defs><pattern id="bd-plus" width="36" height="36" patternUnits="userSpaceOnUse"><path d="M14 18H22M18 14V22" fill="none" stroke="$line" stroke-width="1.5" stroke-linecap="round"/></pattern></defs><rect x="-36" y="-36" width="1352" height="520" fill="url(#bd-plus)"/></g>
+
+<text id="eyebrow" class="m" x="40" y="56" font-size="15" fill="$accent" letter-spacing="2">CÓMO TE AYUDA</text>
+<text id="title" class="b" x="40" y="108" font-size="44" fill="$ink">Del error repetido al dominado</text>
+<text id="sub" class="s" x="40" y="148" font-size="22" fill="$body">Dominado solo cuando lo aciertas al hablar.</text>
+
+<g id="stage">
+<!-- the track under the four stops -->
+<path class="flow" d="M150 418H1080" fill="none" stroke="$muted" stroke-width="2" stroke-dasharray="8 16"/>
+<path d="M1076 410l10 8-10 8" fill="none" stroke="$muted" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+
+<!-- 1 detected -->
+<g class="lit1"><rect x="40" y="186" width="270" height="200" rx="14" fill="$panel" stroke="$tally" stroke-width="2"/>
+<g data-asset="lucide:search" data-icon="un error encontrado" data-size="24" transform="translate(60 206) scale(1)" fill="$tally"><g fill="none" stroke="$tally" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="m21 21l-4.34-4.34"/><circle cx="11" cy="11" r="8"/></g></g>
+<text class="b" x="96" y="226" font-size="20" fill="$ink">Detectado</text>
+<text class="s" x="60" y="270" font-size="16" fill="$body">En tu reporte</text>
+<rect x="60" y="290" width="230" height="44" rx="10" fill="$raised"/>
+<text class="s" x="76" y="318" font-size="16" fill="$wrong">I did a big effort</text>
+<rect x="76" y="312" width="126" height="2" fill="$wrong"/></g>
+
+<!-- 2 in focus -->
+<g class="lit2"><rect x="336" y="186" width="270" height="200" rx="14" fill="$panel" stroke="$tally" stroke-width="2"/>
+<g data-asset="lucide:target" data-icon="en foco" data-size="24" transform="translate(356 206) scale(1)" fill="$tally"><g fill="none" stroke="$tally" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></g></g>
+<text class="b" x="392" y="226" font-size="20" fill="$ink">En foco</text>
+<text class="s" x="356" y="270" font-size="16" fill="$body">Tu compañero lo busca</text>
+<rect x="356" y="290" width="230" height="64" rx="10" fill="$partner_soft"/>
+<rect class="bar" x="372" y="306" width="170" height="10" rx="5" fill="$partner"/>
+<rect class="bar" style="animation-delay:-1s" x="372" y="328" width="120" height="10" rx="5" fill="$partner"/></g>
+
+<!-- 3 improving -->
+<g class="lit3"><rect x="632" y="186" width="270" height="200" rx="14" fill="$panel" stroke="$accent" stroke-width="2"/>
+<g data-asset="lucide:timer" data-icon="un ejercicio de dos minutos" data-size="24" transform="translate(652 206) scale(1)" fill="$accent"><g fill="none" stroke="$accent" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M10 2h4m-2 12l3-3"/><circle cx="12" cy="14" r="8"/></g></g>
+<text class="b" x="688" y="226" font-size="20" fill="$ink">Mejorando</text>
+<text class="s" x="652" y="270" font-size="16" fill="$body">Ejercicio de 2 minutos</text>
+<rect x="652" y="290" width="230" height="44" rx="10" fill="$raised"/>
+<text class="s" x="668" y="318" font-size="16" fill="$correct">made an effort</text></g>
+
+<!-- 4 mastered -->
+<g class="lit4"><rect x="928" y="186" width="270" height="200" rx="14" fill="$panel" stroke="$correct" stroke-width="2"/>
+<g data-asset="lucide:message-circle" data-icon="una conversación real" data-size="24" transform="translate(948 206) scale(1)" fill="$correct"><path fill="none" stroke="$correct" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092a10 10 0 1 0-4.777-4.719"/></g>
+<text class="b" x="984" y="226" font-size="20" fill="$ink">Dominado</text>
+<text class="s" x="948" y="270" font-size="16" fill="$body">Bien en una charla real</text>
+<rect x="948" y="290" width="230" height="44" rx="10" fill="$you_soft" stroke="$you_line" stroke-width="1.5"/>
+<text class="s" x="964" y="318" font-size="16" fill="$ink">I made a big effort</text>
+<g class="pop"><g data-asset="lucide:check" data-icon="lo dijiste bien" data-size="32" transform="translate(1134 232) scale(1.333)" fill="$correct"><path fill="none" stroke="$correct" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 6L9 17l-5-5"/></g></g></g>
+
+<!-- the mistake that travels -->
+<g transform="translate(161 404)"><rect class="token" opacity="0" width="28" height="28" rx="14" fill="$tally"/></g>
+</g>
+</svg>

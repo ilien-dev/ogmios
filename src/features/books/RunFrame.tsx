@@ -55,7 +55,7 @@ export function RunFrame({
             tone="book"
           />
         </div>
-        <p className="text-sm text-ink-faint tabular-nums">{count}</p>
+        <p className="font-mono text-xs text-ink-faint tabular-nums">{count}</p>
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="flex min-h-full flex-col items-center gap-2">

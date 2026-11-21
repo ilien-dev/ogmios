@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { Book, BookRefusal, Chapter } from "@shared/domain";
+import type { Book, BookRefusal, Chapter, Translation } from "@shared/domain";
 import { Presence } from "@/components/motion/Presence";
 import { Reveal } from "@/components/motion/Reveal";
 import { Swap } from "@/components/motion/Swap";
@@ -12,8 +12,6 @@ import { errorMessage } from "@/lib/errors";
 import { importBook, listBooks, listKnownWords, pickBookFile } from "@/lib/ipc";
 import { BookDetail } from "./BookDetail";
 import { BookShelf } from "./BookShelf";
-import { ChapterScreen } from "./ChapterScreen";
-import { KnownWordsScreen } from "./KnownWordsScreen";
 import { SittingScreen } from "./SittingScreen";
 import { TranslateScreen } from "./TranslateScreen";
 import { TriageRun } from "./TriageRun";
@@ -62,36 +60,38 @@ interface BooksScreenProps {
   shelf?: Book[];
   /** The open book; null shows the shelf. */
   bookId: string | null;
-  /** The open chapter of that book; null shows the book. */
+  /** The chapter a sitting is on; null shows the book. */
   chapterId: string | null;
-  /** Instead of the shelf: every word the learner already knows. */
-  known?: boolean;
-  /** A sitting on the open chapter is running. */
+  /** A sitting on that chapter is running. */
   practising?: boolean;
-  /** That sitting is the quick refresh before reading. */
+  /** That sitting is the warm-up before reading. */
   refresh?: boolean;
   /** That sitting sorts the chapter's words into known and not. */
   triage?: boolean;
-  /** The open chapter is being translated. */
-  translating?: boolean;
+  /** The attempt at translating that chapter that is on the screen. */
+  translating?: Translation | null;
   navigate: Navigate;
+  /** Makes a chapter the one the learner is on. */
+  onPick: (chapterId: string) => void;
 }
 
 /**
- * The books: the shelf of uploaded books with the way to add one, and every
- * screen of a book and of its chapters.
+ * The library and what takes the whole window on a chapter: the shelf of
+ * uploaded books with the way to add one, a book with its chapters to name
+ * them or delete it, and a sitting or a translation of the chapter the
+ * learner is on. A chapter picked here is opened in the book's own screen.
  */
 export function BooksScreen({
   nativeLang,
   shelf,
   bookId,
   chapterId,
-  known = false,
   practising = false,
   refresh = false,
   triage = false,
-  translating = false,
+  translating = null,
   navigate,
+  onPick,
 }: BooksScreenProps): ReactNode {
   const { t } = useTranslation();
   const [books, setBooks] = useState<Book[] | null>(() =>
@@ -121,7 +121,7 @@ export function BooksScreen({
     };
     // Read again at every move: a sitting, or a word marked as known, changes
     // how ready chapters are, in this book and in the others.
-  }, [bookId, chapterId, known, practising]);
+  }, [bookId, chapterId, practising]);
 
   const showShelf = (): void => {
     navigate({ name: "books", bookId: null });
@@ -153,10 +153,6 @@ export function BooksScreen({
       setAdding(false);
     }
   };
-
-  if (known) {
-    return <KnownWordsScreen onBack={showShelf} />;
-  }
 
   const view = (): ReactNode => {
     if (books === null) {
@@ -197,7 +193,7 @@ export function BooksScreen({
         });
       };
       const close = (): void => {
-        navigate({ name: "books", bookId: open.id, chapterId: chapter.id });
+        navigate({ name: "book", tab: "words" });
       };
       if (triage) {
         return (
@@ -221,65 +217,14 @@ export function BooksScreen({
       );
     }
 
-    if (open !== null && chapter !== null && translating) {
+    if (open !== null && chapter !== null && translating !== null) {
       return (
         <TranslateScreen
-          key={chapter.id}
-          chapter={chapter}
+          key={translating.attemptId}
+          attempt={translating}
           nativeLang={nativeLang}
           onBack={() => {
-            navigate({ name: "books", bookId: open.id, chapterId: chapter.id });
-          }}
-        />
-      );
-    }
-
-    if (open !== null && chapter !== null) {
-      return (
-        <ChapterScreen
-          key={chapter.id}
-          book={open}
-          chapter={chapter}
-          onBack={() => {
-            navigate({ name: "books", bookId: open.id });
-          }}
-          onPrepared={replaceChapter}
-          onPractise={() => {
-            navigate({
-              name: "books",
-              bookId: open.id,
-              chapterId: chapter.id,
-              practising: true,
-            });
-          }}
-          onTriage={() => {
-            navigate({
-              name: "books",
-              bookId: open.id,
-              chapterId: chapter.id,
-              practising: true,
-              triage: true,
-            });
-          }}
-          onRefresh={() => {
-            navigate({
-              name: "books",
-              bookId: open.id,
-              chapterId: chapter.id,
-              practising: true,
-              refresh: true,
-            });
-          }}
-          onTranslate={() => {
-            navigate({
-              name: "books",
-              bookId: open.id,
-              chapterId: chapter.id,
-              translating: true,
-            });
-          }}
-          onStructures={() => {
-            navigate({ name: "structures", chapterId: chapter.id });
+            navigate({ name: "book", tab: "translate" });
           }}
         />
       );
@@ -292,7 +237,8 @@ export function BooksScreen({
           book={open}
           onBack={showShelf}
           onOpen={(opened) => {
-            navigate({ name: "books", bookId, chapterId: opened.id });
+            onPick(opened.id);
+            navigate({ name: "book", tab: "words" });
           }}
           onRenamed={replaceChapter}
           onDeleted={() => {

@@ -141,8 +141,11 @@ pub async fn save_settings(app: AppHandle, settings: Settings) -> Result<()> {
         return Err(Error::Invalid("model is required".into()));
     }
     run(app, move |app, ctx| {
-        if let Some(model) = settings.stt_model.as_deref() {
-            app.state::<AppState>().stt.select(model)?;
+        // No model means speaking is off, and it stays off after a restart.
+        let stt = &app.state::<AppState>().stt;
+        match settings.stt_model.as_deref() {
+            Some(model) => stt.select(model)?,
+            None => stt.deselect()?,
         }
         repo::save_settings(&*ctx.conn()?, &settings)?;
         configure(ctx)

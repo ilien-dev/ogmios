@@ -228,10 +228,13 @@ export function ConnectionPanel({
           hasKey ? (
             <Reveal
               key="keyStored"
-              className="flex items-center justify-between gap-4 rounded-md border border-line bg-raised px-4 py-3"
+              className="flex items-center justify-between gap-4 rounded-lg bg-sunken/60 px-4 py-3"
             >
               <p className="flex items-center gap-2 text-sm text-ink-soft">
-                <KeyRound aria-hidden className="size-4 text-accent-text" />
+                <KeyRound
+                  aria-hidden
+                  className="size-4 animate-breathe text-accent-text"
+                />
                 {t("connection.keyStored")}
               </p>
               <Button size="sm" variant="ghost" onClick={() => void clearKey()}>
@@ -289,12 +292,16 @@ export function ConnectionPanel({
             </Notice>
             <div className="flex flex-wrap items-center gap-3">
               <Button
+                className="group"
                 icon={
                   <Swap id={detect === "running" ? "running" : "detect"}>
                     {detect === "running" ? (
                       <Spinner />
                     ) : (
-                      <Search aria-hidden className="size-4" />
+                      <Search
+                        aria-hidden
+                        className="size-4 transition-transform duration-300 ease-out-expo group-hover:scale-110 group-hover:-rotate-12"
+                      />
                     )}
                   </Swap>
                 }
@@ -425,7 +432,10 @@ export function ConnectionPanel({
                 as="p"
                 className="flex items-center gap-2 text-sm text-ink"
               >
-                <CircleCheck aria-hidden className="size-4 text-accent-text" />
+                <CircleCheck
+                  aria-hidden
+                  className="size-4 animate-breathe text-accent-text"
+                />
                 {t("connection.checkOk")}
               </Reveal>
             )}

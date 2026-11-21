@@ -194,25 +194,27 @@ borrarlos.
 
 ## 6. Flujo de una sesión
 
-### 6.1 Pantalla de inicio
+### 6.1 Hoy y Charla
 
-Inicio es una pantalla propia, de tres columnas: **Conversación**, el centro y **Libro**. Todo lo
-principal se ve aquí sin desplazarse en el tamaño por defecto de la ventana (1100×760).
+La app abre en **Hoy** (§17). Cada lugar tiene la misma composición: una columna de cristal a la
+izquierda y una escena en 3D a la derecha; una bajo la otra cuando la ventana es estrecha.
 
-- **Centro:** la esfera, el saludo y un tema sugerido ya cargado, con la línea de foco debajo
+- **Hoy:** el **repaso diario** como una sola cola con todo lo que vuelve ese día: palabras (§9.4),
+  ejercicios de los patrones (§9) y estructuras (§9.7). Cada fila dice cuántas vuelven y de dónde
+  salen. Un botón empieza por la primera que tiene algo; cada fila empieza la suya. Sin nada
+  pendiente, el botón ofrece un repaso extra: una ronda de ejercicios. Debajo, lo que quedó en
+  pausa (dictados y sesiones de estructuras). La escena levanta el día como relieve: una torre por
+  tipo de repaso, tan alta como lo que vuelve, la que toca primero encendida, y dos plataformas
+  bajas para seguir en el libro y en la charla.
+- **Charla:** la esfera, el saludo y un tema sugerido ya cargado, con la línea de foco debajo
   ("Estás trabajando: present perfect"). Un botón grande **"Empezar charla"** y, a su lado,
   "Otro tema", "Personalizar" (abre el setup completo) y "Continuar la anterior" si existe. Un clic
   empieza.
-- **Para hoy:** bajo las acciones, una sola línea discreta con el reto, la rotación o el cambio de
-  nivel, en ese orden. Si hay más de una, "Ver más" despliega las demás ahí mismo: ninguna se pierde.
-- **Conversación:** Charla, Ejercicios (de 2 min, §9) y Progreso (§11). **Libro:** las seis entradas
-  de §17, con su esfera cálida pequeña. Cada entrada lleva un dato solo si ya se conoce: patrones
-  pendientes, racha, palabras por repasar, capítulo actual.
-- **Encabezado:** logo, racha y Ajustes.
-
-Por debajo de 1000 px de ancho el centro va arriba con una esfera más pequeña, y Conversación y
-Libro quedan debajo, lado a lado, en filas compactas. Solo el tamaño mínimo (720×560) puede necesitar
-desplazamiento.
+- **Para hoy (en Charla):** bajo las acciones, una sola línea discreta con el reto, la rotación o
+  el cambio de nivel, en ese orden. Si hay más de una, "Ver más" despliega las demás ahí mismo.
+- **Lo que estás puliendo:** los patrones activos con «Practicar 2 min» en cada uno, y una ronda en
+  cualquiera de los cuatro formatos (§9.1). En la columna, la voz como sus dos interruptores (§12)
+  y las charlas anteriores con su reporte.
 
 ### 6.2 Setup de sesión
 
@@ -389,16 +391,16 @@ Repaso de cada patrón activo a los 1 → 3 → 7 → 21 días. Un patrón venci
 
 ### 9.4 Repaso de palabras
 
-Las palabras aprendidas vuelven con los días en **Repaso diario**, una entrada de la sección
-Libro (§17). Entran las
-terminadas en un capítulo de un libro y las pedidas con "¿Cómo digo…?"; nunca las marcadas como
-"ya la sé". Las que usó el compañero no entran: no tienen traducción con la que preguntarlas.
+Las palabras aprendidas vuelven con los días en el **repaso diario** de Hoy (§6.1, §17); sus cifras
+y su lista están en Tu inglés › Palabras, que también lo empieza eligiendo la dirección. Entran
+las terminadas en un capítulo de un libro y las pedidas con "¿Cómo digo…?"; nunca las marcadas
+como "ya la sé". Las que usó el compañero no entran: no tienen traducción con la que preguntarlas.
 
 - **Calendario (código, sin modelo):** cada palabra está en un escalón. Vuelve a los
   1 → 3 → 7 → 21 → 60 días del último repaso. Un acierto la sube un escalón, un fallo la baja uno.
 - **Una ronda:** hasta 10 palabras vencidas, las más atrasadas, cada una una vez y en orden
   aleatorio. Se elige inglés → idioma nativo, al revés, o ambos (alterna según el escalón). Las
-  pedidas en una charla solo se preguntan hacia el inglés. Inicio muestra "hoy te tocan N".
+  pedidas en una charla solo se preguntan hacia el inglés. Hoy las cuenta en su cola.
 - **Un fallo no reabre el capítulo.** Las respuestas del repaso se guardan aparte de las de la
   práctica: el capítulo sigue listo para leer.
 - **Uso en conversación:** el compañero recibe hasta 5 palabras aprendidas, las más cercanas a
@@ -564,10 +566,11 @@ Una palabra que se resiste para la práctica hasta grabarla. Las reglas viven en
 
 ### 9.7 Estructuras
 
-Una sección propia, **Estructuras**, para escribir frases con una estructura hasta que salga sola
-en una conversación. Su pantalla principal tiene una tarjeta por camino: **Sesión libre** (el
-menú con todo el catálogo), **Del capítulo** (solo si hay un capítulo abierto) y **En pausa**
-(solo si quedó alguna sesión a medias: con una la continúa, con varias abre el menú). No corrige errores del usuario: practica estructuras de un catálogo fijo.
+**Estructuras** es escribir frases con una estructura hasta que salga sola en una conversación.
+Vive en tres sitios, según para qué se busque (§17): las del capítulo en **Libro › Escribir**, las
+que toca repasar en **Hoy**, y el catálogo entero con la **sesión libre** y las sesiones en pausa
+en **Tu inglés › Estructuras**. No corrige errores del usuario: practica estructuras de un
+catálogo fijo.
 
 - **Catálogo (código):** 36 estructuras, 12 por nivel (básico, intermedio, avanzado), en
   `src-tauri/src/structures/`. El menú es una sola pantalla con todas; el filtro de nivel es
@@ -611,21 +614,21 @@ menú con todo el catálogo), **Del capítulo** (solo si hay un capítulo abiert
 - **En las charlas:** con enfoque "practicar lo pendiente", la estructura practicada más vencida va
   al compañero como estructura objetivo, sin nombrarla: una como mucho, y solo si los patrones
   activos dejan sitio (menos de 3 objetivos).
-- **Estructuras del capítulo:** la primera vez que se abren, el modelo lee hasta 6 trozos del
-  capítulo y etiqueta qué estructuras del catálogo aparecen, con una frase de ejemplo cada una. El
-  código cuenta, ordena y guarda; no se vuelve a leer. Un ejemplo solo se muestra si está en el
-  texto, letra por letra. La sesión practica las 5 más usadas, con las palabras de ese capítulo. El
-  menú muestra las del capítulo abierto por última vez.
+- **Estructuras del capítulo:** la pestaña Escribir del capítulo ofrece buscarlas; al pedirlo, el
+  modelo lee hasta 6 trozos del capítulo y etiqueta qué estructuras del catálogo aparecen, con una
+  frase de ejemplo cada una. El código cuenta, ordena y guarda; no se vuelve a leer. Un ejemplo
+  solo se muestra si está en el texto, letra por letra. La sesión practica las 5 más usadas, con
+  las palabras de ese capítulo, y por eso pide el capítulo preparado.
 
 ### 9.8 Oído
 
-**Oído**, una entrada de la sección Libro (§17), entrena el oído con el libro que se está leyendo. Todo lo
-decide el código: no se le pide nada al modelo y no gasta tokens. Necesita la voz descargada (§12);
-sin ella, la sección solo ofrece descargarla.
+**Oído** es la pestaña **Escuchar** del capítulo en Libro (§17): entrena el oído con el libro que
+se está leyendo. Todo lo decide el código: no se le pide nada al modelo y no gasta tokens. Necesita
+la voz descargada (§12); sin ella, la pestaña solo ofrece descargarla.
 
-- **Menú:** la velocidad que ya se entiende, una barra por velocidad, el capítulo (el abierto por
-  última vez, o el que se elija de cualquier libro) con sus dos caminos, los dictados en pausa y las
-  palabras que más se escapan. La pantalla del capítulo no gana botones.
+- **Pestaña Escuchar:** los dos caminos del capítulo en el que se está (oírlo leído y el dictado),
+  los dictados en pausa y las palabras que más se escapan. La velocidad que ya se entiende y cómo
+  va cada una se ven en Tu inglés › Tiempo.
 - **Tres velocidades**, cada una un nivel: lenta (0,75), normal (1,0) y rápida (1,25). Son síntesis
   reales del motor, no audio estirado.
 - **Escuchar el capítulo:** la voz lo lee frase a frase, con las mismas frases que se traducen. La
@@ -704,8 +707,12 @@ las tendencias se muestran separadas por modo. Tendencias sobre ≥5 sesiones.
 - **Local por defecto**, en Rust, con parakeet.cpp (MIT) cargado en tiempo de ejecución. Modelos:
   **Parakeet TDT 0.6B v3** (multilingüe, 742 MB, CC-BY-4.0), con pista de idioma `auto` para que
   una palabra en el idioma nativo salga legible, y **Parakeet TDT-CTC 110M** (solo inglés, 143 MB).
-- Ningún modelo viene instalado ni elegido: el usuario descarga uno o varios (también en el
-  onboarding) y elige cuál usar. Sin modelo elegido, la app es solo texto.
+- Ningún modelo viene instalado ni elegido. En la interfaz esto es **Hablar**, uno de los dos
+  interruptores de voz (el otro es **Escuchar**, texto a voz), iguales en Charla, en Ajustes y en
+  el onboarding: activarlo descarga el modelo y lo deja en uso de una vez; apagarlo deja la app en
+  solo texto sin borrar el modelo, y así se queda tras reiniciar. Elegir otro modelo está en
+  Ajustes, plegado. En la conversación el micrófono está siempre en el mismo sitio: apagado, lo
+  dice y se activa desde ahí.
 - Descarga única del modelo, con tamaño visible y verificación sha256. Opción de API en la nube
   para equipos lentos (v2).
 - **Riesgo:** los modelos de voz tienden a "limpiar" lo dicho. Medido en H0 con voz sintética
@@ -728,8 +735,9 @@ las tendencias se muestran separadas por modo. Tendencias sobre ≥5 sesiones.
 - **En Oído (§9.8)** lee un capítulo entero, frase a frase, y las frases de un dictado, a tres
   velocidades. Mientras suena una frase se sintetiza la siguiente, para que no haya espera entre
   ellas. Lo ya dicho se recuerda por voz, velocidad y texto.
-- Lectura automática al aparecer, con un botón para oírlo otra vez; se puede dejar solo a
-  petición. Cuatro voces, americanas y británicas; la primera sigue la variante del perfil.
+- **Escuchar** enciende y apaga la lectura automática al aparecer; apagado, queda el botón para
+  oír cada línea a petición. La conversación muestra si está activado. Cuatro voces, americanas y
+  británicas; la primera sigue la variante del perfil.
 - Reproducción en Rust (`cpal`), frase a frase según se sintetiza. Empezar a grabar la calla.
 
 ---
@@ -946,31 +954,48 @@ básico no reciben frases: no hay grabaciones abiertas que las respalden.
 
 ## 17. Interfaz
 
-- **Sin barra lateral.** Las funciones principales se ven en Inicio (§6.1), repartidas en dos
-  secciones, y nada queda a más de 3 clics. Cada función vive en un solo lugar.
-  - **Conversación:** Charla (abre el setup, §6.2), Ejercicios (de 2 min) y Progreso.
-  - **Libro:** Vocabulario, Traducir, Estructuras (§9.7), Oído (§9.8), Repaso diario (§9.4) y Libros
-    (la estantería). Sin capítulo, Vocabulario, Traducir y Oído llevan a Libros; Estructuras funciona
-    sin libro.
-  - **Ajustes**, desde Inicio o desde la barra de arriba, con saltos a cada sección arriba de su
-    pantalla.
-- **Barra superior.** Fuera de Inicio: `←` a Inicio, las entradas de la sección actual como píldoras
-  (3 en Conversación, 6 en Libro) y Ajustes. La píldora activa se desliza a la nueva. Por debajo de
-  1000 px las píldoras muestran solo su icono y conservan su nombre accesible. En Libro, el título
-  del capítulo actual abre el selector de capítulo (elegir uno lo abre). Cruzar de sección cuesta 2
-  clics: `←` y la entrada. Las pantallas que ocupan toda la ventana (una charla, un reporte recién
-  terminado, una sesión en curso) no muestran la barra y traen su propia salida.
+- **Cuatro lugares.** La barra de arriba es la misma en todas las pantallas: la marca, cuatro
+  lugares en una fila y Ajustes. Cada cosa vive en un solo lugar, según para qué se busca: se
+  aprende en Libro y en Charla, se repasa en Hoy y se consulta en Tu inglés.
+  - **Hoy** (donde abre la app): el repaso diario como una sola cola, lo que quedó en pausa y el
+    siguiente paso del libro y de la charla (§6.1). Es el único lugar con contador en la barra:
+    todo lo que vuelve hoy, sumado.
+  - **Libro:** un libro, sus capítulos y lo que se hace con cada uno. El capítulo se cambia aquí y
+    en ningún otro sitio, con cualquiera de tres controles que hacen lo mismo: una barra de
+    «Vocabulario por capítulo», una fila de la lista de capítulos o un bloque del relieve. El
+    capítulo elegido se guarda al elegirlo. Lo que se hace con él son cuatro pestañas al pie de la
+    escena: **Palabras** (§9.5), **Escuchar** (§9.8), **Traducir** y **Escribir** (§9.7); la que
+    toca se marca con «Sigue». Cambiar de capítulo conserva la pestaña. «Cambiar libro» abre la
+    biblioteca: la estantería, añadir un libro y la página de cada libro, donde se renombran sus
+    capítulos y se elimina.
+  - **Charla:** empezar una conversación, la voz, los patrones con sus ejercicios y las charlas
+    anteriores con su reporte (§6.1).
+  - **Tu inglés:** todo lo acumulado, con cuatro fichas que eligen la escena: Palabras (el repaso
+    diario con sus cifras y las palabras que ya sabía), Patrones (§8), Estructuras (el catálogo, la
+    sesión libre y las sesiones en pausa, §9.7) y Tiempo (minutos por semana, racha, nivel y la
+    velocidad que ya entiende, §9.8).
+  - **Ajustes**, al final de la barra, con saltos a cada sección arriba de su pantalla.
+- **Dos niveles como máximo:** lugar y pestaña. Fuera de eso solo están la biblioteca (bajo
+  Libro) y el setup (bajo Charla), cada uno con su enlace de vuelta.
+- **Una actividad ocupa toda la ventana:** una charla, el reporte recién terminado, una ronda de
+  ejercicios, una práctica o un repaso de un capítulo, una traducción, una ronda del repaso diario,
+  una sesión de estructuras, un dictado y un capítulo leído en voz alta. No muestran la barra y
+  traen su propia salida, que **vuelve exactamente a donde se empezó**: una ronda empezada en Hoy
+  vuelve a Hoy, y lo empezado en una pestaña de un capítulo vuelve a esa pestaña.
+- **Presencia.** Cada lugar conserva su escena en 3D con el mismo gesto: los bloques crecen al
+  entrar, suben y cogen luz bajo el cursor con su detalle en cristal, el que importa respira y
+  lleva su pin, y pasar por una fila levanta su bloque. Un bloque nunca hace algo distinto de su
+  fila.
 - **Actualizaciones.** La tarjeta y su barra de carga flotan abajo a la derecha solo mientras hay algo
   que atender. La versión, buscar actualizaciones y reabrir una descartada viven en una fila de
   Ajustes; mientras haya una descartada, el botón de Ajustes lleva un punto discreto.
-- **Atrás.** Entre secciones es `←`. El detalle interno lleva un enlace a su padre, siempre el mismo
-  sin importar por dónde se llegó (Progreso › reporte, Libros › libro › capítulo, Libros › palabras
-  conocidas, Estructuras › todas).
+- **Atrás.** Los lugares están a un clic desde cualquier pantalla con barra. Los enlaces de vuelta
+  nombran a dónde llevan («Volver a Libro», «Volver a Charla»). El reporte abierto desde las
+  charlas anteriores vuelve a Charla.
 - **Voces.** Cada fuente de texto tiene su color y su forma, y nada más los usa: lo que escribe o
   dice el usuario es verde azulado, en burbujas a la derecha (lo que escribió antes, citado, va
   con borde punteado); lo que escribe el modelo es violeta, a la izquierda con su esfera; el texto
   de un libro es ámbar y en serif; Ogmios habla en tinta gris, con «Ogmios:» delante.
-- **Estructuras** abre una pantalla principal con tarjetas que llevan a lo suyo.
   - **Eliminar un libro:** desde su pantalla, uno a la vez. Los dictados y ejercicios de
     estructuras que quedaron en pausa dejan de ser de su capítulo. Un diálogo pregunta cómo y dice
     antes qué pasa con sus palabras, contadas una vez por palabra y sin las que ya sabe:

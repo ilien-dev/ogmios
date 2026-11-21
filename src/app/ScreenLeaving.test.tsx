@@ -62,7 +62,6 @@ describe("a screen on its way out", () => {
   test("takes no push-to-talk on a leaving conversation", () => {
     const conversation = (
       <Composer
-        sessionId="s1"
         turnWordGoal={40}
         scaffolds={[]}
         voice
@@ -82,7 +81,6 @@ describe("a screen on its way out", () => {
   test("takes no push-to-talk on a view leaving inside its screen", () => {
     const conversation = (
       <Composer
-        sessionId="s1"
         turnWordGoal={40}
         scaffolds={[]}
         voice

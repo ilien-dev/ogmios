@@ -9,6 +9,7 @@ import {
   SittingStage,
   SittingWait,
 } from "@/features/books/SittingParts";
+import { RunBackdrop, RunCard } from "@/features/drills/ScreenParts";
 import { errorMessage } from "@/lib/errors";
 import {
   answerRecall,
@@ -113,13 +114,19 @@ function Round({ ways, nativeLang, onMore, onDone }: RoundProps): ReactNode {
   };
 
   return (
-    <SittingFrame
-      leave={t("recall.leave")}
-      progress={run?.step.progress ?? null}
-      onClose={onDone}
-    >
-      <SittingStage step={stepNow()}>{asking()}</SittingStage>
-    </SittingFrame>
+    <RunBackdrop>
+      <SittingFrame
+        leave={t("recall.leave")}
+        progress={run?.step.progress ?? null}
+        onClose={onDone}
+      >
+        <SittingStage step={stepNow()}>
+          <div className="px-4 pt-2 pb-12">
+            <RunCard>{asking()}</RunCard>
+          </div>
+        </SittingStage>
+      </SittingFrame>
+    </RunBackdrop>
   );
 }
 

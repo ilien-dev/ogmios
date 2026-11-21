@@ -16,97 +16,25 @@ import {
 import userEvent from "@testing-library/user-event";
 import { MotionConfig, MotionGlobalConfig } from "motion/react";
 import type { ReactNode } from "react";
-import type { Book } from "@shared/domain";
-import type { Current } from "@/features/books/currentChapter";
 import { UpdateContext } from "@/features/update/update";
 import type { UpdateState, Updates } from "@/features/update/update";
 import { i18n } from "@/lib/i18n/i18n";
 import { useMockBackend } from "@/test/mockBackend";
-import type { Entry } from "./places";
-import { entryOf } from "./places";
 import type { Route } from "./routes";
-import { chapterOn } from "./routes";
 import { Rail } from "./Rail";
 
-const BOOK: Book = {
-  id: "b",
-  title: "Alice",
-  author: null,
-  opening: "",
-  chapters: [
-    {
-      id: "c1",
-      index: 0,
-      title: "One",
-      words: 10,
-      prepared: null,
-      readiness: null,
-    },
-    {
-      id: "c2",
-      index: 1,
-      title: "Two",
-      words: 10,
-      prepared: null,
-      readiness: null,
-    },
-  ],
-};
-const CURRENT: Current = {
-  book: BOOK,
-  chapter: BOOK.chapters[1] as Current["chapter"],
-};
-
-const ROUTES: Array<[Route, Entry | "settings"]> = [
-  [{ name: "home" }, "conversation"],
-  [{ name: "setup", preset: null }, "conversation"],
-  [
-    { name: "report", sessionId: "s", report: null, origin: "session" },
-    "conversation",
-  ],
-  [
-    { name: "practice", patternId: null, format: null, autostart: false },
-    "drills",
-  ],
-  [{ name: "progress" }, "progress"],
-  [
-    { name: "report", sessionId: "s", report: null, origin: "progress" },
-    "progress",
-  ],
-  [{ name: "book" }, "chapters"],
-  [{ name: "books", bookId: null }, "books"],
-  [{ name: "books", bookId: null, known: true }, "books"],
-  [{ name: "books", bookId: "b" }, "books"],
-  [{ name: "books", bookId: "b", chapterId: "c" }, "chapters"],
-  [
-    { name: "books", bookId: "b", chapterId: "c", translating: true },
-    "translate",
-  ],
-  [{ name: "recall" }, "recall"],
-  [{ name: "structures" }, "structures"],
-  [{ name: "listening" }, "listening"],
-  [{ name: "settings" }, "settings"],
-];
-
-const HOME: Route = { name: "home" };
-const RECALL: Route = { name: "recall" };
+const TODAY: Route = { name: "today" };
+const BOOK: Route = { name: "book" };
+const RUN: Route = { name: "recall", running: "both" };
 
 interface BarProps {
   route: Route;
   navigate?: (route: Route) => void;
-  counts?: Partial<Record<Entry, number>>;
-  current?: Current | null;
+  due?: number;
 }
 
-function Bar({
-  route,
-  navigate = mock(),
-  counts = {},
-  current = null,
-}: BarProps): ReactNode {
-  return (
-    <Rail route={route} navigate={navigate} counts={counts} current={current} />
-  );
+function Bar({ route, navigate = mock(), due = 0 }: BarProps): ReactNode {
+  return <Rail route={route} navigate={navigate} due={due} />;
 }
 
 function names(nav: HTMLElement): string[] {
@@ -153,70 +81,42 @@ describe("Rail, with real exits", () => {
     mock.restore();
   });
 
-  test("moving to Settings takes the places away through an exit", async () => {
-    const { rerender } = render(<Bar route={RECALL} />);
-    const places = screen.getByRole("navigation", { name: "Book" });
-    expect(places).not.toHaveAttribute("inert");
+  test("an activity that takes the whole window takes the rail away through an exit", async () => {
+    const { rerender } = render(<Bar route={TODAY} />);
+    const rail = screen.getByRole("complementary");
+    expect(rail).not.toHaveAttribute("inert");
 
-    rerender(<Bar route={{ name: "settings" }} />);
+    rerender(<Bar route={RUN} />);
 
-    expect(places).toBeInTheDocument();
-    expect(places).toHaveAttribute("inert");
-    await waitForElementToBeRemoved(places);
-    expect(screen.getByRole("button", { name: "Settings" })).toHaveAttribute(
-      "aria-current",
-      "page",
-    );
+    expect(rail).toBeInTheDocument();
+    expect(rail).toHaveAttribute("inert");
+    await waitForElementToBeRemoved(rail);
   });
 
-  test("under reduced motion the places still go", async () => {
+  test("under reduced motion the rail still goes", async () => {
     const bar = (route: Route): ReactNode => (
       <MotionConfig reducedMotion="always">
         <Bar route={route} />
       </MotionConfig>
     );
-    const { rerender } = render(bar(RECALL));
-    const places = screen.getByRole("navigation", { name: "Book" });
-
-    rerender(bar({ name: "settings" }));
-
-    await waitForElementToBeRemoved(places);
-  });
-
-  test("moving across sections swaps the places at once", async () => {
-    const { rerender } = render(<Bar route={RECALL} />);
-    const book = screen.getByRole("navigation", { name: "Book" });
-
-    rerender(<Bar route={HOME} />);
-
-    expect(book).toHaveAttribute("inert");
-    expect(
-      screen.getByRole("navigation", { name: "Conversation" }),
-    ).not.toHaveAttribute("inert");
-    await waitForElementToBeRemoved(book);
-  });
-
-  test("a screen that takes the whole window takes the rail away through an exit", async () => {
-    const { rerender } = render(<Bar route={RECALL} />);
+    const { rerender } = render(bar(TODAY));
     const rail = screen.getByRole("complementary");
 
-    rerender(<Bar route={{ name: "recall", running: "both" }} />);
+    rerender(bar(RUN));
 
-    expect(rail).toHaveAttribute("inert");
     await waitForElementToBeRemoved(rail);
   });
-});
 
-describe("chapterOn", () => {
-  test("the chapter on the screen goes before the one opened last", () => {
-    expect(chapterOn({ name: "books", bookId: "b", chapterId: "c" }, "o")).toBe(
-      "c",
-    );
-  });
+  test("a count that goes to nothing leaves through an exit", async () => {
+    const { rerender } = render(<Bar route={TODAY} due={3} />);
+    const count = within(
+      screen.getByRole("button", { name: "Today, 3 back today" }),
+    ).getByText("3");
 
-  test("any other screen is on the one opened last", () => {
-    expect(chapterOn({ name: "books", bookId: "b" }, "o")).toBe("o");
-    expect(chapterOn({ name: "home" }, null)).toBeNull();
+    rerender(<Bar route={TODAY} due={0} />);
+
+    await waitForElementToBeRemoved(count);
+    expect(screen.getByRole("button", { name: "Today" })).toBeVisible();
   });
 });
 
@@ -227,168 +127,108 @@ describe("Rail", () => {
     await i18n.changeLanguage("en");
   });
 
-  test.each(ROUTES)("the screen %j belongs to %s", (route, entry) => {
-    expect(entryOf(route)).toBe(entry);
-  });
+  test("it shows the four places, the same ones on every screen", () => {
+    const places = ["Today", "Book", "Chat", "Your English"];
+    const { rerender } = render(<Bar route={TODAY} />);
 
-  test("conversation shows its 3 places and book its 6, chapters first", () => {
-    const { rerender } = render(<Bar route={HOME} />);
+    expect(names(screen.getByRole("navigation", { name: "Places" }))).toEqual(
+      places,
+    );
 
-    expect(
-      names(screen.getByRole("navigation", { name: "Conversation" })),
-    ).toEqual(["Chat", "Drills", "Progress"]);
-    expect(screen.queryByRole("navigation", { name: "Book" })).toBeNull();
-
-    rerender(<Bar route={RECALL} />);
-
-    expect(names(screen.getByRole("navigation", { name: "Book" }))).toEqual([
-      "Chapters",
-      "Translate",
-      "Daily review",
-      "Structures",
-      "Listening",
-      "Books",
-    ]);
-    expect(
-      screen.queryByRole("navigation", { name: "Conversation" }),
-    ).toBeNull();
+    for (const route of [
+      BOOK,
+      { name: "home" },
+      { name: "progress" },
+      { name: "settings" },
+      { name: "books", bookId: null },
+    ] satisfies Route[]) {
+      rerender(<Bar route={route} />);
+      expect(names(screen.getByRole("navigation", { name: "Places" }))).toEqual(
+        places,
+      );
+    }
     expect(screen.getByRole("button", { name: "Settings" })).toBeVisible();
   });
 
-  test("the rail is on Home too, and gone on a screen that takes the whole window", () => {
-    const { container, rerender } = render(<Bar route={HOME} />);
+  test("the rail is gone on an activity that takes the whole window", () => {
+    const { container, rerender } = render(<Bar route={TODAY} />);
     expect(screen.getByRole("complementary")).toBeVisible();
 
-    rerender(<Bar route={{ name: "recall", running: "both" }} />);
+    rerender(<Bar route={RUN} />);
     expect(container).toBeEmptyDOMElement();
   });
 
-  test("both sections are one press away from anywhere, and the one on screen is pressed", async () => {
+  test("every place is one press away from anywhere", async () => {
     const user = userEvent.setup();
     const navigate = mock();
-    render(<Bar route={RECALL} navigate={navigate} />);
-    const sections = screen.getByRole("group", { name: "Sections" });
+    render(<Bar route={{ name: "settings" }} navigate={navigate} />);
 
-    expect(
-      within(sections).getByRole("button", { name: "Book" }),
-    ).toHaveAttribute("aria-pressed", "true");
-    await user.click(
-      within(sections).getByRole("button", { name: "Conversation" }),
-    );
-    expect(navigate).toHaveBeenLastCalledWith({ name: "home" });
-    await user.click(within(sections).getByRole("button", { name: "Book" }));
+    await user.click(screen.getByRole("button", { name: "Today" }));
+    expect(navigate).toHaveBeenLastCalledWith({ name: "today" });
+    await user.click(screen.getByRole("button", { name: "Book" }));
     expect(navigate).toHaveBeenLastCalledWith({ name: "book" });
+    await user.click(screen.getByRole("button", { name: "Chat" }));
+    expect(navigate).toHaveBeenLastCalledWith({ name: "home" });
+    await user.click(screen.getByRole("button", { name: "Your English" }));
+    expect(navigate).toHaveBeenLastCalledWith({ name: "progress" });
+    await user.click(screen.getByRole("button", { name: "Settings" }));
+    expect(navigate).toHaveBeenLastCalledWith({ name: "settings" });
   });
 
-  test("Settings has its own place and no section's", () => {
+  test("the place of the screen is marked with aria-current, and only it", () => {
+    const { rerender } = render(<Bar route={{ name: "book", tab: "write" }} />);
+
+    expect(screen.getByRole("button", { name: "Book" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(screen.getByRole("button", { name: "Today" })).not.toHaveAttribute(
+      "aria-current",
+    );
+
+    // The library is under the book, and a setup under the chat.
+    rerender(<Bar route={{ name: "books", bookId: null }} />);
+    expect(screen.getByRole("button", { name: "Book" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    rerender(<Bar route={{ name: "setup", preset: null }} />);
+    expect(screen.getByRole("button", { name: "Chat" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+  });
+
+  test("Settings has its own place and none of the four", () => {
     render(<Bar route={{ name: "settings" }} />);
 
     expect(screen.getByRole("button", { name: "Settings" })).toHaveAttribute(
       "aria-current",
       "page",
     );
-    expect(screen.queryByRole("navigation")).toBeNull();
-    for (const button of within(
-      screen.getByRole("group", { name: "Sections" }),
+    for (const place of within(
+      screen.getByRole("navigation", { name: "Places" }),
     ).getAllByRole("button")) {
-      expect(button).toHaveAttribute("aria-pressed", "false");
+      expect(place).not.toHaveAttribute("aria-current");
     }
   });
 
-  test("Settings is one click away", async () => {
-    const user = userEvent.setup();
-    const navigate = mock();
-    render(<Bar route={RECALL} navigate={navigate} />);
+  test("everything that comes back today is one count, on Today", () => {
+    render(<Bar route={BOOK} due={12} />);
 
-    await user.click(screen.getByRole("button", { name: "Settings" }));
-    expect(navigate).toHaveBeenCalledWith({ name: "settings" });
-  });
-
-  test("the place of the screen is marked with aria-current", () => {
-    render(<Bar route={RECALL} />);
-
-    expect(
-      screen.getByRole("button", { name: "Daily review" }),
-    ).toHaveAttribute("aria-current", "page");
-    expect(
-      screen.getByRole("button", { name: "Structures" }),
-    ).not.toHaveAttribute("aria-current");
-  });
-
-  test("what is due shows on its place", () => {
-    const { rerender } = render(
-      <Bar route={HOME} counts={{ drills: 3, recall: 12 }} />,
-    );
-    expect(
-      screen.getByRole("button", { name: "Drills, 3 due today" }),
-    ).toHaveTextContent("3");
-
-    rerender(<Bar route={RECALL} counts={{ drills: 3, recall: 12 }} />);
-    expect(
-      screen.getByRole("button", { name: "Daily review, 12 due today" }),
-    ).toHaveTextContent("12");
-  });
-
-  test("Chapters opens the book's own screen, and the rest of a chapter's places the current one", async () => {
-    const user = userEvent.setup();
-    const navigate = mock();
-    render(<Bar route={RECALL} navigate={navigate} current={CURRENT} />);
-
-    await user.click(screen.getByRole("button", { name: "Chapters" }));
-    expect(navigate).toHaveBeenLastCalledWith({ name: "book" });
-    await user.click(screen.getByRole("button", { name: "Translate" }));
-    expect(navigate).toHaveBeenLastCalledWith({
-      name: "books",
-      bookId: "b",
-      chapterId: "c2",
-      translating: true,
-    });
-    await user.click(screen.getByRole("button", { name: "Listening" }));
-    expect(navigate).toHaveBeenLastCalledWith({
-      name: "listening",
-      chapterId: "c2",
-    });
-  });
-
-  test("with no chapter, Translate and Listening lead to the shelf", async () => {
-    const user = userEvent.setup();
-    const navigate = mock();
-    render(<Bar route={RECALL} navigate={navigate} />);
-
-    for (const name of ["Translate", "Listening"]) {
-      await user.click(screen.getByRole("button", { name }));
-      expect(navigate).toHaveBeenLastCalledWith({
-        name: "books",
-        bookId: null,
-      });
+    const today = screen.getByRole("button", { name: "Today, 12 back today" });
+    expect(today).toHaveTextContent("12");
+    expect(within(today).getByText("Today")).toBeVisible();
+    for (const name of ["Book", "Chat", "Your English"]) {
+      expect(screen.getByRole("button", { name })).not.toHaveTextContent("12");
     }
-    await user.click(screen.getByRole("button", { name: "Structures" }));
-    expect(navigate).toHaveBeenLastCalledWith({ name: "structures" });
-  });
-
-  test("a place keeps its name under its icon", () => {
-    render(<Bar route={RECALL} counts={{ recall: 2 }} />);
-
-    const place = screen.getByRole("button", {
-      name: "Daily review, 2 due today",
-    });
-    expect(within(place).getByText("Daily review")).toBeVisible();
-  });
-
-  test("Chat goes to the partner on Home", async () => {
-    const user = userEvent.setup();
-    const navigate = mock();
-    render(<Bar route={{ name: "progress" }} navigate={navigate} />);
-
-    await user.click(screen.getByRole("button", { name: "Chat" }));
-    expect(navigate).toHaveBeenCalledWith({ name: "home" });
   });
 
   test("a dismissed update puts a dot on Settings", () => {
     const available: UpdateState = { kind: "available", version: "9.0.0" };
     const bar = (value: Updates): ReactNode => (
       <UpdateContext.Provider value={value}>
-        <Bar route={RECALL} />
+        <Bar route={TODAY} />
       </UpdateContext.Provider>
     );
     const { rerender } = render(bar(updates(available, false)));
@@ -405,18 +245,14 @@ describe("Rail", () => {
 
   test("is in Spanish too", async () => {
     await i18n.changeLanguage("es");
-    const { rerender } = render(<Bar route={HOME} />);
+    render(<Bar route={TODAY} due={2} />);
 
-    expect(
-      screen.getByRole("navigation", { name: "Conversación" }),
-    ).toBeVisible();
-    expect(screen.getByRole("group", { name: "Secciones" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "Charla" })).toBeVisible();
-
-    rerender(<Bar route={RECALL} />);
-
-    expect(screen.getByRole("navigation", { name: "Libro" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "Capítulos" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "Repaso diario" })).toBeVisible();
+    expect(names(screen.getByRole("navigation", { name: "Lugares" }))).toEqual([
+      "Hoy, 2 vuelven hoy",
+      "Libro",
+      "Charla",
+      "Tu inglés",
+    ]);
+    expect(screen.getByRole("button", { name: "Ajustes" })).toBeVisible();
   });
 });

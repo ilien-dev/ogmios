@@ -106,7 +106,7 @@ export function WordList({
         {known.length > 0 && (
           <Reveal key="known" kind="fade">
             <details className="text-sm text-ink-soft">
-              <summary className="cursor-pointer py-1 text-ink-faint hover:text-ink">
+              <summary className="cursor-pointer py-1 text-ink-faint transition-colors duration-300 ease-out-expo hover:text-ink">
                 {t("books.chapter.knownCount", { count: known.length })}
               </summary>
               <ul className="flex flex-col divide-y divide-line pt-2">
@@ -118,7 +118,7 @@ export function WordList({
                       kind="fade"
                       index={index}
                       layout={index < STAGGER_LIMIT ? "position" : false}
-                      className="flex items-center gap-4 px-2 py-1"
+                      className="flex items-center gap-4 rounded-lg px-2 py-1"
                     >
                       <span className="font-medium">{word.lemma}</span>
                       <span className="min-w-0 flex-1 truncate text-ink-faint">

@@ -1,9 +1,7 @@
 import type { ReactNode } from "react";
-import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Presence } from "@/components/motion/Presence";
 import { Reveal } from "@/components/motion/Reveal";
-import { Orb } from "@/components/ui/Orb";
 import { SpeakButton } from "@/features/speech/SpeakButton";
 import type { Message } from "./useConversation";
 
@@ -56,11 +54,8 @@ function linesOf(messages: Message[], streaming: string | null): Line[] {
 function PartnerName(): ReactNode {
   const { t } = useTranslation();
   return (
-    <span className="text-xs font-medium text-partner">
-      {t("conversation.partner")}{" "}
-      <span className="font-normal text-ink-faint">
-        · {t("conversation.ai")}
-      </span>
+    <span className="font-mono text-xs text-ink-faint uppercase">
+      {t("conversation.partner")} · {t("conversation.ai")}
     </span>
   );
 }
@@ -84,7 +79,7 @@ function PartnerText({
             key="waiting"
             as="span"
             kind="fade"
-            className="text-base text-ink-faint motion-safe:animate-pulse-soft"
+            className="text-ink-faint motion-safe:animate-pulse-soft"
           >
             {first ? t("conversation.starting") : t("conversation.writing")}
           </Reveal>
@@ -115,9 +110,9 @@ function PartnerText({
 
 /**
  * The conversation so far, as two voices. The partner's lines sit on the
- * left in soft violet beside its small orb, each with a way to hear it again;
- * the learner's own sit on the right in their teal. Ogmios's own word, the
- * length hint, hangs under the latest question in plain ink.
+ * left in glass, each with a way to hear it again; the learner's own sit on
+ * the right, tinted mint. Ogmios's own word, the length hint, hangs under the
+ * latest question in plain ink.
  */
 export function MessageList({
   messages,
@@ -125,17 +120,12 @@ export function MessageList({
   lengthHint,
 }: MessageListProps): ReactNode {
   const { t } = useTranslation();
-  const end = useRef<HTMLDivElement>(null);
   const last = messages.at(-1);
   const lines = linesOf(messages, streaming);
 
-  useEffect(() => {
-    end.current?.scrollIntoView({ block: "end" });
-  }, [messages.length, streaming]);
-
   return (
     <div className="flex flex-col gap-6">
-      <ol className="flex flex-col gap-4">
+      <ol className="flex flex-col gap-5">
         <Presence>
           {lines.map((line) =>
             line.role === "user" ? (
@@ -145,10 +135,10 @@ export function MessageList({
                 index={0}
                 className="flex max-w-xl flex-col items-end gap-1.5 self-end"
               >
-                <span className="text-xs font-medium text-you">
+                <span className="font-mono text-xs text-ink-faint uppercase">
                   {t("conversation.you")}
                 </span>
-                <p className="rounded-lg rounded-tr-sm bg-you-soft px-5 py-3.5 text-lead text-you-ink">
+                <p className="rounded-xl border border-you-line bg-you-soft/80 px-4.5 py-3.5 text-base leading-relaxed text-you-ink shadow-card backdrop-blur-md">
                   {line.text}
                 </p>
               </Reveal>
@@ -157,15 +147,14 @@ export function MessageList({
                 key={line.key}
                 as="li"
                 index={0}
-                className="flex max-w-2xl gap-3"
+                className="flex max-w-xl flex-col items-start gap-1.5"
               >
-                <Orb size="xs" className="mt-6" />
+                <PartnerName />
                 <div className="flex min-w-0 flex-col gap-1.5">
-                  <PartnerName />
                   <p
                     aria-live={line.live ? "polite" : undefined}
                     aria-busy={line.live ? true : undefined}
-                    className="rounded-lg rounded-tl-sm bg-partner-soft px-5 py-3.5 text-lead text-ink"
+                    className="rounded-xl glass px-4.5 py-3.5 text-base leading-relaxed text-ink"
                   >
                     <PartnerText
                       text={line.text}
@@ -193,7 +182,6 @@ export function MessageList({
           )}
         </Presence>
       </ol>
-      <div ref={end} />
     </div>
   );
 }

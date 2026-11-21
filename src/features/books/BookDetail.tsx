@@ -94,7 +94,7 @@ export function BookDetail({
               <BookCover book={book} className="w-24" />
             </Tilt>
             <div className="flex min-w-0 flex-col gap-2">
-              <h1 className="font-display text-title font-light text-ink">
+              <h1 className="font-display text-title font-light tracking-tight text-ink">
                 {book.title}
               </h1>
               <Presence>
@@ -117,12 +117,15 @@ export function BookDetail({
           aria-labelledby="chapters"
           className="flex flex-col gap-4"
         >
-          <h2 id="chapters" className="text-sm font-medium text-ink-faint">
+          <h2
+            id="chapters"
+            className="font-mono text-xs font-medium text-ink-faint"
+          >
             {t("books.chapters")}
           </h2>
           <Stagger
             as="ol"
-            className="flex flex-col divide-y divide-line rounded-xl bg-surface py-2 shadow-card"
+            className="flex flex-col divide-y divide-line rounded-xl glass py-2"
           >
             {book.chapters.map((chapter) => (
               <ChapterRow
