@@ -124,7 +124,7 @@ export function VerbForms({ form }: { form: VerbForm }): ReactNode {
   return (
     <ol
       data-verb-forms
-      className="flex gap-1 border-b border-line bg-sunken px-2.5 py-2"
+      className="flex flex-wrap gap-1 border-b border-line bg-sunken px-2.5 py-2"
     >
       {FORMS.map((each) => (
         <li
@@ -132,7 +132,7 @@ export function VerbForms({ form }: { form: VerbForm }): ReactNode {
           aria-current={each === form ? "step" : undefined}
           data-verb-form={each === form ? each : undefined}
           className={cn(
-            "flex-1 truncate rounded-lg px-1 py-1.5 text-center text-xs transition-colors duration-300 ease-out-expo",
+            "flex-auto rounded-lg px-2 py-1.5 text-center text-xs whitespace-nowrap transition-colors duration-300 ease-out-expo",
             each === form
               ? "bg-verb font-extrabold text-on-kind"
               : "font-medium text-ink-faint",
