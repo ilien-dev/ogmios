@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.26.0](https://github.com/ilien-dev/ogmios/compare/v0.25.0...v0.26.0) (2026-11-21)
+
+
+### Features
+
+* build the review towers of words and open known words in a sheet ([#57](https://github.com/ilien-dev/ogmios/issues/57)) ([9143aeb](https://github.com/ilien-dev/ogmios/commit/9143aebbfe6b07ae8676cf1368b41fafedcc1da0))
+
 ## [0.25.0](https://github.com/ilien-dev/ogmios/compare/v0.24.0...v0.25.0) (2026-11-21)
 
 
