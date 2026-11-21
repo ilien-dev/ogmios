@@ -28,7 +28,8 @@ use crate::books::practice::{
     session_questions, sizes, SIZES,
 };
 use crate::books::sentences::{
-    asked_alone, choose, in_form, inflected, or_other, production, recognition, Banked, Verdict,
+    asked_alone, choose, fixes, in_form, inflected, or_other, production, recognition, Banked,
+    Verdict,
 };
 use crate::books::spelling::Spelling;
 use crate::db::practice::{self, SittingRow, WordRow};
@@ -92,9 +93,14 @@ pub(super) fn next_sentence(
     conn: &Connection,
     (key, own): (&str, &str),
     chapter: Option<&str>,
-    drawn_for: &str,
+    (drawn_for, tied): (&str, bool),
 ) -> Result<Option<Sentence>> {
-    let held = sentences::bank(conn, key, chapter)?;
+    let mut held = sentences::bank(conn, key, chapter)?;
+    // A word its tag cannot tell apart is asked with a short sentence: only
+    // the ones whose few words fix its sense, while it has any.
+    if tied && held.iter().any(fixed) {
+        held.retain(fixed);
+    }
     let mut recent = sentences::shown_during(conn, key, drawn_for)?;
     recent.extend(sentences::last_shown(conn, key)?);
     let banked: Vec<Banked> = held.iter().map(|each| banked(each, own, &recent)).collect();
@@ -107,6 +113,15 @@ pub(super) fn next_sentence(
     Ok(held
         .into_iter()
         .find(|each| Some(&each.id) == chosen.as_ref()))
+}
+
+/// Whether the few words of a sentence lead to the sense of its word
+/// (`books::sentences::fixes`).
+pub(super) fn fixed(sentence: &Sentence) -> bool {
+    sentence
+        .cue
+        .as_deref()
+        .is_some_and(|cue| fixes(&sentence.text, &sentence.form, cue))
 }
 
 /// A sentence of a word's bank as a direction shows it: the word marked
@@ -234,12 +249,13 @@ fn in_sentence(
     direction: Direction,
     drawn_for: &str,
 ) -> Result<PracticeItem> {
+    let likely = ladder::tied(conn, &word, None)?;
     Ok(
         match next_sentence(
             conn,
             (&word.key, &word.sentence),
             Some(&word.chapter_id),
-            drawn_for,
+            (drawn_for, likely),
         )? {
             Some(sentence) => {
                 let alone = word.alone_in(&sentence.form).map(<[String]>::to_vec);

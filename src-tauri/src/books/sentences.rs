@@ -688,6 +688,28 @@ pub fn fragment(sentence: &str, form: &str, cue: &[String]) -> Option<Vec<Senten
     Some(mark(text, &[form.to_owned()]))
 }
 
+/// Whether the words the second look said fix the sense of the word
+/// (`cue`) are in `sentence` near enough to it for a short sentence
+/// ([`FRAGMENT_WORDS`]): then the few words it is asked with lead to its
+/// meaning as surely as the whole sentence does.
+pub fn fixes(sentence: &str, form: &str, cue: &[String]) -> bool {
+    let written: Vec<&str> = sentence.split_whitespace().collect();
+    let words: Vec<String> = written.iter().map(|each| tokens(each).join(" ")).collect();
+    let Some((start, len)) = at(&words, &tokens(form)) else {
+        return false;
+    };
+    let (mut first, mut last) = (start, start + len - 1);
+    let mut any = false;
+    for each in cue {
+        if let Some((place, size)) = at(&words, &tokens(each)) {
+            first = first.min(place);
+            last = last.max(place + size - 1);
+            any = true;
+        }
+    }
+    any && last - first < FRAGMENT_WORDS
+}
+
 /// [`fragment`] for a word that can be written in any of `forms`: the first
 /// one the sentence has.
 pub fn few_words(sentence: &str, forms: &[String], cue: &[String]) -> Option<Vec<SentencePart>> {
@@ -721,6 +743,20 @@ mod tests {
         let parts =
             fragment("She tied back her fair hair, and left.", "fair", &cue).expect("a fragment");
         assert_eq!(shown(&parts).0, "her fair hair");
+    }
+
+    #[test]
+    fn only_words_that_fix_the_sense_near_the_word_make_a_short_sentence_of_it() {
+        let hair = vec!["hair".to_owned()];
+        assert!(fixes(
+            "She tied back her fair hair and left.",
+            "fair",
+            &hair
+        ));
+        assert!(!fixes("She tied back her fair hair and left.", "fair", &[]));
+        let end = vec!["end".to_owned()];
+        let long = "A fair one came along the road by the river to the very end.";
+        assert!(!fixes(long, "fair", &end));
     }
 
     #[test]

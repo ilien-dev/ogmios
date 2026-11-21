@@ -123,7 +123,13 @@ fn asked(
     run_id: &str,
 ) -> Result<PracticeItem> {
     let own = sense(conn, word)?;
-    if let Some(sentence) = next_sentence(conn, (&word.key, &own), None, run_id)? {
+    let likely = match &word.source {
+        Source::Book { word_id } => {
+            super::ladder::tied(conn, &practice::word(conn, word_id)?, None)?
+        }
+        Source::Chat { .. } => false,
+    };
+    if let Some(sentence) = next_sentence(conn, (&word.key, &own), None, (run_id, likely))? {
         let (part_of_speech, needs_context, alone, tied, few) = match &word.source {
             Source::Book { word_id } => {
                 let row = as_in(conn, word_id, &sentence)?;

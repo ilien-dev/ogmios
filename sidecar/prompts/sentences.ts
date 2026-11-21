@@ -24,7 +24,7 @@ For each sentence of the chapter, give:
 
 "sense" is the sentence that fixes the meaning of the word: translate the word in that meaning wherever the sentence uses it so.
 
-Then write as many new sentences as <write> says, none when it is 0, under "written". Each one uses the word exactly once, in the meaning "sense" gives it and never in another, so that the sentence alone makes that meaning clear. Natural, everyday English a careful native writer would write, one sentence of at most 25 words, each about something different, none copied from the chapter, none that is or reads like one of <avoid> (the sentences the learner has already met for it: a new situation, other words around it), and none that negates the word. Vary the form where the word has several (tenses, plural). For each, give:
+Then write as many new sentences as <write> says, none when it is 0, under "written". Each one uses the word exactly once, in the meaning "sense" gives it and never in another, so that the sentence alone makes that meaning clear. Each one has to lead to the same translation the sentence of the book leads to, as surely as it does, only with another example: a learner who reads it, or only the few words around the word, must arrive at <meaning> and nothing else. When the word has <other> meanings (what it means in other chapters, written the same way), every sentence rules out each of them: a reader could not take the word as any of them. Put the words that decide the meaning right beside the word, at most three words away ("her fair hair", not "fair" at one end and "hair" at the other), so that a few words around it are enough on their own. Natural, everyday English a careful native writer would write, one sentence of at most 25 words, each about something different, none copied from the chapter, none that is or reads like one of <avoid> (the sentences the learner has already met for it: a new situation, other words around it), and none that negates the word. Vary the form where the word has several (tenses, plural). For each, give:
 - sentence: the sentence.
 - form: the word as the sentence writes it, copied from it exactly.
 - translation and hint: as for the sentences of the chapter.
@@ -48,6 +48,7 @@ export function sentenceWriteUserPrompt(params: SentenceWriteParams): string {
       `  <write>${String(word.write)}</write>`,
       ...book,
       ...word.avoid.map((sentence) => `  <avoid>${sentence}</avoid>`),
+      ...word.others.map((meaning) => `  <other>${meaning}</other>`),
       `</word>`,
     ].join("\n");
   });
@@ -72,13 +73,13 @@ A sentence is good only if all of this holds:
 - The hint is the word the translation uses for it, copied as it is written there.
 - The hint, read on its own, with no sentence, means the word. It fails when it names the whole phrase the word heads, or the word beside it, and the word itself was left untranslated: "llama" for "wisp" in "a wisp of fire" is "flame", not "wisp".
 
-Some sentences are from the book (from="book") and others were written for the learner (from="written"). Refuse one from the book only when something above clearly fails. Refuse a written one also when it reads as unnatural, or when it could be read in another meaning of the word.
+Some sentences are from the book (from="book") and others were written for the learner (from="written"). Refuse one from the book only when something above clearly fails. Refuse a written one also when it reads as unnatural, or when it could be read in another meaning of the word, above all one of its <other> meanings (what it means in other chapters, written the same way): a written sentence must lead to the meaning given as surely as the book's own does.
 
 Answer with one verdict per sentence, with its id unchanged:
 - good: true or false.
 - also: the other English words or expressions that translate the hint taken on its own, each in the form the word has in the sentence (same tense, person and number): what a learner who sees only the hint could type instead of the word without being wrong ("ideas", "thoughts" for the hint of "notions"). The common ones, six at most. Never the word itself nor another form of it. English only, never a ${native} word: another ${native} word for the hint is not asked for ("ideas", not "nociones"). Empty when English has no other word for it.
 - hints: the other ${native} translations of the word as this sentence has it, each in the exact form the hint has (same tense, person and number): the other meanings given, put in that form, when they say there what the hint says ("se retiró", "se alejó" beside the hint "retrocedió", for the meanings "retroceder | retirarse | alejarse"). What could stand in the translation where the hint stands, and what a learner asked to translate the word could type instead of the hint and be right. Never the hint itself, never a base form the translation does not have, never an English word. Each translates only the words of <form>, as the hint does: no auxiliary or pronoun for English words outside it ("asegurado de" beside the hint "empeñado en" for the form "made a point of" in "I'd made a point of", never "me había asegurado de"). Nor anything a negation outside <form> gives them: no "no", and the words that negation calls for said as they are without it ("tendría posibilidades", "tendría una oportunidad" for the form "stand a chance" in "wouldn't stand a chance", never "tendría ninguna posibilidad"). Empty when there is none.
-- cue: the one to three words of the sentence, besides the word itself, that fix which meaning the word has there and rule out its other meanings, each copied as the sentence writes it: "hair" for "fair" in "She tied back her fair hair" (blond, not just), "trial" for "fair" in "a fair trial". The fewest that do it, nearest the word first. Empty when no word of the sentence does.
+- cue: the one to three words of the sentence, besides the word itself, that fix which meaning the word has there and rule out its other meanings, every <other> meaning first, each copied as the sentence writes it: "hair" for "fair" in "She tied back her fair hair" (blond, not just), "trial" for "fair" in "a fair trial". The fewest that do it, nearest the word first. Empty when no word of the sentence does.
 - ${VERB_FORM_RULE}${nativeVarietyParagraph(params.nativeLang)}`;
 }
 
@@ -89,6 +90,7 @@ export function sentenceReviewUserPrompt(params: SentenceReviewParams): string {
       `<sentence id="${each.id}" from="${each.fromBook ? "book" : "written"}">`,
       `  <word>${each.lemma}</word>`,
       `  <meaning>${each.meaning.join(" | ")}</meaning>`,
+      ...each.others.map((meaning) => `  <other>${meaning}</other>`),
       `  <text>${each.sentence}</text>`,
       `  <form>${each.form}</form>`,
       `  <hint>${each.hint}</hint>`,

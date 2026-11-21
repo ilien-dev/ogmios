@@ -212,6 +212,21 @@ fn to_write(conn: &Connection, word: &Wanted, chapter: &str) -> Result<u32> {
     Ok(if first || again { WRITTEN } else { 0 })
 }
 
+/// What a word means in the chapters that have it written alike
+/// (`db::spellings::rivals`), each once: what a sentence written for it has
+/// to rule out.
+fn others(conn: &Connection, word_id: &str) -> Result<Vec<String>> {
+    let mut found: Vec<String> = Vec::new();
+    for rival in spellings::rivals(conn, word_id)? {
+        for meaning in rival.translations {
+            if !found.contains(&meaning) {
+                found.push(meaning);
+            }
+        }
+    }
+    Ok(found)
+}
+
 /// The sentences a word already has in `chapter`'s sense, for the model to
 /// write none like them; none when it is not to write.
 fn avoided(conn: &Connection, due: &Due, chapter: &str) -> Result<Vec<String>> {
@@ -241,8 +256,12 @@ pub fn refill_due(
     if !bank::senses_differ(conn, word_id)? || !bank::written(conn, key, chapter)? {
         return Ok(false);
     }
+    // A word its tag cannot tell apart counts only the sentences whose few
+    // words fix its sense: the others are no use to it.
+    let tied = super::ladder::tied(conn, &practice::word(conn, word_id)?, None)?;
     let held: Vec<Banked> = bank::bank(conn, key, Some(chapter))?
         .iter()
+        .filter(|each| !tied || super::practice::fixed(each))
         .map(|each| banked(each, "", &[]))
         .collect();
     if left(&held) > LOW {
@@ -338,6 +357,7 @@ fn asked_about(word: Wanted, from_book: Vec<(String, String)>, write: u32) -> As
                 .collect(),
             write,
             avoid: Vec::new(),
+            others: Vec::new(),
         },
         book: from_book,
         word,
@@ -464,7 +484,15 @@ fn labels(
             .iter()
             .map(|each| {
                 let (lemma, meaning) = bank::meaning(&conn, &each.key, each.chapter_id.as_deref())?;
+                let others = match each.chapter_id.as_deref() {
+                    Some(chapter) => match bank::word_in(&conn, &each.key, chapter)? {
+                        Some(word) => others(&conn, &word)?,
+                        None => Vec::new(),
+                    },
+                    None => Vec::new(),
+                };
                 Ok(ReviewedSentence {
+                    others,
                     id: each.id.clone(),
                     from_book: each.book,
                     lemma,
@@ -704,8 +732,13 @@ pub fn top_up(
             for due in words {
                 let avoid = avoided(&conn, &due, &chapter)?;
                 let chapter = due.read.then_some(text.as_slice());
+                let others = match due.word.word_id.as_deref() {
+                    Some(id) => others(&conn, id)?,
+                    None => Vec::new(),
+                };
                 asked.extend(ask(due.word, chapter, due.write).map(|mut each| {
                     each.params.avoid = avoid;
+                    each.params.others = others;
                     each
                 }));
             }
@@ -2912,6 +2945,13 @@ pub mod tests {
         senses.sort();
         assert_eq!(senses, ["The fuzzy cat slept.", "The picture was fuzzy."]);
         assert_eq!(stub.writes[0].words[0].write, WRITTEN);
+        // Each is told what the other means, to rule it out.
+        let others: Vec<&Vec<String>> = stub.writes[0]
+            .words
+            .iter()
+            .map(|each| &each.others)
+            .collect();
+        assert!(others.iter().all(|each| !each.is_empty()), "{others:?}");
         for chapter in [&cat, &picture] {
             let bank = fuzzy_in(&desk, chapter);
             let texts: Vec<&str> = bank.iter().map(|each| each.text.as_str()).collect();
@@ -2963,7 +3003,9 @@ pub mod tests {
     fn a_word_written_alike_is_written_for_again_once_its_sentences_run_low() {
         let dir = tempfile::tempdir().expect("tempdir");
         let desk = Desk::new(&dir);
-        let [cat, ..] = two_books(&desk, &blurred());
+        // Told apart by their tags: every sentence counts.
+        let [cat, ..] = two_books(&desk, &blurring());
+        furry_is_an_adjective(&desk);
         let mut first = pen();
         top_up(desk.ctx(), Scope::Chapter(&cat), &mut first, &|_, _| {}).expect("top up");
         let word: String = desk
@@ -3210,6 +3252,56 @@ pub mod tests {
         assert_eq!(sentence_of(&desk, &asked).shows, 1);
         assert_eq!(desk.count("SELECT COUNT(*) FROM word_answers"), 0);
         assert_eq!(desk.count("SELECT COUNT(*) FROM understood_answers"), 1);
+    }
+
+    #[test]
+    fn a_word_its_tag_cannot_tell_apart_is_asked_with_a_sentence_whose_few_words_fix_it() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let desk = Desk::new(&dir);
+        let [cat, _, picture] = two_books(&desk, &blurred());
+        stock(&desk, &cat);
+        stock(&desk, &picture);
+        // Only the sentence of the dog has words that fix the sense near it.
+        let dog: String = {
+            let conn = desk.db.lock().expect("db");
+            conn.execute("UPDATE word_sentences SET cue = '[]'", [])
+                .expect("none");
+            conn.query_row(
+                "SELECT id FROM word_sentences WHERE key = 'fuzzy' AND chapter_id = ?1
+                 ORDER BY rowid DESC LIMIT 1",
+                [&cat],
+                |row| row.get(0),
+            )
+            .expect("one")
+        };
+        let text: String = desk
+            .db
+            .lock()
+            .expect("db")
+            .query_row(
+                "SELECT sentence FROM word_sentences WHERE id = ?1",
+                [&dog],
+                |row| row.get(0),
+            )
+            .expect("text");
+        let cue = text
+            .split_whitespace()
+            .map(|word| word.trim_matches(|c: char| !c.is_alphanumeric()).to_owned())
+            .find(|word| !word.eq_ignore_ascii_case("fuzzy") && !word.is_empty())
+            .expect("a word");
+        desk.db
+            .lock()
+            .expect("db")
+            .execute(
+                "UPDATE word_sentences SET cue = json_array(?2) WHERE id = ?1",
+                [&dog, &cue],
+            )
+            .expect("cue");
+        let sitting =
+            crate::commands::practice::start(desk.ctx(), &cat, (None, Ways::Recognition), t0())
+                .expect("start");
+        let asked = item(&sitting.step).clone();
+        assert_eq!(asked.sentence_id.as_deref(), Some(dog.as_str()));
     }
 
     #[test]
