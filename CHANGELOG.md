@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.22.0](https://github.com/ilien-dev/ogmios/compare/v0.21.0...v0.22.0) (2026-11-21)
+
+
+### Features
+
+* restyle the app in graphite and mint ([#47](https://github.com/ilien-dev/ogmios/issues/47)) ([35614a6](https://github.com/ilien-dev/ogmios/commit/35614a6cedd3c2fba8358a609740cf0aae6fe0a1))
+
 ## [0.21.0](https://github.com/ilien-dev/ogmios/compare/v0.20.0...v0.21.0) (2026-11-20)
 
 
