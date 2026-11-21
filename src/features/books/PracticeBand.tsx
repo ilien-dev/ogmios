@@ -1,6 +1,9 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { PartOfSpeech, VerbForm } from "@shared/domain";
+import { Presence } from "@/components/motion/Presence";
+import { Reveal } from "@/components/motion/Reveal";
+import { Tooltip } from "@/components/ui/Tooltip";
 import { cn } from "@/lib/cn";
 import { PartOfSpeechTag } from "./PartOfSpeechTag";
 
@@ -58,6 +61,38 @@ interface PracticeBandProps {
    * what to look at, so it is ringed.
    */
   pointed: boolean;
+  /** Whether a verb is irregular; null for any other word. */
+  irregular: boolean | null;
+}
+
+/**
+ * Whether a verb is irregular or regular, on a chip outlined in the band's
+ * colour: a zigzag for a verb that changes as a whole, a straight line for
+ * one that only takes "-ed". In time the learner knows which forms they
+ * can make by feel.
+ */
+function Regularity({ irregular }: { irregular: boolean }): ReactNode {
+  const { t } = useTranslation();
+  const name = irregular ? "irregular" : "regular";
+  return (
+    <Tooltip
+      hint={t(`books.sitting.regularity.${name}Hint`)}
+      data-regularity={name}
+      tabIndex={-1}
+      className="inline-flex items-center gap-1.5 rounded-full py-0.5 pr-2.5 pl-2 text-sm font-bold ring-1 ring-current ring-inset"
+    >
+      <svg
+        aria-hidden
+        viewBox="0 0 16 10"
+        className="h-2.5 w-4 fill-none stroke-current stroke-2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d={irregular ? "M1 8l3.5-6 3.5 6 3.5-6L15 8" : "M1 5h14"} />
+      </svg>
+      {t(`books.sitting.regularity.${name}`)}
+    </Tooltip>
+  );
 }
 
 /**
@@ -71,6 +106,7 @@ export function PracticeBand({
   to,
   kind,
   pointed,
+  irregular,
 }: PracticeBandProps): ReactNode {
   const shade = toneOf(kind);
   return (
@@ -91,16 +127,25 @@ export function PracticeBand({
         {" → "}
         <span>{to}</span>
       </p>
-      <PartOfSpeechTag
-        kind={kind}
-        band
-        offTabPath
-        className={cn(
-          "ring-0 transition-shadow duration-300 ease-out-expo",
-          RING[shade],
-          pointed && "ring-2",
-        )}
-      />
+      <span className="flex items-center gap-2">
+        <PartOfSpeechTag
+          kind={kind}
+          band
+          offTabPath
+          className={cn(
+            "ring-0 transition-shadow duration-300 ease-out-expo",
+            RING[shade],
+            pointed && "ring-2",
+          )}
+        />
+        <Presence>
+          {irregular !== null && (
+            <Reveal key="regularity" as="span" kind="fade">
+              <Regularity irregular={irregular} />
+            </Reveal>
+          )}
+        </Presence>
+      </span>
     </div>
   );
 }

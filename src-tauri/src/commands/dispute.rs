@@ -321,6 +321,7 @@ mod tests {
             native_context: None,
             sentence_id: None,
             verb_form: None,
+            irregular: None,
         }
     }
 

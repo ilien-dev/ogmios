@@ -718,6 +718,13 @@ export const es: Catalog<typeof en> = {
       otherKind:
         "Recuerda: busco «{{asked}}»{{form}}, no «{{given}}». {{title}}: {{meaning}} Prueba otra vez.",
       exact: "En esta frase:",
+      regularity: {
+        regular: "regular",
+        irregular: "irregular",
+        regularHint: "Su pasado y su participio se forman con -ed.",
+        irregularHint:
+          "Su pasado o su participio no se forman con -ed: cambian.",
+      },
       verbForm: {
         base: "forma base",
         present: "presente",

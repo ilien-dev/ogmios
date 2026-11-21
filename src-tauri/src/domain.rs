@@ -765,6 +765,9 @@ pub struct PracticeItem {
     /// The form a verb has in that sentence; none for any other word, for
     /// one asked as its chapter has it, and until the sentence is labelled.
     pub verb_form: Option<VerbForm>,
+    /// Whether a verb is irregular: its past or its past participle is not
+    /// the verb with "-ed" (`books::irregular`). None for any other word.
+    pub irregular: Option<bool>,
 }
 
 /// The sentence a word was asked with, shown whole once it is answered.
