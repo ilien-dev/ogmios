@@ -574,24 +574,55 @@ describe("a word asked with a sentence of its bank", () => {
     expect(way(BLANKED)).toEqual(["Spanish", "Spanish → English"]);
   });
 
-  test("the tags of the word sit on a row of their own, above it", () => {
+  test("the way and the kind of word share the band across the top of the card", () => {
     stage(SHOWN, () => ({ correct: false, accepted: [], step: null }));
-    const word = screen.getByRole("heading", { level: 1 });
-    const tags = document.querySelector("[data-tags]");
-    expect(tags?.querySelector("[data-part-of-speech]")).not.toBeNull();
-    expect(tags?.querySelector("[data-verb-form]")).not.toBeNull();
-    // Stacked in the column, right before the word, never beside it.
-    expect(word.previousElementSibling).toBe(tags);
+    const band = document.querySelector("[data-band]");
+    expect(band?.querySelector("[data-way]")).toBeInstanceOf(HTMLElement);
+    expect(band?.querySelector("[data-part-of-speech]")?.textContent).toBe(
+      "verb",
+    );
+    // The card is framed in the colour of its kind of word.
+    expect(document.querySelector("[data-card]")?.className).toContain(
+      "border-verb",
+    );
     cleanup();
   });
 
-  test("a word with no tag keeps no empty row above it", () => {
+  test("a verb shows every form it can be asked in, the one asked filled", () => {
+    stage(SHOWN, () => ({ correct: false, accepted: [], step: null }));
+    const forms = [...document.querySelectorAll("[data-verb-forms] li")];
+    expect(forms.map((each) => each.textContent)).toEqual([
+      "base form",
+      "present",
+      "past simple",
+      "past participle",
+      "-ing form",
+    ]);
+    const asked = forms.filter(
+      (each) => each.getAttribute("aria-current") === "step",
+    );
+    expect(asked.map((each) => each.textContent)).toEqual(["past simple"]);
+    cleanup();
+  });
+
+  test("a word with no form to ask it in has no row of forms", () => {
+    stage({ ...SHOWN, partOfSpeech: "noun", verbForm: null }, () => ({
+      correct: false,
+      accepted: [],
+      step: null,
+    }));
+    expect(document.querySelector("[data-verb-forms]")).toBeNull();
+    // A word of no kind worth naming keeps a plain frame.
+    cleanup();
     stage({ ...SHOWN, partOfSpeech: null, verbForm: null }, () => ({
       correct: false,
       accepted: [],
       step: null,
     }));
-    expect(document.querySelector("[data-tags]")).toBeNull();
+    expect(document.querySelector("[data-part-of-speech]")).toBeNull();
+    expect(document.querySelector("[data-card]")?.className).toContain(
+      "border-line-strong",
+    );
     cleanup();
   });
 
@@ -880,6 +911,10 @@ describe("telling which word is meant", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("What is it like?")).toBeInTheDocument();
     expect(document.querySelector('[data-kind-mark="verb"]')).not.toBeNull();
+    // On the steps the kind on the band is what to look at: it is ringed.
+    expect(
+      document.querySelector("[data-band] [data-part-of-speech]")?.className,
+    ).toContain("ring-2");
     expect(
       screen.queryByText("wheel came at me.", { exact: false }),
     ).toBeNull();

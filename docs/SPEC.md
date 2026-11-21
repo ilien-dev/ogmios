@@ -419,6 +419,16 @@ como "ya la sé". Las que usó el compañero no entran: no tienen traducción co
 En la práctica del capítulo y en Repaso cada palabra se pregunta con una frase del libro; el
 repaso rápido antes de leer no cambia.
 
+- **La tarjeta:** cada palabra se pregunta en una tarjeta enmarcada en el color de su tipo
+  (sustantivo azul, verbo naranja, adjetivo verde, adverbio magenta, expresión violeta; el verbo
+  frasal, naranja con el borde a trazos; sin tipo, gris). Arriba, una banda de ese color dice la
+  dirección («Inglés → Español», el idioma de la respuesta más fuerte) y el tipo en mayúsculas. Un
+  verbo trae bajo la banda sus cinco formas en fila (forma base, presente, pasado simple,
+  participio pasado, forma -ing), la pedida rellena en naranja y las demás tenues: todas del mismo
+  color porque todas son verbo. La palabra va grande y centrada sola; el botón de oírla cuelga a su
+  lado, fuera de su ancho. La respuesta se escribe en el pie de la tarjeta. Una palabra con
+  rivales se ve igual que cualquier otra: nada fuera de su etiqueta avisa de que tiene otros
+  significados. En los pasos que la distinguen, el tipo de la banda lleva un aro.
 - **La frase no se ve de entrada:** se muestra solo la palabra y la etiqueta del tipo de palabra;
   eso basta para saber qué traducción se pide. La frase es la primera pista (ver «Pista a
   petición») y sale completa tras responder. Solo las palabras marcadas como ambiguas, que
@@ -434,7 +444,7 @@ repaso rápido antes de leer no cambia.
      tipo, qué es cada tipo (resaltado como su etiqueta), con un ejemplo y la pregunta que lleva a
      la respuesta («¿Cómo es?»). Acertar aquí es acierto con ayuda. Nunca se dan letras.
   3. **La frase** arriba, el último intento. Acertar con ella no es fallo ni acierto: la palabra
-     no avanza y vuelve más adelante, con un consejo (mirar la etiqueta, o las palabras que la
+     no avanza y vuelve más adelante, con un consejo (mirar la etiqueta de la banda, o las palabras que la
      acompañan si los tipos coinciden). Fallar es fallo completo y se muestra la respuesta.
      Cualquier error dentro de los intentos pasa al siguiente. La frase se muestra siempre tras
      responder, y por eso cuenta como vista: la próxima vez sale otra del banco.
