@@ -194,32 +194,44 @@ fn bases(word: &str) -> Vec<String> {
 }
 
 /// Whether a verb, written as `verb` in the form `form`, is irregular; for
-/// a phrasal verb, whether the verb it starts with is. A form that is no
-/// past is looked up among base forms alone: "found" in its base form is
-/// "to found", which takes "-ed", not the past of "find".
-pub fn irregular(verb: &str, form: Option<VerbForm>) -> bool {
+/// a phrasal verb, whether the verb it starts with is. A base form of the
+/// list is irregular whatever its form. A form that is no past is looked up
+/// among base forms alone: "found" in its base form is "to found", which
+/// takes "-ed", not the past of "find". A word that is only the past of an
+/// irregular verb, in a form nobody said, is none: it may be another verb
+/// written alike ("bore", to bore; "wound", to wound), and no chip is
+/// better than a wrong one.
+pub fn irregular(verb: &str, form: Option<VerbForm>) -> Option<bool> {
     let lower = verb.trim().to_lowercase();
     let head = lower.split_whitespace().next().unwrap_or_default();
-    let any = !matches!(
-        form,
-        Some(VerbForm::Base | VerbForm::Present | VerbForm::Ing)
-    );
-    bases(head).iter().any(|each| listed(each, any))
+    let candidates = bases(head);
+    if candidates.iter().any(|each| listed(each, false)) {
+        return Some(true);
+    }
+    let past = candidates.iter().any(|each| listed(each, true));
+    match form {
+        Some(VerbForm::Base | VerbForm::Present | VerbForm::Ing) => Some(false),
+        Some(VerbForm::Past | VerbForm::PastParticiple) => Some(past),
+        None => (!past).then_some(false),
+    }
 }
 
-/// Whether a word is an irregular verb, a regular one, or no verb at all
-/// (none): only a word its chapter calls a verb or a phrasal verb has an
-/// answer.
+/// Whether a word is an irregular verb, a regular one, or neither (none): no
+/// verb at all, since only a word its chapter calls a verb or a phrasal verb
+/// has an answer, or a verb [`irregular`] cannot say of.
 pub fn regularity(
     part_of_speech: Option<PartOfSpeech>,
     word: &str,
     form: Option<VerbForm>,
 ) -> Option<bool> {
-    matches!(
+    if matches!(
         part_of_speech,
         Some(PartOfSpeech::Verb | PartOfSpeech::PhrasalVerb)
-    )
-    .then(|| irregular(word, form))
+    ) {
+        irregular(word, form)
+    } else {
+        None
+    }
 }
 
 #[cfg(test)]
@@ -228,12 +240,20 @@ mod tests {
 
     #[test]
     fn a_verb_is_irregular_by_any_of_its_forms() {
-        for form in ["tear", "tore", "torn", "tearing", "tears"] {
-            assert!(irregular(form, None), "{form}");
+        for form in ["tear", "tearing", "tears"] {
+            assert_eq!(irregular(form, None), Some(true), "{form}");
         }
-        assert!(irregular("spinning", Some(VerbForm::Ing)));
-        assert!(irregular("making", Some(VerbForm::Ing)));
-        assert!(irregular("gotten", Some(VerbForm::PastParticiple)));
+        assert_eq!(irregular("tore", Some(VerbForm::Past)), Some(true));
+        assert_eq!(
+            irregular("torn", Some(VerbForm::PastParticiple)),
+            Some(true)
+        );
+        assert_eq!(irregular("spinning", Some(VerbForm::Ing)), Some(true));
+        assert_eq!(irregular("making", Some(VerbForm::Ing)), Some(true));
+        assert_eq!(
+            irregular("gotten", Some(VerbForm::PastParticiple)),
+            Some(true)
+        );
     }
 
     #[test]
@@ -246,23 +266,32 @@ mod tests {
             "wait",
             "carries",
         ] {
-            assert!(!irregular(verb, None), "{verb}");
+            assert_eq!(irregular(verb, None), Some(false), "{verb}");
         }
     }
 
     #[test]
     fn a_phrasal_verb_is_as_irregular_as_the_verb_it_starts_with() {
-        assert!(irregular("run out", Some(VerbForm::Base)));
-        assert!(irregular("gave up", Some(VerbForm::Past)));
-        assert!(!irregular("look after", Some(VerbForm::Base)));
+        assert_eq!(irregular("run out", Some(VerbForm::Base)), Some(true));
+        assert_eq!(irregular("gave up", Some(VerbForm::Past)), Some(true));
+        assert_eq!(irregular("look after", Some(VerbForm::Base)), Some(false));
     }
 
     #[test]
     fn a_base_form_is_looked_up_among_base_forms_alone() {
         // "to found" takes "-ed"; "found", the past of "find", does not.
-        assert!(!irregular("found", Some(VerbForm::Base)));
-        assert!(irregular("found", Some(VerbForm::Past)));
-        assert!(irregular("find", Some(VerbForm::Base)));
+        assert_eq!(irregular("found", Some(VerbForm::Base)), Some(false));
+        assert_eq!(irregular("found", Some(VerbForm::Past)), Some(true));
+        assert_eq!(irregular("find", Some(VerbForm::Base)), Some(true));
+    }
+
+    #[test]
+    fn a_past_written_like_another_verb_says_nothing_when_its_form_is_not_known() {
+        // To bore, to wound, to grind meat or the ground, to bind or be bound,
+        // to found, to saw: each may be a regular verb of its own.
+        for word in ["bore", "wound", "ground", "bound", "found", "saw"] {
+            assert_eq!(irregular(word, None), None, "{word}");
+        }
     }
 
     #[test]
