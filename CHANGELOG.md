@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.30.0](https://github.com/ilien-dev/ogmios/compare/v0.29.0...v0.30.0) (2026-11-21)
+
+
+### Features
+
+* put the chapter's tabs and name atop its panel ([#68](https://github.com/ilien-dev/ogmios/issues/68)) ([9a80e34](https://github.com/ilien-dev/ogmios/commit/9a80e348043f1b1b3a49314b474cf5b0e864990b))
+
 ## [0.29.0](https://github.com/ilien-dev/ogmios/compare/v0.28.0...v0.29.0) (2026-11-21)
 
 
