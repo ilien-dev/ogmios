@@ -259,11 +259,16 @@ pub fn answered(conn: &Connection, run_id: &str) -> Result<(u32, u32)> {
 
 /// The word of `key` was right in the run only once its sentence was
 /// shown: it stays due as it was, and the run does not ask it again.
-pub fn understood(conn: &Connection, run_id: &str, key: &str, now: DateTime<Utc>) -> Result<()> {
+pub fn understood(
+    conn: &Connection,
+    run_id: &str,
+    key: &str,
+    (sentence_id, now): (Option<&str>, DateTime<Utc>),
+) -> Result<()> {
     conn.execute(
-        "INSERT OR IGNORE INTO understood_recalls (sitting_id, key, created_at)
-         VALUES (?1, ?2, ?3)",
-        params![run_id, key, ts(now)],
+        "INSERT OR IGNORE INTO understood_recalls (sitting_id, key, created_at, sentence_id)
+         VALUES (?1, ?2, ?3, ?4)",
+        params![run_id, key, ts(now), sentence_id],
     )?;
     Ok(())
 }

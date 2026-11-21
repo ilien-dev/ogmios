@@ -6,9 +6,10 @@
 //! form the sentence has it, in the learner's language, and translates the
 //! sentence. A word some other chapter, of any book, has written alike in
 //! another sense (`db::spellings::rivals`) is also written [`WRITTEN`]
-//! sentences of its own in its chapter's sense, once: those are the words a
+//! sentences of its own in its chapter's sense: those are the words a
 //! learner can mistake for one another, and the only ones worth what
-//! writing costs. When a chapter brings the first rival of a word, both are
+//! writing costs. They are written again when they run low
+//! ([`refill_due`]), before the learner runs out of them. When a chapter brings the first rival of a word, both are
 //! written for; a word written for already is not written for again. A
 //! chapter of a deleted book is not read again: only sentences written for
 //! it are asked for.
@@ -36,7 +37,7 @@
 use std::collections::HashMap;
 use std::sync::Mutex;
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, TimeDelta, Utc};
 use rusqlite::Connection;
 use tauri::{AppHandle, Emitter};
 
@@ -47,10 +48,9 @@ use crate::agent::protocol::{
     SentenceVerdicts, SentenceWord, SentenceWriteParams, SentencesWritten, WrittenWord,
 };
 use crate::books::segment::{paragraphs, sentences as cut};
-use crate::books::sentences::cue_in;
 use crate::books::sentences::{
-    fits, found, hint_fits, in_translation, other_hints, shown_in, unaided, Banked, GIVEN,
-    SENTENCE_CHARS, WORDS_PER_CALL,
+    cue_in, fits, found, hint_fits, in_translation, left, other_hints, shown_in, unaided, Banked,
+    GIVEN, LOW, SENTENCE_CHARS, WORDS_PER_CALL,
 };
 use crate::books::variety::peninsular;
 use crate::db::recall::{self, Source};
@@ -187,14 +187,70 @@ fn wanted(conn: &Connection, scope: Scope<'_>) -> Result<Vec<Wanted>> {
     }
 }
 
-/// A sentence of a bank as `books::sentences` reads it.
-pub(super) fn banked(sentence: &Sentence, own: &str) -> Banked {
+/// A sentence of a bank as `books::sentences` reads it: `own` is the
+/// sentence of the chapter being practised, and `last` the one the word was
+/// asked with the last time.
+pub(super) fn banked(sentence: &Sentence, own: &str, last: Option<&str>) -> Banked {
     Banked {
         id: sentence.id.clone(),
         book: sentence.book,
         own: sentence.text == own,
         shows: sentence.shows,
+        last: last == Some(sentence.id.as_str()),
     }
+}
+
+/// Hours between two refills of a word: about one sitting, so that a word
+/// missed many times in a row is written for at most once in it.
+const REFILL_GAP_HOURS: i64 = 12;
+
+/// Whether a word written alike to another one has run low on the
+/// sentences of its chapter's sense ([`LOW`] uses or fewer left) and was
+/// not written for in the last [`REFILL_GAP_HOURS`]: then more are written,
+/// in the background, before the ones it has run out. A word never written
+/// for is not due here: it is written for once in any case.
+pub fn refill_due(
+    conn: &Connection,
+    (word_id, key, chapter): (&str, &str, &str),
+    now: DateTime<Utc>,
+) -> Result<bool> {
+    if !bank::senses_differ(conn, word_id)? || !bank::written(conn, key, chapter)? {
+        return Ok(false);
+    }
+    let held: Vec<Banked> = bank::bank(conn, key, Some(chapter))?
+        .iter()
+        .map(|each| banked(each, "", None))
+        .collect();
+    if left(&held) > LOW {
+        return Ok(false);
+    }
+    let gap = TimeDelta::hours(REFILL_GAP_HOURS);
+    Ok(bank::last_write(conn, key, chapter)?.is_none_or(|at| now - at >= gap))
+}
+
+/// After an answer to the word `word_id`: the chapter whose sentences of it
+/// are to be written again now ([`refill_due`]); none when none are.
+pub fn refill_after(
+    conn: &Connection,
+    word_id: &str,
+    now: DateTime<Utc>,
+) -> Result<Option<String>> {
+    let (key, chapter): (String, String) = conn.query_row(
+        "SELECT key, chapter_id FROM chapter_words WHERE id = ?1",
+        [word_id],
+        |row| Ok((row.get(0)?, row.get(1)?)),
+    )?;
+    Ok(refill_due(conn, (word_id, &key, &chapter), now)?.then_some(chapter))
+}
+
+/// Writes the sentences of `chapter` again in the background, as opening
+/// it does: the answer that made them due does not wait for them.
+pub fn refill(app: &AppHandle, chapter: Option<String>) {
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        // Nothing to tell the learner if it fails: the next run tries again.
+        let _ = write_sentences(app, chapter).await;
+    });
 }
 
 /// The sentences of a chapter: only its own show the sense it gives a word.
@@ -599,7 +655,11 @@ pub fn top_up(
                 Some(id) => bank::senses_differ(&conn, id)?,
                 None => false,
             };
-            let write = if rival && !bank::written(&conn, &word.key, &chapter)? {
+            let refill = match word.word_id.as_deref() {
+                Some(id) => refill_due(&conn, (id, &word.key, &chapter), Utc::now())?,
+                None => false,
+            };
+            let write = if rival && (!bank::written(&conn, &word.key, &chapter)? || refill) {
                 WRITTEN
             } else {
                 0
@@ -653,8 +713,11 @@ pub fn top_up(
                 if let Some(answer) = answer {
                     keep(&tx, (each, answer), &profile.native_lang, now)?;
                 }
-                // Asked once to write, whatever it wrote.
+                // Asked to write, whatever it wrote: the first time, or again.
                 if let (Some(chapter), true) = (&each.word.chapter, each.params.write > 0) {
+                    if bank::written(&tx, &each.word.key, chapter)? {
+                        bank::refilled(&tx, &each.word.key, chapter, now)?;
+                    }
                     bank::wrote(&tx, &each.word.key, chapter, now)?;
                 }
             }
@@ -2862,6 +2925,71 @@ pub mod tests {
         assert_eq!(written_for(&third), ["My head felt fuzzy."]);
     }
 
+    /// Shows every sentence of "fuzzy" in `chapter` but the first `keep`
+    /// twice, as answers of the daily recall: they are spent.
+    fn spend_all_but(desk: &Desk, chapter: &str, keep: usize) {
+        let conn = desk.db.lock().expect("db");
+        let bank = bank::bank(&conn, "fuzzy", Some(chapter)).expect("bank");
+        for each in bank.iter().skip(keep) {
+            for _ in 0..2 {
+                conn.execute(
+                    "INSERT INTO word_events (key, kind, direction, answer, created_at, sentence_id)
+                     VALUES ('fuzzy', 'right', 'recognition', 'x', '2026-01-01T00:00:00.000Z', ?1)",
+                    [&each.id],
+                )
+                .expect("event");
+            }
+        }
+    }
+
+    #[test]
+    fn a_word_written_alike_is_written_for_again_once_its_sentences_run_low() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let desk = Desk::new(&dir);
+        let [cat, ..] = two_books(&desk, &blurred());
+        let mut first = pen();
+        top_up(desk.ctx(), Scope::Chapter(&cat), &mut first, &|_, _| {}).expect("top up");
+        let word: String = desk
+            .db
+            .lock()
+            .expect("db")
+            .query_row(
+                "SELECT id FROM chapter_words WHERE key = 'fuzzy' AND chapter_id = ?1",
+                [&cat],
+                |row| row.get(0),
+            )
+            .expect("word");
+        let now = Utc::now();
+        let due =
+            |at: DateTime<Utc>| refill_after(&desk.db.lock().expect("db"), &word, at).expect("due");
+        // Plenty left: nothing to write.
+        assert_eq!(due(now), None);
+        // Three sentences left: six uses, still enough.
+        spend_all_but(&desk, &cat, 3);
+        assert_eq!(due(now + TimeDelta::hours(REFILL_GAP_HOURS)), None);
+        // Two left: four uses, the threshold.
+        spend_all_but(&desk, &cat, 2);
+        assert_eq!(due(now), None, "written for a moment ago");
+        let later = now + TimeDelta::hours(REFILL_GAP_HOURS);
+        assert_eq!(due(later), Some(cat.clone()));
+        // A run past the gap writes for it again, and once only.
+        desk.db
+            .lock()
+            .expect("db")
+            .execute(
+                "UPDATE sentence_writes SET created_at = '2026-01-01T00:00:00.000Z'",
+                [],
+            )
+            .expect("old");
+        let mut again = pen();
+        top_up(desk.ctx(), Scope::Chapter(&cat), &mut again, &|_, _| {}).expect("top up");
+        assert!(written_for(&again).contains(&"The fuzzy cat slept.".to_owned()));
+        assert_eq!(desk.count("SELECT COUNT(*) FROM sentence_refills"), 1);
+        let mut third = pen();
+        top_up(desk.ctx(), Scope::Chapter(&cat), &mut third, &|_, _| {}).expect("top up");
+        assert!(!written_for(&third).contains(&"The fuzzy cat slept.".to_owned()));
+    }
+
     #[test]
     fn a_word_no_other_chapter_has_in_another_sense_is_never_written_for() {
         let dir = tempfile::tempdir().expect("tempdir");
@@ -3049,6 +3177,8 @@ pub mod tests {
             understood.understood.map(|tip| (tip.tied, tip.short)),
             Some((true, false))
         );
+        // It was shown: the sentence is spent once, like any answer.
+        assert_eq!(sentence_of(&desk, &asked).shows, 1);
         assert_eq!(desk.count("SELECT COUNT(*) FROM word_answers"), 0);
         assert_eq!(desk.count("SELECT COUNT(*) FROM understood_answers"), 1);
     }
