@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.27.0](https://github.com/ilien-dev/ogmios/compare/v0.26.0...v0.27.0) (2026-11-21)
+
+
+### Features
+
+* frame the practice card in the colour of its kind of word ([#59](https://github.com/ilien-dev/ogmios/issues/59)) ([ed515f0](https://github.com/ilien-dev/ogmios/commit/ed515f023fdb4ed6af8e8e91489474aee3ed69c9))
+
 ## [0.26.0](https://github.com/ilien-dev/ogmios/compare/v0.25.0...v0.26.0) (2026-11-21)
 
 
