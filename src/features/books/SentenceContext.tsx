@@ -4,9 +4,10 @@ import type { SentencePart } from "@shared/domain";
 import { Presence } from "@/components/motion/Presence";
 import { Reveal } from "@/components/motion/Reveal";
 import { SpeakButton } from "@/features/speech/SpeakButton";
+import { cn } from "@/lib/cn";
 
 /** Each piece with a key of its own: where it starts, and what it is. */
-function placed(
+export function placed(
   parts: SentencePart[],
 ): Array<{ key: string; part: SentencePart }> {
   return parts.map((part, index) => {
@@ -28,6 +29,8 @@ interface ContextProps {
   blanked: boolean;
   /** In the learner's language: there is no English in it to hear. */
   native?: boolean;
+  /** The colour the word stands out in; the book's, unless said. */
+  mark?: string;
 }
 
 /**
@@ -39,6 +42,7 @@ export function Context({
   parts,
   blanked,
   native = false,
+  mark = "bg-book-soft text-ink",
 }: ContextProps): ReactNode {
   const { t } = useTranslation();
   const word = (key: string, part: SentencePart): ReactNode =>
@@ -53,7 +57,8 @@ export function Context({
     ) : (
       <mark
         key={key}
-        className="rounded-sm bg-book-soft px-1 font-medium text-ink"
+        data-mark
+        className={cn("rounded-sm px-1 font-medium", mark)}
       >
         {part.text}
       </mark>

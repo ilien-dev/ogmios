@@ -10,7 +10,10 @@ import type {
 import { Presence } from "@/components/motion/Presence";
 import { Reveal } from "@/components/motion/Reveal";
 import { cn } from "@/lib/cn";
+import { ArrowRight } from "lucide-react";
 import { TAG } from "./PartOfSpeechTag";
+import { MARK, toneOf } from "./PracticeBand";
+import { placed } from "./SentenceContext";
 
 /** A kind of word that can be explained: not "other". */
 type Kind = Exclude<PartOfSpeech, "other">;
@@ -160,6 +163,8 @@ export function SenseTipLine({ tip }: { tip: SenseTip }): ReactNode {
   const kind = named(tip.kind);
   // The tag tells the rivals apart only when they are another kind.
   const tagged = tip.kindsDiffer && kind !== null && !tip.tied;
+  // The word in its example, and what it is, in the colour of its kind.
+  const mark = MARK[toneOf(tip.kind)];
   return (
     <p data-sense-tip className="text-ink-soft">
       <strong className="font-semibold text-ink">
@@ -175,6 +180,34 @@ export function SenseTipLine({ tip }: { tip: SenseTip }): ReactNode {
         {tip.tied && tip.short && (
           <Reveal key="short" as="span" kind="fade">
             {t("books.sense.tipShort")}
+          </Reveal>
+        )}
+        {tip.example !== null && tip.meaning !== null && (
+          <Reveal
+            key="example"
+            as="span"
+            kind="fade"
+            data-tip-example
+            className="mt-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 rounded-lg bg-sunken px-3 py-2 text-ink"
+          >
+            <span lang="en">
+              {placed(tip.example).map(({ key, part }) =>
+                part.marked ? (
+                  <mark
+                    key={key}
+                    className={cn("rounded-sm px-1 font-semibold", mark)}
+                  >
+                    {part.text}
+                  </mark>
+                ) : (
+                  <span key={key}>{part.text}</span>
+                ),
+              )}
+            </span>
+            <ArrowRight aria-hidden className="size-4 text-ink-faint" />
+            <mark className={cn("rounded-sm px-1 font-semibold", mark)}>
+              {tip.meaning}
+            </mark>
           </Reveal>
         )}
         {!tagged && !(tip.tied && tip.short) && (

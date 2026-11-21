@@ -461,7 +461,7 @@ repaso rápido antes de leer no cambia.
   - **Si la etiqueta no la distingue** («fair», rubio, y «fair», justo, los dos adjetivos), la
     palabra sola no tiene una única respuesta: no es culpa del usuario no saberla. Por eso se
     pregunta siempre con una **frase corta**, las palabras de su frase que fijan el significado
-    («her **fair** hair»), y nunca sola, tampoco cuando vuelve. Esas palabras las marca el modelo en
+    («her **fair** hair»), la palabra resaltada en el color de su tipo como en la banda, y nunca sola, tampoco cuando vuelve. Esas palabras las marca el modelo en
     la segunda mirada a cada frase (de una a tres, y el código guarda solo las que la frase tiene
     fuera de la palabra); de la palabra a la última de ellas, como mucho 8 palabras. Sin ellas, o más lejos, la frase corta son la palabra y las 2 palabras a cada lado («back her **fair** hair and»): nunca se pregunta con la frase entera. Las frases guardadas antes se miran una vez más solo para esto antes de practicar, como cualquier frase por preparar. Dos intentos:
     1. **Con la frase corta.** Acertar es un acierto normal. Si responde con el significado de un
@@ -469,7 +469,7 @@ repaso rápido antes de leer no cambia.
        «qué no es»: más intentos llevarían a la respuesta por descarte.
     2. **La frase completa**, el último intento. Acertar con ella no es fallo ni acierto: «Correcto,
        con ayuda de la frase completa. Volverá para que la aciertes solo con la frase corta.», con
-       el consejo de que la frase corta dice qué significado se busca. Fallar es fallo completo. Si la frase no tiene la palabra tal como se escribe (no debería pasar) y se preguntó con la frase entera, nada dice que la lea otra vez: «También es correcta, pero no es la que busco. Fíjate en la frase.» y, acertada, «Correcto, con ayuda de la frase. Volverá más adelante.». En estas palabras la etiqueta de la banda no lleva aro: no es lo que ayuda.
+       el consejo de que la frase corta dice qué significado se busca, con esa frase corta otra vez y lo que la palabra es en ella, las dos resaltadas en el color de su tipo («her **fair** hair → **rubio**»). Fallar es fallo completo. Si la frase no tiene la palabra tal como se escribe (no debería pasar) y se preguntó con la frase entera, nada dice que la lea otra vez: «También es correcta, pero no es la que busco. Fíjate en la frase.» y, acertada, «Correcto, con ayuda de la frase. Volverá más adelante.». En estas palabras la etiqueta de la banda no lleva aro: no es lo que ayuda.
        Fuera de la etiqueta nada avisa de que la palabra tiene rivales. Cualquier error dentro de los
        intentos pasa al siguiente. La frase se muestra siempre tras responder, y por eso cuenta como
        vista: la próxima vez sale otra del banco.

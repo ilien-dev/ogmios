@@ -27,7 +27,7 @@ import { languageName } from "@/lib/text";
 import { DisputeNote } from "./DisputeNote";
 import type { DisputeState } from "./sittingRun";
 import { Key } from "./TriageRun";
-import { FRAME, PracticeBand, VerbForms, toneOf } from "./PracticeBand";
+import { FRAME, MARK, PracticeBand, VerbForms, toneOf } from "./PracticeBand";
 import { kindLine, retryKey } from "./retryLine";
 import { SenseHintCard, SenseTipLine } from "./SenseHelp";
 import { NextArrow } from "./SittingParts";
@@ -475,7 +475,11 @@ export function SittingItem<Result extends Checked>({
             <Presence>
               {item.context !== null && (
                 <Reveal key="context">
-                  <Context parts={item.context} blanked={toEnglish} />
+                  <Context
+                    parts={item.context}
+                    blanked={toEnglish}
+                    mark={MARK[shade]}
+                  />
                 </Reveal>
               )}
               {item.nativeContext !== null && (
