@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.23.0](https://github.com/ilien-dev/ogmios/compare/v0.22.0...v0.23.0) (2026-11-21)
+
+
+### Features
+
+* remove the orb from every screen ([#51](https://github.com/ilien-dev/ogmios/issues/51)) ([97f0330](https://github.com/ilien-dev/ogmios/commit/97f0330dcc711de5988140f88dfec2b63c258d67))
+
 ## [0.22.0](https://github.com/ilien-dev/ogmios/compare/v0.21.0...v0.22.0) (2026-11-21)
 
 
