@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.31.0](https://github.com/ilien-dev/ogmios/compare/v0.30.0...v0.31.0) (2026-11-21)
+
+
+### Features
+
+* make the practice screen easier to read ([#69](https://github.com/ilien-dev/ogmios/issues/69)) ([80063c5](https://github.com/ilien-dev/ogmios/commit/80063c54105c0cdfb8cbdd626d35593627405aa8))
+
 ## [0.30.0](https://github.com/ilien-dev/ogmios/compare/v0.29.0...v0.30.0) (2026-11-21)
 
 
