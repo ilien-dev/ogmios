@@ -504,6 +504,7 @@ export function SittingItem<Result extends Checked>({
             to={to}
             kind={item.partOfSpeech}
             pointed={rung > 0}
+            irregular={item.irregular}
           />
           <Presence>
             {item.verbForm !== null && (

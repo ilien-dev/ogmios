@@ -425,7 +425,11 @@ repaso rápido antes de leer no cambia.
   dirección («Inglés → Español», el idioma de la respuesta más fuerte) y el tipo en mayúsculas. Un
   verbo trae bajo la banda sus cinco formas en fila (forma base, presente, pasado simple,
   participio pasado, forma -ing), la pedida rellena en naranja y las demás tenues: todas del mismo
-  color porque todas son verbo. La palabra va grande y centrada sola; el botón de oírla cuelga a su
+  color porque todas son verbo. Junto al tipo, un verbo dice si es regular (una línea recta) o
+  irregular (un zigzag), en las dos direcciones: con el tiempo el usuario sabe qué formas puede
+  hacer por intuición. Lo decide el código con la lista cerrada de verbos irregulares del inglés
+  (`books::irregular`), nunca el modelo: un verbo frasal es lo que es su verbo, y una forma base se
+  busca solo entre formas base («found» en forma base es «fundar», regular). La palabra va grande y centrada sola; el botón de oírla cuelga a su
   lado, fuera de su ancho. La respuesta se escribe en el pie de la tarjeta. Una palabra con
   rivales se ve igual que cualquier otra: nada fuera de su etiqueta avisa de que tiene otros
   significados. En los pasos que la distinguen, el tipo de la banda lleva un aro.

@@ -645,6 +645,11 @@ export interface PracticeItem {
    * asked as its chapter has it, and until the sentence is labelled.
    */
   verbForm: VerbForm | null;
+  /**
+   * Whether a verb is irregular: its past or its past participle is not the
+   * verb with "-ed". Null for any other word.
+   */
+  irregular: boolean | null;
 }
 
 /** The sentence a word was asked with, shown whole once it is answered. */

@@ -42,6 +42,7 @@ const BLANKED: PracticeItem = {
   nativeContext: null,
   sentenceId: "s1",
   verbForm: "past",
+  irregular: false,
 };
 
 /** The same word shown in its sentence, to be translated. */
@@ -605,6 +606,25 @@ describe("a word asked with a sentence of its bank", () => {
     cleanup();
   });
 
+  test("a verb says on the band whether it is regular or irregular", () => {
+    const never = (): Checked => ({ correct: false, accepted: [], step: null });
+    const regularity = (item: PracticeItem): string | null => {
+      stage(item, never);
+      const chip = document.querySelector("[data-band] [data-regularity]");
+      const text = chip?.textContent ?? null;
+      cleanup();
+      return text;
+    };
+    expect(regularity({ ...SHOWN, irregular: false })).toBe("regular");
+    expect(regularity({ ...SHOWN, irregular: true })).toBe("irregular");
+    // Asked for in English too: it is part of what the verb is.
+    expect(regularity({ ...BLANKED, irregular: true })).toBe("irregular");
+    // No verb: no chip.
+    expect(
+      regularity({ ...SHOWN, partOfSpeech: "noun", irregular: null }),
+    ).toBeNull();
+  });
+
   test("a word with no form to ask it in has no row of forms", () => {
     stage({ ...SHOWN, partOfSpeech: "noun", verbForm: null }, () => ({
       correct: false,
@@ -803,6 +823,7 @@ describe("telling which word is meant", () => {
         prompt: "punta",
         partOfSpeech: "noun",
         verbForm: null,
+        irregular: null,
         context: null,
         nativeContext: [
           { text: "Con la ", marked: false },

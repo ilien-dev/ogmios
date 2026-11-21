@@ -20,6 +20,7 @@ use super::run;
 use super::sentences::banked;
 use crate::agent::protocol::RelatedWord;
 use crate::books::hint::{first_letter, letters, mask, most};
+use crate::books::irregular::regularity;
 use crate::books::practice::pick;
 use crate::books::practice::{
     accepts, accepts_english, accepts_native, articles, asked_in, blank, fills, in_forms, inflects,
@@ -162,6 +163,7 @@ pub(super) fn asked_with(
         native_context,
         sentence_id: Some(sentence.id.clone()),
         verb_form: verb_form(part_of_speech, sentence),
+        irregular: regularity(part_of_speech, &sentence.key, sentence.verb_form),
     }
 }
 
@@ -555,6 +557,11 @@ pub(super) fn item(word: WordRow, direction: Direction) -> PracticeItem {
         context,
         native_context: None,
         sentence_id: None,
+        irregular: regularity(
+            word.part_of_speech,
+            word.base.as_ref().unwrap_or(&word.key),
+            word.verb_form,
+        ),
         verb_form: word.verb_form,
     }
 }

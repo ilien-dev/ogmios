@@ -721,6 +721,13 @@ export const en = {
       otherKind:
         "Remember: I'm asking for “{{asked}}”{{form}}, not “{{given}}”. {{title}}: {{meaning}} Try once more.",
       exact: "In this sentence:",
+      regularity: {
+        regular: "regular",
+        irregular: "irregular",
+        regularHint: "Its past and past participle add -ed.",
+        irregularHint:
+          "Its past or past participle is not just -ed: it changes.",
+      },
       verbForm: {
         base: "base form",
         present: "present",

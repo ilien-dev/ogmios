@@ -48,6 +48,7 @@ const RECOGNITION: PracticeItem = {
   nativeContext: null,
   sentenceId: null,
   verbForm: null,
+  irregular: null,
 };
 
 const PRODUCTION: PracticeItem = {
@@ -63,6 +64,7 @@ const PRODUCTION: PracticeItem = {
   nativeContext: null,
   sentenceId: null,
   verbForm: null,
+  irregular: null,
 };
 
 function word(item: PracticeItem, verdict: Checked): React.ReactNode {
