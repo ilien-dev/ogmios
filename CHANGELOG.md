@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.32.0](https://github.com/ilien-dev/ogmios/compare/v0.31.0...v0.32.0) (2026-11-21)
+
+
+### Features
+
+* centre the daily review card vertically ([#72](https://github.com/ilien-dev/ogmios/issues/72)) ([f30be0c](https://github.com/ilien-dev/ogmios/commit/f30be0c62ea8e52532cd5a8640e5acabd985bc99))
+
 ## [0.31.0](https://github.com/ilien-dev/ogmios/compare/v0.30.0...v0.31.0) (2026-11-21)
 
 
