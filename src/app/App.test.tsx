@@ -35,9 +35,12 @@ describe("App", () => {
     mock.restore();
   });
 
-  test("the app fades in over the loading screen, which leaves and cannot be used", async () => {
+  test("the app fades in over the intro, which leaves and cannot be used", async () => {
+    const user = userEvent.setup();
     render(<App />);
     expect(screen.getByText("Opening Ogmios…")).toBeInTheDocument();
+    // A key cuts the intro short.
+    await user.keyboard("{Enter}");
 
     // Today opens first, with the rail and its four places beside it.
     const home = await screen.findByRole("navigation", { name: "Places" });
@@ -50,6 +53,7 @@ describe("App", () => {
   test("Settings closes back to the place it was opened from", async () => {
     const user = userEvent.setup();
     render(<App />);
+    await user.keyboard("{Enter}");
     await user.click(await screen.findByRole("button", { name: "Book" }));
     await user.click(screen.getByRole("button", { name: "Settings" }));
 

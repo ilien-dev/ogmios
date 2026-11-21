@@ -70,6 +70,9 @@
   /* The mark: the spiral in ink, its centre in mint. */
   --color-logo-first: #141518;
   --color-logo-second: #4ade9b;
+  /* The sides of the mark when the intro raises it in depth. */
+  --color-logo-side: #5b5c62;
+  --color-logo-side-accent: #1d7a52;
   /* The brand's mint, for shapes only: as text it needs `accent-text`. */
   --color-mint: #4ade9b;
   --color-danger: oklch(0.52 0.17 25);
@@ -294,6 +297,25 @@
   }
 }
 
+/*
+ * The floor the mark flies in over when the app opens (`Intro`): a grid of
+ * hairlines laid down in perspective, fading into the distance.
+ */
+@utility intro-floor {
+  position: absolute;
+  inset-inline: -50%;
+  top: 72%;
+  height: 110%;
+  pointer-events: none;
+  transform: perspective(600px) rotateX(76deg);
+  transform-origin: 50% 0;
+  background-image:
+    linear-gradient(var(--color-line-strong) 1px, transparent 1px),
+    linear-gradient(90deg, var(--color-line-strong) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: linear-gradient(to bottom, black, transparent 70%);
+}
+
 /* The deep panel a 3D scene stands in. */
 @utility bg-scene {
   background: radial-gradient(
@@ -362,6 +384,8 @@
     --color-tally-soft: #42203a;
     --color-tally-fill: #b65a86;
     --color-logo-first: #f3f2ee;
+    --color-logo-side: #6e6f75;
+    --color-logo-side-accent: #1f6e4b;
     --color-danger: oklch(0.74 0.14 25);
     --color-danger-soft: oklch(0.7 0.15 25 / 0.14);
     --color-correct: oklch(0.78 0.12 252);

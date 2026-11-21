@@ -2,9 +2,7 @@ import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { Profile, Settings } from "@shared/domain";
-import { Logo } from "@/components/ui/Logo";
 import { Notice } from "@/components/ui/Notice";
-import { Spinner } from "@/components/ui/Spinner";
 import { BookHome } from "@/features/books/BookHome";
 import { BooksScreen } from "@/features/books/BooksScreen";
 import { chapterOn } from "@/features/books/currentChapter";
@@ -29,6 +27,7 @@ import { useTheme } from "@/lib/theme";
 import type { Route } from "./routes";
 import { showsNav } from "./routes";
 import { BootStage } from "./BootStage";
+import { Intro, Loading, playsIntro } from "./Intro";
 import { Shell } from "./Shell";
 import { useShelf } from "./useShelf";
 
@@ -43,6 +42,8 @@ type Boot =
 export function App(): ReactNode {
   const { t } = useTranslation();
   const [boot, setBoot] = useState<Boot>({ state: "loading" });
+  /** The opening animation, once per launch, while the app loads behind it. */
+  const [intro, setIntro] = useState(playsIntro);
   const [route, setRoute] = useState<Route>(START);
   /**
    * The last screen beside the navigation: where an activity, or Settings,
@@ -74,21 +75,22 @@ export function App(): ReactNode {
     };
   }, []);
 
+  if (intro) {
+    return (
+      <BootStage name="intro">
+        <Intro
+          ready={boot.state !== "loading"}
+          onDone={() => {
+            setIntro(false);
+          }}
+        />
+      </BootStage>
+    );
+  }
   if (boot.state === "loading") {
     return (
       <BootStage name="loading">
-        <div
-          className="flex h-full flex-col items-center justify-center gap-6"
-          aria-busy
-        >
-          <div className="animate-float">
-            <Logo className="size-12" />
-          </div>
-          <p className="flex items-center gap-3 text-sm text-ink-faint">
-            <Spinner />
-            {t("app.loading")}
-          </p>
-        </div>
+        <Loading />
       </BootStage>
     );
   }
