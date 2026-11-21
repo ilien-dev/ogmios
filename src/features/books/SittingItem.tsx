@@ -1,6 +1,6 @@
 import { useId, useLayoutEffect, useRef, useState } from "react";
 import type { ReactNode, SyntheticEvent } from "react";
-import { Trans, useTranslation } from "react-i18next";
+import { useTranslation } from "react-i18next";
 import type {
   AnotherWord,
   KindReminder,
@@ -20,13 +20,13 @@ import { VerdictLine } from "@/components/ui/Verdict";
 import { SpeakButton } from "@/features/speech/SpeakButton";
 import { useReadAloud } from "@/features/speech/speech";
 import { errorMessage } from "@/lib/errors";
+import { cn } from "@/lib/cn";
 import { grade } from "@/lib/grade";
 import { languageName } from "@/lib/text";
 import { DisputeNote } from "./DisputeNote";
-import { PartOfSpeechTag } from "./PartOfSpeechTag";
 import type { DisputeState } from "./sittingRun";
 import { Key } from "./TriageRun";
-import { VerbFormTag } from "./VerbFormTag";
+import { FRAME, PracticeBand, VerbForms, toneOf } from "./PracticeBand";
 import { kindLine, retryKey } from "./retryLine";
 import { SenseHintCard, SenseTipLine } from "./SenseHelp";
 import { NextArrow } from "./SittingParts";
@@ -483,125 +483,125 @@ export function SittingItem<Result extends Checked>({
     );
   };
 
-  // Only a kind worth naming, or a verb's form, earns the row of tags.
-  const tagged =
-    (item.partOfSpeech !== null && item.partOfSpeech !== "other") ||
-    item.verbForm !== null;
+  // The card is drawn in the colour of its kind of word, and a verb shows
+  // every form it can be asked in, the one asked filled.
+  const shade = toneOf(item.partOfSpeech);
+  const from = toEnglish ? native : english;
+  const to = toEnglish ? english : native;
 
   return (
     <section className="mx-auto flex w-full max-w-2xl flex-col items-center gap-6 px-6 pt-4 pb-12 text-center nav:px-10">
-      <div className="flex flex-col items-center gap-3">
-        <p data-way className="text-sm font-semibold text-book capitalize">
-          <Trans
-            i18nKey="books.sitting.directionFrom"
-            values={{
-              from: toEnglish ? native : english,
-              to: toEnglish ? english : native,
-            }}
-            components={{
-              from: <span data-from className="font-bold" />,
-            }}
-          />
-        </p>
-        {/* The tags take a row of their own above the word: beside it, a long
-            word or two tags would break its line. */}
-        <Presence>
-          {tagged && (
-            <Reveal
-              key="tags"
-              kind="fade"
-              data-tags
-              className="flex flex-wrap items-center justify-center gap-2"
-            >
-              {/* Shift+Tab from the answer still lands on leaving the practice. */}
-              <PartOfSpeechTag kind={item.partOfSpeech} offTabPath />
-              <VerbFormTag form={item.verbForm} />
-            </Reveal>
+      <form onSubmit={submit} className="flex w-full flex-col gap-3">
+        <div
+          data-card
+          className={cn(
+            "flex flex-col overflow-hidden rounded-2xl border-2 bg-surface shadow-card transition-shadow duration-300 ease-out-expo focus-within:shadow-glow-book",
+            FRAME[shade],
           )}
-        </Presence>
-        <h1 className="font-display text-display font-light tracking-tight text-balance text-ink">
-          {item.prompt}
+        >
+          <PracticeBand
+            from={from}
+            to={to}
+            kind={item.partOfSpeech}
+            pointed={rung > 0}
+          />
           <Presence>
-            {!toEnglish && (
-              <Reveal key="toEnglish" as="span" kind="fade">
-                <SpeakButton text={item.prompt} className="ml-2" />
+            {item.verbForm !== null && (
+              <Reveal key="forms" kind="fade">
+                <VerbForms form={item.verbForm} />
               </Reveal>
             )}
           </Presence>
-        </h1>
-        <Presence>
-          {item.context !== null && (
-            <Reveal key="context">
-              <Context parts={item.context} blanked={toEnglish} />
-            </Reveal>
-          )}
-          {item.nativeContext !== null && (
-            <Reveal key="nativeContext">
-              <Context parts={item.nativeContext} blanked={false} native />
-            </Reveal>
-          )}
-          {steps !== null && (
-            <Reveal key="steps">
-              <Context parts={steps} blanked={false} />
-            </Reveal>
-          )}
-        </Presence>
-        <Presence>
-          {sense !== null && result === null && (
-            <Reveal key="sense" className="w-full">
-              <SenseHintCard hint={sense} />
-            </Reveal>
-          )}
-        </Presence>
-        <Presence>
-          {clue !== null && result === null && (
-            <Clue key="clue" clue={clue} blanked={toEnglish} />
-          )}
-        </Presence>
-      </div>
-
-      <form onSubmit={submit} className="flex w-full max-w-xl flex-col gap-3">
-        <label htmlFor={fieldId} className="sr-only">
-          {t("books.sitting.answer")}
-        </label>
-        <div className="flex items-center gap-2 rounded-xl glass py-1.5 pr-1.5 pl-6 transition-shadow duration-300 ease-out-expo focus-within:shadow-glow-book">
-          <input
-            ref={field}
-            id={fieldId}
-            autoComplete="off"
-            autoCapitalize="none"
-            spellCheck={false}
-            placeholder={t("books.sitting.answer")}
-            value={response}
-            readOnly={result !== null}
-            onChange={(event) => {
-              setResponse(event.target.value);
-            }}
-            onKeyDown={(event) => {
-              // By the key, not the letter: Option+H types another one on a Mac.
-              if (event.altKey && event.code === "KeyH") {
-                event.preventDefault();
-                void help();
-              } else if (event.altKey && event.code === "KeyN") {
-                event.preventDefault();
-                void send("");
-              }
-            }}
-            className="h-11 min-w-0 flex-1 bg-transparent text-ink placeholder:text-ink-faint focus-visible:outline-none"
-          />
-          <Presence>
-            {result === null && (
-              <Reveal key="check" as="span" kind="fade" className="shrink-0">
-                <Button
-                  type="submit"
-                  variant="primaryBook"
-                  disabled={checking || response.trim() === ""}
-                >
-                  {t("books.sitting.check")}
-                </Button>
-              </Reveal>
-            )}
-          </Presence>
+          <div className="flex flex-col items-center gap-4 px-14 pt-10 pb-8">
+            {/* The speaker hangs beside the word, out of its width: the word
+                alone is what is centred. */}
+            <h1 className="relative font-display text-6xl font-light tracking-tight text-balance text-ink nav:text-7xl">
+              {item.prompt}
+              <Presence>
+                {!toEnglish && (
+                  <Reveal
+                    key="toEnglish"
+                    as="span"
+                    kind="fade"
+                    className="absolute top-1/2 left-full ml-3 -translate-y-1/2"
+                  >
+                    <SpeakButton text={item.prompt} />
+                  </Reveal>
+                )}
+              </Presence>
+            </h1>
+            <Presence>
+              {item.context !== null && (
+                <Reveal key="context">
+                  <Context parts={item.context} blanked={toEnglish} />
+                </Reveal>
+              )}
+              {item.nativeContext !== null && (
+                <Reveal key="nativeContext">
+                  <Context parts={item.nativeContext} blanked={false} native />
+                </Reveal>
+              )}
+              {steps !== null && (
+                <Reveal key="steps">
+                  <Context parts={steps} blanked={false} />
+                </Reveal>
+              )}
+            </Presence>
+            <Presence>
+              {sense !== null && result === null && (
+                <Reveal key="sense" className="w-full">
+                  <SenseHintCard hint={sense} />
+                </Reveal>
+              )}
+            </Presence>
+            <Presence>
+              {clue !== null && result === null && (
+                <Clue key="clue" clue={clue} blanked={toEnglish} />
+              )}
+            </Presence>
+          </div>
+          <label htmlFor={fieldId} className="sr-only">
+            {t("books.sitting.answer")}
+          </label>
+          <div className="flex items-center gap-2 border-t border-line bg-raised py-2 pr-2 pl-6">
+            <input
+              ref={field}
+              id={fieldId}
+              autoComplete="off"
+              autoCapitalize="none"
+              spellCheck={false}
+              placeholder={t("books.sitting.answer")}
+              value={response}
+              readOnly={result !== null}
+              onChange={(event) => {
+                setResponse(event.target.value);
+              }}
+              onKeyDown={(event) => {
+                // By the key, not the letter: Option+H types another one on a Mac.
+                if (event.altKey && event.code === "KeyH") {
+                  event.preventDefault();
+                  void help();
+                } else if (event.altKey && event.code === "KeyN") {
+                  event.preventDefault();
+                  void send("");
+                }
+              }}
+              className="h-11 min-w-0 flex-1 bg-transparent text-ink placeholder:text-ink-faint focus-visible:outline-none"
+            />
+            <Presence>
+              {result === null && (
+                <Reveal key="check" as="span" kind="fade" className="shrink-0">
+                  <Button
+                    type="submit"
+                    variant="primaryBook"
+                    disabled={checking || response.trim() === ""}
+                  >
+                    {t("books.sitting.check")}
+                  </Button>
+                </Reveal>
+              )}
+            </Presence>
+          </div>
         </div>
         <Presence>
           {result === null && again && (

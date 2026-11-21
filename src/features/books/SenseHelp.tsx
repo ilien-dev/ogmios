@@ -14,13 +14,19 @@ function named(kind: PartOfSpeech | null): Kind | null {
   return kind === null || kind === "other" ? null : kind;
 }
 
-/** The name of a kind of word in a sentence, marked as its tag is. */
+/**
+ * The name of a kind of word in a sentence, written as the band of the card
+ * names it, in capitals and its colour: the learner links the two.
+ */
 function KindMark({ kind }: { kind: Kind }): ReactNode {
   const { t } = useTranslation();
   return (
     <span
       data-kind-mark={kind}
-      className={cn("rounded-full px-2 py-0.5 text-sm font-medium", TAG[kind])}
+      className={cn(
+        "rounded-md px-2 py-0.5 text-xs font-extrabold tracking-widest uppercase",
+        TAG[kind],
+      )}
     >
       {t(`books.chapter.partOfSpeech.${kind}`)}
     </span>

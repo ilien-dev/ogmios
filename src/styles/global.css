@@ -25,9 +25,11 @@
  * `correct` is blue, so it never reads as the mint of the accent, `partial`
  * an orange (right only with help, or something to work on), `wrong` red.
  * `danger` is for destructive actions and failed requests. `known` is the
- * blue of a word the learner already knows. `noun` (indigo), `verb` (purple),
- * `adjective` (mustard) and `adverb` (pink) tell the kinds of word apart on
- * their tags by colour alone. A verb's form is outlined in `verb`. `learned`
+ * blue of a word the learner already knows. `noun` (blue), `verb` (orange),
+ * `adjective` (green), `adverb` (magenta) and `expression` (violet) tell the
+ * kinds of word apart on their tags, and on the band of the card a word is
+ * practised on, by colour alone; `on-kind` is ink on a solid one. A verb's
+ * form is outlined, or filled when it is the one asked, in `verb`. `learned`
  * is indigo, and only ever a line or a dot.
  *
  * The values below are the light theme. Dark is the same token names
@@ -80,14 +82,17 @@
   --color-wrong-soft: oklch(0.6 0.19 27 / 0.12);
   --color-known: oklch(0.5 0.13 245);
   --color-known-soft: oklch(0.62 0.13 245 / 0.14);
-  --color-noun: oklch(0.5 0.14 278);
-  --color-noun-soft: oklch(0.62 0.14 278 / 0.14);
-  --color-verb: oklch(0.5 0.15 300);
-  --color-verb-soft: oklch(0.62 0.15 300 / 0.14);
-  --color-adjective: oklch(0.5 0.11 90);
-  --color-adjective-soft: oklch(0.72 0.13 90 / 0.2);
-  --color-adverb: oklch(0.52 0.16 345);
-  --color-adverb-soft: oklch(0.64 0.16 345 / 0.13);
+  --color-noun: oklch(0.5 0.17 258);
+  --color-noun-soft: oklch(0.5 0.17 258 / 0.14);
+  --color-verb: oklch(0.5 0.15 45);
+  --color-verb-soft: oklch(0.5 0.15 45 / 0.14);
+  --color-adjective: oklch(0.5 0.13 152);
+  --color-adjective-soft: oklch(0.5 0.13 152 / 0.14);
+  --color-adverb: oklch(0.5 0.19 345);
+  --color-adverb-soft: oklch(0.5 0.19 345 / 0.14);
+  --color-expression: oklch(0.5 0.17 295);
+  --color-expression-soft: oklch(0.5 0.17 295 / 0.14);
+  --color-on-kind: #ffffff;
   --color-learned: oklch(0.52 0.16 275);
   --color-scrim: oklch(0.18 0.005 265 / 0.45);
   /* The two ways a penalty asks its word in, told apart in its count. */
@@ -367,14 +372,17 @@
     --color-wrong-soft: oklch(0.7 0.17 25 / 0.15);
     --color-known: oklch(0.8 0.1 242);
     --color-known-soft: oklch(0.8 0.1 242 / 0.14);
-    --color-noun: oklch(0.8 0.1 278);
-    --color-noun-soft: oklch(0.8 0.1 278 / 0.15);
-    --color-verb: oklch(0.8 0.11 300);
-    --color-verb-soft: oklch(0.8 0.11 300 / 0.15);
-    --color-adjective: oklch(0.85 0.11 92);
-    --color-adjective-soft: oklch(0.85 0.11 92 / 0.15);
-    --color-adverb: oklch(0.82 0.1 345);
-    --color-adverb-soft: oklch(0.82 0.1 345 / 0.15);
+    --color-noun: oklch(0.7 0.16 258);
+    --color-noun-soft: oklch(0.7 0.16 258 / 0.24);
+    --color-verb: oklch(0.74 0.16 48);
+    --color-verb-soft: oklch(0.74 0.16 48 / 0.24);
+    --color-adjective: oklch(0.79 0.17 152);
+    --color-adjective-soft: oklch(0.79 0.17 152 / 0.24);
+    --color-adverb: oklch(0.68 0.21 345);
+    --color-adverb-soft: oklch(0.68 0.21 345 / 0.24);
+    --color-expression: oklch(0.7 0.16 295);
+    --color-expression-soft: oklch(0.7 0.16 295 / 0.24);
+    --color-on-kind: #141518;
     --color-learned: oklch(0.78 0.12 275);
     --color-scrim: oklch(0.08 0.005 265 / 0.62);
     --color-production: #8db4ff;
@@ -422,14 +430,17 @@
     --color-partial-soft: oklch(0.76 0.15 48 / 0.2);
     --color-wrong: oklch(0.76 0.16 25);
     --color-wrong-soft: oklch(0.7 0.17 25 / 0.16);
-    --color-verb: oklch(0.82 0.11 300);
-    --color-verb-soft: oklch(0.8 0.11 300 / 0.16);
-    --color-noun: oklch(0.82 0.1 245);
-    --color-noun-soft: oklch(0.8 0.1 245 / 0.16);
-    --color-adjective: oklch(0.86 0.11 92);
-    --color-adjective-soft: oklch(0.85 0.11 92 / 0.16);
-    --color-adverb: oklch(0.83 0.1 345);
-    --color-adverb-soft: oklch(0.82 0.1 345 / 0.16);
+    --color-noun: oklch(0.7 0.16 258);
+    --color-noun-soft: oklch(0.7 0.16 258 / 0.24);
+    --color-verb: oklch(0.74 0.16 48);
+    --color-verb-soft: oklch(0.74 0.16 48 / 0.24);
+    --color-adjective: oklch(0.79 0.17 152);
+    --color-adjective-soft: oklch(0.79 0.17 152 / 0.24);
+    --color-adverb: oklch(0.68 0.21 345);
+    --color-adverb-soft: oklch(0.68 0.21 345 / 0.24);
+    --color-expression: oklch(0.7 0.16 295);
+    --color-expression-soft: oklch(0.7 0.16 295 / 0.24);
+    --color-on-kind: #141518;
     --shadow-card: 0 4px 18px rgb(0 0 0 / 0.35);
     --shadow-glow-book: 0 20px 80px rgb(247 168 203 / 0.22);
     background-color: var(--color-canvas);

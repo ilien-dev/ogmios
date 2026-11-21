@@ -810,7 +810,7 @@ export const en = {
       like: ", like {{example}}.",
       ask: "Ask yourself:",
       tipTitle: "Tip:",
-      tipTag: "before you answer, look at the tag beside the word (",
+      tipTag: "before you answer, look at the tag on the band (",
       tipTagEnd: "). It tells you which meaning we're after.",
       tipWords:
         "before you answer, think about the words around it: they tell you which meaning we're after.",

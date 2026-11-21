@@ -30,6 +30,8 @@ const PAIRS = [
   ["verb", "surface"],
   ["adjective", "surface"],
   ["adverb", "surface"],
+  ["expression", "surface"],
+  ["on-kind", "verb"],
 ] as const;
 
 /** The text between the brace that follows `start` and its closing brace. */
@@ -148,5 +150,23 @@ for (const [name, theme] of [
     const noun = hue(theme.get("noun") ?? "");
     const adjective = hue(theme.get("adjective") ?? "");
     expect(apart(noun, adjective)).toBeGreaterThanOrEqual(90);
+  });
+}
+
+const KINDS = ["noun", "verb", "adjective", "adverb", "expression"] as const;
+
+for (const [name, theme] of [
+  ["light", light],
+  ["dark", dark],
+] as const) {
+  test(`every kind of word is told from the others by its colour in the ${name} theme`, () => {
+    const close: string[] = [];
+    for (const [i, a] of KINDS.entries()) {
+      for (const b of KINDS.slice(i + 1)) {
+        const d = apart(hue(theme.get(a) ?? ""), hue(theme.get(b) ?? ""));
+        if (d < 35) close.push(`${a} and ${b}: ${d.toFixed(0)}°`);
+      }
+    }
+    expect(close).toEqual([]);
   });
 }

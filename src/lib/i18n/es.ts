@@ -807,7 +807,7 @@ export const es: Catalog<typeof en> = {
       like: ", como en {{example}}.",
       ask: "Pregúntate:",
       tipTitle: "Consejo:",
-      tipTag: "antes de responder, mira la etiqueta junto a la palabra (",
+      tipTag: "antes de responder, mira la etiqueta de la banda (",
       tipTagEnd: "). Te dice qué significado buscamos.",
       tipWords:
         "antes de responder, piensa en qué palabras la acompañan: te dicen qué significado buscamos.",
