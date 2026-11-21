@@ -96,13 +96,16 @@ describe("what the learner has gathered", () => {
 describe("the words", () => {
   useMockBackend();
 
-  test("the words asked for in conversations are listed", async () => {
+  test("the words asked for in conversations are listed in their sheet", async () => {
+    const user = userEvent.setup();
     open("words");
 
-    expect(
-      await screen.findByRole("heading", { name: "Words you learned" }),
-    ).toBeInTheDocument();
-    expect(listed()).toHaveLength(6);
+    await screen.findByRole("heading", { name: "The latest you learned" });
+    await user.click(screen.getByRole("button", { name: "See your 6 words" }));
+    const sheet = await screen.findByRole("dialog", {
+      name: "Words you learned",
+    });
+    expect(within(sheet).getAllByRole("term")).toHaveLength(6);
     expect(listed()[0]).toBe("lead timeplazo de entrega");
     expect(screen.queryByRole("button", { name: /^Show all/u })).toBeNull();
   });
@@ -112,7 +115,10 @@ describe("the words", () => {
     const user = userEvent.setup();
     open("words");
 
-    await screen.findByRole("heading", { name: "Words you learned" });
+    await user.click(
+      await screen.findByRole("button", { name: "See your 13 words" }),
+    );
+    await screen.findByRole("dialog", { name: "Words you learned" });
     // The latest first, and only a few until the rest is asked for.
     expect(listed()).toHaveLength(12);
     expect(listed()).toContain("waistcoatchaleco");
@@ -129,6 +135,21 @@ describe("the words", () => {
     expect(screen.queryByRole("button", { name: /^Show all/u })).toBeNull();
   });
 
+  test("the towers of the daily review name their latest words", async () => {
+    seedMockReadiness();
+    open("words");
+
+    const scene = await screen.findByRole("region", {
+      name: "Your words by strength",
+    });
+    expect(
+      await within(scene).findByText("Each floor is 4 words."),
+    ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(within(scene).getByText(/waistcoat/u)).toBeInTheDocument();
+    });
+  });
+
   test("the daily review is named as everywhere, and a run starts from here", async () => {
     seedMockReadiness();
     const user = userEvent.setup();
@@ -138,9 +159,9 @@ describe("the words", () => {
     const waiting = await screen.findByText(/^\d+ words are waiting today$/u);
     const due = Number.parseInt(waiting.textContent, 10);
     // The tile counts every word the review holds.
-    expect(screen.getByRole("button", { name: /^Words/u })).toHaveTextContent(
-      new RegExp(`${String(due)}$`, "u"),
-    );
+    expect(
+      screen.getByRole("button", { name: /^Words\s?\d+$/u }),
+    ).toHaveTextContent(new RegExp(`${String(due)}$`, "u"));
 
     await user.click(screen.getByRole("radio", { name: /^English → / }));
     const start = screen.getByRole("button", { name: "Start" });
@@ -162,6 +183,13 @@ describe("the words", () => {
     const user = userEvent.setup();
     open("words");
 
+    const opener = await screen.findByRole("button", {
+      name: /^Words you already know/u,
+    });
+    await waitFor(() => {
+      expect(opener).toHaveTextContent(/3$/u);
+    });
+    await user.click(opener);
     const known = await screen.findByRole("region", {
       name: "Words you already know",
     });
@@ -197,7 +225,11 @@ describe("the words", () => {
   });
 
   test("with no word marked as known it says so", async () => {
+    const user = userEvent.setup();
     open("words");
+    await user.click(
+      await screen.findByRole("button", { name: /^Words you already know/u }),
+    );
 
     expect(
       await screen.findByText("You haven't marked any word as known yet."),

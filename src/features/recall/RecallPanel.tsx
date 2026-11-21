@@ -22,18 +22,18 @@ import { errorMessage } from "@/lib/errors";
 import { onSentenceProgress, recallState, writeSentences } from "@/lib/ipc";
 import { languageName } from "@/lib/text";
 import { SentenceStock } from "@/features/books/SentenceStock";
-import { BarRelief } from "@/features/drills/BarRelief";
-import { StrengthMark } from "./StrengthMark";
+import { WordTowers } from "./WordTowers";
+import { planTowers } from "./towers";
 
 const WAYS = ["both", "recognition", "production"] as const;
 
-/** The learned words of each strength, weakest first. */
-function counts(state: RecallState): Array<[Strength, number]> {
-  return [
-    ["new", state.fresh],
-    ["settling", state.settling],
-    ["firm", state.firm],
-  ];
+/** The learned words of each strength. */
+function counts(state: RecallState | null): Record<Strength, number> {
+  return {
+    new: state?.fresh ?? 0,
+    settling: state?.settling ?? 0,
+    firm: state?.firm ?? 0,
+  };
 }
 
 interface TodayProps {
@@ -72,9 +72,9 @@ function Today({
   return (
     <form
       onSubmit={start}
-      className="flex flex-col items-start gap-5 rounded-xl glass px-5.5 py-4.5"
+      className="flex flex-wrap items-center gap-x-6 gap-y-4 rounded-xl glass px-5.5 py-4"
     >
-      <p className="font-display text-title font-light tracking-tight text-ink tabular-nums">
+      <p className="flex-1 basis-60 font-display text-2xl font-light tracking-tight text-ink tabular-nums">
         {state.due > 0
           ? t("recall.due", { count: state.due })
           : t("recall.nothingDue")}
@@ -83,11 +83,12 @@ function Today({
         {state.due > 0 && (
           <Reveal
             key="choose"
-            className="flex w-full flex-col items-start gap-5"
+            className="flex flex-wrap items-center gap-x-5 gap-y-3"
           >
-            <div className="w-full">
+            <div className="min-w-0">
               <ChoiceGroup
                 legend={t("books.sitting.ways")}
+                hideLegend
                 columns={3}
                 size="sm"
                 choices={WAYS.map((each) => ({
@@ -121,31 +122,6 @@ function Today({
         )}
       </Presence>
     </form>
-  );
-}
-
-/** How the learned words stand: one glass chip per strength, weakest first. */
-function Strengths({ state }: { state: RecallState }): ReactNode {
-  const { t } = useTranslation();
-  return (
-    <section className="flex flex-col gap-2.5">
-      <h2 className="px-1 font-display text-base tracking-tight text-ink">
-        {t("recall.words")}
-      </h2>
-      <Stagger as="ul" className="flex flex-wrap gap-2">
-        {counts(state).map(([strength, count]) => (
-          <Reveal
-            as="li"
-            key={strength}
-            kind="scale"
-            className="inline-flex h-9 items-center gap-2 rounded-full glass px-4 font-mono text-sm text-ink-soft tabular-nums"
-          >
-            <StrengthMark strength={strength} />
-            {t(`recall.count.${strength}`, { count })}
-          </Reveal>
-        ))}
-      </Stagger>
-    </section>
   );
 }
 
@@ -233,7 +209,8 @@ export function learnedCount(state: RecallState | null): number {
 
 /**
  * The daily review on the column of glass: what is due today, how many
- * words it holds, how strong they are, and how it brings them back.
+ * words it holds, and how it brings them back. How strong they are stands
+ * on its towers.
  */
 export function RecallBoard({
   state,
@@ -252,13 +229,6 @@ export function RecallBoard({
           {t("recall.board.learned", { count: learned })}
         </StatChip>
       </Reveal>
-      <Presence>
-        {state !== null && learned > 0 && (
-          <Reveal key="strengths">
-            <Strengths state={state} />
-          </Reveal>
-        )}
-      </Presence>
       <Reveal as="p" className="px-1 text-sm text-ink-faint">
         {t("recall.intro")}
       </Reveal>
@@ -272,23 +242,34 @@ interface RecallSceneProps {
   nativeLang: string;
   /** A run of the daily review, in these ways. */
   onStart: (ways: Ways) => void;
+  /** The latest learned words of each strength, named beside its tower. */
+  words?: Record<Strength, readonly string[]>;
   className?: string;
 }
 
+const NO_WORDS: Record<Strength, readonly string[]> = {
+  new: [],
+  settling: [],
+  firm: [],
+};
+
 /**
  * The scene of the daily review: the words learned in the books and asked
- * for in conversations raised as columns by strength, and along it the panel
- * that says how many are due today and starts the run of the day.
+ * for in conversations raised as towers by strength, a floor for every few
+ * words and their latest named beside them, and along it the panel that says
+ * how many are due today and starts the run of the day.
  */
 export function RecallScene({
   recall,
   nativeLang,
   onStart,
+  words = NO_WORDS,
   className,
 }: RecallSceneProps): ReactNode {
   const { t } = useTranslation();
   const { state, failure, readying, writing, unwritten } = recall;
   const learned = learnedCount(state);
+  const strengths = counts(state);
   return (
     <Scene
       label={t("recall.board.scene")}
@@ -296,6 +277,18 @@ export function RecallScene({
       header={
         <>
           <SceneTitle>{t("recall.title")}</SceneTitle>
+          <Presence>
+            {learned > 0 && (
+              <Reveal
+                key="per"
+                as="p"
+                kind="fade"
+                className="text-sm text-ink-faint"
+              >
+                {t("recall.towers.per", { count: planTowers(strengths).per })}
+              </Reveal>
+            )}
+          </Presence>
           <Presence>
             {unwritten !== null && (
               <Reveal key="unwritten">
@@ -351,24 +344,15 @@ export function RecallScene({
         </div>
       }
     >
-      <BarRelief
+      <WordTowers
+        counts={strengths}
+        words={words}
         label={t("recall.board.relief", {
-          fresh: state?.fresh ?? 0,
-          settling: state?.settling ?? 0,
-          firm: state?.firm ?? 0,
+          fresh: strengths.new,
+          settling: strengths.settling,
+          firm: strengths.firm,
         })}
-        bars={(state === null ? [] : counts(state)).map(
-          ([strength, count]) => ({
-            key: strength,
-            value: count,
-            look: strength === "firm" ? "book" : "plain",
-            tip: {
-              title: t(`recall.strength.${strength}`),
-              lines: [t("scene.tip.words", { count })],
-            },
-          }),
-        )}
-        className="size-full max-w-2xl px-6 pt-28 pb-72"
+        className="size-full max-w-4xl px-6 pt-36 pb-44"
       />
     </Scene>
   );
