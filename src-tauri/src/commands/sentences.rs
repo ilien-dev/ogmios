@@ -209,7 +209,27 @@ fn to_write(conn: &Connection, word: &Wanted, chapter: &str) -> Result<u32> {
     };
     let first = bank::senses_differ(conn, id)? && !bank::written(conn, &word.key, chapter)?;
     let again = refill_due(conn, (id, &word.key, chapter), Utc::now())?;
-    Ok(if first || again { WRITTEN } else { 0 })
+    if !first && !again {
+        return Ok(0);
+    }
+    // Never past the most a word is written.
+    let room = MOST_WRITTEN.saturating_sub(bank::written_count(conn, &word.key, chapter)?);
+    Ok(WRITTEN.min(room))
+}
+
+/// What a word means in the chapters that have it written alike
+/// (`db::spellings::rivals`), each once: what a sentence written for it has
+/// to rule out.
+fn others(conn: &Connection, word_id: &str) -> Result<Vec<String>> {
+    let mut found: Vec<String> = Vec::new();
+    for rival in spellings::rivals(conn, word_id)? {
+        for meaning in rival.translations {
+            if !found.contains(&meaning) {
+                found.push(meaning);
+            }
+        }
+    }
+    Ok(found)
 }
 
 /// The sentences a word already has in `chapter`'s sense, for the model to
@@ -224,15 +244,25 @@ fn avoided(conn: &Connection, due: &Due, chapter: &str) -> Result<Vec<String>> {
         .collect())
 }
 
-/// Hours between two refills of a word: about one sitting, so that a word
-/// missed many times in a row is written for at most once in it.
+/// The window refills of a word are counted in: about one sitting.
 const REFILL_GAP_HOURS: i64 = 12;
 
+/// Batches a word is written in one [`REFILL_GAP_HOURS`] window, its first
+/// one included: a word missed many times in a row gets up to a third, and
+/// then reuses what it has.
+const BATCHES_PER_GAP: u32 = 3;
+
+/// Sentences the model writes for a word in one chapter's sense, ever.
+/// Past them nothing more is written: they rotate, the least shown first,
+/// at random, so that none is learned by heart.
+pub const MOST_WRITTEN: u32 = 30;
+
 /// Whether a word written alike to another one has run low on the
-/// sentences of its chapter's sense ([`LOW`] uses or fewer left) and was
-/// not written for in the last [`REFILL_GAP_HOURS`]: then more are written,
-/// in the background, before the ones it has run out. A word never written
-/// for is not due here: it is written for once in any case.
+/// sentences of its chapter's sense ([`LOW`] uses or fewer left): then more
+/// are written, in the background, before the ones it has run out. Not
+/// while it was written for [`BATCHES_PER_GAP`] times in the last
+/// [`REFILL_GAP_HOURS`], nor once it has [`MOST_WRITTEN`]. A word never
+/// written for is not due here: it is written for once in any case.
 pub fn refill_due(
     conn: &Connection,
     (word_id, key, chapter): (&str, &str, &str),
@@ -241,15 +271,19 @@ pub fn refill_due(
     if !bank::senses_differ(conn, word_id)? || !bank::written(conn, key, chapter)? {
         return Ok(false);
     }
+    // A word its tag cannot tell apart counts only the sentences whose few
+    // words fix its sense: the others are no use to it.
+    let tied = super::ladder::tied(conn, &practice::word(conn, word_id)?, None)?;
     let held: Vec<Banked> = bank::bank(conn, key, Some(chapter))?
         .iter()
+        .filter(|each| !tied || super::practice::fixed(each))
         .map(|each| banked(each, "", &[]))
         .collect();
-    if left(&held) > LOW {
+    if left(&held) > LOW || bank::written_count(conn, key, chapter)? >= MOST_WRITTEN {
         return Ok(false);
     }
-    let gap = TimeDelta::hours(REFILL_GAP_HOURS);
-    Ok(bank::last_write(conn, key, chapter)?.is_none_or(|at| now - at >= gap))
+    let since = now - TimeDelta::hours(REFILL_GAP_HOURS);
+    Ok(bank::writes_since(conn, key, chapter, since)? < BATCHES_PER_GAP)
 }
 
 /// After an answer to the word `word_id`: the chapter whose sentences of it
@@ -338,6 +372,7 @@ fn asked_about(word: Wanted, from_book: Vec<(String, String)>, write: u32) -> As
                 .collect(),
             write,
             avoid: Vec::new(),
+            others: Vec::new(),
         },
         book: from_book,
         word,
@@ -464,7 +499,15 @@ fn labels(
             .iter()
             .map(|each| {
                 let (lemma, meaning) = bank::meaning(&conn, &each.key, each.chapter_id.as_deref())?;
+                let others = match each.chapter_id.as_deref() {
+                    Some(chapter) => match bank::word_in(&conn, &each.key, chapter)? {
+                        Some(word) => others(&conn, &word)?,
+                        None => Vec::new(),
+                    },
+                    None => Vec::new(),
+                };
                 Ok(ReviewedSentence {
+                    others,
                     id: each.id.clone(),
                     from_book: each.book,
                     lemma,
@@ -704,8 +747,13 @@ pub fn top_up(
             for due in words {
                 let avoid = avoided(&conn, &due, &chapter)?;
                 let chapter = due.read.then_some(text.as_slice());
+                let others = match due.word.word_id.as_deref() {
+                    Some(id) => others(&conn, id)?,
+                    None => Vec::new(),
+                };
                 asked.extend(ask(due.word, chapter, due.write).map(|mut each| {
                     each.params.avoid = avoid;
+                    each.params.others = others;
                     each
                 }));
             }
@@ -926,7 +974,17 @@ pub mod tests {
                             each.meaning.first().cloned().unwrap_or_default(),
                         ],
                         verb_form: Some(VerbForm::Past),
-                        cue: Vec::new(),
+                        // The word after it, as the fake sidecar says.
+                        cue: each
+                            .sentence
+                            .split_whitespace()
+                            .skip_while(|word| !word.starts_with(each.form.as_str()))
+                            .nth(1)
+                            .map(|word| {
+                                word.trim_matches(|c: char| !c.is_alphanumeric()).to_owned()
+                            })
+                            .into_iter()
+                            .collect(),
                     })
                     .collect(),
             })
@@ -2859,7 +2917,12 @@ pub mod tests {
         // A word given a sentence in one book is still given one in another:
         // its rival in the picture's chapter was read with it.
         assert_eq!(stub.writes[0].words.len(), 2);
-        assert_eq!(stock(&desk, &picture).writes.len(), 0);
+        // Its book's sentence is never read again from the other chapter.
+        assert!(stock(&desk, &picture)
+            .writes
+            .iter()
+            .flat_map(|each| each.words.iter())
+            .all(|each| each.book.is_empty()));
         let texts = |chapter: &str| -> Vec<String> {
             fuzzy_in(&desk, chapter)
                 .into_iter()
@@ -2912,6 +2975,13 @@ pub mod tests {
         senses.sort();
         assert_eq!(senses, ["The fuzzy cat slept.", "The picture was fuzzy."]);
         assert_eq!(stub.writes[0].words[0].write, WRITTEN);
+        // Each is told what the other means, to rule it out.
+        let others: Vec<&Vec<String>> = stub.writes[0]
+            .words
+            .iter()
+            .map(|each| &each.others)
+            .collect();
+        assert!(others.iter().all(|each| !each.is_empty()), "{others:?}");
         for chapter in [&cat, &picture] {
             let bank = fuzzy_in(&desk, chapter);
             let texts: Vec<&str> = bank.iter().map(|each| each.text.as_str()).collect();
@@ -2963,7 +3033,9 @@ pub mod tests {
     fn a_word_written_alike_is_written_for_again_once_its_sentences_run_low() {
         let dir = tempfile::tempdir().expect("tempdir");
         let desk = Desk::new(&dir);
-        let [cat, ..] = two_books(&desk, &blurred());
+        // Told apart by their tags: every sentence counts.
+        let [cat, ..] = two_books(&desk, &blurring());
+        furry_is_an_adjective(&desk);
         let mut first = pen();
         top_up(desk.ctx(), Scope::Chapter(&cat), &mut first, &|_, _| {}).expect("top up");
         let word: String = desk
@@ -2983,21 +3055,11 @@ pub mod tests {
         assert_eq!(due(now), None);
         // Three sentences left: six uses, still enough.
         spend_all_but(&desk, &cat, 3);
-        assert_eq!(due(now + TimeDelta::hours(REFILL_GAP_HOURS)), None);
-        // Two left: four uses, the threshold.
+        assert_eq!(due(now), None);
+        // Two left: four uses, the threshold. Written once so far: a second
+        // batch may come at once.
         spend_all_but(&desk, &cat, 2);
-        assert_eq!(due(now), None, "written for a moment ago");
-        let later = now + TimeDelta::hours(REFILL_GAP_HOURS);
-        assert_eq!(due(later), Some(cat.clone()));
-        // A run past the gap writes for it again, and once only.
-        desk.db
-            .lock()
-            .expect("db")
-            .execute(
-                "UPDATE sentence_writes SET created_at = '2026-01-01T00:00:00.000Z'",
-                [],
-            )
-            .expect("old");
+        assert_eq!(due(now), Some(cat.clone()));
         let mut again = pen();
         top_up(desk.ctx(), Scope::Chapter(&cat), &mut again, &|_, _| {}).expect("top up");
         assert!(written_for(&again).contains(&"The fuzzy cat slept.".to_owned()));
@@ -3014,9 +3076,34 @@ pub mod tests {
             asked.avoid
         );
         assert_eq!(desk.count("SELECT COUNT(*) FROM sentence_refills"), 1);
-        let mut third = pen();
-        top_up(desk.ctx(), Scope::Chapter(&cat), &mut third, &|_, _| {}).expect("top up");
-        assert!(!written_for(&third).contains(&"The fuzzy cat slept.".to_owned()));
+        // Three batches in the window, the first one included, and no more.
+        {
+            let conn = desk.db.lock().expect("db");
+            conn.execute(
+                "INSERT INTO sentence_refills (key, chapter_id, created_at) VALUES ('fuzzy', ?1, ?2)",
+                rusqlite::params![&cat, crate::db::ts(now)],
+            )
+            .expect("third");
+        }
+        spend_all_but(&desk, &cat, 2);
+        assert_eq!(due(now), None, "a third batch in the window already");
+        let later = now + TimeDelta::hours(REFILL_GAP_HOURS) + TimeDelta::minutes(1);
+        assert_eq!(due(later), Some(cat.clone()));
+        // Once it was written 30 sentences, never again: they rotate.
+        {
+            let conn = desk.db.lock().expect("db");
+            for at in 0..MOST_WRITTEN {
+                conn.execute(
+                    "INSERT INTO word_sentences
+                       (id, key, source, sentence, form, hint, translation, created_at,
+                        chapter_id, reviewed, discarded)
+                     VALUES (?1, 'fuzzy', 'model', ?2, 'fuzzy', 'x', 'x', '2026-01-01', ?3, 1, 1)",
+                    rusqlite::params![format!("filler{at}"), format!("Filler {at} fuzzy."), &cat],
+                )
+                .expect("filler");
+            }
+        }
+        assert_eq!(due(later), None, "the most a word is written");
     }
 
     #[test]
@@ -3167,8 +3254,8 @@ pub mod tests {
                 .expect("start");
         let asked = item(&sitting.step).clone();
         // Never alone: the word alone has no one answer. No words that fix
-        // its sense were said yet, so its whole sentence comes.
-        let context = asked.context.clone().expect("its sentence from the start");
+        // its sense were said yet: the words around it stand in.
+        let context = asked.context.clone().expect("its few words from the start");
         assert!(context.iter().any(|part| part.marked));
         let say = |text: &str, rung: u8| {
             let shown = Shown {
@@ -3194,22 +3281,72 @@ pub mod tests {
         // The other book's meaning: straight to the whole sentence, with no
         // word of what it is not.
         let shown = say(other, 0).ladder.expect("a step");
-        // No few words known yet: it had its whole sentence, and says so.
+        // It had a few words: the step after shows its whole sentence.
         assert_eq!(
             (shown.rung, shown.hint.is_none(), shown.short),
-            (2, true, false)
+            (2, true, true)
         );
         assert!(shown.context.is_some());
         // Right with it: understood, and the word comes back.
         let understood = say(&sentence.hint, 2);
         assert_eq!(
             understood.understood.map(|tip| (tip.tied, tip.short)),
-            Some((true, false))
+            Some((true, true))
         );
         // It was shown: the sentence is spent once, like any answer.
         assert_eq!(sentence_of(&desk, &asked).shows, 1);
         assert_eq!(desk.count("SELECT COUNT(*) FROM word_answers"), 0);
         assert_eq!(desk.count("SELECT COUNT(*) FROM understood_answers"), 1);
+    }
+
+    #[test]
+    fn a_word_its_tag_cannot_tell_apart_is_asked_with_a_sentence_whose_few_words_fix_it() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let desk = Desk::new(&dir);
+        let [cat, _, picture] = two_books(&desk, &blurred());
+        stock(&desk, &cat);
+        stock(&desk, &picture);
+        // Only the sentence of the dog has words that fix the sense near it.
+        let dog: String = {
+            let conn = desk.db.lock().expect("db");
+            conn.execute("UPDATE word_sentences SET cue = '[]'", [])
+                .expect("none");
+            conn.query_row(
+                "SELECT id FROM word_sentences WHERE key = 'fuzzy' AND chapter_id = ?1
+                 ORDER BY rowid DESC LIMIT 1",
+                [&cat],
+                |row| row.get(0),
+            )
+            .expect("one")
+        };
+        let text: String = desk
+            .db
+            .lock()
+            .expect("db")
+            .query_row(
+                "SELECT sentence FROM word_sentences WHERE id = ?1",
+                [&dog],
+                |row| row.get(0),
+            )
+            .expect("text");
+        let cue = text
+            .split_whitespace()
+            .map(|word| word.trim_matches(|c: char| !c.is_alphanumeric()).to_owned())
+            .find(|word| !word.eq_ignore_ascii_case("fuzzy") && !word.is_empty())
+            .expect("a word");
+        desk.db
+            .lock()
+            .expect("db")
+            .execute(
+                "UPDATE word_sentences SET cue = json_array(?2) WHERE id = ?1",
+                [&dog, &cue],
+            )
+            .expect("cue");
+        let sitting =
+            crate::commands::practice::start(desk.ctx(), &cat, (None, Ways::Recognition), t0())
+                .expect("start");
+        let asked = item(&sitting.step).clone();
+        assert_eq!(asked.sentence_id.as_deref(), Some(dog.as_str()));
     }
 
     #[test]

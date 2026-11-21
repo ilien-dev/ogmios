@@ -635,6 +635,11 @@ const sentenceWordSchema = z.object({
    * them nor close to one, so that none is learned by heart.
    */
   avoid: z.array(z.string()),
+  /**
+   * What the word means in other chapters, where it is written alike: every
+   * new sentence rules each of these out.
+   */
+  others: z.array(z.string()),
 });
 
 /**
@@ -693,6 +698,8 @@ const reviewedSentenceSchema = z.object({
   form: z.string(),
   hint: z.string(),
   translation: z.string(),
+  /** What the word means in other chapters, where it is written alike. */
+  others: z.array(z.string()),
 });
 
 export const sentenceReviewParams = z.object({

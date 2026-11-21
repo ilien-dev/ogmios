@@ -838,9 +838,10 @@ mod tests {
         assert_eq!(kept, ("fair".to_owned(), None));
         let shows = sentences::bank(&conn, "fair", None).expect("bank")[0].shows;
         assert_eq!(shows, 0, "an answer kept before this spent nothing");
+        let long_ago = parse_ts("2020-01-01T00:00:00.000Z").expect("ts");
         assert_eq!(
-            sentences::last_write(&conn, "fair", "c").expect("last"),
-            None
+            sentences::writes_since(&conn, "fair", "c", long_ago).expect("writes"),
+            0
         );
     }
 

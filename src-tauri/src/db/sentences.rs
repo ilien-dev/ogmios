@@ -193,18 +193,33 @@ pub fn refilled(conn: &Connection, key: &str, chapter: &str, now: DateTime<Utc>)
     Ok(())
 }
 
-/// When the model was last asked to write sentences for the word in this
-/// chapter's sense; none if it never was.
-pub fn last_write(conn: &Connection, key: &str, chapter: &str) -> Result<Option<DateTime<Utc>>> {
-    let at: Option<String> = conn.query_row(
-        "SELECT MAX(created_at) FROM (
-           SELECT created_at FROM sentence_writes WHERE key = ?1 AND chapter_id = ?2
-           UNION ALL
-           SELECT created_at FROM sentence_refills WHERE key = ?1 AND chapter_id = ?2)",
+/// How many sentences the model wrote for the word in this chapter's sense,
+/// kept or refused: what counts toward the most it is written.
+pub fn written_count(conn: &Connection, key: &str, chapter: &str) -> Result<u32> {
+    Ok(conn.query_row(
+        "SELECT COUNT(*) FROM word_sentences
+         WHERE key = ?1 AND chapter_id = ?2 AND source = 'model'",
         [key, chapter],
         |row| row.get(0),
-    )?;
-    super::parse_ts_opt(at.as_deref())
+    )?)
+}
+
+/// How many times the model was asked to write sentences for the word in
+/// this chapter's sense since `since`, the first time included.
+pub fn writes_since(
+    conn: &Connection,
+    key: &str,
+    chapter: &str,
+    since: DateTime<Utc>,
+) -> Result<u32> {
+    Ok(conn.query_row(
+        "SELECT (SELECT COUNT(*) FROM sentence_writes
+                 WHERE key = ?1 AND chapter_id = ?2 AND created_at >= ?3)
+              + (SELECT COUNT(*) FROM sentence_refills
+                 WHERE key = ?1 AND chapter_id = ?2 AND created_at >= ?3)",
+        params![key, chapter, ts(since)],
+        |row| row.get(0),
+    )?)
 }
 
 /// The sentences the word was asked with in the sitting or the run

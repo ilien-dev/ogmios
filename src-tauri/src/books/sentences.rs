@@ -44,10 +44,9 @@ pub struct Banked {
 /// The sentence a word is asked with next; none for a word with no bank.
 /// Never the one it was asked with the last time, nor one already shown in
 /// the same sitting, while there is another, so that no sentence is learned
-/// by heart. The first time, the one of the
-/// chapter itself, or failing that another of the book. After that one of
-/// those not yet spent, drawn by `draw` among that many; and when all are
-/// spent, the one shown least.
+/// by heart. The first time, the one of the chapter itself, or failing that
+/// another of the book. After that one of those shown least, drawn by
+/// `draw` among that many: they rotate, never in an order.
 pub fn choose(bank: &[Banked], draw: impl Fn(usize) -> Option<usize>) -> Option<&Banked> {
     let fresh: Vec<&Banked> = bank.iter().filter(|sentence| !sentence.last).collect();
     let pool: Vec<&Banked> = if fresh.is_empty() {
@@ -64,15 +63,12 @@ pub fn choose(bank: &[Banked], draw: impl Fn(usize) -> Option<usize>) -> Option<
             return Some(first);
         }
     }
-    let unspent: Vec<&Banked> = pool
-        .iter()
-        .copied()
-        .filter(|sentence| sentence.shows < SHOWS)
+    let least = pool.iter().map(|sentence| sentence.shows).min()?;
+    let candidates: Vec<&Banked> = pool
+        .into_iter()
+        .filter(|sentence| sentence.shows == least)
         .collect();
-    if unspent.is_empty() {
-        return pool.into_iter().min_by_key(|sentence| sentence.shows);
-    }
-    draw(unspent.len()).and_then(|at| unspent.get(at).copied())
+    draw(candidates.len()).and_then(|at| candidates.get(at).copied())
 }
 
 /// How many more times the sentences of a bank can be shown before every
@@ -640,47 +636,80 @@ pub fn cue_in(cue: &[String], (sentence, form): (&str, &str)) -> Vec<String> {
     kept
 }
 
-/// Where the run of words `run` starts among `words`, the first time.
-fn at(words: &[String], run: &[String]) -> Option<usize> {
+/// Words taken on each side of the word when no words that fix its sense
+/// are known, or they are too far: "her **fair** hair and".
+pub const AROUND: usize = 2;
+
+/// Where `run`, in words, is among the written words `words` (each as its
+/// words, joined by a space: "well-known" is "well known"), the first time:
+/// the first written word and how many it takes.
+fn at(words: &[String], run: &[String]) -> Option<(usize, usize)> {
     if run.is_empty() {
         return None;
     }
-    words.windows(run.len()).position(|each| each == run)
+    let wanted = run.join(" ");
+    (0..words.len()).find_map(|start| {
+        (1..=run.len().min(words.len() - start))
+            .find(|len| words[start..start + len].join(" ") == wanted)
+            .map(|len| (start, len))
+    })
 }
 
 /// The short sentence a word is asked with when its tag cannot tell it from
-/// a word written alike: the words of `sentence` from the first of the word
-/// and the words that fix its sense (`cue`) to the last, as written, the
-/// word marked ("her fair hair"). None when the sentence has no such words,
-/// or they are too far apart for a glance: the whole sentence is shown then.
+/// a word written alike, the word marked: the words of `sentence` from the
+/// first of the word and the words that fix its sense (`cue`) to the last,
+/// as written ("her fair hair"); when those are not known, or too far apart
+/// for a glance, the word and [`AROUND`] words on each side. None only when
+/// the sentence does not have the word as written.
 pub fn fragment(sentence: &str, form: &str, cue: &[String]) -> Option<Vec<SentencePart>> {
     let written: Vec<&str> = sentence.split_whitespace().collect();
     let words: Vec<String> = written.iter().map(|each| tokens(each).join(" ")).collect();
-    let flat: Vec<String> = words.iter().flat_map(|each| tokens(each)).collect();
-    if flat.len() != written.len() {
-        // A word of the text is two to the tokenizer ("don't" aside): the
-        // places would not line up, so the whole sentence is shown.
-        return None;
-    }
-    let own = tokens(form);
-    let start = at(&words, &own)?;
-    let mut first = start;
-    let mut last = start + own.len() - 1;
+    let (start, len) = at(&words, &tokens(form))?;
+    let end = start + len - 1;
+    let (mut first, mut last) = (start, end);
     let mut any = false;
     for each in cue {
-        let said = tokens(each);
-        if let Some(place) = at(&words, &said) {
+        if let Some((place, size)) = at(&words, &tokens(each)) {
             first = first.min(place);
-            last = last.max(place + said.len() - 1);
+            last = last.max(place + size - 1);
             any = true;
         }
     }
     if !any || last - first + 1 > FRAGMENT_WORDS {
-        return None;
+        first = start.saturating_sub(AROUND);
+        last = (end + AROUND).min(written.len() - 1);
     }
     let text = written[first..=last].join(" ");
     let text = text.trim_matches(|c: char| !c.is_alphanumeric());
     Some(mark(text, &[form.to_owned()]))
+}
+
+/// Whether the words the second look said fix the sense of the word
+/// (`cue`) are in `sentence` near enough to it for a short sentence
+/// ([`FRAGMENT_WORDS`]): then the few words it is asked with lead to its
+/// meaning as surely as the whole sentence does.
+pub fn fixes(sentence: &str, form: &str, cue: &[String]) -> bool {
+    let written: Vec<&str> = sentence.split_whitespace().collect();
+    let words: Vec<String> = written.iter().map(|each| tokens(each).join(" ")).collect();
+    let Some((start, len)) = at(&words, &tokens(form)) else {
+        return false;
+    };
+    let (mut first, mut last) = (start, start + len - 1);
+    let mut any = false;
+    for each in cue {
+        if let Some((place, size)) = at(&words, &tokens(each)) {
+            first = first.min(place);
+            last = last.max(place + size - 1);
+            any = true;
+        }
+    }
+    any && last - first < FRAGMENT_WORDS
+}
+
+/// [`fragment`] for a word that can be written in any of `forms`: the first
+/// one the sentence has.
+pub fn few_words(sentence: &str, forms: &[String], cue: &[String]) -> Option<Vec<SentencePart>> {
+    forms.iter().find_map(|form| fragment(sentence, form, cue))
 }
 
 #[cfg(test)]
@@ -713,11 +742,35 @@ mod tests {
     }
 
     #[test]
-    fn no_fragment_without_words_that_fix_the_sense_or_too_far_apart() {
-        assert!(fragment("Her fair hair shone.", "fair", &[]).is_none());
+    fn only_words_that_fix_the_sense_near_the_word_make_a_short_sentence_of_it() {
+        let hair = vec!["hair".to_owned()];
+        assert!(fixes(
+            "She tied back her fair hair and left.",
+            "fair",
+            &hair
+        ));
+        assert!(!fixes("She tied back her fair hair and left.", "fair", &[]));
+        let end = vec!["end".to_owned()];
+        let long = "A fair one came along the road by the river to the very end.";
+        assert!(!fixes(long, "fair", &end));
+    }
+
+    #[test]
+    fn without_words_that_fix_the_sense_the_words_around_it_stand_in() {
+        let parts =
+            fragment("She tied back her fair hair and left.", "fair", &[]).expect("a fragment");
+        assert_eq!(shown(&parts).0, "back her fair hair and");
         let far = vec!["end".to_owned()];
         let long = "A fair one came along the road by the river to the very end.";
-        assert!(fragment(long, "fair", &far).is_none());
+        assert_eq!(
+            shown(&fragment(long, "fair", &far).expect("a fragment")).0,
+            "A fair one came"
+        );
+        // Written with a hyphen, a word is still found in its place.
+        let parts = fragment("Her fair well-known face.", "fair", &["face".to_owned()])
+            .expect("a fragment");
+        assert_eq!(shown(&parts).0, "fair well-known face");
+        assert!(fragment("Nothing of it here.", "fair", &[]).is_none());
     }
 
     #[test]
@@ -782,14 +835,17 @@ mod tests {
     }
 
     #[test]
-    fn after_the_first_time_one_not_spent_is_drawn() {
+    fn after_the_first_time_one_shown_least_is_drawn_at_random() {
         let bank = [
             banked("a", true, true, 1),
             banked("b", false, false, 2),
             banked("c", false, false, 0),
+            banked("d", false, false, 0),
         ];
-        assert_eq!(chosen(&bank, 0), Some("a"));
-        assert_eq!(chosen(&bank, 1), Some("c"));
+        // Only the least shown are drawn from, never in an order.
+        assert_eq!(chosen(&bank, 0), Some("c"));
+        assert_eq!(chosen(&bank, 1), Some("d"));
+        assert_eq!(chosen(&bank, 2), None);
     }
 
     #[test]

@@ -355,6 +355,7 @@ function writingIn(lang: string): string[] {
     book: ["You're the lucky ones."],
     write: 5,
     avoid: [],
+    others: [],
   };
   return [
     sentenceWriteSystemPrompt({ nativeLang: lang, words: [word] }),
@@ -370,6 +371,7 @@ function writingIn(lang: string): string[] {
           form: "lucky",
           hint: "afortunados",
           translation: "Ustedes son los afortunados.",
+          others: [],
         },
       ],
     }),

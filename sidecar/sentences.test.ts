@@ -30,6 +30,7 @@ const write: SentenceWriteParams = {
       book: ["She had peeped into the book.", "Do not peep."],
       write: 5,
       avoid: [],
+      others: [],
     },
   ],
 };
@@ -46,6 +47,7 @@ const review: SentenceReviewParams = {
       form: "peeped",
       hint: "se asomó",
       translation: "Se asomó por encima del seto.",
+      others: [],
     },
     {
       id: "s2",
@@ -56,6 +58,7 @@ const review: SentenceReviewParams = {
       form: "peep",
       hint: "asomarse",
       translation: "Una frase torpe.",
+      others: [],
     },
   ],
 };

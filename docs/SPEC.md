@@ -463,15 +463,13 @@ repaso rápido antes de leer no cambia.
     pregunta siempre con una **frase corta**, las palabras de su frase que fijan el significado
     («her **fair** hair»), y nunca sola, tampoco cuando vuelve. Esas palabras las marca el modelo en
     la segunda mirada a cada frase (de una a tres, y el código guarda solo las que la frase tiene
-    fuera de la palabra); de la palabra a la última de ellas, como mucho 8 palabras. Sin ellas, o
-    más lejos, se muestra la frase entera. Las frases guardadas antes se miran una vez más solo
-    para esto, y hasta entonces se preguntan con la frase entera. Dos intentos:
+    fuera de la palabra); de la palabra a la última de ellas, como mucho 8 palabras. Sin ellas, o más lejos, la frase corta son la palabra y las 2 palabras a cada lado («back her **fair** hair and»): nunca se pregunta con la frase entera. Las frases guardadas antes se miran una vez más solo para esto antes de practicar, como cualquier frase por preparar. Dos intentos:
     1. **Con la frase corta.** Acertar es un acierto normal. Si responde con el significado de un
        rival: «También es correcta, pero no es la que busco. Lee la frase completa.». No hay paso de
        «qué no es»: más intentos llevarían a la respuesta por descarte.
     2. **La frase completa**, el último intento. Acertar con ella no es fallo ni acierto: «Correcto,
        con ayuda de la frase completa. Volverá para que la aciertes solo con la frase corta.», con
-       el consejo de que la frase corta dice qué significado se busca. Fallar es fallo completo. Si se preguntó con la frase entera, porque aún no tenía frase corta, nada dice que la lea otra vez: «También es correcta, pero no es la que busco. Fíjate en la frase.» y, acertada, «Correcto, con ayuda de la frase. Volverá más adelante.». En estas palabras la etiqueta de la banda no lleva aro: no es lo que ayuda.
+       el consejo de que la frase corta dice qué significado se busca. Fallar es fallo completo. Si la frase no tiene la palabra tal como se escribe (no debería pasar) y se preguntó con la frase entera, nada dice que la lea otra vez: «También es correcta, pero no es la que busco. Fíjate en la frase.» y, acertada, «Correcto, con ayuda de la frase. Volverá más adelante.». En estas palabras la etiqueta de la banda no lleva aro: no es lo que ayuda.
        Fuera de la etiqueta nada avisa de que la palabra tiene rivales. Cualquier error dentro de los
        intentos pasa al siguiente. La frase se muestra siempre tras responder, y por eso cuenta como
        vista: la próxima vez sale otra del banco.
@@ -487,16 +485,14 @@ repaso rápido antes de leer no cambia.
   pueden confundir. Cuando un capítulo trae el primer rival de una palabra, se escriben para las
   dos; con un tercer significado, solo para el nuevo. Las palabras pedidas en charlas no tienen
   libro y se preguntan sin frase.
+  Cada frase escrita tiene que llevar a la misma traducción que la del libro, igual de seguro, con otro ejemplo: el modelo recibe lo que la palabra significa en los otros capítulos y cada frase descarta todos esos significados, con las palabras que deciden a lo sumo a tres palabras de ella, para que la frase corta también lleve sola a la traducción. La segunda mirada rechaza una escrita que pueda leerse con otro significado. Una palabra que su etiqueta no distingue se pregunta solo con frases cuya frase corta fija el significado (mientras tenga alguna), y la reposición cuenta solo esas.
 - **Una vez por capítulo, y más cuando se acaban:** en cada capítulo la palabra recibe 1 frase
   suya y, si tiene rivales, se piden sus 5 escritas. Cada frase se usa como mucho 2 veces (una
   pregunta es un uso, también la que se acierta solo con la frase). Cuando a las frases de ese
   significado les quedan 4 usos o menos, se piden otras 5 en segundo plano, antes de que se
-  acaben: se mira tras cada respuesta, y también al abrir el capítulo o Repaso. Como mucho una
-  tanda por palabra cada 12 horas, para que una palabra fallada muchas veces seguidas no gaste
-  tokens sin fin. Si aun así se acaban, sale la usada menos veces, y si no hay ninguna, la del
-  libro; la pregunta nunca espera a que lleguen. Nunca se repite la frase de la vez anterior,
+  acaben: se mira tras cada respuesta, y también al abrir el capítulo o Repaso. Como mucho 3 tandas por palabra en 12 horas, la primera incluida, y como mucho 30 frases escritas por significado en total: pasadas esas, no se escribe ninguna más. Entonces rotan: siempre sale, al azar, una de las vistas menos veces, nunca en un orden. Si aun así se acaban, sale la usada menos veces, y si no hay ninguna, la del libro; la pregunta nunca espera a que lleguen. Nunca se repite la frase de la vez anterior,
   ni una ya vista en la misma sesión, mientras haya otra. Las nuevas se piden distintas de las que
-  ya tiene (se le pasan al modelo para evitarlas). Una frase gastada no vuelve mientras queden otras. Lo demás no se vuelve a
+  ya tiene (se le pasan al modelo para evitarlas). Siempre sale una de las vistas menos veces, al azar. Lo demás no se vuelve a
   pedir, aunque se rechazara o se marcara como malo. Se prepara en segundo
   plano al abrir el capítulo y al entrar en Repaso, unas 10 palabras por petición, y cada
   respuesta se guarda al llegar. Una palabra sin frase se pregunta como antes. Las frases
