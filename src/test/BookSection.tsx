@@ -4,6 +4,7 @@ import type { Book, Chapter } from "@shared/domain";
 import type { BookTab, Route } from "@/app/routes";
 import { showsNav } from "@/app/routes";
 import { BooksScreen } from "@/features/books/BooksScreen";
+import { ChapterHead } from "@/features/books/ChapterHead";
 import { ChapterScreen } from "@/features/books/ChapterScreen";
 import { currentOf } from "@/features/books/currentChapter";
 import { TranslateTab } from "@/features/books/TranslateTab";
@@ -19,7 +20,8 @@ interface BookSectionProps {
 
 /**
  * For tests: the book as the app holds it, without the scene around it. The
- * chapter the learner is on with its words or its translation, the library's
+ * chapter the learner is on, its head and tabs, with its words or its
+ * translation, the library's
  * page of a book, and whatever takes the whole window on a chapter; a move
  * anywhere else says where it left for.
  */
@@ -94,6 +96,13 @@ export function BookSection({
       >
         {current.book.title}
       </button>
+      <ChapterHead
+        book={current.book}
+        chapter={current.chapter}
+        tab={route.tab ?? "words"}
+        navigate={setRoute}
+        onPick={setOn}
+      />
       {(route.tab ?? "words") === "translate" ? (
         <TranslateTab
           book={current.book}

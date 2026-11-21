@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { CircleCheck } from "lucide-react";
-import type { Book, BookWord, SentenceProgress } from "@shared/domain";
+import type { BookWord, SentenceProgress } from "@shared/domain";
 import { Presence } from "@/components/motion/Presence";
 import { Reveal } from "@/components/motion/Reveal";
 import { Button } from "@/components/ui/Button";
@@ -11,9 +11,6 @@ import { cn } from "@/lib/cn";
 import { SentenceStock } from "./SentenceStock";
 
 interface ChapterAsideProps {
-  book: Book;
-  /** The chapter's name, as the learner reads it. */
-  name: string;
   /** Null until read. */
   words: BookWord[] | null;
   preparing: boolean;
@@ -100,12 +97,12 @@ function modeOf({ open, ready }: ChapterAsideProps): string {
 }
 
 /**
- * Beside the words: the book and the chapter, how many words are
- * learned and the actions that follow from where the chapter stands.
+ * Over the words: how many are learned and the actions that follow from
+ * where the chapter stands. The panel's head names the book and chapter.
  */
 export function ChapterAside(props: ChapterAsideProps): ReactNode {
   const { t } = useTranslation();
-  const { book, name, words, preparing, prepared } = props;
+  const { words, preparing, prepared } = props;
   const toLearn = words?.filter((word) => !word.known) ?? [];
   const learned = toLearn.filter((word) => word.done).length;
   return (
@@ -115,12 +112,6 @@ export function ChapterAside(props: ChapterAsideProps): ReactNode {
         ALIGN,
       )}
     >
-      <div className="flex flex-col gap-1">
-        <p className="text-sm font-semibold text-book">{book.title}</p>
-        <h2 className="font-display text-title font-light tracking-tight text-ink">
-          {name}
-        </h2>
-      </div>
       <Presence>
         {prepared && !preparing && toLearn.length > 0 && (
           <Reveal

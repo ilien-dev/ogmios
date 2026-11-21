@@ -28,7 +28,6 @@ import {
   writeSentences,
 } from "@/lib/ipc";
 import { ChapterAside } from "./ChapterAside";
-import { chapterName } from "./chapterName";
 import { DepthChoice } from "./DepthChoice";
 import { PreparingBar } from "./PreparingBar";
 import { WordList } from "./WordList";
@@ -227,8 +226,6 @@ export function ChapterScreen({
     <div className="flex flex-col gap-6">
       <Reveal as="aside" index={1}>
         <ChapterAside
-          book={book}
-          name={chapterName(chapter, t)}
           words={words}
           preparing={preparing}
           prepared={chapter.prepared !== null}

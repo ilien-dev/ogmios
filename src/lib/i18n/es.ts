@@ -1028,6 +1028,12 @@ export const es: Catalog<typeof en> = {
   bookHome: {
     position: "Capítulo {{at}} de {{of}}",
     shelf: "Cambiar libro",
+    head: {
+      of: "Capítulo {{number}} de {{total}} · {{book}}",
+      previous: "Capítulo anterior",
+      next: "Capítulo siguiente",
+      ready: "{{readiness}} % listo para leer",
+    },
     list: {
       title: "Capítulos",
       search: "Busca por número o título…",

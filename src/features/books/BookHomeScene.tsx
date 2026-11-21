@@ -9,12 +9,11 @@ import { Swap } from "@/components/motion/Swap";
 import { Tilt } from "@/components/motion/Tilt";
 import { Scene, SceneTitle } from "@/components/scene/Scene";
 import { BigNumber } from "@/components/scene/Stats";
-import type { BookTab, Navigate } from "@/app/routes";
+import type { Navigate } from "@/app/routes";
 import { cn } from "@/lib/cn";
 import { getChapterWords } from "@/lib/ipc";
 import { BookCover } from "./BookCover";
 import { BARS } from "./BookHomeBoard";
-import { ChapterTabs } from "./ChapterTabs";
 import { ChapterRelief } from "./ChapterRelief";
 import { barState, chapterWindow } from "./chapterChart";
 import { chapterName } from "./chapterName";
@@ -161,8 +160,6 @@ interface BookSceneProps {
   book: Book;
   /** The chapter the learner is on. */
   selected: Chapter;
-  /** What is being done with it. */
-  tab: BookTab;
   /** The chapter a row of the list points at: its block rises. */
   pointed: string | null;
   navigate: Navigate;
@@ -173,13 +170,12 @@ interface BookSceneProps {
 
 /**
  * The scene of the book: its title, its chapters raised as blocks as tall
- * as they are ready with the one the learner is on lit, and along the bottom
- * the four things done with that chapter, as tabs.
+ * as they are ready with the one the learner is on lit. The panel beside it
+ * names the chapter and holds its tabs.
  */
 export function BookScene({
   book,
   selected,
-  tab,
   pointed,
   navigate,
   onPick,
@@ -229,7 +225,6 @@ export function BookScene({
         </>
       }
       overlay={<Tooltip book={book} chapter={selected} />}
-      footer={<ChapterTabs chapter={selected} tab={tab} navigate={navigate} />}
     >
       <ChapterRelief
         chapters={chapterWindow(book.chapters, selected.id, BARS)}
@@ -237,7 +232,7 @@ export function BookScene({
         pointed={pointed}
         onSelect={onPick}
         label={t("bookHome.board.relief")}
-        className="size-full max-w-4xl px-6 pt-56 pb-32 @3xl:pr-72"
+        className="size-full max-w-4xl px-6 pt-56 pb-10 @3xl:pr-72"
       />
     </Scene>
   );

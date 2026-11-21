@@ -27,8 +27,8 @@ interface ChapterTabsProps {
 }
 
 /**
- * The four things done with a chapter, along the bottom of the book's scene:
- * its words, listening to it, translating it and writing with it. The one
+ * The four things done with a chapter, atop its panel, over the chapter they
+ * work on: its words, listening to it, translating it and writing with it. The one
  * the chapter asks for next is marked. Changing chapter keeps the tab.
  */
 export function ChapterTabs({
@@ -39,7 +39,7 @@ export function ChapterTabs({
   const { t } = useTranslation();
   const next = nextTab(chapter);
   return (
-    <Reveal className="rounded-xl glass p-1.5">
+    <Reveal className="rounded-xl bg-sunken p-1.5">
       <div
         role="tablist"
         aria-label={t("bookHome.tabs.label", {
