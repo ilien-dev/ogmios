@@ -64,10 +64,6 @@ function chart(): HTMLElement {
   return screen.getByRole("region", { name: "Vocabulary by chapter" });
 }
 
-function list(): HTMLElement {
-  return screen.getByRole("region", { name: "Chapters" });
-}
-
 function bars(): HTMLElement[] {
   return within(chart()).getAllByRole("button", { name: /words long/u });
 }
@@ -119,7 +115,7 @@ describe("BookHome", () => {
     expect(navigate).toHaveBeenCalledWith({ name: "books", bookId: null });
   });
 
-  test("a bar, a row and a block each pick the chapter, for the whole screen", async () => {
+  test("a bar, the search and a block each pick the chapter, for the whole screen", async () => {
     const user = userEvent.setup();
     const picked = mock();
     const { books, book } = await shelf();
@@ -131,23 +127,21 @@ describe("BookHome", () => {
 
     expect(bars().length).toBe(Math.min(12, book.chapters.length));
     expect(bars()[0]).toHaveAttribute("aria-pressed", "true");
-    const rows = within(list()).getAllByRole("button");
-    expect(rows[0]).toHaveAttribute("aria-pressed", "true");
+    // The chapters are no longer listed beside the chart.
+    expect(screen.queryByRole("region", { name: "Chapters" })).toBeNull();
 
     // A bar of the chart.
     await user.click(bars()[1] as HTMLElement);
     expect(picked).toHaveBeenLastCalledWith(second.id);
     expect(bars()[1]).toHaveAttribute("aria-pressed", "true");
     expect(bars()[0]).toHaveAttribute("aria-pressed", "false");
-    expect(within(list()).getAllByRole("button")[1]).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
 
-    // A row of the list.
-    await user.click(within(list()).getAllByRole("button")[2] as HTMLElement);
+    // The search in the chapter's band, by number.
+    await user.click(screen.getByRole("button", { name: /^Find another/u }));
+    await user.keyboard("3{Enter}");
     expect(picked).toHaveBeenLastCalledWith(third.id);
     expect(bars()[2]).toHaveAttribute("aria-pressed", "true");
+    expect(screen.queryByRole("dialog")).toBeNull();
 
     // A block of the relief.
     const relief = await screen.findByRole("img", {
@@ -160,10 +154,49 @@ describe("BookHome", () => {
     await user.click(block);
     expect(picked).toHaveBeenLastCalledWith(first.id);
     expect(bars()[0]).toHaveAttribute("aria-pressed", "true");
-    expect(within(list()).getAllByRole("button")[0]).toHaveAttribute(
-      "aria-pressed",
+  });
+
+  test("the search opens on Ctrl+K, on its field, with where the learner is first", async () => {
+    const user = userEvent.setup();
+    const picked = mock();
+    const { books, book } = await shelf();
+    const [first, second] = book.chapters;
+    if (first === undefined || second === undefined) {
+      throw new Error("The mock book has fewer than two chapters.");
+    }
+    render(<Place books={books} start={first.id} onPicked={picked} />);
+
+    await user.keyboard("{Control>}k{/Control}");
+    const dialog = screen.getByRole("dialog", { name: "Find a chapter" });
+    const field = within(dialog).getByRole("searchbox");
+    expect(field).toHaveFocus();
+    const going = within(dialog).getByRole("region", { name: "Under way" });
+    expect(within(going).getAllByRole("button")[0]).toHaveAttribute(
+      "aria-current",
       "true",
     );
+    // The chapter after it is offered next.
+    const next = within(dialog).getByRole("region", { name: "What follows" });
+    expect(within(next).getAllByRole("button")[0]).toHaveTextContent(
+      String(second.index + 1).padStart(2, "0"),
+    );
+
+    // The arrows walk the rows and Enter picks the one with the focus.
+    await user.keyboard("{ArrowDown}{ArrowDown}");
+    expect(within(next).getAllByRole("button")[0]).toHaveFocus();
+    await user.keyboard("{ArrowUp}{ArrowUp}");
+    expect(field).toHaveFocus();
+    await user.keyboard("{ArrowDown}{ArrowDown}{Enter}");
+    expect(picked).toHaveBeenLastCalledWith(second.id);
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    // Escape closes it without picking, and a search that finds nothing says so.
+    await user.keyboard("{Control>}k{/Control}");
+    await user.keyboard("zzzz");
+    expect(screen.getByText("No chapter matches.")).toBeVisible();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(picked).toHaveBeenCalledTimes(1);
   });
 
   test("the chapter has four tabs, on its words first, with the next step marked", async () => {
@@ -259,9 +292,7 @@ describe("BookHome", () => {
       tabs.compareDocumentPosition(head) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(
-      within(panel).getByText(
-        `Chapter 1 of ${book.chapters.length} · ${book.title}`,
-      ),
+      within(panel).getByText(`Chapter 1 of ${book.chapters.length}`),
     ).toBeVisible();
 
     // The chapter stays named over every tab.
@@ -323,14 +354,14 @@ describe("BookHome", () => {
     expect(
       screen.getByRole("region", { name: "Vocabulario por capítulo" }),
     ).toBeVisible();
-    expect(screen.getByRole("region", { name: "Capítulos" })).toBeVisible();
     expect(
       within(screen.getByRole("tablist")).getAllByRole("tab"),
     ).toHaveLength(4);
     expect(screen.getByRole("tab", { name: /Escribir/u })).toBeVisible();
     expect(
-      screen.getByText(`Capítulo 1 de ${book.chapters.length} · ${book.title}`),
+      screen.getByText(`Capítulo 1 de ${book.chapters.length}`),
     ).toBeVisible();
+    expect(screen.getByRole("button", { name: /^Buscar otro/u })).toBeVisible();
     expect(
       screen.getByRole("button", { name: "Capítulo siguiente" }),
     ).toBeVisible();

@@ -11,7 +11,6 @@ import { MetricCard } from "@/components/scene/MetricCard";
 import { BigNumber, StatChip, StatTile } from "@/components/scene/Stats";
 import { cn } from "@/lib/cn";
 import { EASE_OUT, animated, staggerDelay } from "@/lib/motion";
-import { ChapterList } from "./ChapterList";
 import { barState, chapterWindow } from "./chapterChart";
 import type { BarState } from "./chapterChart";
 import { chapterName } from "./chapterName";
@@ -167,21 +166,17 @@ interface BookBoardProps {
   selected: Chapter;
   /** Makes a chapter the one the learner is on. */
   onPick: (chapterId: string) => void;
-  /** Tells the scene which chapter is pointed at, to raise its block. */
-  onPoint: (chapterId: string | null) => void;
 }
 
 /**
- * The column of glass beside the scene: the book in counts, how ready each
- * chapter is with the one the learner is on in big, and its chapters by name.
- * A bar and a row pick a chapter, as a block of the scene does: there is no
- * other way to change it.
+ * The column of glass beside the scene: the book in counts and how ready each
+ * chapter is, with the one the learner is on in big. A bar picks a chapter,
+ * as a block of the scene and the search in the chapter's band do.
  */
 export function BookBoard({
   book,
   selected,
   onPick,
-  onPoint,
 }: BookBoardProps): ReactNode {
   const { t } = useTranslation();
   const states = book.chapters.map(barState);
@@ -239,14 +234,6 @@ export function BookBoard({
           />
           <Legend />
         </MetricCard>
-      </Reveal>
-      <Reveal>
-        <ChapterList
-          book={book}
-          selected={selected}
-          onPick={onPick}
-          onPoint={onPoint}
-        />
       </Reveal>
     </Stagger>
   );
