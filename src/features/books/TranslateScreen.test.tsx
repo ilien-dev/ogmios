@@ -1,14 +1,12 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import type { ReactNode } from "react";
-import { useState } from "react";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { UserEvent } from "@testing-library/user-event";
 import { MotionGlobalConfig } from "motion/react";
-import type { Route } from "@/app/routes";
 import { setMockTranslateFails } from "@/lib/ipcMockTranslate";
+import { BookSection } from "@/test/BookSection";
 import { useMockBackend } from "@/test/mockBackend";
-import { BooksScreen } from "./BooksScreen";
 
 const THERE = "From English into Spanish";
 const BACK = "From Spanish into English";
@@ -19,23 +17,7 @@ const NEXT = "He had not slept in three days.";
 
 /** The books section on a chapter never prepared, as the app holds it. */
 function Shelf(): ReactNode {
-  const [route, setRoute] = useState<Route>({
-    name: "books",
-    bookId: "book-alice",
-    chapterId: "book-alice-1",
-  });
-  if (route.name !== "books") {
-    return null;
-  }
-  return (
-    <BooksScreen
-      nativeLang="es"
-      bookId={route.bookId}
-      chapterId={route.chapterId ?? null}
-      translating={route.translating === true}
-      navigate={setRoute}
-    />
-  );
+  return <BookSection chapterId="book-alice-1" tab="translate" />;
 }
 
 function button(name: string | RegExp): HTMLElement {
@@ -46,9 +28,6 @@ function button(name: string | RegExp): HTMLElement {
 async function open(): Promise<UserEvent> {
   const user = userEvent.setup();
   render(<Shelf />);
-  await user.click(
-    await screen.findByRole("button", { name: "Translate the chapter" }),
-  );
   await screen.findByRole("button", { name: new RegExp(THERE, "u") });
   return user;
 }
@@ -103,11 +82,7 @@ describe("translating a chapter", () => {
   test("a chapter is translated whether or not its words were learned", async () => {
     const user = userEvent.setup();
     render(<Shelf />);
-    // Not prepared: the choice of how many words to learn is still there.
-    expect(
-      await screen.findByText("How many words do you want to learn?"),
-    ).toBeInTheDocument();
-    await user.click(button("Translate the chapter"));
+    // Not prepared: its tab for translating is there all the same.
     await screen.findByRole("button", { name: new RegExp(THERE, "u") });
 
     // Back into English waits for a paragraph translated the other way,

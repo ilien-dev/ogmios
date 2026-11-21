@@ -3,7 +3,7 @@ import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MotionGlobalConfig, PresenceContext } from "motion/react";
 import type { ReactNode } from "react";
-import type { PracticeItem, SessionSetup } from "@shared/domain";
+import type { PracticeItem, SessionSetup, Settings } from "@shared/domain";
 import { SittingItem } from "@/features/books/SittingItem";
 import type { Checked } from "@/features/books/SittingItem";
 import { Conversation } from "@/features/conversation/Conversation";
@@ -12,6 +12,7 @@ import { setMockLatency } from "@/lib/ipcMock";
 import { mockSpoken, resetMockSpeech } from "@/lib/ipcMockSpeech";
 import { useMockBackend } from "@/test/mockBackend";
 import { SpeakButton } from "./SpeakButton";
+import { VoiceRows } from "./VoiceCard";
 import { SpeechProvider, useReadAloud, useSpeech } from "./speech";
 
 const SETUP: SessionSetup = {
@@ -23,6 +24,15 @@ const SETUP: SessionSetup = {
   continuePrevious: false,
   targetMinutes: 10,
   material: null,
+};
+
+const SETTINGS: Settings = {
+  providerMode: "apiKey",
+  model: "claude-sonnet-5-5",
+  effort: null,
+  claudePath: null,
+  sttModel: null,
+  strictSpelling: false,
 };
 
 const RECOGNITION: PracticeItem = {
@@ -155,16 +165,12 @@ describe("reading aloud, with the voice downloaded", () => {
     const user = userEvent.setup();
     const settings = render(
       <SpeechProvider>
-        <ReadAloud />
+        <VoiceRows settings={SETTINGS} onSettingsChange={mock()} />
       </SpeechProvider>,
     );
-    await user.click(
-      await screen.findByRole("radio", { name: "Only when I ask" }),
-    );
+    await user.click(await screen.findByRole("switch", { name: "Listen" }));
     await waitFor(() => {
-      expect(
-        screen.getByRole("radio", { name: "Only when I ask" }),
-      ).toBeChecked();
+      expect(screen.getByRole("switch", { name: "Listen" })).not.toBeChecked();
     });
     settings.unmount();
 
@@ -290,18 +296,24 @@ describe("reading aloud, before the voice is downloaded", () => {
     const user = userEvent.setup();
     render(
       <SpeechProvider>
+        <VoiceRows settings={SETTINGS} onSettingsChange={mock()} />
         <ReadAloud />
       </SpeechProvider>,
     );
 
-    await user.click(await screen.findByRole("button", { name: /Download/u }));
+    expect(
+      await screen.findByText("Turn Listen on to choose who reads."),
+    ).toBeInTheDocument();
+    await user.click(
+      await screen.findByRole("button", { name: /^Turn on Listen/u }),
+    );
     expect(await screen.findByRole("radio", { name: /Heart/u })).toBeChecked();
 
     await user.click(screen.getByRole("radio", { name: /George/u }));
     await waitFor(() => {
       expect(screen.getByRole("radio", { name: /George/u })).toBeChecked();
     });
-    expect(screen.getByRole("radio", { name: "Read it aloud" })).toBeChecked();
+    expect(screen.getByRole("switch", { name: "Listen" })).toBeChecked();
   });
 });
 

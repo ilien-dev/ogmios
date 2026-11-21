@@ -234,6 +234,9 @@ export const saveBookCover = (id: string, image: ArrayBuffer): Promise<void> =>
 /** An empty title gives the chapter back the name it has without one. */
 export const renameChapter = (id: string, title: string): Promise<Chapter> =>
   call("rename_chapter", { id, title });
+/** Picks the chapter the learner is on: every tab of the book works on it. */
+export const openChapter = (id: string): Promise<void> =>
+  call("open_chapter", { id });
 /** A chapter and the words it has so far: none before it is prepared. */
 export const getChapterWords = (id: string): Promise<ChapterWords> =>
   call("get_chapter_words", { id });

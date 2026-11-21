@@ -14,7 +14,8 @@ import { Orb } from "@/components/ui/Orb";
 import { Select } from "@/components/ui/Select";
 import { TextInput } from "@/components/ui/TextInput";
 import { ConnectionPanel } from "@/features/settings/ConnectionPanel";
-import { VoiceModels } from "@/features/settings/VoiceModels";
+import { SpeechProvider } from "@/features/speech/speech";
+import { VoiceRows } from "@/features/speech/VoiceCard";
 import { cn } from "@/lib/cn";
 import { errorMessage } from "@/lib/errors";
 import { setUiLang } from "@/lib/i18n/i18n";
@@ -208,12 +209,15 @@ export function Onboarding({
         }}
       />
     ),
+    // The app's own voice is not up yet: the step brings one for itself.
     voice: (
-      <VoiceModels
-        onSelected={(sttModel) => {
-          setSettings((held) => ({ ...held, sttModel }));
-        }}
-      />
+      <SpeechProvider>
+        <VoiceRows
+          settings={settings}
+          onSettingsChange={setSettings}
+          persist={false}
+        />
+      </SpeechProvider>
     ),
     variant: (
       <ChoiceGroup<Variant>

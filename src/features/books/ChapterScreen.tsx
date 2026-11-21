@@ -13,10 +13,10 @@ import type {
 import { READY } from "@shared/domain";
 import { Presence } from "@/components/motion/Presence";
 import { Reveal } from "@/components/motion/Reveal";
-import { BackLink } from "@/components/ui/BackLink";
 import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
 import { Spinner } from "@/components/ui/Spinner";
+import type { Navigate } from "@/app/routes";
 import { errorMessage } from "@/lib/errors";
 import {
   getChapterWords,
@@ -51,37 +51,23 @@ interface Failure {
 interface ChapterScreenProps {
   book: Book;
   chapter: Chapter;
-  onBack: () => void;
   /** The chapter as it is once its words are in, or stand differently. */
   onPrepared: (chapter: Chapter) => void;
-  /** Starts a sitting on the chapter's words. */
-  onPractise: () => void;
-  /** Starts sorting the open words into known and not, a card each. */
-  onTriage: () => void;
-  /** Starts the quick refresh of a chapter that is ready to read. */
-  onRefresh: () => void;
-  /** Starts translating the chapter, whatever its words stand at. */
-  onTranslate: () => void;
-  /** Opens the structures the chapter uses most, to practise them. */
-  onStructures: () => void;
+  navigate: Navigate;
 }
 
 /**
- * One chapter: the choice of how many words to learn, the reading of the
- * chapter, and then its word list with the way into practising it. A word
- * the learner knows already is set aside there, and can be taken back. A
- * chapter that is ready to read offers a quick refresh of its done words.
+ * The words of the chapter the learner is on, as a tab of the book: the
+ * choice of how many to learn, the reading of the chapter, and then its word
+ * list with the way into practising it. A word the learner knows already is
+ * set aside there, and can be taken back. A chapter that is ready to read
+ * offers a warm-up of its done words.
  */
 export function ChapterScreen({
   book,
   chapter,
-  onBack,
   onPrepared,
-  onPractise,
-  onTriage,
-  onRefresh,
-  onTranslate,
-  onStructures,
+  navigate,
 }: ChapterScreenProps): ReactNode {
   const { t } = useTranslation();
   /** Null until read; a chapter not yet prepared has none to read. */
@@ -214,6 +200,18 @@ export function ChapterScreen({
     }
   };
 
+  /** A sitting on the chapter: it takes the whole window. */
+  const sit = (kind: "practice" | "refresh" | "triage"): void => {
+    navigate({
+      name: "books",
+      bookId: book.id,
+      chapterId: chapter.id,
+      practising: true,
+      refresh: kind === "refresh",
+      triage: kind === "triage",
+    });
+  };
+
   const deeper = deeperThan(chapter.prepared);
   const open = words?.some((word) => !word.done && !word.known) ?? false;
   // The words are read anew on the way in, the chapter a moment later: a
@@ -225,130 +223,121 @@ export function ChapterScreen({
     ready && (words?.some((word) => word.done && !word.known) ?? false);
 
   return (
-    <main className="h-full overflow-y-auto">
-      <div className="mx-auto flex max-w-6xl flex-col gap-6 px-6 py-8 nav:px-10 nav:py-12">
-        <Reveal index={0}>
-          <BackLink label={book.title} onClick={onBack} />
-        </Reveal>
-        <div className="flex flex-col gap-8 wide:flex-row wide:items-start wide:gap-12">
-          <Reveal
-            as="aside"
-            index={1}
-            className="rounded-2xl glass p-6 wide:sticky wide:top-0 wide:w-80 wide:shrink-0"
-          >
-            <ChapterAside
-              book={book}
-              name={chapterName(chapter, t)}
-              words={words}
-              preparing={preparing}
-              prepared={chapter.prepared !== null}
-              open={open}
-              ready={ready}
-              refreshable={refreshable}
-              readying={readying}
-              writing={writing}
-              onPractise={onPractise}
-              onRefresh={onRefresh}
-              onTranslate={onTranslate}
-              onStructures={onStructures}
-            />
-          </Reveal>
-          <Reveal index={2} className="flex min-w-0 flex-1 flex-col gap-6">
-            <Presence>
-              {unwritten !== null && (
-                <Reveal key="unwritten">
-                  <Notice tone="neutral">
-                    {t("books.sentences.failed", { message: unwritten })}
-                  </Notice>
-                </Reveal>
-              )}
-              {failure !== null && (
-                <Reveal
-                  key="failure"
-                  className="flex flex-col items-start gap-4"
-                >
-                  <Notice tone="danger">{failure.message}</Notice>
-                  <Presence>
-                    {failure.retry !== null && !preparing && (
-                      <Reveal key="retry" as="span" kind="fade">
-                        <Button
-                          variant="primaryBook"
-                          onClick={() => {
-                            if (failure.retry !== null) {
-                              void prepare(failure.retry);
-                            }
-                          }}
-                        >
-                          {t("common.retry")}
-                        </Button>
-                      </Reveal>
-                    )}
-                  </Presence>
-                </Reveal>
-              )}
-              {preparing && (
-                <Reveal
-                  key="preparing"
-                  aria-live="polite"
-                  className="flex flex-col gap-4 text-ink-soft"
-                >
-                  <p className="flex items-center gap-3">
-                    <Spinner />
-                    {t("books.chapter.preparing")}
-                  </p>
-                  <Presence>
-                    {progress !== null && (
-                      <Reveal key="progress">
-                        <PreparingBar progress={progress} />
-                      </Reveal>
-                    )}
-                  </Presence>
-                </Reveal>
-              )}
-              {!preparing && words === null && (
-                <Reveal key="loading" kind="fade">
-                  <Spinner />
-                </Reveal>
-              )}
-              {!preparing && chapter.prepared !== null && words !== null && (
-                <Reveal
-                  key="words"
-                  className="flex flex-col gap-6 rounded-2xl glass p-6 nav:p-8"
-                >
-                  <WordList
-                    words={words}
-                    onKnown={(word, known) => void setKnown(word, known)}
-                    onTriage={open ? onTriage : undefined}
-                  />
-                </Reveal>
-              )}
-              {!preparing && deeper.length > 0 && (
-                <Reveal
-                  key="deeper"
-                  className="flex flex-col gap-4 rounded-2xl glass p-6 nav:p-8"
-                >
-                  <header className="flex flex-col gap-1">
-                    <h2 className="font-display font-medium tracking-tight text-ink">
-                      {chapter.prepared === null
-                        ? t("books.chapter.choose")
-                        : t("books.chapter.more")}
-                    </h2>
-                    <p className="text-sm text-ink-soft">
-                      {chapter.prepared === null
-                        ? t("books.chapter.chooseHint")
-                        : t("books.chapter.moreHint")}
-                    </p>
-                  </header>
-                  <DepthChoice
-                    depths={deeper}
-                    onChoose={(depth) => void prepare(depth)}
-                  />
-                </Reveal>
-              )}
-            </Presence>
-          </Reveal>
-        </div>
-      </div>
-    </main>
+    <div className="flex flex-col gap-6">
+      <Reveal as="aside" index={1}>
+        <ChapterAside
+          book={book}
+          name={chapterName(chapter, t)}
+          words={words}
+          preparing={preparing}
+          prepared={chapter.prepared !== null}
+          open={open}
+          ready={ready}
+          refreshable={refreshable}
+          readying={readying}
+          writing={writing}
+          onPractise={() => {
+            sit("practice");
+          }}
+          onRefresh={() => {
+            sit("refresh");
+          }}
+        />
+      </Reveal>
+      <Reveal index={2} className="flex min-w-0 flex-1 flex-col gap-6">
+        <Presence>
+          {unwritten !== null && (
+            <Reveal key="unwritten">
+              <Notice tone="neutral">
+                {t("books.sentences.failed", { message: unwritten })}
+              </Notice>
+            </Reveal>
+          )}
+          {failure !== null && (
+            <Reveal key="failure" className="flex flex-col items-start gap-4">
+              <Notice tone="danger">{failure.message}</Notice>
+              <Presence>
+                {failure.retry !== null && !preparing && (
+                  <Reveal key="retry" as="span" kind="fade">
+                    <Button
+                      variant="primaryBook"
+                      onClick={() => {
+                        if (failure.retry !== null) {
+                          void prepare(failure.retry);
+                        }
+                      }}
+                    >
+                      {t("common.retry")}
+                    </Button>
+                  </Reveal>
+                )}
+              </Presence>
+            </Reveal>
+          )}
+          {preparing && (
+            <Reveal
+              key="preparing"
+              aria-live="polite"
+              className="flex flex-col gap-4 text-ink-soft"
+            >
+              <p className="flex items-center gap-3">
+                <Spinner />
+                {t("books.chapter.preparing")}
+              </p>
+              <Presence>
+                {progress !== null && (
+                  <Reveal key="progress">
+                    <PreparingBar progress={progress} />
+                  </Reveal>
+                )}
+              </Presence>
+            </Reveal>
+          )}
+          {!preparing && words === null && (
+            <Reveal key="loading" kind="fade">
+              <Spinner />
+            </Reveal>
+          )}
+          {!preparing && chapter.prepared !== null && words !== null && (
+            <Reveal key="words" className="flex flex-col gap-6">
+              <WordList
+                words={words}
+                onKnown={(word, known) => void setKnown(word, known)}
+                onTriage={
+                  open
+                    ? () => {
+                        sit("triage");
+                      }
+                    : undefined
+                }
+              />
+            </Reveal>
+          )}
+          {!preparing && deeper.length > 0 && (
+            <Reveal
+              key="deeper"
+              className="flex flex-col gap-4 border-t border-line pt-6"
+            >
+              <header className="flex flex-col gap-1">
+                <h2 className="font-display font-medium tracking-tight text-ink">
+                  {chapter.prepared === null
+                    ? t("books.chapter.choose")
+                    : t("books.chapter.more")}
+                </h2>
+                <p className="text-sm text-ink-soft">
+                  {chapter.prepared === null
+                    ? t("books.chapter.chooseHint")
+                    : t("books.chapter.moreHint")}
+                </p>
+              </header>
+              <DepthChoice
+                depths={deeper}
+                onChoose={(depth) => void prepare(depth)}
+              />
+            </Reveal>
+          )}
+        </Presence>
+      </Reveal>
+    </div>
   );
 }

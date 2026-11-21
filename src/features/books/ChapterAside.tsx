@@ -33,17 +33,14 @@ interface ChapterAsideProps {
   writing: SentenceProgress | null;
   onPractise: () => void;
   onRefresh: () => void;
-  onTranslate: () => void;
-  onStructures: () => void;
 }
 
 /*
- * Above the words, on a narrow window, the aside lies on its side: the orb on
- * the left and the rest beside it, flush left. Beside the words it stands
- * up again, centred.
+ * Above the words the aside lies on its side: the orb on the left and the
+ * rest beside it, flush left. On a narrow window it stands up, centred.
  */
-const ALIGN = "items-center sm:items-start wide:items-center";
-const JUSTIFY = "justify-center sm:justify-start wide:justify-center";
+const ALIGN = "items-center sm:items-start";
+const JUSTIFY = "justify-center sm:justify-start";
 
 /** How far the words stand, and which way into them is on offer. */
 function Actions(props: ChapterAsideProps): ReactNode {
@@ -61,14 +58,6 @@ function Actions(props: ChapterAsideProps): ReactNode {
           {t("books.chapter.practise")}
         </Button>
         <SentenceStock readying={readying} writing={writing} />
-        <div className={cn("flex flex-wrap gap-2", JUSTIFY)}>
-          <Button variant="learn" onClick={props.onTranslate}>
-            {t("books.translate.start")}
-          </Button>
-          <Button variant="learn" onClick={props.onStructures}>
-            {t("structures.chapter.open")}
-          </Button>
-        </div>
       </div>
     );
   }
@@ -99,19 +88,11 @@ function Actions(props: ChapterAsideProps): ReactNode {
               </Reveal>
             )}
           </Presence>
-          <Button onClick={props.onTranslate}>
-            {t("books.translate.start")}
-          </Button>
-          <Button onClick={props.onStructures}>
-            {t("structures.chapter.open")}
-          </Button>
         </div>
       </div>
     );
   }
-  return (
-    <Button onClick={props.onTranslate}>{t("books.translate.start")}</Button>
-  );
+  return null;
 }
 
 function modeOf({ open, ready }: ChapterAsideProps): string {
@@ -131,19 +112,14 @@ export function ChapterAside(props: ChapterAsideProps): ReactNode {
   const toLearn = words?.filter((word) => !word.known) ?? [];
   const learned = toLearn.filter((word) => word.done).length;
   return (
-    <div className="flex flex-col items-center gap-5 text-center sm:flex-row sm:gap-8 sm:text-left wide:flex-col wide:gap-5 wide:text-center">
-      <Orb
-        size="lg"
-        section="book"
-        shared
-        className="sm:size-32 wide:size-40"
-      />
+    <div className="flex flex-col items-center gap-5 text-center sm:flex-row sm:gap-8 sm:text-left">
+      <Orb size="lg" section="book" shared className="sm:size-28" />
       <div className={cn("flex min-w-0 flex-col gap-5", ALIGN)}>
         <div className="flex flex-col gap-1">
           <p className="text-sm font-semibold text-book">{book.title}</p>
-          <h1 className="font-display text-title font-light tracking-tight text-ink">
+          <h2 className="font-display text-title font-light tracking-tight text-ink">
             {name}
-          </h1>
+          </h2>
         </div>
         <Presence>
           {prepared && !preparing && toLearn.length > 0 && (

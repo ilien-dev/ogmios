@@ -334,7 +334,7 @@ function DrillSummary({
             {t("drills.again")}
           </Button>
           <Button variant="ghost" onClick={onClose}>
-            {t("drills.home")}
+            {t("drills.back")}
           </Button>
         </div>
       </RunCard>

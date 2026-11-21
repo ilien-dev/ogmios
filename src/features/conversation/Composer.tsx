@@ -10,11 +10,12 @@ import { useTranslation } from "react-i18next";
 import { Presence } from "@/components/motion/Presence";
 import { Reveal } from "@/components/motion/Reveal";
 import { useScreenLeaving } from "@/lib/motion";
-import { ArrowUp, Trash2 } from "lucide-react";
+import { ArrowUp, MicOff, Trash2 } from "lucide-react";
 import type { Recording } from "@shared/domain";
 import { Button } from "@/components/ui/Button";
 import { Chip } from "@/components/ui/Chip";
 import { Spinner } from "@/components/ui/Spinner";
+import { Swap } from "@/components/motion/Swap";
 import { cn } from "@/lib/cn";
 import { countWords, WORDS_PER_SPEECH_SECOND } from "@/lib/text";
 import { MicButton } from "./MicButton";
@@ -33,7 +34,12 @@ const HOLD_MS = 350;
 interface ComposerProps {
   turnWordGoal: number;
   scaffolds: string[];
+  /** Speak is on: the microphone records. Off, it is the way to turn it on. */
   voice: boolean;
+  /** Turns Speak on from here; without it the way to is shown but idle. */
+  onEnableVoice?: () => void;
+  /** How far the download Speak needs is, nought to one; null while none. */
+  enabling?: number | null;
   disabled: boolean;
   onSend: (text: string, recording: Recording | null) => Promise<boolean>;
   /** Tells what the microphone is doing whenever that changes. */
@@ -72,6 +78,8 @@ export function Composer({
   turnWordGoal,
   scaffolds,
   voice,
+  onEnableVoice,
+  enabling = null,
   disabled,
   onSend,
   onStatus,
@@ -332,7 +340,11 @@ export function Composer({
                 ? t("conversation.recording")
                 : recorder.status === "transcribing"
                   ? t("conversation.transcribing")
-                  : t("conversation.placeholder")
+                  : t(
+                      voice
+                        ? "conversation.placeholder"
+                        : "conversation.placeholderType",
+                    )
             }
             onChange={(event) => {
               setText(event.target.value);
@@ -351,8 +363,8 @@ export function Composer({
             )}
           </Presence>
         </div>
-        <Presence>
-          {voice && (
+        <Presence swap>
+          {voice ? (
             <Reveal key="mic" kind="scale">
               <MicButton
                 status={recorder.status}
@@ -362,6 +374,31 @@ export function Composer({
                 onRelease={release}
                 onKeyboardToggle={toggle}
               />
+            </Reveal>
+          ) : (
+            <Reveal key="enable" kind="scale">
+              <button
+                type="button"
+                disabled={onEnableVoice === undefined || enabling !== null}
+                onClick={onEnableVoice}
+                className="group inline-flex h-14 shrink-0 items-center gap-2 rounded-full border border-dashed border-line-strong px-4 text-sm font-medium text-ink-soft transition-control hover:enabled:-translate-y-0.5 hover:enabled:border-you-line hover:enabled:text-ink disabled:cursor-not-allowed disabled:text-ink-faint"
+              >
+                <Swap id={enabling === null ? "off" : "fetching"}>
+                  {enabling === null ? (
+                    <MicOff
+                      aria-hidden
+                      className="size-5 transition-transform duration-300 ease-out-expo group-enabled:group-hover:scale-110"
+                    />
+                  ) : (
+                    <Spinner />
+                  )}
+                </Swap>
+                {enabling === null
+                  ? t("voice.activateTalk")
+                  : t("voice.downloading", {
+                      percent: Math.round(enabling * 100),
+                    })}
+              </button>
             </Reveal>
           )}
         </Presence>

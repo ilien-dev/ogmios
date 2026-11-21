@@ -17,6 +17,7 @@ import { Stagger } from "@/components/motion/Stagger";
 import { Scene, SceneTitle } from "@/components/scene/Scene";
 import { SpiralRelief } from "@/components/scene/SpiralRelief";
 import { StatChip } from "@/components/scene/Stats";
+import { BackLink } from "@/components/ui/BackLink";
 import { Button } from "@/components/ui/Button";
 import { ChoiceGroup } from "@/components/ui/ChoiceGroup";
 import { Chip } from "@/components/ui/Chip";
@@ -136,6 +137,14 @@ export function Setup({ profile, preset, navigate }: SetupProps): ReactNode {
         className="flex min-h-full flex-col gap-4 pt-2 pb-4 wide:h-full wide:flex-row"
       >
         <Stagger className="flex w-full shrink-0 flex-col gap-3.5 wide:max-w-md wide:overflow-y-auto wide:pb-2">
+          <Reveal className="px-3">
+            <BackLink
+              label={t("nav.backTo", { place: t("nav.places.talk") })}
+              onClick={() => {
+                navigate({ name: "home" });
+              }}
+            />
+          </Reveal>
           <Reveal className={CARD}>
             <ChoiceGroup<Level>
               legend={t("setup.level")}

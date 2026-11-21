@@ -30,6 +30,25 @@ async function report(): Promise<Report> {
 describe("ReportScreen", () => {
   useMockBackend();
 
+  test.each(["session", "past"] as const)(
+    "closing a report opened from %s goes back to Chat",
+    async (origin) => {
+      const user = userEvent.setup();
+      const navigate = mock();
+      render(
+        <ReportScreen
+          sessionId="s-106"
+          initial={await report()}
+          origin={origin}
+          navigate={navigate}
+        />,
+      );
+
+      await user.click(screen.getByRole("button", { name: "Close" }));
+      expect(navigate).toHaveBeenCalledWith({ name: "home" });
+    },
+  );
+
   test("one card at a time, with arrow keys and a closing card", async () => {
     const user = userEvent.setup();
     render(
@@ -187,7 +206,6 @@ describe("ReportScreen", () => {
       name: "practice",
       patternId: "p-make-do",
       format: null,
-      autostart: true,
     });
   });
 
@@ -210,7 +228,6 @@ describe("ReportScreen", () => {
       name: "practice",
       patternId: "p-present-perfect",
       format: null,
-      autostart: true,
     });
   });
 

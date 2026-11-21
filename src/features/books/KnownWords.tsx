@@ -5,7 +5,6 @@ import type { KnownWord } from "@shared/domain";
 import { Presence } from "@/components/motion/Presence";
 import { Reveal } from "@/components/motion/Reveal";
 import { STAGGER_LIMIT } from "@/lib/motion";
-import { BackLink } from "@/components/ui/BackLink";
 import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
 import { Spinner } from "@/components/ui/Spinner";
@@ -13,16 +12,12 @@ import { SpeakButton } from "@/features/speech/SpeakButton";
 import { errorMessage } from "@/lib/errors";
 import { forgetKnownWord, listKnownWords } from "@/lib/ipc";
 
-interface KnownWordsScreenProps {
-  onBack: () => void;
-}
-
 /**
  * Every word the learner said they know, from any chapter of any book, the
- * latest first. Any of them can be taken back, which puts it in practice
- * again wherever a chapter has it.
+ * latest first: a card among what they have gathered. Any of them can be
+ * taken back, which puts it in practice again wherever a chapter has it.
  */
-export function KnownWordsScreen({ onBack }: KnownWordsScreenProps): ReactNode {
+export function KnownWords(): ReactNode {
   const { t } = useTranslation();
   const [words, setWords] = useState<KnownWord[] | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
@@ -55,16 +50,18 @@ export function KnownWordsScreen({ onBack }: KnownWordsScreenProps): ReactNode {
   };
 
   return (
-    <main className="h-full overflow-y-auto">
-      <div className="mx-auto flex max-w-2xl flex-col gap-10 px-6 py-12 nav:py-16">
-        <Reveal as="header" index={0} className="flex flex-col gap-3">
-          <BackLink label={t("books.title")} onClick={onBack} />
-          <h1 className="font-display text-display font-light tracking-tight text-ink">
-            {t("books.known.title")}
-          </h1>
-          <p className="text-lead text-ink-soft">{t("books.known.intro")}</p>
-        </Reveal>
-
+    <Reveal
+      as="section"
+      aria-label={t("books.known.title")}
+      className="flex flex-col gap-5 rounded-xl glass p-6"
+    >
+      <header className="flex flex-col gap-2">
+        <h2 className="font-display text-2xl font-light tracking-tight text-ink">
+          {t("books.known.title")}
+        </h2>
+        <p className="text-sm text-ink-soft">{t("books.known.intro")}</p>
+      </header>
+      <div className="relative flex flex-col gap-4">
         <Presence>
           {failure !== null && (
             <Reveal key="failure">
@@ -90,10 +87,10 @@ export function KnownWordsScreen({ onBack }: KnownWordsScreenProps): ReactNode {
               index={1}
               className="flex flex-col gap-4"
             >
-              <h2 className="font-mono text-xs font-medium text-ink-faint">
+              <h3 className="font-mono text-xs font-medium text-ink-faint">
                 {t("books.chapter.knownCount", { count: words.length })}
-              </h2>
-              <ul className="flex flex-col divide-y divide-line rounded-xl glass px-4 py-2">
+              </h3>
+              <ul className="flex flex-col divide-y divide-line">
                 <Presence>
                   {words.map((word, index) => (
                     <Reveal
@@ -129,6 +126,6 @@ export function KnownWordsScreen({ onBack }: KnownWordsScreenProps): ReactNode {
           )}
         </Presence>
       </div>
-    </main>
+    </Reveal>
   );
 }

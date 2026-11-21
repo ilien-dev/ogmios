@@ -189,8 +189,8 @@ describe("from one item to the next, with animation on", () => {
       <Practice
         patternId={null}
         format="transformation"
-        autostart
         navigate={mock()}
+        onLeave={mock()}
       />,
     );
     await screen.findByRole("textbox");

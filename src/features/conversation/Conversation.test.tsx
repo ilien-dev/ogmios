@@ -2,6 +2,9 @@ import { describe, expect, mock, test } from "bun:test";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { SessionSetup } from "@shared/domain";
+import { SpeechProvider } from "@/features/speech/speech";
+import { ttsStatus } from "@/lib/ipc";
+import { resetMockSpeech } from "@/lib/ipcMockSpeech";
 import { useMockBackend } from "@/test/mockBackend";
 import { Conversation } from "./Conversation";
 
@@ -77,6 +80,42 @@ describe("Conversation", () => {
     expect(screen.getByLabelText("Your answer")).toHaveValue(
       "Well, this week I have finished a big report for the logistics team and my boss was really happy with it.",
     );
+  });
+
+  test("with Speak off, the microphone stays as the way to turn it on", async () => {
+    render(<Conversation setup={SETUP} sttModel={null} navigate={mock()} />);
+    await screen.findByText("Ogmios: Try 2–3 sentences");
+
+    expect(
+      screen.getByRole("button", { name: "Turn on Speak" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Microphone/u })).toBeNull();
+    expect(screen.getByLabelText("Your answer")).toHaveAttribute(
+      "placeholder",
+      "Type here",
+    );
+  });
+
+  test("under the app's voice, its switch decides and Listen shows as it stands", async () => {
+    const user = userEvent.setup();
+    resetMockSpeech(true);
+    render(
+      <SpeechProvider>
+        <Conversation setup={SETUP} sttModel={null} navigate={mock()} />
+      </SpeechProvider>,
+    );
+    await screen.findByText("Ogmios: Try 2–3 sentences");
+
+    // The learner's model is picked: the stale setting does not hide the mic.
+    expect(
+      await screen.findByRole("button", { name: /Microphone/u }),
+    ).toBeInTheDocument();
+
+    await user.click(await screen.findByRole("button", { name: "Listen: on" }));
+    expect(
+      await screen.findByRole("button", { name: "Listen: off" }),
+    ).toBeInTheDocument();
+    expect((await ttsStatus()).enabled).toBe(false);
   });
 
   test("the orb says it is listening while recording", async () => {

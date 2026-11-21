@@ -4,27 +4,12 @@
  * topic there; a test in Rust says so.
  */
 export const structuresEn = {
-  hub: {
-    freeTitle: "Free session",
-    freeText:
-      "Pick structures from the catalogue and write sentences with them.",
-    freeStatus: "{{count}} structures · {{firm}} firm",
-    chapterTitle: "From the chapter",
-    chapterText: "The structures the chapter you are reading uses most.",
-    pausedTitle: "Paused",
-    pausedText: "Go on with the session you left, or end it.",
-    pausedOne: "{{done}} of {{total}} sentences",
-    pausedMany: "{{count}} sessions",
-  },
+  free: "Pick structures from the catalogue and write sentences with them. With none picked, a session mixes every one in the list.",
   board: {
     scene: "Your structures by level",
     structures_one: "structure",
     structures_other: "structures",
     due: "due again",
-    paused_one: "paused session",
-    paused_other: "paused sessions",
-    sentences_one: "sentence in the chapter",
-    sentences_other: "sentences in the chapter",
     picked_one: "picked",
     picked_other: "picked",
     level: "Level",
@@ -36,8 +21,6 @@ export const structuresEn = {
     reliefLevel: "{{level}} {{practised}} of {{count}}",
   },
   title: "Structures",
-  intro:
-    "Write sentences with one structure until it comes out by itself. You'll use words you already met in your books.",
   all: "Every structure",
   due: "due today",
   filter: {
@@ -45,8 +28,6 @@ export const structuresEn = {
     all: "All",
   },
   chapter: {
-    book: "{{book}} · {{chapter}}",
-    title: "The structures your chapter uses most",
     find: "Find this chapter's structures",
     finding: "Reading the chapter…",
     pieces: "{{done}} of {{total}} parts read",
@@ -55,12 +36,14 @@ export const structuresEn = {
     none: "None of the structures here turned up in this chapter.",
     count_one: "{{count}} sentence",
     count_other: "{{count}} sentences",
-    practise: "Practise the chapter's",
-    open: "Chapter structures",
     screenTitle: "Chapter structures",
     screenIntro:
       "The ones this text uses most. Practise them and you'll recognise them as you read.",
     words: "With words from this chapter",
+    unprepared:
+      "Prepare the chapter first: the sentences are asked with its words.",
+    toWords: "Go to Words",
+    catalogue: "See all the structures",
   },
   paused: {
     title: "Paused",

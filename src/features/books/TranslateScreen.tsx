@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import type { Chapter, Translation } from "@shared/domain";
+import type { Translation } from "@shared/domain";
 import { Presence } from "@/components/motion/Presence";
 import { Reveal } from "@/components/motion/Reveal";
 import { Swap } from "@/components/motion/Swap";
@@ -12,11 +12,9 @@ import { Notice } from "@/components/ui/Notice";
 import { errorMessage } from "@/lib/errors";
 import { closeAttempt, getAttempt } from "@/lib/ipc";
 import { languageName } from "@/lib/text";
-import { chapterName } from "./chapterName";
 import { DetailRow, Summary } from "./TranslateDetail";
 import { TranslateBar } from "./TranslateBar";
 import { TranslateSession } from "./TranslateSession";
-import { TranslateStart } from "./TranslateStart";
 import { isWhole, useTranslationRun } from "./useTranslationRun";
 
 interface RunProps {
@@ -130,73 +128,42 @@ function Run({ opened, native, onFinished, onLeave }: RunProps): ReactNode {
 }
 
 interface TranslateScreenProps {
-  chapter: Chapter;
+  /** The attempt as it stood when it was opened from the chapter's tab. */
+  attempt: Translation;
   /** The learner's first language: what the chapter is translated into. */
   nativeLang: string;
-  /** Back to the chapter. */
+  /** Back to the chapter's attempts. */
   onBack: () => void;
 }
 
 /**
- * Translating a chapter: into the learner's language, and then back into
- * English. It is done in attempts, each begun or picked up from the list
- * here; the direction of one holds until it is left.
+ * One attempt at translating a chapter, on the whole window: into the
+ * learner's language, or back into English. It is begun or picked up from the
+ * chapter's tab in the book, which is where leaving it goes back to.
  */
 export function TranslateScreen({
-  chapter,
+  attempt,
   nativeLang,
   onBack,
 }: TranslateScreenProps): ReactNode {
-  const { t, i18n } = useTranslation();
-  const [opened, setOpened] = useState<Translation | null>(null);
+  const { i18n } = useTranslation();
+  /** The attempt once it was finished here: it is read from then on. */
+  const [finished, setFinished] = useState<Translation | null>(null);
+  const opened = finished ?? attempt;
   const native = languageName(nativeLang, i18n.language);
-
-  const view = (): ReactNode => {
-    if (opened !== null) {
-      return (
-        <Run
-          opened={opened}
-          native={native}
-          onFinished={setOpened}
-          onLeave={() => {
-            setOpened(null);
-          }}
-        />
-      );
-    }
-
-    return (
-      <main className="h-full overflow-y-auto">
-        <Stagger className="mx-auto flex max-w-2xl flex-col gap-8 px-6 py-12 nav:py-16">
-          <Reveal as="header" className="flex flex-col gap-3">
-            <BackLink label={chapterName(chapter, t)} onClick={onBack} />
-            <h1 className="font-display text-display font-light tracking-tight text-ink">
-              {t("books.translate.title")}
-            </h1>
-          </Reveal>
-          <Reveal>
-            <TranslateStart
-              chapterId={chapter.id}
-              native={native}
-              onOpen={setOpened}
-            />
-          </Reveal>
-        </Stagger>
-      </main>
-    );
-  };
 
   return (
     <Swap
       as="div"
-      id={
-        opened === null
-          ? "attempts"
-          : `${opened.attemptId}-${String(opened.finished)}`
-      }
+      id={`${opened.attemptId}-${String(opened.finished)}`}
       className="h-full"
     >
-      {view()}
+      <Run
+        opened={opened}
+        native={native}
+        onFinished={setFinished}
+        onLeave={onBack}
+      />
     </Swap>
   );
 }

@@ -123,6 +123,7 @@ macro_rules! every_command {
             commands::book::book_pdf,
             commands::book::save_book_cover,
             commands::book::rename_chapter,
+            commands::chapter::open_chapter,
             commands::chapter::get_chapter_words,
             commands::chapter::prepare_chapter,
             commands::chapter::set_word_known,

@@ -49,14 +49,14 @@ function SessionLine({ session, navigate }: SessionLineProps): ReactNode {
           name: "report",
           sessionId: session.id,
           report: null,
-          origin: "progress",
+          origin: "past",
         });
       }}
       className="group flex min-w-0 flex-1 items-center gap-4 rounded-lg px-3 py-4 text-left transition-control hover:bg-sunken/60"
     >
       {summary}
       <span className="flex items-center gap-1 text-sm text-accent-text">
-        {t("progress.viewReport")}
+        {t("home.past.viewReport")}
         <ChevronRight
           aria-hidden
           className="size-4 transition-transform duration-300 ease-out-expo group-hover:translate-x-0.5"
@@ -66,7 +66,7 @@ function SessionLine({ session, navigate }: SessionLineProps): ReactNode {
   ) : (
     <div className="flex min-w-0 flex-1 items-center gap-4 px-3 py-4">
       {summary}
-      <span className="text-sm text-ink-faint">{t("progress.noReport")}</span>
+      <span className="text-sm text-ink-faint">{t("home.past.noReport")}</span>
     </div>
   );
 }
@@ -117,7 +117,7 @@ export function SessionList({
                     className="flex flex-wrap items-center gap-2 px-3 py-4"
                   >
                     <p className="min-w-0 flex-1 text-ink">
-                      {t("progress.deleteConfirm")}
+                      {t("home.past.deleteConfirm")}
                     </p>
                     <Button
                       variant="danger"
@@ -125,7 +125,7 @@ export function SessionList({
                       disabled={deleting}
                       onClick={() => void remove(session.id)}
                     >
-                      {t("progress.deleteYes")}
+                      {t("home.past.deleteYes")}
                     </Button>
                     <Button
                       variant="ghost"
@@ -150,7 +150,7 @@ export function SessionList({
                       variant="ghost"
                       size="sm"
                       className="group"
-                      aria-label={t("progress.delete", {
+                      aria-label={t("home.past.delete", {
                         topic: session.topic,
                       })}
                       icon={

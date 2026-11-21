@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import type { HomeState, Progress, Streak } from "@shared/domain";
+import type { HomeState, Progress, Settings, Streak } from "@shared/domain";
 import { Presence } from "@/components/motion/Presence";
 import { Reveal } from "@/components/motion/Reveal";
 import { CountUp } from "@/components/motion/CountUp";
@@ -11,9 +11,9 @@ import { Spinner } from "@/components/ui/Spinner";
 import type { Navigate } from "@/app/routes";
 import { cn } from "@/lib/cn";
 import { errorMessage } from "@/lib/errors";
-import { getProgress, homeState } from "@/lib/ipc";
+import { deleteSession, getProgress, homeState } from "@/lib/ipc";
 import { HomeBoard } from "./HomeBoard";
-import { HomeCenter, quickSetup } from "./HomeCenter";
+import { HomeCenter } from "./HomeCenter";
 
 function StreakLine({ streak }: { streak: Streak }): ReactNode {
   const { t } = useTranslation();
@@ -48,16 +48,27 @@ function StreakLine({ streak }: { streak: Streak }): ReactNode {
   );
 }
 
-interface LoadedProps {
-  home: HomeState;
+interface HomeProps {
+  settings: Settings;
+  /** The voice was turned on or off from here. */
+  onSettingsChange: (settings: Settings) => void;
   navigate: Navigate;
+}
+
+interface LoadedProps extends HomeProps {
+  home: HomeState;
 }
 
 /**
  * The column of glass on the left and the scene on the right, as in the
  * brand proposal; one under the other when the window is narrow.
  */
-function Loaded({ home, navigate }: LoadedProps): ReactNode {
+function Loaded({
+  home,
+  settings,
+  onSettingsChange,
+  navigate,
+}: LoadedProps): ReactNode {
   const [progress, setProgress] = useState<Progress | null>(null);
   const [topicIndex, setTopicIndex] = useState(0);
   const topics = home.suggestedTopics;
@@ -89,12 +100,14 @@ function Loaded({ home, navigate }: LoadedProps): ReactNode {
           <StreakLine streak={home.streak} />
         </Reveal>
         <HomeBoard
-          home={home}
           progress={progress}
-          topic={topic}
+          settings={settings}
+          onSettingsChange={onSettingsChange}
           navigate={navigate}
-          onStart={() => {
-            navigate({ name: "conversation", setup: quickSetup(home, topic) });
+          onDeleteSession={async (sessionId) => {
+            await deleteSession(sessionId);
+            // The patterns and the weeks no longer count it.
+            setProgress(await getProgress());
           }}
         />
       </div>
@@ -118,15 +131,16 @@ function Loaded({ home, navigate }: LoadedProps): ReactNode {
   );
 }
 
-interface HomeProps {
-  navigate: Navigate;
-}
-
 /**
- * The conversation section's own screen: the partner, today's topic and what
- * it steers towards. The places of both sections are on the rail beside it.
+ * Chat: the partner, today's topic and what it steers towards, the voice, and
+ * what came out of the conversations so far: the patterns being polished,
+ * with a round of drills on each, and every past conversation's feedback.
  */
-export function Home({ navigate }: HomeProps): ReactNode {
+export function Home({
+  settings,
+  onSettingsChange,
+  navigate,
+}: HomeProps): ReactNode {
   const { t } = useTranslation();
   const [home, setHome] = useState<HomeState | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
@@ -178,7 +192,12 @@ export function Home({ navigate }: HomeProps): ReactNode {
           layoutScroll
           className="h-full overflow-y-auto"
         >
-          <Loaded home={home} navigate={navigate} />
+          <Loaded
+            home={home}
+            settings={settings}
+            onSettingsChange={onSettingsChange}
+            navigate={navigate}
+          />
         </Reveal>
       )}
     </Presence>

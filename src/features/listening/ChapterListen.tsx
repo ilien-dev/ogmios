@@ -45,7 +45,10 @@ function ReadingCard({
       <RunCard wide>
         <Stagger className="flex flex-col gap-8">
           <Reveal as="header" className="flex flex-col gap-3">
-            <BackLink label={t("listening.reading.back")} onClick={onBack} />
+            <BackLink
+              label={t("nav.backTo", { place: t("nav.places.book") })}
+              onClick={onBack}
+            />
             <p className="font-mono text-xs text-ink-faint">
               {reading.bookTitle}
             </p>

@@ -28,8 +28,8 @@ function Section({ from }: { from: Route }): ReactNode {
       nativeLang="es"
       bookId={route.bookId}
       chapterId={route.chapterId ?? null}
-      known={route.known === true}
       navigate={setRoute}
+      onPick={() => {}}
     />
   );
 }
@@ -128,53 +128,16 @@ describe("BooksScreen", () => {
     expect(screen.queryByRole("button", { name: /already know/u })).toBeNull();
   });
 
-  test("the shelf leads to every known word, and one can be taken back", async () => {
+  test("the shelf leads to the known words, which are with everything the learner has", async () => {
     seedMockReadiness();
     setMockWordKnown("marmalade", true);
-    // Known from a book that is gone: nothing is left to translate it.
-    setMockWordKnown("quay", true);
     const user = userEvent.setup();
     render(<Shelf />);
 
     await user.click(
-      await screen.findByRole("button", { name: "3 words you already know" }),
+      await screen.findByRole("button", { name: "2 words you already know" }),
     );
-    expect(
-      screen.getByRole("heading", { name: "Words you already know" }),
-    ).toBeInTheDocument();
-    const rows = (): Array<string | null> =>
-      screen.getAllByRole("listitem").map((row) => row.textContent);
-    await screen.findByText("3 words you already know");
-    // The one marked last comes first.
-    expect(rows()).toEqual([
-      "quayUndo",
-      "marmalademermeladaUndo",
-      "hedgesetoUndo",
-    ]);
-
-    await user.click(screen.getByRole("button", { name: "Undo: quay" }));
-    await screen.findByText("2 words you already know");
-    await i18n.changeLanguage("es");
-    expect(
-      screen.getByRole("heading", { name: "Palabras que ya sabes" }),
-    ).toBeInTheDocument();
-    await user.click(
-      screen.getByRole("button", { name: "Deshacer: marmalade" }),
-    );
-    await user.click(
-      await screen.findByRole("button", { name: "Deshacer: hedge" }),
-    );
-    expect(
-      await screen.findByText(
-        "Aún no has marcado ninguna palabra como sabida.",
-      ),
-    ).toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: "Libros" }));
-    expect(
-      await screen.findByRole("heading", { name: "Libros" }),
-    ).toBeInTheDocument();
-    expect(screen.queryByText(/ya sabes/u)).toBeNull();
+    expect(screen.getByText("Left for progress")).toBeInTheDocument();
   });
 
   test("adding a book opens it; the same file again is the same book", async () => {
@@ -475,10 +438,10 @@ describe("BooksScreen", () => {
     });
   });
 
-  test("a move between shelf, book and chapter shows content at once, seeded from the shelf the app holds", async () => {
+  test("a move from the shelf to a book shows it at once, seeded from the shelf the app holds", async () => {
     const shelf = await listBooks();
     setMockLatency(0.05);
-    const { rerender } = render(
+    render(
       <BooksScreen
         key="book"
         nativeLang="es"
@@ -486,34 +449,13 @@ describe("BooksScreen", () => {
         bookId="book-alice"
         chapterId={null}
         navigate={() => {}}
+        onPick={() => {}}
       />,
     );
     // No spinner frame first: the book is there before anything is read.
     expect(
       screen.getByRole("heading", { name: "Alice's Adventures in Wonderland" }),
     ).toBeInTheDocument();
-
-    // The route changes the screen's key in the app: it mounts anew.
-    rerender(
-      <BooksScreen
-        key="chapter"
-        nativeLang="es"
-        shelf={shelf}
-        bookId="book-alice"
-        chapterId={shelf[0]?.chapters[0]?.id ?? null}
-        navigate={() => {}}
-      />,
-    );
-    expect(
-      screen.getByRole("heading", {
-        level: 1,
-        name: "I. Down the Rabbit-Hole",
-      }),
-    ).toBeInTheDocument();
-    // The read behind it still lands.
-    await waitFor(() => {
-      expect(screen.getByText("8 words to learn")).toBeInTheDocument();
-    });
   });
 
   test("a shelf that lacks the open book is not trusted: no missing-book flash", async () => {
@@ -525,6 +467,7 @@ describe("BooksScreen", () => {
         bookId="book-alice"
         chapterId={null}
         navigate={() => {}}
+        onPick={() => {}}
       />,
     );
     expect(screen.queryByText("This book is no longer here.")).toBeNull();

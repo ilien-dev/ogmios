@@ -121,6 +121,16 @@ impl Dictation {
         Ok(())
     }
 
+    /// Stop using any model: speaking is off until one is picked again. What
+    /// was downloaded stays on disk.
+    pub fn deselect(&self) -> Result<()> {
+        std::fs::write(
+            self.choice_path(),
+            serde_json::to_vec(&Choice { selected: None })?,
+        )?;
+        Ok(())
+    }
+
     /// Open the microphone. `on_level` is called about ten times a second, on
     /// the microphone's thread; `on_partial` whenever the preview has read
     /// more, with everything said so far.
@@ -351,6 +361,28 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let stt = Dictation::new(dir.path());
         fake_download(dir.path(), "parakeet-tdt-ctc-110m");
+        stt.select("parakeet-tdt-ctc-110m").unwrap();
+        assert_eq!(
+            Dictation::new(dir.path()).status().selected.as_deref(),
+            Some("parakeet-tdt-ctc-110m")
+        );
+    }
+
+    #[test]
+    fn turning_speaking_off_survives_a_restart_and_keeps_the_model() {
+        let dir = tempfile::tempdir().unwrap();
+        let stt = Dictation::new(dir.path());
+        fake_download(dir.path(), "parakeet-tdt-ctc-110m");
+        stt.select("parakeet-tdt-ctc-110m").unwrap();
+        stt.deselect().unwrap();
+
+        let again = Dictation::new(dir.path()).status();
+        assert_eq!(again.selected, None);
+        assert!(again
+            .models
+            .iter()
+            .any(|model| model.id == "parakeet-tdt-ctc-110m" && model.downloaded));
+        // It is picked again without another download.
         stt.select("parakeet-tdt-ctc-110m").unwrap();
         assert_eq!(
             Dictation::new(dir.path()).status().selected.as_deref(),

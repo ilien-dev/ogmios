@@ -2,38 +2,34 @@ import type { ReactNode } from "react";
 import type { Navigate } from "@/app/routes";
 import { ChapterListen } from "./ChapterListen";
 import { DictationRun } from "./DictationRun";
-import { ListeningMenu } from "./ListeningMenu";
 
 interface ListeningScreenProps {
   /** The dictation on the screen, by its id; null outside one. */
   running: string | null;
-  /** Instead of the menu: that chapter, read aloud. */
+  /** Instead of a dictation: that chapter, read aloud. */
   reading: string | null;
-  /** The chapter the menu is on; null for the one opened last. */
-  chapterId: string | null;
   navigate: Navigate;
+  /** Out of it: back to where it was started from. */
+  onLeave: () => void;
 }
 
 /**
- * Listening: the ear, trained on the learner's own book. Its menu says the
- * pace they understand and offers two things on a chapter: hearing it read
- * aloud from where it was left, and a dictation of its sentences, which
- * takes the whole window.
+ * Listening, once it is on: a dictation of a chapter's sentences, or the
+ * chapter read aloud from where it was left. Either takes the whole window;
+ * what starts them is the chapter's own tab in the book.
  */
 export function ListeningScreen({
   running,
   reading,
-  chapterId,
   navigate,
+  onLeave,
 }: ListeningScreenProps): ReactNode {
   if (running !== null) {
     return (
       <DictationRun
         key={running}
         sittingId={running}
-        onLeave={() => {
-          navigate({ name: "listening" });
-        }}
+        onLeave={onLeave}
         onAgain={(next) => {
           navigate({ name: "listening", running: next });
         }}
@@ -41,15 +37,7 @@ export function ListeningScreen({
     );
   }
   if (reading !== null) {
-    return (
-      <ChapterListen
-        key={reading}
-        chapterId={reading}
-        onBack={() => {
-          navigate({ name: "listening", chapterId: reading });
-        }}
-      />
-    );
+    return <ChapterListen key={reading} chapterId={reading} onBack={onLeave} />;
   }
-  return <ListeningMenu chapterId={chapterId} navigate={navigate} />;
+  return null;
 }

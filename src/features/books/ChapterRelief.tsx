@@ -60,6 +60,8 @@ const NUMBER: Record<"plain" | "lit" | "book", string> = {
 interface ChapterReliefProps {
   chapters: readonly Chapter[];
   selectedId: string;
+  /** The chapter pointed at from outside the relief: its block rises too. */
+  pointed?: string | null;
   /** Picks a chapter, as its bar in the chart does. */
   onSelect?: (chapterId: string) => void;
   /** Read out instead of the drawing. */
@@ -79,6 +81,7 @@ const FOLLOW = { type: "spring", stiffness: 140, damping: 22 } as const;
 export function ChapterRelief({
   chapters,
   selectedId,
+  pointed = null,
   onSelect,
   label,
   className,
@@ -157,7 +160,9 @@ export function ChapterRelief({
               <Block
                 {...box}
                 look={look}
-                raised={hover.hovered === box.chapter.id}
+                raised={
+                  hover.hovered === box.chapter.id || pointed === box.chapter.id
+                }
                 hover={hover.on(
                   tip,
                   onSelect === undefined
@@ -203,7 +208,10 @@ export function ChapterRelief({
                 at={topCentre(picked)}
                 tone="focus"
                 rise={58}
-                raised={hover.hovered === picked.chapter.id}
+                raised={
+                  hover.hovered === picked.chapter.id ||
+                  pointed === picked.chapter.id
+                }
               />
             </motion.g>
           )}

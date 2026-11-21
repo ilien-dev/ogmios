@@ -1,71 +1,106 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import type { Book, Chapter, KnownWord, RecallState } from "@shared/domain";
+import type { Book, Chapter } from "@shared/domain";
 import { Presence } from "@/components/motion/Presence";
 import { Reveal } from "@/components/motion/Reveal";
 import { Stagger } from "@/components/motion/Stagger";
+import { Swap } from "@/components/motion/Swap";
 import { Button } from "@/components/ui/Button";
 import { Spinner } from "@/components/ui/Spinner";
-import type { Entry } from "@/app/places";
-import type { Navigate } from "@/app/routes";
-import { listKnownWords, recallState } from "@/lib/ipc";
+import type { BookTab, Navigate } from "@/app/routes";
+import { ListenTab } from "@/features/listening/ListenTab";
+import { WriteTab } from "@/features/structures/WriteTab";
 import { BookBoard } from "./BookHomeBoard";
 import { BookScene } from "./BookHomeScene";
+import { ChapterScreen } from "./ChapterScreen";
+import { chapterName } from "./chapterName";
 import type { Current } from "./currentChapter";
+import { TranslateTab } from "./TranslateTab";
 
 interface LoadedProps {
   book: Book;
+  /** The chapter the learner is on. */
   selected: Chapter;
-  /** Words the daily recall asks today. */
-  due: number;
-  recall: RecallState | null;
-  learned: number;
-  known: number;
+  tab: BookTab;
   nativeLang: string;
   navigate: Navigate;
   onPick: (chapterId: string) => void;
+  /** The chapter as it stands once its words changed under this screen. */
+  onChanged: (chapter: Chapter) => void;
 }
 
 /**
- * The column of glass on the left and the scene of the book on the right, as
- * in the brand proposal; one under the other when the window is narrow.
+ * The column of glass on the left and the scene of the book on the right,
+ * with what the picked tab does with the chapter under the scene; one under
+ * the other when the window is narrow.
  */
 function Loaded({
   book,
   selected,
-  due,
-  recall,
-  learned,
-  known,
+  tab,
   nativeLang,
   navigate,
   onPick,
+  onChanged,
 }: LoadedProps): ReactNode {
+  const { t } = useTranslation();
+  /** The chapter a row of the list points at: its block rises in the scene. */
+  const [pointed, setPointed] = useState<string | null>(null);
   return (
     <div className="flex min-h-full flex-col gap-4 pt-2 pb-4 wide:h-full wide:flex-row">
       <div className="scrollbar-none flex w-full shrink-0 flex-col gap-3.5 wide:max-w-md wide:overflow-y-auto wide:pb-2">
         <BookBoard
           book={book}
           selected={selected}
-          words={learned + known}
-          nativeLang={nativeLang}
-          navigate={navigate}
           onPick={onPick}
+          onPoint={setPointed}
         />
       </div>
-      <Stagger className="flex min-h-160 min-w-0 flex-1 flex-col">
+      <Stagger className="scrollbar-none flex min-w-0 flex-1 flex-col gap-4 wide:overflow-y-auto wide:pb-2">
         <BookScene
           book={book}
           selected={selected}
-          due={due}
-          recall={recall}
-          learned={learned}
-          known={known}
+          tab={tab}
+          pointed={pointed}
           navigate={navigate}
           onPick={onPick}
-          className="flex-1"
+          className="min-h-144 shrink-0"
         />
+        <Reveal
+          as="section"
+          aria-label={t("bookHome.tabs.panel", {
+            tab: t(`bookHome.tabs.${tab}`),
+            chapter: chapterName(selected, t),
+          })}
+          className="relative rounded-2xl glass p-6 nav:p-8"
+        >
+          <Swap id={`${selected.id}-${tab}`} as="div">
+            {tab === "words" ? (
+              <ChapterScreen
+                book={book}
+                chapter={selected}
+                onPrepared={onChanged}
+                navigate={navigate}
+              />
+            ) : tab === "listen" ? (
+              <ListenTab chapterId={selected.id} navigate={navigate} />
+            ) : tab === "translate" ? (
+              <TranslateTab
+                book={book}
+                chapter={selected}
+                nativeLang={nativeLang}
+                navigate={navigate}
+              />
+            ) : (
+              <WriteTab
+                chapterId={selected.id}
+                prepared={selected.prepared !== null}
+                navigate={navigate}
+              />
+            )}
+          </Swap>
+        </Reveal>
       </Stagger>
     </div>
   );
@@ -77,55 +112,48 @@ interface BookHomeProps {
   books: readonly Book[];
   /** The chapter the learner is on. */
   current: Current | null;
-  /** What is due today, by place. */
-  counts: Partial<Record<Entry, number>>;
+  /** What is being done with that chapter. */
+  tab: BookTab;
   nativeLang: string;
   navigate: Navigate;
+  /** Makes a chapter the one the learner is on. */
+  onPick: (chapterId: string) => void;
 }
 
 /**
- * The book section's own screen: the chapters around the current one with
- * how ready each is and the ways into the picked one, beside the book raised
- * as a relief of its chapters with today's review and every word the learner
- * has along its foot. Each is one press from what it shows.
+ * The book: its chapters by bar, by name and raised as a relief, the one the
+ * learner is on lit, and the four things done with that chapter as tabs
+ * under the scene. A chapter is picked here and nowhere else, by any of the
+ * three; picking another keeps the tab.
  */
 export function BookHome({
   loaded,
   books,
   current,
-  counts,
+  tab,
   nativeLang,
   navigate,
+  onPick,
 }: BookHomeProps): ReactNode {
   const { t } = useTranslation();
-  const [picked, setPicked] = useState<string | null>(null);
-  const [recall, setRecall] = useState<RecallState | null>(null);
-  const [known, setKnown] = useState<KnownWord[] | null>(null);
+  /** Chapters whose words changed here, as they stand now, by id. */
+  const [changed, setChanged] = useState<ReadonlyMap<string, Chapter>>(
+    new Map(),
+  );
 
-  useEffect(() => {
-    let live = true;
-    Promise.all([recallState(), listKnownWords()])
-      .then(([state, words]) => {
-        if (live) {
-          setRecall(state);
-          setKnown(words);
-        }
-      })
-      // Without them the chart still works: only the counts are missing.
-      .catch(() => null);
-    return () => {
-      live = false;
-    };
-  }, []);
-
-  const book = current?.book ?? books.find((one) => one.chapters.length > 0);
+  const held = current?.book ?? books.find((one) => one.chapters.length > 0);
+  const book =
+    held === undefined
+      ? undefined
+      : {
+          ...held,
+          chapters: held.chapters.map(
+            (chapter) => changed.get(chapter.id) ?? chapter,
+          ),
+        };
   const selected =
-    book?.chapters.find((chapter) => chapter.id === picked) ??
-    (current !== null && current.book.id === book?.id
-      ? current.chapter
-      : book?.chapters[0]);
-  const learned =
-    recall === null ? 0 : recall.fresh + recall.settling + recall.firm;
+    book?.chapters.find((chapter) => chapter.id === current?.chapter.id) ??
+    book?.chapters[0];
 
   return (
     <Presence swap>
@@ -140,13 +168,13 @@ export function BookHome({
           <Loaded
             book={book}
             selected={selected}
-            due={counts.recall ?? 0}
-            recall={recall}
-            learned={learned}
-            known={known?.length ?? 0}
+            tab={tab}
             nativeLang={nativeLang}
             navigate={navigate}
-            onPick={setPicked}
+            onPick={onPick}
+            onChanged={(chapter) => {
+              setChanged((before) => new Map(before).set(chapter.id, chapter));
+            }}
           />
         </Reveal>
       ) : loaded ? (
