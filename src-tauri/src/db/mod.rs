@@ -65,6 +65,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("notes.sql"),
     include_str!("chaptered.sql"),
     include_str!("spellings.sql"),
+    include_str!("cues.sql"),
 ];
 
 pub fn open(path: &Path) -> Result<Connection> {
@@ -630,6 +631,7 @@ mod tests {
             also: vec!["withdrew".to_owned()],
             hints: vec!["se retiró".to_owned(), "se alejó".to_owned()],
             verb_form: Some(crate::domain::VerbForm::Past),
+            cue: Vec::new(),
         };
         sentences::label(&conn, "used", &labels).expect("label");
         let bank = sentences::bank(&conn, "recede", None).expect("bank");
@@ -801,6 +803,51 @@ mod tests {
                 vec!["tendría alguna oportunidad".to_owned()]
             )]
         );
+    }
+
+    #[test]
+    fn migration_forty_one_looks_again_at_the_sentences_of_words_written_alike() {
+        let conn = Connection::open_in_memory().expect("open");
+        conn.pragma_update(None, "foreign_keys", "ON").expect("fk");
+        for sql in &MIGRATIONS[..40] {
+            conn.execute_batch(sql).expect("migration");
+        }
+        conn.pragma_update(None, "user_version", 40)
+            .expect("version");
+        conn.execute_batch(
+            r#"INSERT INTO books VALUES ('b', 'Alice', NULL, 'epub', 'h', 'f', '2026-01-01');
+             INSERT INTO book_chapters (id, book_id, idx, title, words, text)
+               VALUES ('c1', 'b', 0, 'I', 2, 'text'), ('c2', 'b', 1, 'II', 2, 'text');
+             INSERT INTO chapter_words
+               (id, chapter_id, key, lemma, forms, sentence, needs_context, occurrences,
+                depth, created_at, part_of_speech, transitive, base, verb_form, checked)
+             VALUES ('fair1', 'c1', 'fair', 'fair', '["fair"]', 'Her fair hair.', 0, 1,
+                     'most', '2026-01-01', 'adjective', 0, NULL, NULL, 1),
+                    ('fair2', 'c2', 'fair', 'fair', '["fair"]', 'A fair trial.', 0, 1,
+                     'most', '2026-01-01', 'adjective', 0, NULL, NULL, 1),
+                    ('toe', 'c1', 'toe', 'toe', '["toe"]', 'My toe.', 0, 1,
+                     'most', '2026-01-01', 'noun', 0, NULL, NULL, 1);
+             INSERT INTO word_spellings (word_id, text, whole)
+               VALUES ('fair1', 'fair', 1), ('fair2', 'fair', 1), ('toe', 'toe', 1);
+             INSERT INTO word_sentences
+               (id, key, source, sentence, form, hint, translation, created_at, chapter_id,
+                reviewed, discarded, also, hints)
+             VALUES ('s1', 'fair', 'book', 'Her fair hair.', 'fair', 'rubio', 'Su pelo rubio.',
+                     '2026-01-01', 'c1', 1, 0, '[]', '[]'),
+                    ('s2', 'toe', 'book', 'My toe.', 'toe', 'dedo', 'Mi dedo.',
+                     '2026-01-01', 'c1', 1, 0, '[]', '[]');"#,
+        )
+        .expect("rows");
+
+        migrate(&conn).expect("migrate");
+        let waiting: Vec<(String, Option<Vec<String>>)> = sentences::unlabelled(&conn)
+            .expect("unlabelled")
+            .into_iter()
+            .map(|each| (each.id, each.cue))
+            .collect();
+        // Only a word written alike is looked at again, for its cue alone;
+        // until then it has none, and is asked with its whole sentence.
+        assert_eq!(waiting, [("s1".to_owned(), None)]);
     }
 
     #[test]

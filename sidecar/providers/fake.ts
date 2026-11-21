@@ -301,8 +301,19 @@ function fakeSentenceReview(params: SentenceReviewParams): SentenceVerdicts {
       also: [],
       hints: [],
       verbForm: null,
+      cue: nextWord(each.sentence, each.form),
     })),
   };
+}
+
+/** The word of `sentence` right after `form`: the fake's cue to its sense. */
+function nextWord(sentence: string, form: string): string[] {
+  const words = sentence.split(/\s+/u);
+  const at = words.findIndex((word) =>
+    word.toLowerCase().startsWith(form.toLowerCase()),
+  );
+  const after = words[at + 1]?.replace(/[^\p{L}\p{N}'-]/gu, "") ?? "";
+  return at !== -1 && after !== "" ? [after] : [];
 }
 
 function fakeBrief(params: ChapterBriefParams): ChapterBrief {

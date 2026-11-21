@@ -893,6 +893,8 @@ describe("telling which word is meant", () => {
                 chapterTitle: "Chapter One",
                 asked: "adjective",
                 given: "verb",
+                askedForm: null,
+                givenForm: null,
               },
               context: null,
             },
@@ -913,7 +915,7 @@ describe("telling which word is meant", () => {
           correct: false,
           accepted: [answer],
           step: "next",
-          understood: { kind: "adjective", kindsDiffer: true },
+          understood: { kind: "adjective", kindsDiffer: true, tied: false },
         };
       },
     );
@@ -960,5 +962,108 @@ describe("telling which word is meant", () => {
       "girando",
       "giratoria",
     ]);
+  });
+  test("a word its tag cannot tell apart comes with its few words and goes straight to its sentence", async () => {
+    const user = userEvent.setup();
+    const few = [
+      { text: "fair", marked: true },
+      { text: " hair", marked: false },
+    ];
+    const sentence = [
+      { text: "She tied back her ", marked: false },
+      { text: "fair", marked: true },
+      { text: " hair.", marked: false },
+    ];
+    stage(
+      {
+        ...SHOWN,
+        prompt: "fair",
+        partOfSpeech: "adjective",
+        verbForm: null,
+        irregular: null,
+        context: few,
+      },
+      (answer, _second, rung) =>
+        rung === 0
+          ? {
+              ...PLAIN,
+              correct: false,
+              accepted: [],
+              step: "next",
+              again: true,
+              ladder: { rung: 2, hint: null, context: sentence },
+            }
+          : {
+              ...PLAIN,
+              correct: false,
+              accepted: [answer],
+              step: "next",
+              understood: { kind: "adjective", kindsDiffer: false, tied: true },
+            },
+    );
+    // From the start, the few words that fix its sense.
+    expect(screen.getByText("hair", { exact: false })).toBeVisible();
+    const field = screen.getByLabelText("Your translation");
+    await user.type(field, "justo{Enter}");
+    expect(
+      await screen.findByText(
+        "That's right too, but it's not the one I'm after. Read the whole sentence.",
+      ),
+    ).toBeInTheDocument();
+    // No card of what it is not: only the whole sentence.
+    expect(document.querySelector("[data-sense-hint]")).toBeNull();
+    expect(
+      screen.getByText("She tied back her", { exact: false }),
+    ).toBeVisible();
+    await user.type(field, "rubio{Enter}");
+    expect(
+      await screen.findByText(
+        "Right, with the help of the whole sentence. It will come back so you can get it with the short one alone.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "the short sentence under the word tells you which meaning I'm after.",
+        { exact: false },
+      ),
+    ).toBeInTheDocument();
+  });
+
+  test("two verbs written alike are told apart by their forms", async () => {
+    const user = userEvent.setup();
+    stage(
+      { ...SHOWN, prompt: "found", context: null, verbForm: "base" },
+      () => ({
+        ...PLAIN,
+        correct: false,
+        accepted: [],
+        step: "next",
+        again: true,
+        ladder: {
+          rung: 1,
+          hint: {
+            meaning: "encontró",
+            book: null,
+            chapter: 2,
+            chapterTitle: "The Letter",
+            asked: "verb",
+            given: "verb",
+            askedForm: "base",
+            givenForm: "past",
+          },
+          context: null,
+        },
+      }),
+    );
+    await user.type(
+      screen.getByLabelText("Your translation"),
+      "encontró{Enter}",
+    );
+    const card = await screen.findByText(/is what it meant in/u);
+    expect(card).toBeInTheDocument();
+    const forms = [...document.querySelectorAll("[data-form-mark]")].map(
+      (each) => each.textContent,
+    );
+    expect(forms).toEqual(["past simple", "base form"]);
   });
 });

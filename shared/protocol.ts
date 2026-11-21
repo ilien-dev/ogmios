@@ -705,6 +705,11 @@ const sentenceVerdictSchema = z.object({
   hints: z.array(z.string()),
   /** The form a verb has in the sentence; null for any other word. */
   verbForm: verbFormSchema.nullable(),
+  /**
+   * The one to three words of the sentence, besides the word, that fix the
+   * meaning it has there; empty when none does.
+   */
+  cue: z.array(z.string()),
 });
 
 /** The model's labels; a sentence without a good one is not used. */

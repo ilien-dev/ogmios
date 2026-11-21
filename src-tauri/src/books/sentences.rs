@@ -4,6 +4,8 @@
 //! [`SHOWS`] times before another is drawn. Nothing here touches the
 //! database, the clock or the model.
 
+use crate::domain::SentencePart;
+
 use super::practice::{
     accepts, accepts_native, articles, auxiliary, clitic, is_base, mark, shape, Auxiliary,
 };
@@ -588,9 +590,121 @@ pub fn or_other(verdict: Verdict, answer: &str, rivals: &[String], spelling: Spe
     }
 }
 
+/// The longest short sentence a word is asked with when its tag cannot
+/// tell it from a word written alike, in words.
+pub const FRAGMENT_WORDS: usize = 8;
+
+/// The words the second look said fix the sense of the word in a sentence,
+/// kept only where the sentence has them as words of its own, outside the
+/// word itself, three at most and each once.
+pub fn cue_in(cue: &[String], (sentence, form): (&str, &str)) -> Vec<String> {
+    let words = tokens(sentence);
+    let own = tokens(form);
+    let mut kept: Vec<String> = Vec::new();
+    for each in cue {
+        let said = tokens(each);
+        let fits = !said.is_empty()
+            && said.iter().all(|word| !own.contains(word))
+            && words.windows(said.len()).any(|run| run == said.as_slice());
+        let text = said.join(" ");
+        if fits && !kept.contains(&text) && kept.len() < 3 {
+            kept.push(text);
+        }
+    }
+    kept
+}
+
+/// Where the run of words `run` starts among `words`, the first time.
+fn at(words: &[String], run: &[String]) -> Option<usize> {
+    if run.is_empty() {
+        return None;
+    }
+    words.windows(run.len()).position(|each| each == run)
+}
+
+/// The short sentence a word is asked with when its tag cannot tell it from
+/// a word written alike: the words of `sentence` from the first of the word
+/// and the words that fix its sense (`cue`) to the last, as written, the
+/// word marked ("her fair hair"). None when the sentence has no such words,
+/// or they are too far apart for a glance: the whole sentence is shown then.
+pub fn fragment(sentence: &str, form: &str, cue: &[String]) -> Option<Vec<SentencePart>> {
+    let written: Vec<&str> = sentence.split_whitespace().collect();
+    let words: Vec<String> = written.iter().map(|each| tokens(each).join(" ")).collect();
+    let flat: Vec<String> = words.iter().flat_map(|each| tokens(each)).collect();
+    if flat.len() != written.len() {
+        // A word of the text is two to the tokenizer ("don't" aside): the
+        // places would not line up, so the whole sentence is shown.
+        return None;
+    }
+    let own = tokens(form);
+    let start = at(&words, &own)?;
+    let mut first = start;
+    let mut last = start + own.len() - 1;
+    let mut any = false;
+    for each in cue {
+        let said = tokens(each);
+        if let Some(place) = at(&words, &said) {
+            first = first.min(place);
+            last = last.max(place + said.len() - 1);
+            any = true;
+        }
+    }
+    if !any || last - first + 1 > FRAGMENT_WORDS {
+        return None;
+    }
+    let text = written[first..=last].join(" ");
+    let text = text.trim_matches(|c: char| !c.is_alphanumeric());
+    Some(mark(text, &[form.to_owned()]))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn shown(parts: &[crate::domain::SentencePart]) -> (String, Vec<String>) {
+        let text = parts.iter().map(|part| part.text.as_str()).collect();
+        let marked = parts
+            .iter()
+            .filter(|part| part.marked)
+            .map(|part| part.text.clone())
+            .collect();
+        (text, marked)
+    }
+
+    #[test]
+    fn a_fragment_runs_from_the_word_to_the_words_that_fix_its_sense() {
+        let cue = vec!["hair".to_owned()];
+        let parts =
+            fragment("She tied back her fair hair and left.", "fair", &cue).expect("a fragment");
+        assert_eq!(
+            shown(&parts),
+            ("fair hair".to_owned(), vec!["fair".to_owned()])
+        );
+        let cue = vec!["her".to_owned(), "hair".to_owned()];
+        let parts =
+            fragment("She tied back her fair hair, and left.", "fair", &cue).expect("a fragment");
+        assert_eq!(shown(&parts).0, "her fair hair");
+    }
+
+    #[test]
+    fn no_fragment_without_words_that_fix_the_sense_or_too_far_apart() {
+        assert!(fragment("Her fair hair shone.", "fair", &[]).is_none());
+        let far = vec!["end".to_owned()];
+        let long = "A fair one came along the road by the river to the very end.";
+        assert!(fragment(long, "fair", &far).is_none());
+    }
+
+    #[test]
+    fn only_words_the_sentence_has_outside_the_word_fix_its_sense() {
+        let said = vec![
+            "hair".to_owned(),
+            "Hair".to_owned(),
+            "fair".to_owned(),
+            "blond".to_owned(),
+            " ".to_owned(),
+        ];
+        assert_eq!(cue_in(&said, ("Her fair hair shone.", "fair")), ["hair"]);
+    }
 
     fn banked(id: &str, book: bool, own: bool, shows: u32) -> Banked {
         Banked {

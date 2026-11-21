@@ -666,6 +666,10 @@ pub struct SentenceVerdict {
     pub hints: Vec<String>,
     /// The form a verb has in the sentence; none for any other word.
     pub verb_form: Option<crate::domain::VerbForm>,
+    /// The words of the sentence, besides the word, that fix its sense
+    /// there; empty when none does.
+    #[serde(default)]
+    pub cue: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

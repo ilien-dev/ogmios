@@ -13,7 +13,7 @@ use chrono::{DateTime, Utc};
 use rusqlite::Connection;
 use tauri::AppHandle;
 
-use super::ladder::{rise, Climb, ALONE};
+use super::ladder::{self, rise, Climb, ALONE};
 use super::penalty;
 use super::profile::require_profile;
 use super::run;
@@ -28,7 +28,8 @@ use crate::books::practice::{
     session_questions, sizes, SIZES,
 };
 use crate::books::sentences::{
-    asked_alone, choose, in_form, inflected, or_other, production, recognition, Banked, Verdict,
+    asked_alone, choose, fragment, in_form, inflected, or_other, production, recognition, Banked,
+    Verdict,
 };
 use crate::books::spelling::Spelling;
 use crate::db::practice::{self, SittingRow, WordRow};
@@ -167,6 +168,42 @@ pub(super) fn asked_with(
     }
 }
 
+/// A word its tag cannot tell from a rival (`commands::ladder::tied`) has
+/// no one answer on its own: English → native it is asked with the few
+/// words of its sentence that fix its sense
+/// (`books::sentences::fragment`), or with the `whole` sentence while those
+/// are not known. Nothing else is held back or added.
+pub(super) fn tie(
+    mut item: PracticeItem,
+    shown: Option<&Sentence>,
+    whole: Vec<SentencePart>,
+    tied: bool,
+) -> PracticeItem {
+    if tied && item.direction == Direction::Recognition {
+        let few = shown.and_then(|sentence| {
+            sentence
+                .cue
+                .as_deref()
+                .and_then(|cue| fragment(&sentence.text, &sentence.form, cue))
+        });
+        item.context = few
+            .or_else(|| shown.and_then(|sentence| in_place(sentence, Direction::Recognition)))
+            .or(Some(whole));
+    }
+    item
+}
+
+/// [`item`], with [`tie`] for a word its tag cannot tell from a rival.
+pub(super) fn item_tied(
+    conn: &Connection,
+    word: WordRow,
+    direction: Direction,
+) -> Result<PracticeItem> {
+    let tied = ladder::tied(conn, &word, None)?;
+    let whole = mark(&word.sentence, &word.forms);
+    Ok(tie(item(word, direction), None, whole, tied))
+}
+
 /// A word, or what it means, as an exercise shows it: in small letters,
 /// however its book, the model or the learner wrote it. A capital would
 /// tell it from the others before it is read.
@@ -194,7 +231,8 @@ fn verb_form(part_of_speech: Option<PartOfSpeech>, sentence: &Sentence) -> Optio
 /// chapter's bank, a different one each time, or, until it has a bank, as
 /// its chapter has it ([`item`]). A word written alike to another one in
 /// another sense comes alone, and is told apart on its steps
-/// (`commands::ladder`).
+/// (`commands::ladder`); one its tag cannot tell apart comes with the few
+/// words that fix its sense ([`tie`]).
 fn in_sentence(
     conn: &Connection,
     word: WordRow,
@@ -211,14 +249,17 @@ fn in_sentence(
             Some(sentence) => {
                 let alone = word.alone_in(&sentence.form).map(<[String]>::to_vec);
                 let shows = word.shows_context(direction);
-                asked_with(
+                let tied = ladder::tied(conn, &word, sentence.verb_form)?;
+                let whole = mark(&word.sentence, &word.forms);
+                let asked = asked_with(
                     (word.id, word.part_of_speech),
                     &sentence,
                     direction,
                     (shows, alone.as_deref()),
-                )
+                );
+                tie(asked, Some(&sentence), whole, tied)
             }
-            None => item(word, direction),
+            None => item_tied(conn, word, direction)?,
         },
     )
 }
@@ -1921,6 +1962,7 @@ pub mod tests {
             hints: Vec::new(),
             verb_form: None,
             chapter_id: None,
+            cue: None,
         };
         let asked = |direction, shows| {
             asked_with(
@@ -2003,6 +2045,7 @@ pub mod tests {
             hints: vec!["tendría posibilidades".into()],
             verb_form: None,
             chapter_id: None,
+            cue: None,
         };
         let spelling = profile::spelling(&conn).expect("spelling");
         let meaning = Meaning::of(&conn, &row).expect("meaning");

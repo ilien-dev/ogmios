@@ -441,17 +441,40 @@ repaso rápido antes de leer no cambia.
   capítulo, este u otro de cualquier libro, la tiene escrita igual («spinning») o al principio de
   otra expresión («spinning in circles») sin significar exactamente lo mismo (otro tipo de
   palabra u otras traducciones). Un índice de cómo se escribe cada palabra las encuentra al
-  momento. Se pregunta en tres intentos, en la práctica, el castigo y Repaso:
-  1. **Sola**, sin frase. Si responde con el significado de un rival, no es fallo: «También es
-     correcta, pero no es la que busco».
-  2. **Qué no es**: «"dando vueltas" es lo que significaba en "1. Strange Business"», con el nombre que la app da al capítulo (o el libro, si es otro), y si son de otro
-     tipo, qué es cada tipo (resaltado como su etiqueta), con un ejemplo y la pregunta que lleva a
-     la respuesta («¿Cómo es?»). Acertar aquí es acierto con ayuda. Nunca se dan letras.
-  3. **La frase** arriba, el último intento. Acertar con ella no es fallo ni acierto: la palabra
-     no avanza y vuelve más adelante, con un consejo (mirar la etiqueta de la banda, o las palabras que la
-     acompañan si los tipos coinciden). Fallar es fallo completo y se muestra la respuesta.
-     Cualquier error dentro de los intentos pasa al siguiente. La frase se muestra siempre tras
-     responder, y por eso cuenta como vista: la próxima vez sale otra del banco.
+  momento. Cómo se pregunta depende de si su etiqueta la distingue de cada rival: lo hace cuando
+  son de otro tipo, o, dos verbos, cuando están en otra forma («found», fundar, en forma base y
+  «found», encontró, en pasado simple). Lo decide el código; un tipo o una forma que nadie dijo no
+  distingue nada. En la práctica, el castigo y Repaso:
+  - **Si la etiqueta la distingue**, en tres intentos:
+    1. **Sola**, sin frase. Si responde con el significado de un rival, no es fallo: «También es
+       correcta, pero no es la que busco».
+    2. **Qué no es**: «"dando vueltas" es lo que significaba en "1. Strange Business"», con el
+       nombre que la app da al capítulo (o el libro, si es otro), y si son de otro tipo, o verbos en
+       otra forma, qué es cada uno (resaltado como en la banda, con la forma del verbo: «Aquí es un
+       VERBO en forma -ing»), con un ejemplo y la pregunta que lleva a la respuesta («¿Cómo es?»;
+       para un verbo en forma -ing, «¿Qué está haciendo?»). Acertar aquí es acierto con ayuda. Nunca
+       se dan letras.
+    3. **La frase** arriba, el último intento. Acertar con ella no es fallo ni acierto: la palabra
+       no avanza y vuelve más adelante, con un consejo (mirar la etiqueta de la banda, o las
+       palabras que la acompañan si los tipos coinciden). Fallar es fallo completo y se muestra la
+       respuesta.
+  - **Si la etiqueta no la distingue** («fair», rubio, y «fair», justo, los dos adjetivos), la
+    palabra sola no tiene una única respuesta: no es culpa del usuario no saberla. Por eso se
+    pregunta siempre con una **frase corta**, las palabras de su frase que fijan el significado
+    («her **fair** hair»), y nunca sola, tampoco cuando vuelve. Esas palabras las marca el modelo en
+    la segunda mirada a cada frase (de una a tres, y el código guarda solo las que la frase tiene
+    fuera de la palabra); de la palabra a la última de ellas, como mucho 8 palabras. Sin ellas, o
+    más lejos, se muestra la frase entera. Las frases guardadas antes se miran una vez más solo
+    para esto, y hasta entonces se preguntan con la frase entera. Dos intentos:
+    1. **Con la frase corta.** Acertar es un acierto normal. Si responde con el significado de un
+       rival: «También es correcta, pero no es la que busco. Lee la frase completa.». No hay paso de
+       «qué no es»: más intentos llevarían a la respuesta por descarte.
+    2. **La frase completa**, el último intento. Acertar con ella no es fallo ni acierto: «Correcto,
+       con ayuda de la frase completa. Volverá para que la aciertes solo con la frase corta.», con
+       el consejo de que la frase corta dice qué significado se busca. Fallar es fallo completo.
+       Fuera de la etiqueta nada avisa de que la palabra tiene rivales. Cualquier error dentro de los
+       intentos pasa al siguiente. La frase se muestra siempre tras responder, y por eso cuenta como
+       vista: la próxima vez sale otra del banco.
 - **Un significado por capítulo:** una misma palabra puede significar otra cosa en otro libro o
   en otro capítulo. Cada frase guarda el capítulo cuyo significado muestra. Practicar o castigar
   un capítulo solo usa frases suyas, y lo que se acepta es el significado de ese capítulo. Repaso

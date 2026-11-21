@@ -9,7 +9,7 @@
 use rusqlite::{params, Connection};
 
 use crate::books::vocab;
-use crate::domain::PartOfSpeech;
+use crate::domain::{PartOfSpeech, VerbForm};
 use crate::error::Result;
 
 /// The words of a form from its first one on, the whole of it first:
@@ -88,6 +88,8 @@ pub struct Rival {
     pub chapter_index: u32,
     pub chapter_title: String,
     pub part_of_speech: Option<PartOfSpeech>,
+    /// The form a verb has in its chapter, when one said.
+    pub verb_form: Option<VerbForm>,
     /// What it means, as its chapter has it.
     pub translations: Vec<String>,
 }
@@ -129,17 +131,18 @@ pub fn rivals(conn: &Connection, word_id: &str) -> Result<Vec<Rival>> {
             continue;
         }
         let mut stmt = conn.prepare(
-            "SELECT w.chapter_id, b.title, c.book_id, c.idx, c.title, w.created_at
+            "SELECT w.chapter_id, b.title, c.book_id, c.idx, c.title, w.created_at, w.verb_form
              FROM chapter_words w JOIN book_chapters c ON c.id = w.chapter_id
              JOIN books b ON b.id = c.book_id WHERE w.id = ?1",
         )?;
-        let (chapter_id, title, book_id, index, chapter_title, created): (
+        let (chapter_id, title, book_id, index, chapter_title, created, verb_form): (
             String,
             String,
             String,
             u32,
             String,
             String,
+            Option<VerbForm>,
         ) = stmt.query_row([&id], |row| {
             Ok((
                 row.get(0)?,
@@ -148,6 +151,7 @@ pub fn rivals(conn: &Connection, word_id: &str) -> Result<Vec<Rival>> {
                 row.get(3)?,
                 row.get(4)?,
                 row.get(5)?,
+                row.get(6)?,
             ))
         })?;
         let mut stmt =
@@ -165,6 +169,7 @@ pub fn rivals(conn: &Connection, word_id: &str) -> Result<Vec<Rival>> {
                 chapter_index: index,
                 chapter_title,
                 part_of_speech: theirs,
+                verb_form,
                 translations,
             },
         ));

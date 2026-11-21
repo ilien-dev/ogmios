@@ -1,7 +1,12 @@
 import type { ReactNode } from "react";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
-import type { PartOfSpeech, SenseHint, SenseTip } from "@shared/domain";
+import type {
+  PartOfSpeech,
+  SenseHint,
+  SenseTip,
+  VerbForm,
+} from "@shared/domain";
 import { Presence } from "@/components/motion/Presence";
 import { Reveal } from "@/components/motion/Reveal";
 import { cn } from "@/lib/cn";
@@ -33,6 +38,44 @@ function KindMark({ kind }: { kind: Kind }): ReactNode {
   );
 }
 
+/** The form a verb is in, outlined in the colour of a verb, as on its card. */
+function FormMark({ form }: { form: VerbForm }): ReactNode {
+  const { t } = useTranslation();
+  return (
+    <span
+      data-form-mark={form}
+      className="rounded-md px-2 py-0.5 text-xs font-bold text-verb ring-1 ring-verb ring-inset"
+    >
+      {t(`books.sitting.verbForm.${form}`)}
+    </span>
+  );
+}
+
+/** A kind of word, and the form a verb is in when one was said. */
+function Named({
+  kind,
+  form,
+}: {
+  kind: Kind;
+  form: VerbForm | null;
+}): ReactNode {
+  const { t } = useTranslation();
+  const verb = kind === "verb" || kind === "phrasalVerb";
+  return (
+    <>
+      <KindMark kind={kind} />
+      <Presence>
+        {verb && form !== null && (
+          <Reveal key="form" as="span" kind="fade">
+            {` ${t("books.sense.inForm")} `}
+            <FormMark form={form} />
+          </Reveal>
+        )}
+      </Presence>
+    </>
+  );
+}
+
 /**
  * Where the other meaning is from: a chapter of this book, by the name the
  * app shows it by, or another book.
@@ -56,7 +99,15 @@ export function SenseHintCard({ hint }: { hint: SenseHint }): ReactNode {
   const asked = named(hint.asked);
   const given = named(hint.given);
   const where = place(hint, t);
-  const kinds = asked !== null && given !== null && asked !== given;
+  // Told apart by their kind, or, two verbs, by their form.
+  const forms =
+    hint.askedForm !== null &&
+    hint.givenForm !== null &&
+    hint.askedForm !== hint.givenForm;
+  const kinds = asked !== null && given !== null && (asked !== given || forms);
+  // A verb asked in its -ing form is something being done.
+  const ing =
+    hint.askedForm === "ing" && (asked === "verb" || asked === "phrasalVerb");
   return (
     <div
       data-sense-hint
@@ -69,24 +120,28 @@ export function SenseHintCard({ hint }: { hint: SenseHint }): ReactNode {
             <p>
               {t("books.sense.was", { place: where })}{" "}
               {t(`books.sense.kinds.${given}.article`)}{" "}
-              <KindMark kind={given} />
+              <Named kind={given} form={hint.givenForm} />
               {": "}
               {t(`books.sense.kinds.${given}.does`)}
               {t("books.sense.likeYours", { meaning: hint.meaning })}
             </p>
             <p>
               {t("books.sense.is")} {t(`books.sense.kinds.${asked}.article`)}{" "}
-              <KindMark kind={asked} />
+              <Named kind={asked} form={hint.askedForm} />
               {": "}
               {t(`books.sense.kinds.${asked}.does`)}
               {t("books.sense.like", {
-                example: t(`books.sense.kinds.${asked}.example`),
+                example: ing
+                  ? t("books.sense.ing.example")
+                  : t(`books.sense.kinds.${asked}.example`),
               })}
             </p>
             <p>
               {t("books.sense.ask")}{" "}
               <strong className="font-semibold">
-                {t(`books.sense.kinds.${asked}.question`)}
+                {ing
+                  ? t("books.sense.ing.question")
+                  : t(`books.sense.kinds.${asked}.question`)}
               </strong>
             </p>
           </Reveal>
@@ -104,7 +159,7 @@ export function SenseTipLine({ tip }: { tip: SenseTip }): ReactNode {
   const { t } = useTranslation();
   const kind = named(tip.kind);
   // The tag tells the rivals apart only when they are another kind.
-  const tagged = tip.kindsDiffer && kind !== null;
+  const tagged = tip.kindsDiffer && kind !== null && !tip.tied;
   return (
     <p data-sense-tip className="text-ink-soft">
       <strong className="font-semibold text-ink">
@@ -117,7 +172,12 @@ export function SenseTipLine({ tip }: { tip: SenseTip }): ReactNode {
             {t("books.sense.tipTagEnd")}
           </Reveal>
         )}
-        {!tagged && (
+        {tip.tied && (
+          <Reveal key="short" as="span" kind="fade">
+            {t("books.sense.tipShort")}
+          </Reveal>
+        )}
+        {!tagged && !tip.tied && (
           <Reveal key="words" as="span" kind="fade">
             {t("books.sense.tipWords")}
           </Reveal>
