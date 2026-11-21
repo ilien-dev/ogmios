@@ -1,6 +1,13 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/cn";
 
+/** The spiral of the mark, on its 256 grid. */
+export const SPIRAL_PATH =
+  "M80 54L202 54L202 202L54 202L54 98L158 98L158 158L98 158L98 116L72 116L72 184L184 184L184 72L28 72L28 228L228 228L228 28L80 28Z";
+
+/** The square at its centre. */
+export const FOCUS_PATH = "M114 113H146V145H114Z";
+
 interface LogoProps {
   className?: string;
 }
@@ -17,13 +24,10 @@ export function Logo({ className }: LogoProps): ReactNode {
       viewBox="0 0 256 256"
       className={cn("shrink-0", className)}
     >
-      <path
-        className="fill-logo-first"
-        d="M80 54L202 54L202 202L54 202L54 98L158 98L158 158L98 158L98 116L72 116L72 184L184 184L184 72L28 72L28 228L228 228L228 28L80 28Z"
-      />
+      <path className="fill-logo-first" d={SPIRAL_PATH} />
       <path
         className="origin-center animate-breathe fill-logo-second transform-fill"
-        d="M114 113H146V145H114Z"
+        d={FOCUS_PATH}
       />
     </svg>
   );
