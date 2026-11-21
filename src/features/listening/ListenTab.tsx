@@ -14,6 +14,7 @@ import { closeDictation, listeningState, startDictation } from "@/lib/ipc";
 import { formatBytes } from "@/lib/text";
 import { Escaping } from "./Escaping";
 import { OnChapter } from "./OnChapter";
+import { PaceGauges } from "./PaceGauges";
 import { PausedDictations } from "./PausedDictations";
 
 interface ListenTabProps {
@@ -23,8 +24,8 @@ interface ListenTabProps {
 }
 
 /**
- * Listening to the chapter the learner is on: hearing it read aloud from
- * where it was left, a dictation of its sentences, the dictations left
+ * Listening to the chapter the learner is on: how much the learner hears at
+ * each pace, hearing it read aloud from where it was left, a dictation of its sentences, the dictations left
  * unfinished and the words that escape the ear. Without the voice it only
  * offers to get it.
  */
@@ -119,6 +120,13 @@ export function ListenTab({ chapterId, navigate }: ListenTabProps): ReactNode {
                     percent: Math.round(fetching * 100),
                   })}
             </Button>
+          </Reveal>
+        )}
+      </Presence>
+      <Presence>
+        {shown && (
+          <Reveal key="gauges">
+            <PaceGauges standings={state.standings} />
           </Reveal>
         )}
       </Presence>

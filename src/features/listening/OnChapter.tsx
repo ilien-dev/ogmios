@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { ListeningChapter, Pace } from "@shared/listening";
 import { Button } from "@/components/ui/Button";
+import { ProgressBar } from "@/components/ui/ProgressBar";
 import { PaceChoice } from "./PaceChoice";
 
 interface OnChapterProps {
@@ -13,7 +14,10 @@ interface OnChapterProps {
   onListen: () => void;
 }
 
-/** The two things to do with the chapter the learner is on. */
+/**
+ * The two things to do with the chapter the learner is on, as two cards:
+ * side by side when the tab is wide, one under the other when not.
+ */
 export function OnChapter({
   on,
   pace,
@@ -25,8 +29,8 @@ export function OnChapter({
   const { t } = useTranslation();
   const left = on.place > 0;
   return (
-    <ul className="flex flex-col divide-y divide-line rounded-xl border border-line bg-surface/60 py-1">
-      <li className="flex flex-wrap items-center gap-4 px-5 py-4">
+    <ul className="grid gap-3 @2xl:grid-cols-2">
+      <li className="flex flex-col gap-4 rounded-xl glass px-5 py-4.5">
         <span className="flex min-w-0 flex-1 flex-col gap-1">
           <span className="font-display font-medium tracking-tight text-ink">
             {t("listening.listen.title")}
@@ -40,11 +44,17 @@ export function OnChapter({
               : t("listening.listen.fresh", { count: on.sentences })}
           </span>
         </span>
-        <Button variant="primaryBook" onClick={onListen}>
+        <ProgressBar
+          label={t("listening.reading.progress")}
+          value={on.place}
+          total={Math.max(on.sentences, 1)}
+          tone="book"
+        />
+        <Button variant="primaryBook" className="self-start" onClick={onListen}>
           {left ? t("listening.listen.continue") : t("listening.listen.start")}
         </Button>
       </li>
-      <li className="flex flex-wrap items-center gap-4 px-5 py-4">
+      <li className="flex flex-col gap-4 rounded-xl glass px-5 py-4.5">
         <span className="flex min-w-0 flex-1 flex-col gap-1">
           <span className="font-display font-medium tracking-tight text-ink">
             {t("listening.dictation.title")}
@@ -53,10 +63,12 @@ export function OnChapter({
             {t("listening.dictation.hint")}
           </span>
         </span>
-        <PaceChoice value={pace} onChange={onPace} />
-        <Button disabled={busy} onClick={onDictation}>
-          {t("listening.dictation.start")}
-        </Button>
+        <span className="flex flex-wrap items-center gap-3">
+          <PaceChoice value={pace} onChange={onPace} />
+          <Button disabled={busy} onClick={onDictation}>
+            {t("listening.dictation.start")}
+          </Button>
+        </span>
       </li>
     </ul>
   );

@@ -78,7 +78,7 @@ export function Scene({
     <section
       aria-label={label}
       className={cn(
-        "relative isolate flex min-h-0 flex-col overflow-hidden rounded-2xl border border-line bg-scene",
+        "@container relative isolate flex min-h-0 flex-col overflow-hidden rounded-2xl border border-line bg-scene",
         className,
       )}
     >
@@ -159,7 +159,7 @@ export function Scene({
 /** The thin title at the top of a scene. */
 export function SceneTitle({ children }: { children: ReactNode }): ReactNode {
   return (
-    <h1 className="font-display text-5xl leading-tight font-light tracking-tight text-ink">
+    <h1 className="line-clamp-2 font-display text-4xl leading-tight font-light tracking-tight text-ink @3xl:text-5xl">
       {children}
     </h1>
   );

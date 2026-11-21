@@ -32,8 +32,9 @@ interface LoadedProps {
 
 /**
  * The column of glass on the left and the scene of the book on the right,
- * with what the picked tab does with the chapter under the scene; one under
- * the other when the window is narrow.
+ * with what the picked tab does with the chapter under the scene, or beside
+ * it, in a column of its own, when the window is wide enough; one under the
+ * other when the window is narrow.
  */
 function Loaded({
   book,
@@ -57,7 +58,7 @@ function Loaded({
           onPoint={setPointed}
         />
       </div>
-      <Stagger className="scrollbar-none flex min-w-0 flex-1 flex-col gap-4 wide:overflow-y-auto wide:pb-2">
+      <Stagger className="scrollbar-none flex min-w-0 flex-1 flex-col gap-4 wide:overflow-y-auto wide:pb-2 split:flex-row split:overflow-visible split:pb-0">
         <BookScene
           book={book}
           selected={selected}
@@ -65,7 +66,7 @@ function Loaded({
           pointed={pointed}
           navigate={navigate}
           onPick={onPick}
-          className="min-h-144 shrink-0"
+          className="min-h-192 shrink-0 split:min-h-0 split:flex-1 split:basis-0"
         />
         <Reveal
           as="section"
@@ -73,7 +74,7 @@ function Loaded({
             tab: t(`bookHome.tabs.${tab}`),
             chapter: chapterName(selected, t),
           })}
-          className="relative rounded-2xl glass p-6 nav:p-8"
+          className="@container relative scrollbar-none rounded-2xl glass p-6 nav:p-8 split:flex-1 split:basis-0 split:overflow-y-auto"
         >
           <Swap id={`${selected.id}-${tab}`} as="div">
             {tab === "words" ? (

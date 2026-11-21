@@ -53,7 +53,8 @@ function useOpenWords(chapter: Chapter): BookWord[] | null {
 /**
  * The glass floating over the picked block: how ready it is, how long. It
  * stays while another chapter is picked: its words cross-fade and its number
- * counts from the last chapter's to the new one's.
+ * counts from the last chapter's to the new one's. A scene too narrow for it
+ * beside the relief leaves it out: the board and the tabs say the same.
  */
 function Tooltip({
   book,
@@ -69,7 +70,7 @@ function Tooltip({
   return (
     <Reveal
       kind="scale"
-      className="absolute top-36 right-7 z-10 flex w-64 flex-col gap-1.5 rounded-xl glass-float px-4.5 py-4"
+      className="absolute top-36 right-7 z-10 hidden w-64 flex-col gap-1.5 rounded-xl glass-float px-4.5 py-4 @3xl:flex"
     >
       <span className="flex items-start justify-between gap-2">
         <span className="relative min-w-0 flex-1">
@@ -236,7 +237,7 @@ export function BookScene({
         pointed={pointed}
         onSelect={onPick}
         label={t("bookHome.board.relief")}
-        className="size-full max-w-4xl pt-40 pr-72 pb-32 pl-6"
+        className="size-full max-w-4xl px-6 pt-56 pb-32 @3xl:pr-72"
       />
     </Scene>
   );

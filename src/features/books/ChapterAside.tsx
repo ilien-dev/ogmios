@@ -6,6 +6,7 @@ import { Presence } from "@/components/motion/Presence";
 import { Reveal } from "@/components/motion/Reveal";
 import { Button } from "@/components/ui/Button";
 import { ProgressBar } from "@/components/ui/ProgressBar";
+import { BigNumber } from "@/components/scene/Stats";
 import { cn } from "@/lib/cn";
 import { SentenceStock } from "./SentenceStock";
 
@@ -125,11 +126,15 @@ export function ChapterAside(props: ChapterAsideProps): ReactNode {
           <Reveal
             key="progress"
             kind="fade"
-            className={cn("flex w-full max-w-56 flex-col gap-2", ALIGN)}
+            className="flex w-full flex-col gap-3 rounded-xl glass px-5 py-4.5 text-left"
           >
-            <p className="text-sm text-ink-soft tabular-nums">
-              {t("books.chapter.learnedCount", { count: learned })}
+            <p className="text-sm text-ink-soft">
+              {t("books.chapter.learnedLabel")}
             </p>
+            <BigNumber
+              value={learned}
+              unit={t("books.chapter.learnedOf", { count: toLearn.length })}
+            />
             <ProgressBar
               label={t("books.chapter.learnedBar")}
               value={learned}
