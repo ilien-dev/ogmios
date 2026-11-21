@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.28.0](https://github.com/ilien-dev/ogmios/compare/v0.27.0...v0.28.0) (2026-11-21)
+
+
+### Features
+
+* say on the practice card whether a verb is regular ([#60](https://github.com/ilien-dev/ogmios/issues/60)) ([ec24bc0](https://github.com/ilien-dev/ogmios/commit/ec24bc0c286427a2e0c6c47f523dec176597d137))
+
 ## [0.27.0](https://github.com/ilien-dev/ogmios/compare/v0.26.0...v0.27.0) (2026-11-21)
 
 
