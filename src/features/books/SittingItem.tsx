@@ -1,4 +1,4 @@
-import { useId, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import type { ReactNode, SyntheticEvent } from "react";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
@@ -288,6 +288,20 @@ export function SittingItem<Result extends Checked>({
     }
   }, [result, again]);
 
+  // A window that comes back to the front gives the keyboard to the field
+  // again, unless the learner had put it somewhere else on purpose.
+  useEffect(() => {
+    const back = (): void => {
+      if (result === null && document.activeElement === document.body) {
+        field.current?.focus();
+      }
+    };
+    window.addEventListener("focus", back);
+    return () => {
+      window.removeEventListener("focus", back);
+    };
+  }, [result]);
+
   /** Sends an answer; an empty one says the learner does not know. */
   const send = async (text: string): Promise<void> => {
     if (checking || result !== null) {
@@ -431,7 +445,7 @@ export function SittingItem<Result extends Checked>({
   const to = toEnglish ? english : native;
 
   return (
-    <section className="mx-auto flex w-full max-w-2xl flex-col items-center gap-6 px-6 pt-4 pb-12 text-center nav:px-10">
+    <section className="mx-auto flex min-h-full w-full max-w-2xl flex-col items-center justify-center gap-6 px-6 pt-4 pb-16 text-center nav:px-10">
       <form onSubmit={submit} className="flex w-full flex-col gap-3">
         <div
           data-card
@@ -540,6 +554,7 @@ export function SittingItem<Result extends Checked>({
                   <Button
                     type="submit"
                     variant="primaryBook"
+                    className="disabled:border disabled:border-line-strong disabled:bg-surface disabled:text-ink-soft"
                     disabled={checking || response.trim() === ""}
                   >
                     {t("books.sitting.check")}
@@ -565,8 +580,7 @@ export function SittingItem<Result extends Checked>({
                 className="flex flex-wrap items-center justify-center gap-2"
               >
                 <Button
-                  variant="ghost"
-                  className="bg-raised"
+                  variant="secondary"
                   disabled={checking}
                   aria-keyshortcuts={t("books.sitting.dontKnowKey")}
                   onClick={() => void send("")}
@@ -578,8 +592,7 @@ export function SittingItem<Result extends Checked>({
                   {hint !== null && (
                     <Reveal key="hint" as="span" kind="fade">
                       <Button
-                        variant="ghost"
-                        className="bg-raised"
+                        variant="secondary"
                         disabled={checking || hinting || !canHint}
                         aria-keyshortcuts={t("books.sitting.hintKey")}
                         onClick={() => void help()}
@@ -598,7 +611,6 @@ export function SittingItem<Result extends Checked>({
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="text-ink-faint"
                         disabled={checking}
                         onClick={() => void skip(know)}
                       >
@@ -657,7 +669,6 @@ export function SittingItem<Result extends Checked>({
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="text-ink-faint"
                         onClick={() => {
                           onDispute(result);
                           // The button goes; Enter still means "next".
