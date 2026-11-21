@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.25.0](https://github.com/ilien-dev/ogmios/compare/v0.24.0...v0.25.0) (2026-11-21)
+
+
+### Features
+
+* put the book's tab beside its scene ([#55](https://github.com/ilien-dev/ogmios/issues/55)) ([73ef681](https://github.com/ilien-dev/ogmios/commit/73ef681ad5dfccb7e3c9bfece3abb5b4ac677a0f))
+
 ## [0.24.0](https://github.com/ilien-dev/ogmios/compare/v0.23.0...v0.24.0) (2026-11-21)
 
 
