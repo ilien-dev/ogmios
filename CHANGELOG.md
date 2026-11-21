@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.34.0](https://github.com/ilien-dev/ogmios/compare/v0.33.0...v0.34.0) (2026-11-21)
+
+
+### Features
+
+* open the app with an intro of the mark in depth ([#78](https://github.com/ilien-dev/ogmios/issues/78)) ([55a2603](https://github.com/ilien-dev/ogmios/commit/55a2603fb4a982569abda836743202f3c23fc9c4))
+* search chapters from the chapter band ([#76](https://github.com/ilien-dev/ogmios/issues/76)) ([76ef8c3](https://github.com/ilien-dev/ogmios/commit/76ef8c3be874b2e629698b42e78ab40d6db510e7))
+
 ## [0.33.0](https://github.com/ilien-dev/ogmios/compare/v0.32.0...v0.33.0) (2026-11-21)
 
 
