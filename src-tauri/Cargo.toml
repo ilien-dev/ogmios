@@ -20,6 +20,8 @@ tauri-plugin-notification = "2"
 tauri-plugin-updater = "2"
 # The native file picker for adding a book; Rust reads the chosen path.
 tauri-plugin-dialog = "2"
+# The main window opens where and as big as the learner left it.
+tauri-plugin-window-state = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"

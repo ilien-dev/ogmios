@@ -16,6 +16,7 @@ mod reminder;
 mod structures;
 mod stt;
 mod tts;
+mod window;
 
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, MutexGuard};
@@ -83,6 +84,7 @@ fn setup(app: &mut tauri::App) -> std::result::Result<(), Box<dyn std::error::Er
         data_dir,
     });
     reminder::spawn(app.handle().clone());
+    window::open(app)?;
     Ok(())
 }
 
@@ -207,6 +209,7 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(window::plugin())
         .manage(commands::update::Downloaded::default())
         .setup(setup);
     with_commands(builder)

@@ -91,6 +91,7 @@ pub async fn install_update(app: AppHandle, held: State<'_, Downloaded>) -> Resu
         .map_err(|_| Error::Internal("update lock poisoned".into()))?
         .take()
         .ok_or_else(|| Error::NotFound("no downloaded update".into()))?;
+    crate::window::save(&app);
     update.install(bytes).map_err(update_error)?;
     app.restart()
 }
