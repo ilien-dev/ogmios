@@ -10,7 +10,6 @@ import { Tilt } from "@/components/motion/Tilt";
 import { BackLink } from "@/components/ui/BackLink";
 import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
-import { Orb } from "@/components/ui/Orb";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { Spinner } from "@/components/ui/Spinner";
 import type { Navigate } from "@/app/routes";
@@ -103,14 +102,11 @@ export function BookShelf({
             }}
           />
         </Reveal>
-        <Reveal index={0} className="flex items-center gap-6">
-          <Orb size="md" section="book" />
-          <header className="flex min-w-0 flex-col gap-2">
-            <h1 className="font-display text-display font-light tracking-tight text-ink">
-              {t("books.title")}
-            </h1>
-            <p className="text-lead text-ink-soft">{t("books.intro")}</p>
-          </header>
+        <Reveal index={0} as="header" className="flex flex-col gap-2">
+          <h1 className="font-display text-display font-light tracking-tight text-ink">
+            {t("books.title")}
+          </h1>
+          <p className="text-lead text-ink-soft">{t("books.intro")}</p>
         </Reveal>
 
         <Reveal index={1} className="flex flex-col items-start gap-4">

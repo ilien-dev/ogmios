@@ -10,7 +10,6 @@ import { ChoiceGroup } from "@/components/ui/ChoiceGroup";
 import { Field } from "@/components/ui/Field";
 import { Logo } from "@/components/ui/Logo";
 import { Notice } from "@/components/ui/Notice";
-import { Orb } from "@/components/ui/Orb";
 import { Select } from "@/components/ui/Select";
 import { TextInput } from "@/components/ui/TextInput";
 import { ConnectionPanel } from "@/features/settings/ConnectionPanel";
@@ -290,11 +289,6 @@ export function Onboarding({
           <p className="font-mono text-xs text-ink-faint tabular-nums">
             {t("onboarding.step", { current: index + 1, total: STEPS.length })}
           </p>
-        </div>
-
-        {/* The orb stays out of the swap, so it goes on drifting from step to step. */}
-        <div className="mt-10 w-fit animate-float">
-          <Orb size="md" />
         </div>
 
         <div className="relative mt-10">

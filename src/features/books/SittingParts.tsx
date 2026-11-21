@@ -13,7 +13,6 @@ import { Reveal } from "@/components/motion/Reveal";
 import { Button } from "@/components/ui/Button";
 import { ChoiceGroup } from "@/components/ui/ChoiceGroup";
 import { Notice } from "@/components/ui/Notice";
-import { Orb } from "@/components/ui/Orb";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { Spinner } from "@/components/ui/Spinner";
 import { GRADE_TEXT } from "@/components/ui/Verdict";
@@ -51,10 +50,8 @@ interface SittingFrameProps {
 
 /**
  * The whole window a sitting or a refresh has: across its top the way out and
- * the bar that says how far it is, and the small orb over one thing at a
- * time. The bar has its place from the start, so nothing moves when the first
- * word brings it, and the orb stays out of what is swapped, so it goes on
- * drifting from word to word.
+ * the bar that says how far it is, over one thing at a time. The bar has its
+ * place from the start, so nothing moves when the first word brings it.
  */
 export function SittingFrame({
   leave,
@@ -111,7 +108,6 @@ export function SittingFrame({
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="flex min-h-full flex-col items-center gap-2">
-          <Orb size="sm" section={section} className="shrink-0" />
           <div className="relative grid w-full flex-1 overflow-clip">
             {children}
           </div>

@@ -6,7 +6,6 @@ import { CountUp } from "@/components/motion/CountUp";
 import { Reveal } from "@/components/motion/Reveal";
 import { Stagger } from "@/components/motion/Stagger";
 import { Button } from "@/components/ui/Button";
-import { Orb } from "@/components/ui/Orb";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { GRADE_TEXT } from "@/components/ui/Verdict";
 import { RunCard } from "@/features/drills/ScreenParts";
@@ -44,11 +43,6 @@ export function StructureEnd({
     <main className="h-full overflow-y-auto px-4 py-10">
       <RunCard className="max-w-lg">
         <Stagger className="flex flex-col gap-8">
-          <Reveal kind="scale" className="self-center">
-            <div className="animate-float">
-              <Orb size="md" section="book" />
-            </div>
-          </Reveal>
           <Reveal as="header" className="flex flex-col gap-2">
             <h1 className="font-display text-display font-light tracking-tight text-ink">
               {t("structures.summary.title")}

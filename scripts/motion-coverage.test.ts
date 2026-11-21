@@ -86,11 +86,6 @@ const ALLOWED: readonly Allowance[] = [
     why: "Fixed by whoever writes the notice, whose own Reveal carries it.",
   },
   {
-    file: "src/components/ui/Orb.tsx",
-    when: "follow",
-    why: "The glow is part of an orb that follows: decided at mount by its props.",
-  },
-  {
     file: "src/features/books/WordRow.tsx",
     when: ["word.done", "word.strength !== null", "word.half === null"],
     why: "A word's standing changes on another route; known, its row leaves whole. Rows are thousands: each Presence here costs a mount.",

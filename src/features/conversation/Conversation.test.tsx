@@ -118,7 +118,7 @@ describe("Conversation", () => {
     expect((await ttsStatus()).enabled).toBe(false);
   });
 
-  test("the orb says it is listening while recording", async () => {
+  test("the status says it is listening while recording", async () => {
     const user = userEvent.setup();
     render(
       <Conversation
