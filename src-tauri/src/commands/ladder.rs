@@ -187,6 +187,11 @@ pub fn rise(
             }),
             tied,
             short,
+            example: short.then(|| short_of(word, sentence)).flatten(),
+            meaning: sentence
+                .filter(|_| short)
+                .map(|each| each.hint.clone())
+                .filter(|hint| !hint.is_empty()),
         }),
         _ => Climb::Off,
     })

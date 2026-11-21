@@ -29,6 +29,20 @@ export const FRAME = {
   none: "border-line-strong",
 } as const satisfies Record<Tone, string>;
 
+/**
+ * A word marked in a sentence in the colour of its kind, as on the band: the
+ * short sentence a word its tag cannot tell apart comes with, and its tip.
+ */
+export const MARK = {
+  noun: "bg-noun-soft text-noun",
+  verb: "bg-verb-soft text-verb",
+  phrasalVerb: "bg-verb-soft text-verb",
+  adjective: "bg-adjective-soft text-adjective",
+  adverb: "bg-adverb-soft text-adverb",
+  expression: "bg-expression-soft text-expression",
+  none: "bg-book-soft text-ink",
+} as const satisfies Record<Tone, string>;
+
 /** The band across the top of the card, in that colour, and its letters. */
 const BAND = {
   noun: "bg-noun-soft text-noun",

@@ -58,6 +58,10 @@ export interface SenseTip {
   tied: boolean;
   /** It was asked with those few words, not its whole sentence. */
   short: boolean;
+  /** Those few words, the word marked; null when not asked with them. */
+  example: SentencePart[] | null;
+  /** What the word is in them, in the learner's language; null as above. */
+  meaning: string | null;
 }
 
 /** Event `sentence-progress`: words given their sentences so far. */

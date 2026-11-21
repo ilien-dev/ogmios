@@ -3290,9 +3290,18 @@ pub mod tests {
         // Right with it: understood, and the word comes back.
         let understood = say(&sentence.hint, 2);
         assert_eq!(
-            understood.understood.map(|tip| (tip.tied, tip.short)),
+            understood
+                .understood
+                .as_ref()
+                .map(|tip| (tip.tied, tip.short)),
             Some((true, true))
         );
+        let tip = understood.understood.clone().expect("a tip");
+        // Its tip shows its few words again, and what the word is there.
+        assert!(tip
+            .example
+            .is_some_and(|parts| parts.iter().any(|part| part.marked)));
+        assert_eq!(tip.meaning.as_deref(), Some(sentence.hint.as_str()));
         // It was shown: the sentence is spent once, like any answer.
         assert_eq!(sentence_of(&desk, &asked).shows, 1);
         assert_eq!(desk.count("SELECT COUNT(*) FROM word_answers"), 0);

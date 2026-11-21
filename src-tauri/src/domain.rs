@@ -1018,7 +1018,7 @@ pub struct SenseHint {
 }
 
 /// Right only once the sentence was shown: what to look at next time.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SenseTip {
     /// The kind of the word asked.
@@ -1031,6 +1031,11 @@ pub struct SenseTip {
     pub tied: bool,
     /// It was asked with those few words, not its whole sentence.
     pub short: bool,
+    /// Those few words, the word marked, to show what led to the answer;
+    /// none when it was not asked with them.
+    pub example: Option<Vec<SentencePart>>,
+    /// What the word is in them, in the learner's language; none as above.
+    pub meaning: Option<String>,
 }
 
 /// An answer that is a word of another kind from the root of the one

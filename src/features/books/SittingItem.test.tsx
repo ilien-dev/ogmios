@@ -921,6 +921,8 @@ describe("telling which word is meant", () => {
             kindsDiffer: true,
             tied: false,
             short: false,
+            example: null,
+            meaning: null,
           },
         };
       },
@@ -1009,11 +1011,21 @@ describe("telling which word is meant", () => {
                 kindsDiffer: false,
                 tied: true,
                 short: true,
+                example: [
+                  { text: "her ", marked: false },
+                  { text: "fair", marked: true },
+                  { text: " hair", marked: false },
+                ],
+                meaning: "rubio",
               },
             },
     );
     // From the start, the few words that fix its sense.
     expect(screen.getByText("hair", { exact: false })).toBeVisible();
+    // The word stands out in them in the colour of its kind, as on the band.
+    expect(document.querySelector("[data-mark]")?.className).toContain(
+      "bg-adjective-soft",
+    );
     const field = screen.getByLabelText("Your translation");
     await user.type(field, "justo{Enter}");
     expect(
@@ -1038,6 +1050,15 @@ describe("telling which word is meant", () => {
         { exact: false },
       ),
     ).toBeInTheDocument();
+    // And its tip shows them again, the word and what it is in its colour.
+    const example = document.querySelector("[data-tip-example]");
+    expect(example?.textContent).toContain("her fair hair");
+    expect(example?.textContent).toContain("rubio");
+    const marks = [...(example?.querySelectorAll("mark") ?? [])];
+    expect(marks.map((each) => each.textContent)).toEqual(["fair", "rubio"]);
+    expect(
+      marks.every((each) => each.className.includes("bg-adjective-soft")),
+    ).toBe(true);
   });
 
   test("two verbs written alike are told apart by their forms", async () => {
@@ -1114,6 +1135,8 @@ describe("telling which word is meant", () => {
                 kindsDiffer: false,
                 tied: true,
                 short: false,
+                example: null,
+                meaning: null,
               },
             },
     );
