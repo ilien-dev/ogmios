@@ -12,6 +12,7 @@ import {
   screen,
   waitForElementToBeRemoved,
 } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MotionGlobalConfig } from "motion/react";
 import { useMockBackend } from "@/test/mockBackend";
 import { App } from "./App";
@@ -44,5 +45,28 @@ describe("App", () => {
     expect(loading.closest("[inert]")).not.toBeNull();
     await waitForElementToBeRemoved(loading);
     expect(home.closest("[inert]")).toBeNull();
+  });
+
+  test("Settings closes back to the place it was opened from", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(await screen.findByRole("button", { name: "Book" }));
+    await user.click(screen.getByRole("button", { name: "Settings" }));
+
+    await user.click(
+      await screen.findByRole("button", { name: "Close settings" }),
+    );
+    expect(await screen.findByRole("button", { name: "Book" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+
+    await user.click(screen.getByRole("button", { name: "Settings" }));
+    await screen.findByRole("button", { name: "Close settings" });
+    await user.keyboard("{Escape}");
+    expect(await screen.findByRole("button", { name: "Book" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
   });
 });

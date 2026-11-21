@@ -31,6 +31,7 @@ export const en = {
     label: "Places",
     settings: "Settings",
     settingsWaiting: "Settings, an update is waiting",
+    closeSettings: "Close settings",
     due: "{{count}} back today",
     places: {
       today: "Today",

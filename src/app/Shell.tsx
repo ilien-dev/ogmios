@@ -9,6 +9,8 @@ import { ScreenStage } from "./ScreenStage";
 interface ShellProps {
   route: Route;
   navigate: Navigate;
+  /** Out of Settings: back to where it was opened from. */
+  onClose: () => void;
   /** Everything that comes back today. */
   due: number;
   /** The screen of the route. */
@@ -22,6 +24,7 @@ interface ShellProps {
 export function Shell({
   route,
   navigate,
+  onClose,
   due,
   children,
 }: ShellProps): ReactNode {
@@ -29,7 +32,7 @@ export function Shell({
     <div className="h-full bg-canvas p-3">
       <div className="relative isolate flex h-full flex-col gap-2 overflow-hidden rounded-3xl border border-line bg-frame p-4 pb-0">
         <Ambient />
-        <Rail route={route} navigate={navigate} due={due} />
+        <Rail route={route} navigate={navigate} onClose={onClose} due={due} />
         <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
           <ScreenStage route={route}>{children}</ScreenStage>
           <UpdateCard shown={showsNav(route)} />
