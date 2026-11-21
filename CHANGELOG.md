@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.29.0](https://github.com/ilien-dev/ogmios/compare/v0.28.0...v0.29.0) (2026-11-21)
+
+
+### Features
+
+* colour the short sentence and its tip in the word's kind ([#66](https://github.com/ilien-dev/ogmios/issues/66)) ([bd5276d](https://github.com/ilien-dev/ogmios/commit/bd5276d48c540a4379c5c097e402ac83b8898c84))
+* rotate the sentences of a word and make them lead to its meaning ([#65](https://github.com/ilien-dev/ogmios/issues/65)) ([3d21e11](https://github.com/ilien-dev/ogmios/commit/3d21e116e67e1075dab6e5ad21b47bc6ccb988c2))
+
 ## [0.28.0](https://github.com/ilien-dev/ogmios/compare/v0.27.0...v0.28.0) (2026-11-21)
 
 
