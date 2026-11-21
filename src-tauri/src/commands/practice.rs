@@ -28,8 +28,7 @@ use crate::books::practice::{
     session_questions, sizes, SIZES,
 };
 use crate::books::sentences::{
-    asked_alone, choose, fragment, in_form, inflected, or_other, production, recognition, Banked,
-    Verdict,
+    asked_alone, choose, in_form, inflected, or_other, production, recognition, Banked, Verdict,
 };
 use crate::books::spelling::Spelling;
 use crate::db::practice::{self, SittingRow, WordRow};
@@ -172,25 +171,18 @@ pub(super) fn asked_with(
 
 /// A word its tag cannot tell from a rival (`commands::ladder::tied`) has
 /// no one answer on its own: English → native it is asked with the few
-/// words of its sentence that fix its sense
-/// (`books::sentences::fragment`), or with the `whole` sentence while those
-/// are not known. Nothing else is held back or added.
+/// words of its sentence that fix its sense (`few`, from
+/// `commands::ladder::short_of`), or with the `whole` sentence where the
+/// sentence does not have the word as written. Nothing else is held back or
+/// added.
 pub(super) fn tie(
     mut item: PracticeItem,
-    shown: Option<&Sentence>,
+    few: Option<Vec<SentencePart>>,
     whole: Vec<SentencePart>,
     tied: bool,
 ) -> PracticeItem {
     if tied && item.direction == Direction::Recognition {
-        let few = shown.and_then(|sentence| {
-            sentence
-                .cue
-                .as_deref()
-                .and_then(|cue| fragment(&sentence.text, &sentence.form, cue))
-        });
-        item.context = few
-            .or_else(|| shown.and_then(|sentence| in_place(sentence, Direction::Recognition)))
-            .or(Some(whole));
+        item.context = few.or(Some(whole));
     }
     item
 }
@@ -203,7 +195,8 @@ pub(super) fn item_tied(
 ) -> Result<PracticeItem> {
     let tied = ladder::tied(conn, &word, None)?;
     let whole = mark(&word.sentence, &word.forms);
-    Ok(tie(item(word, direction), None, whole, tied))
+    let few = ladder::short_of(&word, None);
+    Ok(tie(item(word, direction), few, whole, tied))
 }
 
 /// A word, or what it means, as an exercise shows it: in small letters,
@@ -253,13 +246,14 @@ fn in_sentence(
                 let shows = word.shows_context(direction);
                 let tied = ladder::tied(conn, &word, sentence.verb_form)?;
                 let whole = mark(&word.sentence, &word.forms);
+                let few = ladder::short_of(&word, Some(&sentence));
                 let asked = asked_with(
                     (word.id, word.part_of_speech),
                     &sentence,
                     direction,
                     (shows, alone.as_deref()),
                 );
-                tie(asked, Some(&sentence), whole, tied)
+                tie(asked, few, whole, tied)
             }
             None => item_tied(conn, word, direction)?,
         },
