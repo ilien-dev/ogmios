@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.33.0](https://github.com/ilien-dev/ogmios/compare/v0.32.0...v0.33.0) (2026-11-21)
+
+
+### Features
+
+* open the window maximized, then as the learner left it ([#75](https://github.com/ilien-dev/ogmios/issues/75)) ([bfb12fb](https://github.com/ilien-dev/ogmios/commit/bfb12fb9a97f3ddb12c533fd02f8d16a87e9ee73))
+
 ## [0.32.0](https://github.com/ilien-dev/ogmios/compare/v0.31.0...v0.32.0) (2026-11-21)
 
 
