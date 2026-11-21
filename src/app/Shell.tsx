@@ -18,8 +18,8 @@ interface ShellProps {
 }
 
 /**
- * The frame every screen sits in, over the canvas: the bar along its top, and
- * the screens taking turns under it, over the ambient light.
+ * The frame every screen sits in, filling the window: the bar along its top,
+ * and the screens taking turns under it, over the ambient light.
  */
 export function Shell({
   route,
@@ -29,14 +29,12 @@ export function Shell({
   children,
 }: ShellProps): ReactNode {
   return (
-    <div className="h-full bg-canvas p-3">
-      <div className="relative isolate flex h-full flex-col gap-2 overflow-hidden rounded-3xl border border-line bg-frame p-4 pb-0">
-        <Ambient />
-        <Rail route={route} navigate={navigate} onClose={onClose} due={due} />
-        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
-          <ScreenStage route={route}>{children}</ScreenStage>
-          <UpdateCard shown={showsNav(route)} />
-        </div>
+    <div className="relative isolate flex h-full flex-col gap-2 overflow-hidden bg-frame p-4 pb-0">
+      <Ambient />
+      <Rail route={route} navigate={navigate} onClose={onClose} due={due} />
+      <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+        <ScreenStage route={route}>{children}</ScreenStage>
+        <UpdateCard shown={showsNav(route)} />
       </div>
     </div>
   );
