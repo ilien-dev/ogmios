@@ -1,10 +1,21 @@
 //! The steps a word written alike to another one in another sense is asked
-//! in (`db::spellings::rivals`). It comes alone, with no sentence. An answer
-//! that is what a rival means is no miss: the learner is told which word it
-//! was and the kind of word asked for. A miss after that brings the
-//! sentence. Right with the sentence, the word was understood but not
-//! known: it is neither right nor a miss, and it comes back. Wrong with the
-//! sentence is a miss like any other. No step asks the model for anything.
+//! in (`db::spellings::rivals`). When its tag tells it from every rival
+//! (another kind of word, or a verb in another form) it comes alone, with
+//! no sentence. An answer that is what a rival means is no miss: the
+//! learner is told which word it was and the kind of word asked for, and
+//! for a verb the form. A miss after that brings the sentence. Right with
+//! the sentence, the word was understood but not known: it is neither right
+//! nor a miss, and it comes back.
+//!
+//! When its tag cannot tell it from a rival ([`tied`]: "fair", blond, and
+//! "fair", just, both adjectives), the word alone has no one answer, so it
+//! always comes with the few words of its sentence that fix its sense
+//! (`books::sentences::fragment`). An answer that is what a rival means
+//! goes straight to the whole sentence, with no step between: more tries
+//! would let the learner get there by elimination. Right with it is again
+//! neither right nor a miss, and the word comes back, with its few words.
+//! Wrong with the sentence is a miss like any other. No step asks the model
+//! for anything.
 
 use rusqlite::Connection;
 
@@ -13,7 +24,7 @@ use crate::books::spelling::Spelling;
 use crate::db::practice::WordRow;
 use crate::db::sentences::Sentence;
 use crate::db::spellings::{self, Rival};
-use crate::domain::{Direction, Ladder, SenseHint, SenseTip};
+use crate::domain::{Direction, Ladder, PartOfSpeech, SenseHint, SenseTip, VerbForm};
 use crate::error::Result;
 
 use super::practice::in_place;
@@ -35,9 +46,37 @@ pub enum Climb {
     Understood(SenseTip),
 }
 
+/// Whether `kind` is a verb, whose form tells it apart too.
+fn verb(kind: Option<PartOfSpeech>) -> bool {
+    matches!(kind, Some(PartOfSpeech::Verb | PartOfSpeech::PhrasalVerb))
+}
+
+/// Whether the tag of a word of kind `kind`, asked in the form `form`,
+/// tells it from a rival: another kind of word, or a verb in another form.
+/// A kind or a form nobody said tells nothing apart.
+fn told_apart((kind, form): (Option<PartOfSpeech>, Option<VerbForm>), rival: &Rival) -> bool {
+    match (kind, rival.part_of_speech) {
+        (Some(mine), Some(theirs)) if mine != theirs => true,
+        (Some(_), Some(_)) if verb(kind) => {
+            matches!((form, rival.verb_form), (Some(mine), Some(theirs)) if mine != theirs)
+        }
+        _ => false,
+    }
+}
+
+/// Whether the word, asked in the form `form`, has a rival its tag cannot
+/// tell it from: then the word alone has no one answer, and it is asked with
+/// the words of its sentence that fix its sense.
+pub fn tied(conn: &Connection, word: &WordRow, form: Option<VerbForm>) -> Result<bool> {
+    let form = form.or(word.verb_form);
+    Ok(spellings::rivals(conn, &word.id)?
+        .iter()
+        .any(|rival| !told_apart((word.part_of_speech, form), rival)))
+}
+
 /// What tells the learner which word was meant: what the rival means, where
-/// it is from, and both kinds of word.
-fn hint(word: &WordRow, rival: &Rival, meaning: &str) -> SenseHint {
+/// it is from, both kinds of word and, for verbs, both forms.
+fn hint(word: &WordRow, form: Option<VerbForm>, rival: &Rival, meaning: &str) -> SenseHint {
     SenseHint {
         meaning: meaning.to_owned(),
         book: (!rival.same_book).then(|| rival.book.clone()),
@@ -45,6 +84,8 @@ fn hint(word: &WordRow, rival: &Rival, meaning: &str) -> SenseHint {
         chapter_title: rival.chapter_title.clone(),
         asked: word.part_of_speech,
         given: rival.part_of_speech,
+        asked_form: form.filter(|_| verb(word.part_of_speech)),
+        given_form: rival.verb_form.filter(|_| verb(rival.part_of_speech)),
     }
 }
 
@@ -73,6 +114,10 @@ pub fn rise(
         return Ok(Climb::Off);
     }
     let native = (lang, inflects(word.part_of_speech));
+    let form = sentence.and_then(|each| each.verb_form).or(word.verb_form);
+    let tied = rivals
+        .iter()
+        .any(|rival| !told_apart((word.part_of_speech, form), rival));
     Ok(match rung {
         ALONE if right || answer.trim().is_empty() => Climb::Off,
         ALONE => rivals
@@ -87,10 +132,18 @@ pub fn rise(
                     .map(|meaning| (rival, meaning))
             })
             .map_or(Climb::Off, |(rival, meaning)| {
-                Climb::Up(Ladder {
-                    rung: TOLD,
-                    hint: Some(hint(word, rival, meaning)),
-                    context: None,
+                Climb::Up(if tied {
+                    Ladder {
+                        rung: SHOWN,
+                        hint: None,
+                        context: Some(context(word, sentence)),
+                    }
+                } else {
+                    Ladder {
+                        rung: TOLD,
+                        hint: Some(hint(word, form, rival, meaning)),
+                        context: None,
+                    }
                 })
             }),
         TOLD if right => Climb::Off,
@@ -107,6 +160,7 @@ pub fn rise(
                     (Some(mine), Some(theirs)) if mine != theirs
                 )
             }),
+            tied,
         }),
         _ => Climb::Off,
     })

@@ -1007,6 +1007,10 @@ pub struct SenseHint {
     /// The kind of the word asked, and of the other one.
     pub asked: Option<PartOfSpeech>,
     pub given: Option<PartOfSpeech>,
+    /// The form a verb is asked in, and the form the other one had; none
+    /// for any other word, and where nobody said.
+    pub asked_form: Option<VerbForm>,
+    pub given_form: Option<VerbForm>,
 }
 
 /// Right only once the sentence was shown: what to look at next time.
@@ -1017,6 +1021,10 @@ pub struct SenseTip {
     pub kind: Option<PartOfSpeech>,
     /// Its rivals are another kind of word: its tag tells them apart.
     pub kinds_differ: bool,
+    /// Its tag cannot tell it from a rival: it is asked with the words that
+    /// fix its sense, and was right only with its whole sentence
+    /// (`commands::ladder::tied`).
+    pub tied: bool,
 }
 
 /// An answer that is a word of another kind from the root of the one

@@ -47,6 +47,7 @@ use crate::agent::protocol::{
     SentenceVerdicts, SentenceWord, SentenceWriteParams, SentencesWritten, WrittenWord,
 };
 use crate::books::segment::{paragraphs, sentences as cut};
+use crate::books::sentences::cue_in;
 use crate::books::sentences::{
     fits, found, hint_fits, in_translation, other_hints, shown_in, unaided, Banked, GIVEN,
     SENTENCE_CHARS, WORDS_PER_CALL,
@@ -427,6 +428,7 @@ fn kept(
             .collect(),
         hints: other_hints(&label.hints, (&sentence.hint, &sentence.form, lang), base),
         verb_form: label.verb_form,
+        cue: cue_in(&label.cue, (&sentence.text, &sentence.form)),
     }
 }
 
@@ -844,6 +846,7 @@ pub mod tests {
                             each.meaning.first().cloned().unwrap_or_default(),
                         ],
                         verb_form: Some(VerbForm::Past),
+                        cue: Vec::new(),
                     })
                     .collect(),
             })
@@ -1120,6 +1123,7 @@ pub mod tests {
             also: vec!["peered".into()],
             hints: vec!["mirada".into()],
             verb_form: Some(VerbForm::PastParticiple),
+            cue: Vec::new(),
         };
         bank::review(&conn, &waiting.id, true, &labels).expect("review");
         waiting
@@ -1264,6 +1268,7 @@ pub mod tests {
                 also: Vec::new(),
                 hints: vec!["me había asegurado de".into()],
                 verb_form: Some(VerbForm::PastParticiple),
+                cue: Vec::new(),
             };
             bank::review(&conn, &waiting.id, true, &labels).expect("review");
         }
@@ -1320,6 +1325,7 @@ pub mod tests {
                 also: Vec::new(),
                 hints: vec!["tendría posibilidades".into()],
                 verb_form: Some(VerbForm::Base),
+                cue: Vec::new(),
             };
             bank::review(&conn, &waiting.id, true, &labels).expect("review");
         }
@@ -1363,6 +1369,7 @@ pub mod tests {
             also: Vec::new(),
             hints: vec!["no lo había notado".into()],
             verb_form: Some(VerbForm::PastParticiple),
+            cue: Vec::new(),
         };
         bank::review(&conn, &waiting.id, true, &labels).expect("review");
         assert_eq!(bank::unaid(&conn, "es").expect("unaid"), 1);
@@ -2717,6 +2724,29 @@ pub mod tests {
         }
     }
 
+    /// "fuzzy", blurred, labelled another kind of word than "fuzzy", furry:
+    /// its tag tells the two apart.
+    fn blurring() -> Word {
+        Word {
+            part_of_speech: Some(PartOfSpeech::Noun),
+            ..blurred()
+        }
+    }
+
+    /// "fuzzy" of the cat book called an adjective: furry, told apart by its
+    /// tag from "fuzzy", to blur.
+    fn furry_is_an_adjective(desk: &Desk) {
+        desk.db
+            .lock()
+            .expect("db")
+            .execute(
+                "UPDATE chapter_words SET part_of_speech = 'adjective'
+                 WHERE key = 'fuzzy' AND part_of_speech IS NULL",
+                [],
+            )
+            .expect("kind");
+    }
+
     /// A book about a cat whose second chapter has "fuzzy" too, unprepared,
     /// and one about a picture: its chapters, [cat 1, cat 2, picture].
     fn two_books(desk: &Desk, picture: &Word) -> [String; 3] {
@@ -2911,6 +2941,7 @@ pub mod tests {
             ..word("fuzzy", &["difuminar"], 1)
         };
         let [cat, _, picture] = two_books(&desk, &verb);
+        furry_is_an_adjective(&desk);
         stock(&desk, &cat);
         stock(&desk, &picture);
         let sitting =
@@ -2967,10 +2998,92 @@ pub mod tests {
     }
 
     #[test]
-    fn right_once_told_the_kind_is_helped_and_spends_its_sentence() {
+    fn a_word_its_tag_cannot_tell_apart_comes_with_its_sentence_and_skips_the_step_between() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let desk = Desk::new(&dir);
+        // "fuzzy", blurred, and "fuzzy", furry: no tag tells them apart.
+        let [cat, _, picture] = two_books(&desk, &blurred());
+        stock(&desk, &cat);
+        stock(&desk, &picture);
+        let sitting =
+            crate::commands::practice::start(desk.ctx(), &cat, (None, Ways::Recognition), t0())
+                .expect("start");
+        let asked = item(&sitting.step).clone();
+        // Never alone: the word alone has no one answer. No words that fix
+        // its sense were said yet, so its whole sentence comes.
+        let context = asked.context.clone().expect("its sentence from the start");
+        assert!(context.iter().any(|part| part.marked));
+        let say = |text: &str, rung: u8| {
+            let shown = Shown {
+                sentence_id: asked.sentence_id.as_deref(),
+                rung,
+                ..Shown::default()
+            };
+            answer_shown(
+                desk.ctx(),
+                &sitting.id,
+                (&asked.word_id, asked.direction),
+                (text, shown),
+                t0(),
+            )
+            .expect("answer")
+        };
+        let sentence = sentence_of(&desk, &asked);
+        let other = if sentence.chapter_id.as_deref() == Some(cat.as_str()) {
+            "difuso"
+        } else {
+            "peludo"
+        };
+        // The other book's meaning: straight to the whole sentence, with no
+        // word of what it is not.
+        let shown = say(other, 0).ladder.expect("a step");
+        assert_eq!((shown.rung, shown.hint.is_none()), (2, true));
+        assert!(shown.context.is_some());
+        // Right with it: understood, and the word comes back.
+        let understood = say(&sentence.hint, 2);
+        assert_eq!(understood.understood.map(|tip| tip.tied), Some(true));
+        assert_eq!(desk.count("SELECT COUNT(*) FROM word_answers"), 0);
+        assert_eq!(desk.count("SELECT COUNT(*) FROM understood_answers"), 1);
+    }
+
+    #[test]
+    fn a_word_its_tag_cannot_tell_apart_comes_with_the_few_words_that_fix_its_sense() {
         let dir = tempfile::tempdir().expect("tempdir");
         let desk = Desk::new(&dir);
         let [cat, _, picture] = two_books(&desk, &blurred());
+        stock(&desk, &cat);
+        stock(&desk, &picture);
+        desk.db
+            .lock()
+            .expect("db")
+            .execute(
+                "UPDATE word_sentences SET cue = '[\"cat\",\"dog\",\"picture\"]'",
+                [],
+            )
+            .expect("cue");
+        let sitting =
+            crate::commands::practice::start(desk.ctx(), &cat, (None, Ways::Recognition), t0())
+                .expect("start");
+        let asked = item(&sitting.step).clone();
+        let shown: String = asked
+            .context
+            .clone()
+            .expect("its few words")
+            .iter()
+            .map(|part| part.text.as_str())
+            .collect();
+        let sentence = sentence_of(&desk, &asked);
+        // Fewer words than its sentence, the word and what fixes it.
+        assert!(shown.len() < sentence.text.len(), "{shown}");
+        assert!(shown.to_lowercase().contains("fuzzy"), "{shown}");
+    }
+
+    #[test]
+    fn right_once_told_the_kind_is_helped_and_spends_its_sentence() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let desk = Desk::new(&dir);
+        let [cat, _, picture] = two_books(&desk, &blurring());
+        furry_is_an_adjective(&desk);
         stock(&desk, &cat);
         stock(&desk, &picture);
         learn_in(&desk, &cat);
@@ -3013,7 +3126,8 @@ pub mod tests {
     fn a_word_understood_with_its_sentence_in_the_recall_stays_due_and_leaves_the_run() {
         let dir = tempfile::tempdir().expect("tempdir");
         let desk = Desk::new(&dir);
-        let [cat, _, picture] = two_books(&desk, &blurred());
+        let [cat, _, picture] = two_books(&desk, &blurring());
+        furry_is_an_adjective(&desk);
         stock(&desk, &cat);
         stock(&desk, &picture);
         learn_in(&desk, &cat);

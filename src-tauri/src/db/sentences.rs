@@ -43,13 +43,17 @@ pub struct Sentence {
     /// The chapter whose sense of the word it shows; none for a word of a
     /// conversation.
     pub chapter_id: Option<String>,
+    /// The words of the sentence, besides the word, that fix the sense it
+    /// has there; none while it has not been looked at for them.
+    pub cue: Option<Vec<String>>,
 }
 
 const SENTENCE: &str = "SELECT s.id, s.key, s.source = 'book', s.sentence, s.form, s.hint,
             s.translation,
             (SELECT COUNT(*) FROM word_answers a WHERE a.sentence_id = s.id)
               + (SELECT COUNT(*) FROM word_events e WHERE e.sentence_id = s.id),
-            COALESCE(s.also, '[]'), COALESCE(s.hints, '[]'), s.verb_form, s.chapter_id
+            COALESCE(s.also, '[]'), COALESCE(s.hints, '[]'), s.verb_form, s.chapter_id,
+            s.cue
      FROM word_sentences s";
 
 /// A list kept as a JSON array in the column `at`.
@@ -73,6 +77,14 @@ fn sentence(row: &Row<'_>) -> rusqlite::Result<Sentence> {
         hints: list(row, 9)?,
         verb_form: row.get(10)?,
         chapter_id: row.get(11)?,
+        cue: row
+            .get::<_, Option<String>>(12)?
+            .map(|json| {
+                serde_json::from_str(&json).map_err(|error| {
+                    rusqlite::Error::FromSqlConversionFailure(12, Type::Text, error.into())
+                })
+            })
+            .transpose()?,
     })
 }
 
@@ -250,6 +262,8 @@ pub struct Labels {
     pub hints: Vec<String>,
     /// The form a verb has in it.
     pub verb_form: Option<VerbForm>,
+    /// The words of it that fix the sense its word has there.
+    pub cue: Vec<String>,
 }
 
 /// A sentence was looked at: a good one can be asked with from now on.
@@ -263,11 +277,17 @@ pub fn review(conn: &Connection, id: &str, good: bool, labels: &Labels) -> Resul
 
 /// The sentences asked with that were looked at before one of its labels
 /// was asked for, the oldest first: the other English words for their hint,
-/// or the word's other translations in the form of the hint.
+/// or the word's other translations in the form of the hint; and, for a
+/// word some other word is written alike to, the words that fix its sense.
 pub fn unlabelled(conn: &Connection) -> Result<Vec<Sentence>> {
     let mut stmt = conn.prepare(&format!(
         "{SENTENCE} WHERE s.reviewed AND NOT s.discarded
-           AND (s.also IS NULL OR s.hints IS NULL)
+           AND (s.also IS NULL OR s.hints IS NULL
+                OR (s.cue IS NULL AND EXISTS (
+                      SELECT 1 FROM chapter_words w
+                      JOIN word_spellings a ON a.word_id = w.id
+                      JOIN word_spellings b ON b.text = a.text AND b.word_id != a.word_id
+                      WHERE w.key = s.key AND (a.whole OR b.whole))))
          ORDER BY s.created_at, s.rowid"
     ))?;
     let rows = stmt.query_map([], sentence)?;
@@ -279,13 +299,14 @@ pub fn unlabelled(conn: &Connection) -> Result<Vec<Sentence>> {
 /// else does not lose them to a look that says nothing of it.
 pub fn label(conn: &Connection, id: &str, labels: &Labels) -> Result<()> {
     conn.execute(
-        "UPDATE word_sentences SET also = COALESCE(also, ?2), hints = ?3, verb_form = ?4
+        "UPDATE word_sentences SET also = COALESCE(also, ?2), hints = ?3, verb_form = ?4, cue = ?5
          WHERE id = ?1",
         params![
             id,
             serde_json::to_string(&labels.also)?,
             serde_json::to_string(&labels.hints)?,
-            labels.verb_form
+            labels.verb_form,
+            serde_json::to_string(&labels.cue)?
         ],
     )?;
     Ok(())
@@ -296,7 +317,7 @@ pub fn label(conn: &Connection, id: &str, labels: &Labels) -> Result<()> {
 pub fn regloss(conn: &Connection, sentence: &Sentence, labels: &Labels) -> Result<()> {
     conn.execute(
         "UPDATE word_sentences
-         SET hint = ?2, translation = ?3, also = ?4, hints = ?5, verb_form = ?6
+         SET hint = ?2, translation = ?3, also = ?4, hints = ?5, verb_form = ?6, cue = ?7
          WHERE id = ?1",
         params![
             sentence.id,
@@ -304,7 +325,8 @@ pub fn regloss(conn: &Connection, sentence: &Sentence, labels: &Labels) -> Resul
             sentence.translation,
             serde_json::to_string(&labels.also)?,
             serde_json::to_string(&labels.hints)?,
-            labels.verb_form
+            labels.verb_form,
+            serde_json::to_string(&labels.cue)?
         ],
     )?;
     Ok(())

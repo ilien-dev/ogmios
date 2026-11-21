@@ -21,8 +21,8 @@ use tauri::AppHandle;
 
 use super::ladder::{rise, Climb, ALONE};
 use super::practice::{
-    all_small, another, asked_with, climb, clue, in_place, item, judged, next_sentence, plain,
-    shown_sentence, small, whole, Judged, Meaning, Shown, Tries,
+    all_small, another, asked_with, climb, clue, in_place, item_tied, judged, next_sentence, plain,
+    shown_sentence, small, tie, whole, Judged, Meaning, Shown, Tries,
 };
 use super::profile::require_profile;
 use super::run;
@@ -123,26 +123,29 @@ fn asked(
 ) -> Result<PracticeItem> {
     let own = sense(conn, word)?;
     if let Some(sentence) = next_sentence(conn, (&word.key, &own), None, run_id)? {
-        let (part_of_speech, needs_context, alone) = match &word.source {
+        let (part_of_speech, needs_context, alone, tied) = match &word.source {
             Source::Book { word_id } => {
                 let row = as_in(conn, word_id, &sentence)?;
                 let alone = row.alone_in(&sentence.form).map(<[String]>::to_vec);
                 let shows = row.shows_context(direction);
-                (row.part_of_speech, shows, alone)
+                let tied = super::ladder::tied(conn, &row, sentence.verb_form)?;
+                (row.part_of_speech, shows, alone, tied)
             }
-            Source::Chat { .. } => (None, false, None),
+            Source::Chat { .. } => (None, false, None, false),
         };
-        return Ok(asked_with(
+        let asked = asked_with(
             (word.key.clone(), part_of_speech),
             &sentence,
             direction,
             (needs_context, alone.as_deref()),
-        ));
+        );
+        let whole = in_place(&sentence, Direction::Recognition).unwrap_or_default();
+        return Ok(tie(asked, Some(&sentence), whole, tied));
     }
     Ok(match &word.source {
         Source::Book { word_id } => PracticeItem {
             word_id: word.key.clone(),
-            ..item(practice::word(conn, word_id)?, direction)
+            ..item_tied(conn, practice::word(conn, word_id)?, direction)?
         },
         Source::Chat { asked } => PracticeItem {
             word_id: word.key.clone(),

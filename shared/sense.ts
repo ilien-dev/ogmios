@@ -4,7 +4,7 @@
  * with `SentenceProgress`, kept apart from `domain.ts` only for its length. The rules are
  * `src-tauri/src/commands/ladder.rs`.
  */
-import type { PartOfSpeech, SentencePart } from "./domain.ts";
+import type { PartOfSpeech, SentencePart, VerbForm } from "./domain.ts";
 
 /**
  * What a word written alike to another one in another sense is asked with
@@ -32,6 +32,12 @@ export interface SenseHint {
   /** The kind of the word asked, and of the other one. */
   asked: PartOfSpeech | null;
   given: PartOfSpeech | null;
+  /**
+   * The form a verb is asked in, and the form the other one had; null for
+   * any other word, and where nobody said.
+   */
+  askedForm: VerbForm | null;
+  givenForm: VerbForm | null;
 }
 
 /** Right only once the sentence was shown: what to look at next time. */
@@ -40,6 +46,11 @@ export interface SenseTip {
   kind: PartOfSpeech | null;
   /** Its rivals are another kind of word: its tag tells them apart. */
   kindsDiffer: boolean;
+  /**
+   * Its tag cannot tell it from a rival: it is asked with the few words that
+   * fix its sense, and was right only with its whole sentence.
+   */
+  tied: boolean;
 }
 
 /** Event `sentence-progress`: words given their sentences so far. */
