@@ -640,47 +640,58 @@ pub fn cue_in(cue: &[String], (sentence, form): (&str, &str)) -> Vec<String> {
     kept
 }
 
-/// Where the run of words `run` starts among `words`, the first time.
-fn at(words: &[String], run: &[String]) -> Option<usize> {
+/// Words taken on each side of the word when no words that fix its sense
+/// are known, or they are too far: "her **fair** hair and".
+pub const AROUND: usize = 2;
+
+/// Where `run`, in words, is among the written words `words` (each as its
+/// words, joined by a space: "well-known" is "well known"), the first time:
+/// the first written word and how many it takes.
+fn at(words: &[String], run: &[String]) -> Option<(usize, usize)> {
     if run.is_empty() {
         return None;
     }
-    words.windows(run.len()).position(|each| each == run)
+    let wanted = run.join(" ");
+    (0..words.len()).find_map(|start| {
+        (1..=run.len().min(words.len() - start))
+            .find(|len| words[start..start + len].join(" ") == wanted)
+            .map(|len| (start, len))
+    })
 }
 
 /// The short sentence a word is asked with when its tag cannot tell it from
-/// a word written alike: the words of `sentence` from the first of the word
-/// and the words that fix its sense (`cue`) to the last, as written, the
-/// word marked ("her fair hair"). None when the sentence has no such words,
-/// or they are too far apart for a glance: the whole sentence is shown then.
+/// a word written alike, the word marked: the words of `sentence` from the
+/// first of the word and the words that fix its sense (`cue`) to the last,
+/// as written ("her fair hair"); when those are not known, or too far apart
+/// for a glance, the word and [`AROUND`] words on each side. None only when
+/// the sentence does not have the word as written.
 pub fn fragment(sentence: &str, form: &str, cue: &[String]) -> Option<Vec<SentencePart>> {
     let written: Vec<&str> = sentence.split_whitespace().collect();
     let words: Vec<String> = written.iter().map(|each| tokens(each).join(" ")).collect();
-    let flat: Vec<String> = words.iter().flat_map(|each| tokens(each)).collect();
-    if flat.len() != written.len() {
-        // A word of the text is two to the tokenizer ("don't" aside): the
-        // places would not line up, so the whole sentence is shown.
-        return None;
-    }
-    let own = tokens(form);
-    let start = at(&words, &own)?;
-    let mut first = start;
-    let mut last = start + own.len() - 1;
+    let (start, len) = at(&words, &tokens(form))?;
+    let end = start + len - 1;
+    let (mut first, mut last) = (start, end);
     let mut any = false;
     for each in cue {
-        let said = tokens(each);
-        if let Some(place) = at(&words, &said) {
+        if let Some((place, size)) = at(&words, &tokens(each)) {
             first = first.min(place);
-            last = last.max(place + said.len() - 1);
+            last = last.max(place + size - 1);
             any = true;
         }
     }
     if !any || last - first + 1 > FRAGMENT_WORDS {
-        return None;
+        first = start.saturating_sub(AROUND);
+        last = (end + AROUND).min(written.len() - 1);
     }
     let text = written[first..=last].join(" ");
     let text = text.trim_matches(|c: char| !c.is_alphanumeric());
     Some(mark(text, &[form.to_owned()]))
+}
+
+/// [`fragment`] for a word that can be written in any of `forms`: the first
+/// one the sentence has.
+pub fn few_words(sentence: &str, forms: &[String], cue: &[String]) -> Option<Vec<SentencePart>> {
+    forms.iter().find_map(|form| fragment(sentence, form, cue))
 }
 
 #[cfg(test)]
@@ -713,11 +724,21 @@ mod tests {
     }
 
     #[test]
-    fn no_fragment_without_words_that_fix_the_sense_or_too_far_apart() {
-        assert!(fragment("Her fair hair shone.", "fair", &[]).is_none());
+    fn without_words_that_fix_the_sense_the_words_around_it_stand_in() {
+        let parts =
+            fragment("She tied back her fair hair and left.", "fair", &[]).expect("a fragment");
+        assert_eq!(shown(&parts).0, "back her fair hair and");
         let far = vec!["end".to_owned()];
         let long = "A fair one came along the road by the river to the very end.";
-        assert!(fragment(long, "fair", &far).is_none());
+        assert_eq!(
+            shown(&fragment(long, "fair", &far).expect("a fragment")).0,
+            "A fair one came"
+        );
+        // Written with a hyphen, a word is still found in its place.
+        let parts = fragment("Her fair well-known face.", "fair", &["face".to_owned()])
+            .expect("a fragment");
+        assert_eq!(shown(&parts).0, "fair well-known face");
+        assert!(fragment("Nothing of it here.", "fair", &[]).is_none());
     }
 
     #[test]

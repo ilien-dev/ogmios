@@ -3167,8 +3167,8 @@ pub mod tests {
                 .expect("start");
         let asked = item(&sitting.step).clone();
         // Never alone: the word alone has no one answer. No words that fix
-        // its sense were said yet, so its whole sentence comes.
-        let context = asked.context.clone().expect("its sentence from the start");
+        // its sense were said yet: the words around it stand in.
+        let context = asked.context.clone().expect("its few words from the start");
         assert!(context.iter().any(|part| part.marked));
         let say = |text: &str, rung: u8| {
             let shown = Shown {
@@ -3194,17 +3194,17 @@ pub mod tests {
         // The other book's meaning: straight to the whole sentence, with no
         // word of what it is not.
         let shown = say(other, 0).ladder.expect("a step");
-        // No few words known yet: it had its whole sentence, and says so.
+        // It had a few words: the step after shows its whole sentence.
         assert_eq!(
             (shown.rung, shown.hint.is_none(), shown.short),
-            (2, true, false)
+            (2, true, true)
         );
         assert!(shown.context.is_some());
         // Right with it: understood, and the word comes back.
         let understood = say(&sentence.hint, 2);
         assert_eq!(
             understood.understood.map(|tip| (tip.tied, tip.short)),
-            Some((true, false))
+            Some((true, true))
         );
         // It was shown: the sentence is spent once, like any answer.
         assert_eq!(sentence_of(&desk, &asked).shows, 1);

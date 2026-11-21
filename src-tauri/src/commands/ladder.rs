@@ -20,7 +20,7 @@
 use rusqlite::Connection;
 
 use crate::books::practice::{accepts_native, inflects, mark};
-use crate::books::sentences::fragment;
+use crate::books::sentences::{few_words, fragment};
 use crate::books::spelling::Spelling;
 use crate::db::practice::WordRow;
 use crate::db::sentences::Sentence;
@@ -75,6 +75,24 @@ pub fn tied(conn: &Connection, word: &WordRow, form: Option<VerbForm>) -> Result
         .any(|rival| !told_apart((word.part_of_speech, form), rival)))
 }
 
+/// The few words a word its tag cannot tell apart is asked with
+/// (`books::sentences::fragment`): of the sentence it is asked with, by the
+/// words the second look said fix its sense, or of its chapter's sentence.
+/// None only when the sentence does not have the word as written.
+pub fn short_of(
+    word: &WordRow,
+    sentence: Option<&Sentence>,
+) -> Option<Vec<crate::domain::SentencePart>> {
+    match sentence {
+        Some(each) => fragment(
+            &each.text,
+            &each.form,
+            each.cue.as_deref().unwrap_or_default(),
+        ),
+        None => few_words(&word.sentence, &word.forms, &[]),
+    }
+}
+
 /// What tells the learner which word was meant: what the rival means, where
 /// it is from, both kinds of word and, for verbs, both forms.
 fn hint(word: &WordRow, form: Option<VerbForm>, rival: &Rival, meaning: &str) -> SenseHint {
@@ -121,13 +139,7 @@ pub fn rise(
         .any(|rival| !told_apart((word.part_of_speech, form), rival));
     // Asked with its few words (`commands::practice::tie`), or with its
     // whole sentence, where those are not known.
-    let short = tied
-        && sentence.is_some_and(|each| {
-            each.cue
-                .as_deref()
-                .and_then(|cue| fragment(&each.text, &each.form, cue))
-                .is_some()
-        });
+    let short = tied && short_of(word, sentence).is_some();
     Ok(match rung {
         ALONE if right || answer.trim().is_empty() => Climb::Off,
         ALONE => rivals

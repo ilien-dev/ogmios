@@ -124,15 +124,16 @@ fn asked(
 ) -> Result<PracticeItem> {
     let own = sense(conn, word)?;
     if let Some(sentence) = next_sentence(conn, (&word.key, &own), None, run_id)? {
-        let (part_of_speech, needs_context, alone, tied) = match &word.source {
+        let (part_of_speech, needs_context, alone, tied, few) = match &word.source {
             Source::Book { word_id } => {
                 let row = as_in(conn, word_id, &sentence)?;
                 let alone = row.alone_in(&sentence.form).map(<[String]>::to_vec);
                 let shows = row.shows_context(direction);
                 let tied = super::ladder::tied(conn, &row, sentence.verb_form)?;
-                (row.part_of_speech, shows, alone, tied)
+                let few = super::ladder::short_of(&row, Some(&sentence));
+                (row.part_of_speech, shows, alone, tied, few)
             }
-            Source::Chat { .. } => (None, false, None, false),
+            Source::Chat { .. } => (None, false, None, false, None),
         };
         let asked = asked_with(
             (word.key.clone(), part_of_speech),
@@ -141,7 +142,7 @@ fn asked(
             (needs_context, alone.as_deref()),
         );
         let whole = in_place(&sentence, Direction::Recognition).unwrap_or_default();
-        return Ok(tie(asked, Some(&sentence), whole, tied));
+        return Ok(tie(asked, few, whole, tied));
     }
     Ok(match &word.source {
         Source::Book { word_id } => PracticeItem {
