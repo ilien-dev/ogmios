@@ -1,7 +1,8 @@
 //! The sentences a word is asked with: which one comes next, whether one
 //! can be used, and what an answer given to one is worth. A word is given
 //! [`GIVEN`] of them, once; a bank kept before that has more, each shown
-//! [`SHOWS`] times before another is drawn. Nothing here touches the
+//! [`SHOWS`] times before another is drawn, never the one of the last time
+//! while there is another. Nothing here touches the
 //! database, the clock or the model.
 
 use crate::domain::SentencePart;
@@ -21,6 +22,10 @@ pub const WORDS_PER_CALL: usize = 10;
 /// The longest sentence kept, in characters: one to read at a glance.
 pub const SENTENCE_CHARS: usize = 240;
 
+/// Uses left in a word's bank at or under which more sentences are written
+/// for it, in the background, before they run out: two sentences' worth.
+pub const LOW: u32 = 4;
+
 /// One sentence of a word's bank that can still be asked.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Banked {
@@ -31,30 +36,51 @@ pub struct Banked {
     pub own: bool,
     /// Times it was shown: the answers given to it.
     pub shows: u32,
+    /// The word was asked with it the last time it was asked, or already in
+    /// this sitting.
+    pub last: bool,
 }
 
 /// The sentence a word is asked with next; none for a word with no bank.
-/// The first time, the one of the chapter itself, or failing that another
-/// of the book. After that one of those not yet spent, drawn by `draw`
-/// among that many; and when all are spent, the one shown least.
+/// Never the one it was asked with the last time, nor one already shown in
+/// the same sitting, while there is another, so that no sentence is learned
+/// by heart. The first time, the one of the
+/// chapter itself, or failing that another of the book. After that one of
+/// those not yet spent, drawn by `draw` among that many; and when all are
+/// spent, the one shown least.
 pub fn choose(bank: &[Banked], draw: impl Fn(usize) -> Option<usize>) -> Option<&Banked> {
-    if bank.iter().all(|sentence| sentence.shows == 0) {
-        let first = bank
+    let fresh: Vec<&Banked> = bank.iter().filter(|sentence| !sentence.last).collect();
+    let pool: Vec<&Banked> = if fresh.is_empty() {
+        bank.iter().collect()
+    } else {
+        fresh
+    };
+    if pool.iter().all(|sentence| sentence.shows == 0) {
+        let first = pool
             .iter()
             .find(|sentence| sentence.own)
-            .or_else(|| bank.iter().find(|sentence| sentence.book));
-        if first.is_some() {
-            return first;
+            .or_else(|| pool.iter().find(|sentence| sentence.book));
+        if let Some(first) = first {
+            return Some(first);
         }
     }
-    let unspent: Vec<&Banked> = bank
+    let unspent: Vec<&Banked> = pool
         .iter()
+        .copied()
         .filter(|sentence| sentence.shows < SHOWS)
         .collect();
     if unspent.is_empty() {
-        return bank.iter().min_by_key(|sentence| sentence.shows);
+        return pool.into_iter().min_by_key(|sentence| sentence.shows);
     }
     draw(unspent.len()).and_then(|at| unspent.get(at).copied())
+}
+
+/// How many more times the sentences of a bank can be shown before every
+/// one of them is spent.
+pub fn left(bank: &[Banked]) -> u32 {
+    bank.iter()
+        .map(|sentence| SHOWS.saturating_sub(sentence.shows))
+        .sum()
 }
 
 /// How often `form` is in `sentence` as written.
@@ -708,11 +734,28 @@ mod tests {
 
     fn banked(id: &str, book: bool, own: bool, shows: u32) -> Banked {
         Banked {
+            last: false,
             id: id.into(),
             book,
             own,
             shows,
         }
+    }
+
+    #[test]
+    fn never_the_sentence_of_the_last_time_while_there_is_another() {
+        let mut bank = vec![
+            banked("a", true, true, 1),
+            banked("b", false, false, 2),
+            banked("c", false, false, 2),
+        ];
+        bank[0].last = true;
+        // "a" is the only one not spent, but it was the last one: the least
+        // shown of the others comes.
+        assert_eq!(chosen(&bank, 0), Some("b"));
+        // Alone in its bank, it comes all the same.
+        assert_eq!(chosen(&bank[..1], 0), Some("a"));
+        assert_eq!(left(&bank), 1);
     }
 
     fn chosen(bank: &[Banked], at: usize) -> Option<&str> {

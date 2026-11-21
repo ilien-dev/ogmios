@@ -26,6 +26,7 @@ use super::practice::{
 };
 use super::profile::require_profile;
 use super::run;
+use super::sentences::{refill, refill_after};
 use crate::books::practice::{accepts_english, pass_progress, pick, seed};
 use crate::books::sentences::{or_other, Verdict};
 use crate::books::spelling::Spelling;
@@ -381,7 +382,8 @@ pub fn answer_shown(
             });
         }
         Climb::Understood(tip) => {
-            recall::understood(&tx, &run.id, key, now)?;
+            let spent = sentence.as_ref().map(|each| each.id.as_str());
+            recall::understood(&tx, &run.id, key, (spent, now))?;
             let step = step(&tx, &run, now)?;
             tx.commit()?;
             return Ok(RecallAnswer {
@@ -508,6 +510,25 @@ pub async fn start_recall(app: AppHandle, ways: Ways) -> Result<Recall> {
     run(app, move |_, ctx| start(ctx, ways, Utc::now())).await
 }
 
+/// The chapter whose sentences of the word `key` are to be written again
+/// after it was answered with the sentence `sentence_id` (`refill_after`).
+fn refill_of(
+    conn: &Connection,
+    (key, sentence_id): (&str, Option<&str>),
+    now: DateTime<Utc>,
+) -> Result<Option<String>> {
+    let Some(id) = sentence_id else {
+        return Ok(None);
+    };
+    let Some(chapter) = sentences::usable(conn, id)?.and_then(|each| each.chapter_id) else {
+        return Ok(None);
+    };
+    match sentences::word_in(conn, key, &chapter)? {
+        Some(word) => refill_after(conn, &word, now),
+        None => Ok(None),
+    }
+}
+
 #[tauri::command]
 pub async fn answer_recall(
     app: AppHandle,
@@ -517,9 +538,22 @@ pub async fn answer_recall(
     sentence_id: Option<String>,
     tries: Option<Tries>,
 ) -> Result<RecallAnswer> {
-    run(app, move |_, ctx| {
+    run(app, move |app, ctx| {
         let shown = Shown::of(sentence_id.as_deref(), tries);
-        answer_shown(ctx, &sitting_id, &word_id, (&answer, shown), Utc::now())
+        let now = Utc::now();
+        let answered = answer_shown(ctx, &sitting_id, &word_id, (&answer, shown), now)?;
+        // The chapter of the sentence it was asked with: its sentences of the
+        // word running low are written again before they run out. Only a
+        // nicety: the answer is kept already, whatever happens here.
+        let due = ctx
+            .conn()
+            .ok()
+            .and_then(|conn| refill_of(&conn, (&word_id, sentence_id.as_deref()), now).ok())
+            .flatten();
+        if let Some(chapter) = due {
+            refill(app, Some(chapter));
+        }
+        Ok(answered)
     })
     .await
 }

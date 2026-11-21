@@ -66,6 +66,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("chaptered.sql"),
     include_str!("spellings.sql"),
     include_str!("cues.sql"),
+    include_str!("refills.sql"),
 ];
 
 pub fn open(path: &Path) -> Result<Connection> {
@@ -802,6 +803,44 @@ mod tests {
                 "chance".to_owned(),
                 vec!["tendría alguna oportunidad".to_owned()]
             )]
+        );
+    }
+
+    #[test]
+    fn migration_forty_two_keeps_what_was_understood_and_spends_nothing_of_it() {
+        let conn = Connection::open_in_memory().expect("open");
+        conn.pragma_update(None, "foreign_keys", "ON").expect("fk");
+        for sql in &MIGRATIONS[..41] {
+            conn.execute_batch(sql).expect("migration");
+        }
+        conn.pragma_update(None, "user_version", 41)
+            .expect("version");
+        conn.execute_batch(
+            r"INSERT INTO recall_sittings (id, started_at) VALUES ('r', '2026-01-01');
+             INSERT INTO word_sentences
+               (id, key, source, sentence, form, hint, translation, created_at,
+                reviewed, discarded, also, hints)
+             VALUES ('s1', 'fair', 'book', 'Her fair hair.', 'fair', 'rubio', 'Su pelo rubio.',
+                     '2026-01-01', 1, 0, '[]', '[]');
+             INSERT INTO understood_recalls (sitting_id, key, created_at)
+               VALUES ('r', 'fair', '2026-01-01');",
+        )
+        .expect("rows");
+
+        migrate(&conn).expect("migrate");
+        let kept: (String, Option<String>) = conn
+            .query_row(
+                "SELECT key, sentence_id FROM understood_recalls",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .expect("kept");
+        assert_eq!(kept, ("fair".to_owned(), None));
+        let shows = sentences::bank(&conn, "fair", None).expect("bank")[0].shows;
+        assert_eq!(shows, 0, "an answer kept before this spent nothing");
+        assert_eq!(
+            sentences::last_write(&conn, "fair", "c").expect("last"),
+            None
         );
     }
 

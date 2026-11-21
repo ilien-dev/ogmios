@@ -29,7 +29,8 @@ pub struct Sentence {
     pub hint: String,
     /// The sentence in the learner's language.
     pub translation: String,
-    /// Times it was shown: the answers given to it, anywhere.
+    /// Times it was shown: the answers given to it, anywhere, the ones
+    /// understood only with it among them.
     pub shows: u32,
     /// The other English words its hint could be answered with, as the
     /// second look listed them; none while it has not been labelled.
@@ -51,7 +52,9 @@ pub struct Sentence {
 const SENTENCE: &str = "SELECT s.id, s.key, s.source = 'book', s.sentence, s.form, s.hint,
             s.translation,
             (SELECT COUNT(*) FROM word_answers a WHERE a.sentence_id = s.id)
-              + (SELECT COUNT(*) FROM word_events e WHERE e.sentence_id = s.id),
+              + (SELECT COUNT(*) FROM word_events e WHERE e.sentence_id = s.id)
+              + (SELECT COUNT(*) FROM understood_answers u WHERE u.sentence_id = s.id)
+              + (SELECT COUNT(*) FROM understood_recalls r WHERE r.sentence_id = s.id),
             COALESCE(s.also, '[]'), COALESCE(s.hints, '[]'), s.verb_form, s.chapter_id,
             s.cue
      FROM word_sentences s";
@@ -178,6 +181,70 @@ pub fn wrote(conn: &Connection, key: &str, chapter: &str, now: DateTime<Utc>) ->
         params![key, chapter, ts(now)],
     )?;
     Ok(())
+}
+
+/// More sentences were asked for the word in this chapter's sense, after
+/// the first ones.
+pub fn refilled(conn: &Connection, key: &str, chapter: &str, now: DateTime<Utc>) -> Result<()> {
+    conn.execute(
+        "INSERT INTO sentence_refills (key, chapter_id, created_at) VALUES (?1, ?2, ?3)",
+        params![key, chapter, ts(now)],
+    )?;
+    Ok(())
+}
+
+/// When the model was last asked to write sentences for the word in this
+/// chapter's sense; none if it never was.
+pub fn last_write(conn: &Connection, key: &str, chapter: &str) -> Result<Option<DateTime<Utc>>> {
+    let at: Option<String> = conn.query_row(
+        "SELECT MAX(created_at) FROM (
+           SELECT created_at FROM sentence_writes WHERE key = ?1 AND chapter_id = ?2
+           UNION ALL
+           SELECT created_at FROM sentence_refills WHERE key = ?1 AND chapter_id = ?2)",
+        [key, chapter],
+        |row| row.get(0),
+    )?;
+    super::parse_ts_opt(at.as_deref())
+}
+
+/// The sentences the word was asked with in the sitting or the run
+/// `sitting_id`, of practice or of the recall.
+pub fn shown_during(conn: &Connection, key: &str, sitting_id: &str) -> Result<Vec<String>> {
+    let mut stmt = conn.prepare(
+        "SELECT DISTINCT s.id FROM word_sentences s WHERE s.key = ?1 AND (
+           EXISTS (SELECT 1 FROM word_answers a WHERE a.sentence_id = s.id AND a.sitting_id = ?2)
+           OR EXISTS (SELECT 1 FROM word_events e WHERE e.sentence_id = s.id AND e.sitting_id = ?2)
+           OR EXISTS (SELECT 1 FROM understood_answers u
+                      WHERE u.sentence_id = s.id AND u.sitting_id = ?2)
+           OR EXISTS (SELECT 1 FROM understood_recalls r
+                      WHERE r.sentence_id = s.id AND r.sitting_id = ?2))",
+    )?;
+    let rows = stmt.query_map([key, sitting_id], |row| row.get(0))?;
+    Ok(rows.collect::<rusqlite::Result<_>>()?)
+}
+
+/// The sentence the word was asked with the last time, anywhere; none if
+/// it never was asked with one.
+pub fn last_shown(conn: &Connection, key: &str) -> Result<Option<String>> {
+    Ok(conn
+        .query_row(
+            "SELECT shown.id FROM (
+               SELECT s.id, a.created_at AS at FROM word_answers a
+                 JOIN word_sentences s ON s.id = a.sentence_id WHERE s.key = ?1
+               UNION ALL
+               SELECT s.id, e.created_at FROM word_events e
+                 JOIN word_sentences s ON s.id = e.sentence_id WHERE s.key = ?1
+               UNION ALL
+               SELECT s.id, u.created_at FROM understood_answers u
+                 JOIN word_sentences s ON s.id = u.sentence_id WHERE s.key = ?1
+               UNION ALL
+               SELECT s.id, r.created_at FROM understood_recalls r
+                 JOIN word_sentences s ON s.id = r.sentence_id WHERE s.key = ?1
+             ) shown ORDER BY shown.at DESC LIMIT 1",
+            [key],
+            |row| row.get(0),
+        )
+        .optional()?)
 }
 
 /// Whether the chapter is of a deleted book: the sentences of its text are
@@ -540,4 +607,39 @@ pub fn meaning(
             || (key.to_owned(), Vec::new()),
             |(english, asked)| (english, vec![asked]),
         ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_sentences_shown_in_a_run_and_the_last_one_are_known() {
+        let conn = crate::db::open_in_memory().expect("db");
+        conn.execute_batch(
+            "INSERT INTO recall_sittings (id, started_at) VALUES ('r1', '2026-01-01'),
+                                                              ('r2', '2026-01-02');
+             INSERT INTO word_sentences
+               (id, key, source, sentence, form, hint, translation, created_at,
+                reviewed, discarded)
+             VALUES ('a', 'fair', 'model', 'A fair trial.', 'fair', 'justo', 'Un juicio justo.',
+                     '2026-01-01', 1, 0),
+                    ('b', 'fair', 'model', 'A fair deal.', 'fair', 'justo', 'Un trato justo.',
+                     '2026-01-01', 1, 0);
+             INSERT INTO word_events (key, kind, direction, answer, sitting_id, created_at,
+                                      sentence_id)
+             VALUES ('fair', 'right', 'recognition', 'justo', 'r1', '2026-01-01T10:00', 'a'),
+                    ('fair', 'miss', 'recognition', 'x', 'r2', '2026-01-02T10:00', 'b');",
+        )
+        .expect("rows");
+        assert_eq!(shown_during(&conn, "fair", "r1").expect("shown"), ["a"]);
+        assert_eq!(
+            shown_during(&conn, "fair", "r3").expect("shown"),
+            Vec::<String>::new()
+        );
+        assert_eq!(
+            last_shown(&conn, "fair").expect("last").as_deref(),
+            Some("b")
+        );
+    }
 }
