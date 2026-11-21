@@ -19,8 +19,9 @@ interface DialogProps {
 
 /**
  * A modal over the whole window. The app behind it is inert while it is
- * open, so focus stays inside; Escape or a click on the scrim closes it, and
- * focus goes back to where it was. A side one is a sheet along the right
+ * open, so focus stays inside, on the element marked `data-autofocus` if it
+ * has one; Escape or a click on the scrim closes it, and focus goes back to
+ * where it was. A side one is a sheet along the right
  * edge, for a list to browse, and says how to close it.
  */
 export function Dialog({
@@ -41,7 +42,8 @@ export function Dialog({
     const before = document.activeElement;
     const app = document.getElementById("root");
     app?.setAttribute("inert", "");
-    panel.current?.focus();
+    const first = panel.current?.querySelector("[data-autofocus]");
+    (first instanceof HTMLElement ? first : panel.current)?.focus();
     return () => {
       app?.removeAttribute("inert");
       if (before instanceof HTMLElement) {

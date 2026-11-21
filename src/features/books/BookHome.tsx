@@ -47,23 +47,15 @@ function Loaded({
   onChanged,
 }: LoadedProps): ReactNode {
   const { t } = useTranslation();
-  /** The chapter a row of the list points at: its block rises in the scene. */
-  const [pointed, setPointed] = useState<string | null>(null);
   return (
     <div className="flex min-h-full flex-col gap-4 pt-2 pb-4 wide:h-full wide:flex-row">
       <div className="scrollbar-none flex w-full shrink-0 flex-col gap-3.5 wide:max-w-md wide:overflow-y-auto wide:pb-2">
-        <BookBoard
-          book={book}
-          selected={selected}
-          onPick={onPick}
-          onPoint={setPointed}
-        />
+        <BookBoard book={book} selected={selected} onPick={onPick} />
       </div>
       <Stagger className="scrollbar-none flex min-w-0 flex-1 flex-col gap-4 wide:overflow-y-auto wide:pb-2 split:flex-row split:overflow-visible split:pb-0">
         <BookScene
           book={book}
           selected={selected}
-          pointed={pointed}
           navigate={navigate}
           onPick={onPick}
           className="min-h-192 shrink-0 split:min-h-0 split:flex-1 split:basis-0"

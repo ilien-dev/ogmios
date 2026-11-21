@@ -160,8 +160,6 @@ interface BookSceneProps {
   book: Book;
   /** The chapter the learner is on. */
   selected: Chapter;
-  /** The chapter a row of the list points at: its block rises. */
-  pointed: string | null;
   navigate: Navigate;
   /** Picks a chapter: a block of the relief does it as its bar does. */
   onPick: (chapterId: string) => void;
@@ -176,7 +174,6 @@ interface BookSceneProps {
 export function BookScene({
   book,
   selected,
-  pointed,
   navigate,
   onPick,
   className,
@@ -229,7 +226,6 @@ export function BookScene({
       <ChapterRelief
         chapters={chapterWindow(book.chapters, selected.id, BARS)}
         selectedId={selected.id}
-        pointed={pointed}
         onSelect={onPick}
         label={t("bookHome.board.relief")}
         className="size-full max-w-4xl px-6 pt-56 pb-10 @3xl:pr-72"
