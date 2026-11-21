@@ -44,20 +44,20 @@ function rows(): Array<string | null> {
 describe("ChapterScreen", () => {
   useMockBackend();
 
-  test("the chapter shows book, progress and Practise beside the words", async () => {
+  test("the head names the chapter; progress and Practise stand beside the words", async () => {
     const user = userEvent.setup();
     await openChapter(user, "I. Down the Rabbit-Hole");
     expect(await screen.findByText("8 words to learn")).toBeInTheDocument();
 
     const aside = screen.getByRole("complementary");
     const beside = within(aside);
-    expect(beside.getByText("Alice's Adventures in Wonderland")).toBeVisible();
+    // The chapter is named once, by the panel's head, over every tab.
     expect(
-      beside.getByRole("heading", {
-        level: 2,
-        name: "I. Down the Rabbit-Hole",
-      }),
-    ).toBeInTheDocument();
+      screen.getAllByRole("heading", { name: "I. Down the Rabbit-Hole" }),
+    ).toHaveLength(1);
+    expect(
+      beside.queryByRole("heading", { name: "I. Down the Rabbit-Hole" }),
+    ).toBeNull();
     expect(
       beside.getByRole("progressbar", {
         name: "Words learned in this chapter",

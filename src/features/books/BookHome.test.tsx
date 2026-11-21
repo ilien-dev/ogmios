@@ -241,6 +241,67 @@ describe("BookHome", () => {
     ).toBeVisible();
   });
 
+  test("the panel opens with the tabs, then the chapter they work on", async () => {
+    const user = userEvent.setup();
+    const { books, book } = await shelf();
+    const [first] = book.chapters;
+    if (first === undefined) throw new Error("no chapter");
+    render(<Place books={books} start={first.id} />);
+
+    const panel = await screen.findByRole("region", { name: /^Words:/u });
+    const tabs = within(panel).getByRole("tablist");
+    const head = within(panel).getByRole("heading", {
+      level: 2,
+      name: first.title,
+    });
+    // The tabs come first, over the chapter's name.
+    expect(
+      tabs.compareDocumentPosition(head) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      within(panel).getByText(
+        `Chapter 1 of ${book.chapters.length} · ${book.title}`,
+      ),
+    ).toBeVisible();
+
+    // The chapter stays named over every tab.
+    await user.click(screen.getByRole("tab", { name: /Listen/u }));
+    const listen = await screen.findByRole("region", { name: /^Listen:/u });
+    expect(
+      within(listen).getByRole("heading", { level: 2, name: first.title }),
+    ).toBeVisible();
+  });
+
+  test("the head steps to the chapter before or after, keeping the tab", async () => {
+    const user = userEvent.setup();
+    const { books, book } = await shelf();
+    const [first, second] = book.chapters;
+    const last = book.chapters.at(-1);
+    if (first === undefined || second === undefined || last === undefined) {
+      throw new Error("The mock book has fewer than two chapters.");
+    }
+    const picked = mock((_chapterId: string) => null);
+    const { unmount } = render(
+      <Place books={books} start={first.id} tab="write" onPicked={picked} />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Previous chapter" }),
+    ).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Next chapter" }));
+    expect(picked).toHaveBeenLastCalledWith(second.id);
+    expect(screen.getByRole("tab", { name: /Write/u })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    await user.click(screen.getByRole("button", { name: "Previous chapter" }));
+    expect(picked).toHaveBeenLastCalledWith(first.id);
+    unmount();
+
+    render(<Place books={books} start={last.id} />);
+    expect(screen.getByRole("button", { name: "Next chapter" })).toBeDisabled();
+  });
+
   test("the book is changed in the library", async () => {
     const user = userEvent.setup();
     const { books, book } = await shelf();
@@ -267,6 +328,12 @@ describe("BookHome", () => {
       within(screen.getByRole("tablist")).getAllByRole("tab"),
     ).toHaveLength(4);
     expect(screen.getByRole("tab", { name: /Escribir/u })).toBeVisible();
+    expect(
+      screen.getByText(`Capítulo 1 de ${book.chapters.length} · ${book.title}`),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Capítulo siguiente" }),
+    ).toBeVisible();
     expect(screen.getByRole("button", { name: "Cambiar libro" })).toBeVisible();
   });
 });

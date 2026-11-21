@@ -1034,6 +1034,12 @@ export const en = {
   bookHome: {
     position: "Chapter {{at}} of {{of}}",
     shelf: "Change book",
+    head: {
+      of: "Chapter {{number}} of {{total}} · {{book}}",
+      previous: "Previous chapter",
+      next: "Next chapter",
+      ready: "{{readiness}}% ready to read",
+    },
     list: {
       title: "Chapters",
       search: "Search by number or title…",

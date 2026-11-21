@@ -13,6 +13,7 @@ import { ListenTab } from "@/features/listening/ListenTab";
 import { WriteTab } from "@/features/structures/WriteTab";
 import { BookBoard } from "./BookHomeBoard";
 import { BookScene } from "./BookHomeScene";
+import { ChapterHead } from "./ChapterHead";
 import { ChapterScreen } from "./ChapterScreen";
 import { chapterName } from "./chapterName";
 import type { Current } from "./currentChapter";
@@ -31,10 +32,10 @@ interface LoadedProps {
 }
 
 /**
- * The column of glass on the left and the scene of the book on the right,
- * with what the picked tab does with the chapter under the scene, or beside
- * it, in a column of its own, when the window is wide enough; one under the
- * other when the window is narrow.
+ * The column of glass on the left, then the chapter's panel and the scene of
+ * the book side by side when the window is wide enough: the panel holds the
+ * tabs, the chapter they work on and what the picked one does with it. On a
+ * narrower window the panel goes under the scene.
  */
 function Loaded({
   book,
@@ -62,7 +63,6 @@ function Loaded({
         <BookScene
           book={book}
           selected={selected}
-          tab={tab}
           pointed={pointed}
           navigate={navigate}
           onPick={onPick}
@@ -74,8 +74,15 @@ function Loaded({
             tab: t(`bookHome.tabs.${tab}`),
             chapter: chapterName(selected, t),
           })}
-          className="@container relative scrollbar-none rounded-2xl glass p-6 nav:p-8 split:flex-1 split:basis-0 split:overflow-y-auto"
+          className="@container relative scrollbar-none flex flex-col gap-6 rounded-2xl glass p-6 nav:p-8 split:order-first split:flex-1 split:basis-0 split:overflow-y-auto"
         >
+          <ChapterHead
+            book={book}
+            chapter={selected}
+            tab={tab}
+            navigate={navigate}
+            onPick={onPick}
+          />
           <Swap id={`${selected.id}-${tab}`} as="div">
             {tab === "words" ? (
               <ChapterScreen
@@ -124,7 +131,7 @@ interface BookHomeProps {
 /**
  * The book: its chapters by bar, by name and raised as a relief, the one the
  * learner is on lit, and the four things done with that chapter as tabs
- * under the scene. A chapter is picked here and nowhere else, by any of the
+ * atop the panel they change. A chapter is picked here and nowhere else, by any of the
  * three; picking another keeps the tab.
  */
 export function BookHome({
