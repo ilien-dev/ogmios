@@ -121,7 +121,7 @@ function Round({ ways, nativeLang, onMore, onDone }: RoundProps): ReactNode {
         onClose={onDone}
       >
         <SittingStage step={stepNow()}>
-          <div className="px-4 pt-2 pb-12">
+          <div className="flex min-h-full items-center px-4 pt-2 pb-16">
             <RunCard>{asking()}</RunCard>
           </div>
         </SittingStage>
