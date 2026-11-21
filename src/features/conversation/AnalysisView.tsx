@@ -6,7 +6,6 @@ import type { AnalysisProgress } from "@shared/domain";
 import { Presence } from "@/components/motion/Presence";
 import { Reveal } from "@/components/motion/Reveal";
 import { Stagger } from "@/components/motion/Stagger";
-import { Orb } from "@/components/ui/Orb";
 import { Spinner } from "@/components/ui/Spinner";
 import { cn } from "@/lib/cn";
 import { onAnalysisProgress } from "@/lib/ipc";
@@ -41,7 +40,6 @@ export function AnalysisView({ sessionId }: AnalysisViewProps): ReactNode {
   return (
     <main className="grid h-full place-items-center px-8">
       <Stagger className="flex w-full max-w-sm flex-col items-center gap-8 text-center">
-        <Orb size="lg" state="thinking" shared />
         <Reveal as="div" className="flex flex-col gap-2">
           <h1 className="font-display text-title font-semibold tracking-tight text-ink">
             {t("analysis.title")}

@@ -161,9 +161,6 @@
   --animate-point: point 900ms var(--ease-out-expo) both;
   --animate-caret: caret 1s steps(2, start) infinite;
   --animate-pulse-soft: pulse-soft 1.6s ease-in-out infinite;
-  --animate-orb-drift: orb-drift 24s ease-in-out infinite;
-  --animate-orb-spin: orb-spin 6s linear infinite;
-  --animate-orb-pulse: orb-pulse 1.6s ease-in-out infinite;
   --animate-ambient-a: ambient-a 32s ease-in-out infinite;
   --animate-ambient-b: ambient-b 40s ease-in-out infinite;
   --animate-shimmer: shimmer 6s ease-in-out infinite;
@@ -191,21 +188,6 @@
   @keyframes caret {
     to {
       visibility: hidden;
-    }
-  }
-  @keyframes orb-drift {
-    to {
-      transform: rotate(360deg);
-    }
-  }
-  @keyframes orb-spin {
-    to {
-      transform: rotate(360deg);
-    }
-  }
-  @keyframes orb-pulse {
-    50% {
-      transform: scale(1.06);
     }
   }
   /* The two glows behind the glass, wandering slowly and never in step. */
@@ -274,22 +256,6 @@
       opacity: 1;
     }
   }
-}
-
-/* The orb: a sphere of glass and light, the partner's (mint) or the book's (teal). */
-@utility bg-orb {
-  background:
-    radial-gradient(circle at 34% 28%, #f2fff8 0 12%, transparent 42%),
-    radial-gradient(circle at 70% 36%, #4ade9b 0 10%, transparent 52%),
-    radial-gradient(circle at 42% 78%, #b7abff 0 8%, transparent 50%),
-    radial-gradient(circle at 80% 78%, #1f6b4a 0 6%, transparent 46%), #a9ecc9;
-}
-@utility bg-orb-book {
-  background:
-    radial-gradient(circle at 34% 28%, #effdff 0 12%, transparent 44%),
-    radial-gradient(circle at 72% 38%, #5cd6e0 0 10%, transparent 52%),
-    radial-gradient(circle at 42% 78%, #b7abff 0 8%, transparent 50%),
-    radial-gradient(circle at 80% 78%, #0b6c78 0 6%, transparent 46%), #a6e6ec;
 }
 
 /* The main action of a screen, with the ink in `on-cta` or `on-cta-book`. */
@@ -558,9 +524,6 @@
    * fades: the durations stay, only the endless animations are switched off.
    */
   @media (prefers-reduced-motion: reduce) {
-    .animate-orb-drift,
-    .animate-orb-spin,
-    .animate-orb-pulse,
     .animate-caret,
     .animate-pulse-soft,
     .animate-ambient-a,

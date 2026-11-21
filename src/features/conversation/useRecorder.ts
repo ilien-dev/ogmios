@@ -15,7 +15,7 @@ export type RecorderStatus = "idle" | "recording" | "transcribing";
 
 export interface Recorder {
   status: RecorderStatus;
-  /** Microphone peak, 0–1: for the orb and the ring, without a render each. */
+  /** Microphone peak, 0–1: for the ring, without a render each. */
   level: MotionValue<number>;
   /** Seconds with voice detected in the current recording. */
   speechSeconds: number;

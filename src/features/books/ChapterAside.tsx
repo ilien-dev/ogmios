@@ -5,7 +5,6 @@ import type { Book, BookWord, SentenceProgress } from "@shared/domain";
 import { Presence } from "@/components/motion/Presence";
 import { Reveal } from "@/components/motion/Reveal";
 import { Button } from "@/components/ui/Button";
-import { Orb } from "@/components/ui/Orb";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { cn } from "@/lib/cn";
 import { SentenceStock } from "./SentenceStock";
@@ -35,10 +34,7 @@ interface ChapterAsideProps {
   onRefresh: () => void;
 }
 
-/*
- * Above the words the aside lies on its side: the orb on the left and the
- * rest beside it, flush left. On a narrow window it stands up, centred.
- */
+/* Above the words the aside sits flush left; on a narrow window, centred. */
 const ALIGN = "items-center sm:items-start";
 const JUSTIFY = "justify-center sm:justify-start";
 
@@ -103,7 +99,7 @@ function modeOf({ open, ready }: ChapterAsideProps): string {
 }
 
 /**
- * Beside the words: the warm orb, the book and the chapter, how many words are
+ * Beside the words: the book and the chapter, how many words are
  * learned and the actions that follow from where the chapter stands.
  */
 export function ChapterAside(props: ChapterAsideProps): ReactNode {
@@ -112,43 +108,45 @@ export function ChapterAside(props: ChapterAsideProps): ReactNode {
   const toLearn = words?.filter((word) => !word.known) ?? [];
   const learned = toLearn.filter((word) => word.done).length;
   return (
-    <div className="flex flex-col items-center gap-5 text-center sm:flex-row sm:gap-8 sm:text-left">
-      <Orb size="lg" section="book" shared className="sm:size-28" />
-      <div className={cn("flex min-w-0 flex-col gap-5", ALIGN)}>
-        <div className="flex flex-col gap-1">
-          <p className="text-sm font-semibold text-book">{book.title}</p>
-          <h2 className="font-display text-title font-light tracking-tight text-ink">
-            {name}
-          </h2>
-        </div>
-        <Presence>
-          {prepared && !preparing && toLearn.length > 0 && (
-            <Reveal
-              key="progress"
-              kind="fade"
-              className={cn("flex w-full max-w-56 flex-col gap-2", ALIGN)}
-            >
-              <p className="text-sm text-ink-soft tabular-nums">
-                {t("books.chapter.learnedCount", { count: learned })}
-              </p>
-              <ProgressBar
-                label={t("books.chapter.learnedBar")}
-                value={learned}
-                total={toLearn.length}
-                tone="book"
-              />
+    <div
+      className={cn(
+        "flex min-w-0 flex-col gap-5 text-center sm:text-left",
+        ALIGN,
+      )}
+    >
+      <div className="flex flex-col gap-1">
+        <p className="text-sm font-semibold text-book">{book.title}</p>
+        <h2 className="font-display text-title font-light tracking-tight text-ink">
+          {name}
+        </h2>
+      </div>
+      <Presence>
+        {prepared && !preparing && toLearn.length > 0 && (
+          <Reveal
+            key="progress"
+            kind="fade"
+            className={cn("flex w-full max-w-56 flex-col gap-2", ALIGN)}
+          >
+            <p className="text-sm text-ink-soft tabular-nums">
+              {t("books.chapter.learnedCount", { count: learned })}
+            </p>
+            <ProgressBar
+              label={t("books.chapter.learnedBar")}
+              value={learned}
+              total={toLearn.length}
+              tone="book"
+            />
+          </Reveal>
+        )}
+      </Presence>
+      <div className="relative">
+        <Presence swap>
+          {!preparing && words !== null && (
+            <Reveal key={modeOf(props)} kind="fade">
+              <Actions {...props} />
             </Reveal>
           )}
         </Presence>
-        <div className="relative">
-          <Presence swap>
-            {!preparing && words !== null && (
-              <Reveal key={modeOf(props)} kind="fade">
-                <Actions {...props} />
-              </Reveal>
-            )}
-          </Presence>
-        </div>
       </div>
     </div>
   );
