@@ -5,15 +5,16 @@ import { Presence } from "@/components/motion/Presence";
 import { Reveal } from "@/components/motion/Reveal";
 import { Stagger } from "@/components/motion/Stagger";
 
-const CHIP = "rounded-sm bg-raised px-3 py-1 text-sm text-ink-soft";
+const CHIP =
+  "inline-flex h-9 items-center rounded-full glass px-4 text-sm text-ink-soft";
 
 /** The words that escape the ear, and the ones the dictations bring back. */
 export function Escaping({ state }: { state: ListeningState }): ReactNode {
   const { t } = useTranslation();
   return (
-    <section className="flex flex-col gap-6">
+    <section className="flex flex-col gap-5 rounded-xl glass p-5">
       <div className="flex flex-col gap-3">
-        <h2 className="text-sm font-medium text-ink-faint">
+        <h2 className="font-display text-base tracking-tight text-ink">
           {t("listening.missed.title")}
         </h2>
         <Stagger as="ul" className="flex flex-wrap gap-2">
@@ -30,7 +31,7 @@ export function Escaping({ state }: { state: ListeningState }): ReactNode {
       <Presence>
         {state.reinforced.length > 0 && (
           <Reveal key="reinforced" className="flex flex-col gap-3">
-            <h2 className="text-sm font-medium text-ink-faint">
+            <h2 className="font-display text-base tracking-tight text-ink">
               {t("listening.reinforced.title")}
             </h2>
             <Stagger as="ul" className="flex flex-wrap gap-2">

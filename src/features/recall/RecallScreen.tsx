@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { ReactNode, SyntheticEvent } from "react";
 import { useTranslation } from "react-i18next";
+import { Play } from "lucide-react";
 import type {
   RecallState,
   SentenceProgress,
@@ -9,6 +10,10 @@ import type {
 } from "@shared/domain";
 import { Presence } from "@/components/motion/Presence";
 import { Reveal } from "@/components/motion/Reveal";
+import { Magnetic } from "@/components/motion/Magnetic";
+import { Stagger } from "@/components/motion/Stagger";
+import { Scene, SceneTitle } from "@/components/scene/Scene";
+import { StatChip, StatTile } from "@/components/scene/Stats";
 import type { Navigate } from "@/app/routes";
 import { Button } from "@/components/ui/Button";
 import { ChoiceGroup } from "@/components/ui/ChoiceGroup";
@@ -18,6 +23,8 @@ import { errorMessage } from "@/lib/errors";
 import { onSentenceProgress, recallState, writeSentences } from "@/lib/ipc";
 import { languageName } from "@/lib/text";
 import { SentenceStock } from "@/features/books/SentenceStock";
+import { BarRelief } from "@/features/drills/BarRelief";
+import { HubScreen } from "@/features/drills/ScreenParts";
 import { RecallRun } from "./RecallRun";
 import { StrengthMark } from "./StrengthMark";
 
@@ -42,7 +49,7 @@ interface TodayProps {
   onStart: (ways: Ways) => void;
 }
 
-/** What is due today and the way to start it, over how the words stand. */
+/** What is due today and the way to start it, the panel along the scene. */
 function Today({
   state,
   nativeLang,
@@ -66,57 +73,82 @@ function Today({
     }
   };
   return (
-    <>
-      <form onSubmit={start} className="flex flex-col items-start gap-6">
-        <p className="font-display text-title font-normal text-ink">
-          {state.due > 0
-            ? t("recall.due", { count: state.due })
-            : t("recall.nothingDue")}
-        </p>
-        <Presence>
-          {state.due > 0 && (
-            <Reveal
-              key="choose"
-              className="flex w-full flex-col items-start gap-6"
-            >
-              <div className="w-full">
-                <ChoiceGroup
-                  legend={t("books.sitting.ways")}
-                  columns={3}
-                  size="sm"
-                  choices={WAYS.map((each) => ({
-                    value: each,
-                    label: labels[each],
-                  }))}
-                  value={ways}
-                  onChange={setWays}
-                />
-              </div>
-              <Button type="submit" variant="primaryBook" disabled={readying}>
-                {t("recall.start")}
-              </Button>
+    <form
+      onSubmit={start}
+      className="flex flex-col items-start gap-5 rounded-xl glass px-5.5 py-4.5"
+    >
+      <p className="font-display text-title font-light tracking-tight text-ink tabular-nums">
+        {state.due > 0
+          ? t("recall.due", { count: state.due })
+          : t("recall.nothingDue")}
+      </p>
+      <Presence>
+        {state.due > 0 && (
+          <Reveal
+            key="choose"
+            className="flex w-full flex-col items-start gap-5"
+          >
+            <div className="w-full">
+              <ChoiceGroup
+                legend={t("books.sitting.ways")}
+                columns={3}
+                size="sm"
+                choices={WAYS.map((each) => ({
+                  value: each,
+                  label: labels[each],
+                }))}
+                value={ways}
+                onChange={setWays}
+              />
+            </div>
+            <div className="flex flex-wrap items-center gap-4">
+              <Magnetic>
+                <Button
+                  type="submit"
+                  variant="primaryBook"
+                  disabled={readying}
+                  className="group"
+                  icon={
+                    <Play
+                      aria-hidden
+                      className="size-4 transition-transform duration-300 ease-out-expo group-enabled:group-hover:scale-110"
+                    />
+                  }
+                >
+                  {t("recall.start")}
+                </Button>
+              </Magnetic>
               <SentenceStock readying={readying} writing={writing} />
-            </Reveal>
-          )}
-        </Presence>
-      </form>
-      <section className="flex flex-col gap-4">
-        <h2 className="text-sm font-medium text-ink-faint">
-          {t("recall.words")}
-        </h2>
-        <ul className="flex flex-wrap gap-x-8 gap-y-2">
-          {counts(state).map(([strength, count]) => (
-            <li
-              key={strength}
-              className="flex items-center gap-2 text-sm font-medium text-ink-soft"
-            >
-              <StrengthMark strength={strength} />
-              {t(`recall.count.${strength}`, { count })}
-            </li>
-          ))}
-        </ul>
-      </section>
-    </>
+            </div>
+          </Reveal>
+        )}
+      </Presence>
+    </form>
+  );
+}
+
+/** How the learned words stand: one glass chip per strength, weakest first. */
+function Strengths({ state }: { state: RecallState }): ReactNode {
+  const { t } = useTranslation();
+  return (
+    <section className="flex flex-col gap-2.5">
+      <h2 className="px-1 font-display text-base tracking-tight text-ink">
+        {t("recall.words")}
+      </h2>
+      <Stagger as="ul" className="flex flex-wrap gap-2">
+        {counts(state).map(([strength, count]) => (
+          <Reveal
+            as="li"
+            key={strength}
+            kind="scale"
+            className="inline-flex h-9 items-center gap-2 rounded-full glass px-4 font-mono text-sm text-ink-soft tabular-nums"
+          >
+            <StrengthMark strength={strength} />
+            {t(`recall.count.${strength}`, { count })}
+          </Reveal>
+        ))}
+      </Stagger>
+    </section>
   );
 }
 
@@ -125,7 +157,11 @@ interface BetweenProps {
   onStart: (ways: Ways) => void;
 }
 
-/** The screen between runs: it reads how the recall stands as it opens. */
+/**
+ * The screen between runs: it reads how the recall stands as it opens. The
+ * words learned, by strength, are on the left; the scene raises them as
+ * columns, and the panel along it starts the run of the day.
+ */
 function Between({ nativeLang, onStart }: BetweenProps): ReactNode {
   const { t } = useTranslation();
   const [state, setState] = useState<RecallState | null>(null);
@@ -183,28 +219,49 @@ function Between({ nativeLang, onStart }: BetweenProps): ReactNode {
 
   const learned =
     state === null ? 0 : state.fresh + state.settling + state.firm;
-  /** Names what the screen says: each of these comes in over the last. */
-  const showing = (): string => {
-    if (failure !== null) {
-      return "failure";
-    }
-    if (state === null) {
-      return "loading";
-    }
-    return learned === 0 ? "empty" : "today";
-  };
   return (
-    <main className="h-full overflow-y-auto">
-      <div className="mx-auto flex max-w-2xl flex-col gap-12 px-10 py-16">
-        <header className="flex flex-col gap-3">
-          <h1 className="font-display text-display font-light text-ink">
-            {t("recall.title")}
-          </h1>
-          <p className="text-lead text-ink-soft">{t("recall.intro")}</p>
-        </header>
-        <div className="relative">
-          <Presence swap>
-            <Reveal key={showing()} className="flex flex-col gap-12">
+    <HubScreen
+      aside={
+        <>
+          <Reveal className="flex flex-wrap gap-2">
+            <StatChip value={state?.due ?? "–"} tone="accent">
+              {t("recall.board.due")}
+            </StatChip>
+            <StatChip value={state === null ? "–" : learned}>
+              {t("recall.board.learned", { count: learned })}
+            </StatChip>
+          </Reveal>
+          <Reveal className="grid grid-cols-2 gap-3">
+            <StatTile
+              icon={<StrengthMark strength="settling" />}
+              label={t("recall.strength.settling")}
+              value={state?.settling ?? 0}
+            />
+            <StatTile
+              icon={<StrengthMark strength="firm" />}
+              label={t("recall.strength.firm")}
+              value={state?.firm ?? 0}
+            />
+          </Reveal>
+          <Presence>
+            {state !== null && learned > 0 && (
+              <Reveal key="strengths">
+                <Strengths state={state} />
+              </Reveal>
+            )}
+          </Presence>
+          <Reveal as="p" className="px-1 text-sm text-ink-faint">
+            {t("recall.intro")}
+          </Reveal>
+        </>
+      }
+      scene={
+        <Scene
+          label={t("recall.board.scene")}
+          className="flex-1"
+          header={
+            <>
+              <SceneTitle>{t("recall.title")}</SceneTitle>
               <Presence>
                 {unwritten !== null && (
                   <Reveal key="unwritten">
@@ -221,23 +278,32 @@ function Between({ nativeLang, onStart }: BetweenProps): ReactNode {
                   </Notice>
                 )}
               </Presence>
-              <Presence>
+            </>
+          }
+          footer={
+            <div className="relative">
+              <Presence swap>
                 {state === null && failure === null && (
-                  <Reveal key="loading" as="span" kind="fade">
+                  <Reveal
+                    key="loading"
+                    as="span"
+                    kind="fade"
+                    className="inline-flex rounded-full glass p-3"
+                  >
                     <Spinner />
                   </Reveal>
                 )}
-              </Presence>
-              <Presence>
                 {state !== null && learned === 0 && (
-                  <Reveal key="empty" as="p" className="text-ink-soft">
+                  <Reveal
+                    key="empty"
+                    as="p"
+                    className="rounded-xl glass px-5.5 py-4.5 text-ink-soft"
+                  >
                     {t("recall.empty")}
                   </Reveal>
                 )}
-              </Presence>
-              <Presence>
                 {state !== null && learned > 0 && (
-                  <Reveal key="today" className="flex flex-col gap-12">
+                  <Reveal key="today">
                     <Today
                       state={state}
                       nativeLang={nativeLang}
@@ -248,11 +314,31 @@ function Between({ nativeLang, onStart }: BetweenProps): ReactNode {
                   </Reveal>
                 )}
               </Presence>
-            </Reveal>
-          </Presence>
-        </div>
-      </div>
-    </main>
+            </div>
+          }
+        >
+          <BarRelief
+            label={t("recall.board.relief", {
+              fresh: state?.fresh ?? 0,
+              settling: state?.settling ?? 0,
+              firm: state?.firm ?? 0,
+            })}
+            bars={(state === null ? [] : counts(state)).map(
+              ([strength, count]) => ({
+                key: strength,
+                value: count,
+                look: strength === "firm" ? "book" : "plain",
+                tip: {
+                  title: t(`recall.strength.${strength}`),
+                  lines: [t("scene.tip.words", { count })],
+                },
+              }),
+            )}
+            className="size-full max-w-2xl px-6 pt-28 pb-72"
+          />
+        </Scene>
+      }
+    />
   );
 }
 

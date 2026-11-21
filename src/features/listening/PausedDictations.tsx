@@ -23,7 +23,7 @@ export function PausedDictations({
       <h2 className="text-sm font-medium text-ink-faint">
         {t("listening.paused.title")}
       </h2>
-      <ul className="flex flex-col divide-y divide-line rounded-xl bg-surface py-1 shadow-card">
+      <ul className="flex flex-col divide-y divide-line rounded-xl glass py-1">
         <Presence>
           {paused.map((sitting, index) => (
             <Reveal

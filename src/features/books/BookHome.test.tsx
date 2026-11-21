@@ -107,6 +107,36 @@ describe("BookHome", () => {
     });
   });
 
+  test("a block of the relief picks its chapter, as its bar does", async () => {
+    const user = userEvent.setup();
+    const { books, current } = await shelf();
+    render(
+      <BookHome
+        loaded
+        books={books}
+        current={current}
+        counts={{}}
+        nativeLang="es"
+        navigate={mock()}
+      />,
+    );
+
+    const relief = await screen.findByRole("img", {
+      name: /chapters as 3D blocks/u,
+    });
+    const block = [...relief.querySelectorAll("g.cursor-pointer")].find(
+      (each) => each.textContent === "2",
+    );
+    if (block === undefined) throw new Error("no block for chapter 2");
+    await user.click(block);
+
+    const bars = within(chart()).getAllByRole("button", {
+      name: /words long/u,
+    });
+    expect(bars[1]).toHaveAttribute("aria-pressed", "true");
+    expect(bars[0]).toHaveAttribute("aria-pressed", "false");
+  });
+
   test("translating opens the picked chapter's translation", async () => {
     const user = userEvent.setup();
     const navigate = mock();

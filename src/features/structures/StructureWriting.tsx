@@ -34,7 +34,7 @@ function AskedWord({ word }: { word: StructureWord }): ReactNode {
     ...(word.translations.length === 0 ? [] : [word.translations.join(", ")]),
   ].join(" · ");
   const chip = cn(
-    "rounded-sm px-2.5 py-1 text-base font-medium",
+    "rounded-full px-3 py-1 text-base font-medium",
     kind === null ? TAG.expression : TAG[kind],
   );
   return (
@@ -103,12 +103,12 @@ export function StructureWriting({
   ];
   return (
     <div className="flex flex-col gap-6">
-      <p className="self-start rounded-sm bg-surface px-3 py-1 text-sm font-medium text-ink-soft shadow-card">
+      <p className="self-start rounded-full glass px-3 py-1 text-sm font-medium text-ink-soft">
         <Tooltip hint={goal}>{item.name}</Tooltip>
         {` · ${tags.join(" · ")}`}
       </p>
       <div className="flex flex-col gap-2">
-        <h1 className="font-display text-title font-normal text-ink">
+        <h1 className="font-display text-title font-normal tracking-tight text-ink">
           {item.topic === null
             ? t("structures.run.askWord", { structure: item.name })
             : t("structures.run.ask", {
@@ -260,7 +260,7 @@ export function StructureWriting({
                 </Presence>
               </div>
               <div className="flex flex-col gap-1">
-                <p className="text-sm text-ink-faint">
+                <p className="font-mono text-xs text-ink-faint">
                   {t("structures.run.better")}
                 </p>
                 <p className="text-lead font-medium text-ink" lang="en">

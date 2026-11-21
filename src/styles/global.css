@@ -1,34 +1,34 @@
 @import "tailwindcss";
 @import "@fontsource-variable/plus-jakarta-sans";
-@import "@fontsource-variable/newsreader/opsz-italic.css";
+@import "@fontsource-variable/space-grotesk";
+@import "@fontsource-variable/jetbrains-mono";
 
 /*
  * The whole design system. Components use these tokens through Tailwind
  * utilities and never write a colour, a radius or a font of their own.
  *
- * Look: Aura. Cool, airy neutrals with a violet cast, tight radii, soft
- * shadows instead of borders, and Plus Jakarta Sans for everything but the
- * text of books. The palette stays in violet, blue and pink: the gradient
- * lives only in the orb, the glow around it and the main action; every other
- * surface is flat.
+ * Look: Cristal. Graphite and paper with one mint accent, the brand's
+ * (assets/brand). Surfaces are frosted glass over a slowly drifting ambient
+ * light (`Ambient`, `glass`), numbers are big and thin in Space Grotesk,
+ * labels and counts in JetBrains Mono, and everything else in Plus Jakarta
+ * Sans, the text of books included: no serif and no italic anywhere.
  *
  * Every voice on screen has its own colour, and nothing else uses it:
- * `you` (teal) is what the learner writes, says or does, so it is also the
+ * `you` (mint) is what the learner writes, says or does, so it is also the
  * accent of the next step and of the learner's own progress; `partner`
- * (violet) is what the model writes; `book` (blue) is the text of a book and
- * everything under Read; the app itself speaks in plain ink. `accent` is the
- * same teal as `you`. `tally` (pink) is a count of what waits today, and
- * `tally-fill` the part of a chapter's vocabulary still being learned.
+ * (lavender) is what the model writes; `book` (teal) is the text of a book and everything under Read; the app itself
+ * speaks in plain ink. `accent` is the same mint as `you`. `tally` (pink) is
+ * a count of what waits today, and `tally-fill` the part of a chapter's
+ * vocabulary still being learned.
  *
  * The verdict scale says how an answer went and is read before any word is:
- * `correct` is green, `partial` an orange amber (right only with help, or
- * something to work on), `wrong` red. `danger` is for destructive actions and
- * failed requests. `known` is the green of a word the learner already knows.
- * `noun` (blue), `verb` (purple), `adjective` (mustard) and `adverb` (pink)
- * tell the kinds of word apart on their tags by colour alone, so none of
- * them is the red, orange or green of the verdict scale. A verb's form is
- * outlined in `verb`: a detail of the verb. `learned` is indigo, and only
- * ever a line or a dot.
+ * `correct` is blue, so it never reads as the mint of the accent, `partial`
+ * an orange (right only with help, or something to work on), `wrong` red.
+ * `danger` is for destructive actions and failed requests. `known` is the
+ * blue of a word the learner already knows. `noun` (indigo), `verb` (purple),
+ * `adjective` (mustard) and `adverb` (pink) tell the kinds of word apart on
+ * their tags by colour alone. A verb's form is outlined in `verb`. `learned`
+ * is indigo, and only ever a line or a dot.
  *
  * The values below are the light theme. Dark is the same token names
  * redefined further down, chosen by the system preference or by
@@ -38,48 +38,50 @@
 @theme {
   --color-*: initial;
 
-  --color-canvas: #f6f7fb;
+  --color-canvas: #f3f2ee;
   --color-surface: #ffffff;
-  --color-raised: #eef0f7;
-  --color-sunken: #f2f4f9;
-  --color-line: #e8eaf2;
-  --color-line-strong: #c9ccdb;
-  --color-ink: #23233a;
-  --color-ink-soft: #5c5f74;
-  --color-ink-faint: #6b6e83;
-  --color-accent: #0f766e;
-  --color-accent-strong: #0b5f58;
+  --color-raised: #eae9e4;
+  --color-sunken: #ebeae5;
+  --color-line: #e2e1db;
+  --color-line-strong: #c9c8c1;
+  --color-ink: #141518;
+  --color-ink-soft: #4a4b50;
+  --color-ink-faint: #66676c;
+  --color-accent: #0e7a4f;
+  --color-accent-strong: #0a6340;
   --color-on-accent: #ffffff;
-  --color-accent-text: #0f766e;
-  --color-accent-soft: rgb(15 118 110 / 0.14);
-  --color-you: #0f766e;
-  --color-you-soft: #dff2ee;
-  --color-you-line: #9bd3c8;
-  --color-you-ink: #0a3a36;
-  --color-partner: #5b21b6;
-  --color-partner-soft: #ece9fb;
-  --color-partner-line: #d4cef4;
-  --color-book: #2d55c4;
-  --color-book-soft: #e3eaff;
-  --color-book-ink: #1b2d6b;
+  --color-accent-text: #0e7a4f;
+  --color-accent-soft: rgb(14 122 79 / 0.12);
+  --color-you: #0e7a4f;
+  --color-you-soft: #ddf3e8;
+  --color-you-line: #8fdab5;
+  --color-you-ink: #08311f;
+  --color-partner: #5141b8;
+  --color-partner-soft: #ecebf8;
+  --color-partner-line: #d2cdf2;
+  --color-book: #0b6c78;
+  --color-book-soft: #dcf0f2;
+  --color-book-ink: #06343a;
   --color-tally: #a3245f;
   --color-tally-soft: #ffe0ec;
   --color-tally-fill: #f2a5c8;
-  /* The logo, the same in both themes: dark never redefines these. */
-  --color-logo-first: #23233a;
-  --color-logo-second: #5b4bc4;
+  /* The mark: the spiral in ink, its centre in mint. */
+  --color-logo-first: #141518;
+  --color-logo-second: #4ade9b;
+  /* The brand's mint, for shapes only: as text it needs `accent-text`. */
+  --color-mint: #4ade9b;
   --color-danger: oklch(0.52 0.17 25);
   --color-danger-soft: oklch(0.6 0.17 25 / 0.12);
-  --color-correct: oklch(0.52 0.14 150);
-  --color-correct-soft: oklch(0.62 0.15 150 / 0.14);
+  --color-correct: oklch(0.5 0.15 255);
+  --color-correct-soft: oklch(0.62 0.14 255 / 0.14);
   --color-partial: oklch(0.51 0.15 48);
   --color-partial-soft: oklch(0.7 0.17 50 / 0.18);
   --color-wrong: oklch(0.52 0.19 27);
   --color-wrong-soft: oklch(0.6 0.19 27 / 0.12);
-  --color-known: oklch(0.54 0.13 155);
-  --color-known-soft: oklch(0.62 0.14 155 / 0.14);
-  --color-noun: oklch(0.5 0.13 245);
-  --color-noun-soft: oklch(0.62 0.13 245 / 0.14);
+  --color-known: oklch(0.5 0.13 245);
+  --color-known-soft: oklch(0.62 0.13 245 / 0.14);
+  --color-noun: oklch(0.5 0.14 278);
+  --color-noun-soft: oklch(0.62 0.14 278 / 0.14);
   --color-verb: oklch(0.5 0.15 300);
   --color-verb-soft: oklch(0.62 0.15 300 / 0.14);
   --color-adjective: oklch(0.5 0.11 90);
@@ -87,13 +89,26 @@
   --color-adverb: oklch(0.52 0.16 345);
   --color-adverb-soft: oklch(0.64 0.16 345 / 0.13);
   --color-learned: oklch(0.52 0.16 275);
-  --color-scrim: oklch(0.2 0.01 265 / 0.4);
+  --color-scrim: oklch(0.18 0.005 265 / 0.45);
   /* The two ways a penalty asks its word in, told apart in its count. */
   --color-recognition: #a3245f;
-  --color-production: #2d55c4;
-  /* Ink on the gradient of the main action, the same in both themes. */
-  --color-on-cta: #23233a;
-  --color-on-cta-book: #23233a;
+  --color-production: #2e62c9;
+  /* Ink on the mint (or teal) of the main action, the same in both themes. */
+  --color-on-cta: #141518;
+  --color-on-cta-book: #141518;
+  /* The rounded frame every screen sits in, a step off the canvas. */
+  --color-frame: #eaeae6;
+  /* A scene: the deep panel a 3D relief stands in, lit from above. */
+  --color-scene-from: #ffffff;
+  --color-scene-mid: #f1f1ee;
+  --color-scene-to: #e4e4e0;
+  /* The three faces of a block in a relief, and the hairline on its edges. */
+  --color-iso-top: #d4d5d9;
+  --color-iso-left: #c3c4c9;
+  --color-iso-right: #b5b6bc;
+  --color-iso-edge: rgb(20 21 24 / 0.12);
+  /* The light a block catches when it is pointed at, or breathes. */
+  --color-iso-shine: #ffffff;
 
   --breakpoint-nav: 62.5rem;
   /* Where a screen beside the rail has room for an aside and a table side by side. */
@@ -103,13 +118,12 @@
     "Plus Jakarta Sans Variable", ui-sans-serif, system-ui, -apple-system,
     "Segoe UI", sans-serif;
   --font-display:
-    "Plus Jakarta Sans Variable", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-sans);
-  --font-serif: "Newsreader Variable", Georgia, serif;
+    "Space Grotesk Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, monospace;
 
   --text-display: 3rem;
   --text-display--line-height: 1.05;
-  --text-display--letter-spacing: -0.03em;
+  --text-display--letter-spacing: -0.04em;
   --text-title: 2rem;
   --text-title--line-height: 1.15;
   --text-title--letter-spacing: -0.02em;
@@ -122,17 +136,22 @@
   --text-cover-title--line-height: 1.15;
   --spacing-cover: 8cqw;
 
-  --radius-sm: 0.25rem;
-  --radius-md: 0.375rem;
-  --radius-lg: 0.5rem;
-  --radius-xl: 0.625rem;
+  --radius-sm: 0.375rem;
+  --radius-md: 0.625rem;
+  --radius-lg: 0.875rem;
+  --radius-xl: 1.125rem;
+  --radius-2xl: 1.375rem;
+  --radius-3xl: 1.75rem;
 
-  --shadow-card: 0 4px 18px rgb(35 35 58 / 0.06);
-  --shadow-glow: 0 24px 70px rgb(154 140 240 / 0.28);
-  --shadow-glow-book: 0 20px 60px rgb(120 140 240 / 0.28);
+  --shadow-card:
+    inset 0 1px 0 rgb(255 255 255 / 0.7), 0 1px 2px rgb(20 21 24 / 0.04),
+    0 12px 32px rgb(20 21 24 / 0.07);
+  --shadow-glow: 0 24px 70px rgb(74 222 155 / 0.32);
+  --shadow-glow-book: 0 20px 60px rgb(92 214 224 / 0.3);
   --shadow-float: 0 2px 6px rgb(0 0 0 / 0.08), 0 16px 40px rgb(0 0 0 / 0.14);
   --shadow-cover: 0 1px 2px rgb(0 0 0 / 0.16), 0 4px 10px rgb(0 0 0 / 0.16);
-  --shadow-you: 0 8px 24px -8px rgb(15 118 110 / 0.3);
+  --shadow-you: 0 8px 24px -8px rgb(14 122 79 / 0.35);
+  --shadow-lift: 0 18px 40px -12px rgb(20 21 24 / 0.22);
 
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
   /* How long the colours take to cross when the theme changes. */
@@ -145,6 +164,11 @@
   --animate-orb-drift: orb-drift 24s ease-in-out infinite;
   --animate-orb-spin: orb-spin 6s linear infinite;
   --animate-orb-pulse: orb-pulse 1.6s ease-in-out infinite;
+  --animate-ambient-a: ambient-a 32s ease-in-out infinite;
+  --animate-ambient-b: ambient-b 40s ease-in-out infinite;
+  --animate-shimmer: shimmer 6s ease-in-out infinite;
+  --animate-float: float 7s ease-in-out infinite;
+  --animate-breathe: breathe 3.2s ease-in-out infinite;
 
   /* What arrives on a row of a long list, where a `motion` node each is too dear. */
   @keyframes appear {
@@ -184,6 +208,63 @@
       transform: scale(1.06);
     }
   }
+  /* The two glows behind the glass, wandering slowly and never in step. */
+  @keyframes ambient-a {
+    0%,
+    100% {
+      transform: translate(0, 0) scale(1);
+    }
+    33% {
+      transform: translate(18vw, 12vh) scale(1.15);
+    }
+    66% {
+      transform: translate(6vw, 34vh) scale(0.9);
+    }
+  }
+  @keyframes ambient-b {
+    0%,
+    100% {
+      transform: translate(0, 0) scale(1);
+    }
+    40% {
+      transform: translate(-22vw, -18vh) scale(1.1);
+    }
+    75% {
+      transform: translate(-8vw, -36vh) scale(0.92);
+    }
+  }
+  /* Light running along the main action, back and forth. */
+  @keyframes shimmer {
+    0%,
+    100% {
+      background-position: 0% 0;
+    }
+    50% {
+      background-position: 100% 0;
+    }
+  }
+  /* What waits to be noticed bobs, a few pixels. */
+  @keyframes float {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-4px);
+    }
+  }
+  /* A live dot or ring: it swells and fades as if breathing. */
+  @keyframes breathe {
+    0%,
+    100% {
+      opacity: 0.55;
+      transform: scale(0.92);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1.08);
+    }
+  }
   @keyframes pulse-soft {
     0%,
     100% {
@@ -195,28 +276,67 @@
   }
 }
 
-/* The orb: a soft sphere of light, the partner's (violet) or the book's (blue). */
+/* The orb: a sphere of glass and light, the partner's (mint) or the book's (teal). */
 @utility bg-orb {
   background:
-    radial-gradient(circle at 34% 30%, #fff4e6 0 12%, transparent 42%),
-    radial-gradient(circle at 70% 36%, #afc6ff 0 10%, transparent 52%),
-    radial-gradient(circle at 44% 76%, #f7b8d8 0 8%, transparent 50%),
-    radial-gradient(circle at 78% 78%, #9a8cf0 0 6%, transparent 46%), #d6e3ff;
+    radial-gradient(circle at 34% 28%, #f2fff8 0 12%, transparent 42%),
+    radial-gradient(circle at 70% 36%, #4ade9b 0 10%, transparent 52%),
+    radial-gradient(circle at 42% 78%, #b7abff 0 8%, transparent 50%),
+    radial-gradient(circle at 80% 78%, #1f6b4a 0 6%, transparent 46%), #a9ecc9;
 }
 @utility bg-orb-book {
   background:
-    radial-gradient(circle at 34% 30%, #f4f7ff 0 12%, transparent 44%),
-    radial-gradient(circle at 72% 38%, #9fbcff 0 10%, transparent 52%),
-    radial-gradient(circle at 42% 78%, #f7b8d8 0 8%, transparent 50%),
-    radial-gradient(circle at 80% 78%, #8f9cf0 0 6%, transparent 46%), #dde6ff;
+    radial-gradient(circle at 34% 28%, #effdff 0 12%, transparent 44%),
+    radial-gradient(circle at 72% 38%, #5cd6e0 0 10%, transparent 52%),
+    radial-gradient(circle at 42% 78%, #b7abff 0 8%, transparent 50%),
+    radial-gradient(circle at 80% 78%, #0b6c78 0 6%, transparent 46%), #a6e6ec;
 }
 
 /* The main action of a screen, with the ink in `on-cta` or `on-cta-book`. */
 @utility bg-cta {
-  background: linear-gradient(90deg, #e7ddfb, #ffd9e4);
+  background: linear-gradient(100deg, #4ade9b, #8ef0c0 55%, #4ade9b) 0 0 / 200%
+    100%;
 }
 @utility bg-cta-book {
-  background: linear-gradient(90deg, #dde6ff, #f1dcf6);
+  background: linear-gradient(100deg, #5cd6e0, #a4eef2 55%, #5cd6e0) 0 0 / 200%
+    100%;
+}
+
+/*
+ * Frosted glass: the surface colour let through a little, over a blur of
+ * what moves behind it, with a hairline of light along the top.
+ */
+@utility glass {
+  background-color: color-mix(in oklab, var(--color-surface) 76%, transparent);
+  border: 1px solid color-mix(in oklab, var(--color-ink) 8%, transparent);
+  box-shadow: var(--shadow-card);
+  backdrop-filter: blur(18px) saturate(1.3);
+}
+
+/* A row that scrolls sideways without showing a bar, like a strip of tabs. */
+@utility scrollbar-none {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* The deep panel a 3D scene stands in. */
+@utility bg-scene {
+  background: radial-gradient(
+    120% 90% at 60% 40%,
+    var(--color-scene-from) 0%,
+    var(--color-scene-mid) 55%,
+    var(--color-scene-to) 100%
+  );
+}
+
+/* Glass that floats over the screen: a menu, a popover, a card in a corner. */
+@utility glass-float {
+  background-color: color-mix(in oklab, var(--color-surface) 82%, transparent);
+  border: 1px solid color-mix(in oklab, var(--color-ink) 10%, transparent);
+  box-shadow: var(--shadow-float);
+  backdrop-filter: blur(22px) saturate(1.3);
 }
 
 /*
@@ -241,45 +361,46 @@
 
   :root[data-theme="dark"] {
     color-scheme: dark;
-    --color-canvas: #0e0f1a;
-    --color-surface: #191b2b;
-    --color-raised: #23263a;
-    --color-sunken: #141624;
-    --color-line: #2c2f45;
-    --color-line-strong: #4a4e68;
-    --color-ink: #f1f2fa;
-    --color-ink-soft: #a9acc4;
-    --color-ink-faint: #8d90aa;
-    --color-accent: #7fdccb;
-    --color-accent-strong: #a6eadd;
-    --color-on-accent: #0e0f1a;
-    --color-accent-text: #7fdccb;
-    --color-accent-soft: rgb(127 220 203 / 0.14);
-    --color-you: #7fdccb;
-    --color-you-soft: #14393a;
-    --color-you-line: #2a6a66;
-    --color-you-ink: #cff5ec;
-    --color-partner: #c4b5fd;
-    --color-partner-soft: #26244a;
-    --color-partner-line: #3f3b72;
-    --color-book: #9fb8ff;
-    --color-book-soft: #1c2749;
-    --color-book-ink: #d9e3ff;
+    --color-canvas: #0b0c0e;
+    --color-surface: #1b1c20;
+    --color-raised: #26282d;
+    --color-sunken: #111215;
+    --color-line: #2a2c31;
+    --color-line-strong: #45474e;
+    --color-ink: #f3f2ee;
+    --color-ink-soft: #c9c8c1;
+    --color-ink-faint: #9c9c95;
+    --color-accent: #4ade9b;
+    --color-accent-strong: #7fe9b8;
+    --color-on-accent: #0b0c0e;
+    --color-accent-text: #4ade9b;
+    --color-accent-soft: rgb(74 222 155 / 0.14);
+    --color-you: #4ade9b;
+    --color-you-soft: #12291f;
+    --color-you-line: #22573f;
+    --color-you-ink: #d3f7e5;
+    --color-partner: #b7abff;
+    --color-partner-soft: #22203a;
+    --color-partner-line: #3a3566;
+    --color-book: #5cd6e0;
+    --color-book-soft: #10282b;
+    --color-book-ink: #cff4f7;
     --color-tally: #f7a8cb;
     --color-tally-soft: #42203a;
     --color-tally-fill: #b65a86;
+    --color-logo-first: #f3f2ee;
     --color-danger: oklch(0.74 0.14 25);
     --color-danger-soft: oklch(0.7 0.15 25 / 0.14);
-    --color-correct: oklch(0.78 0.15 150);
-    --color-correct-soft: oklch(0.78 0.15 150 / 0.14);
+    --color-correct: oklch(0.78 0.12 252);
+    --color-correct-soft: oklch(0.78 0.12 252 / 0.14);
     --color-partial: oklch(0.78 0.14 55);
     --color-partial-soft: oklch(0.76 0.15 48 / 0.2);
     --color-wrong: oklch(0.74 0.16 25);
     --color-wrong-soft: oklch(0.7 0.17 25 / 0.15);
-    --color-known: oklch(0.78 0.14 155);
-    --color-known-soft: oklch(0.78 0.14 155 / 0.14);
-    --color-noun: oklch(0.8 0.1 245);
-    --color-noun-soft: oklch(0.8 0.1 245 / 0.15);
+    --color-known: oklch(0.8 0.1 242);
+    --color-known-soft: oklch(0.8 0.1 242 / 0.14);
+    --color-noun: oklch(0.8 0.1 278);
+    --color-noun-soft: oklch(0.8 0.1 278 / 0.15);
     --color-verb: oklch(0.8 0.11 300);
     --color-verb-soft: oklch(0.8 0.11 300 / 0.15);
     --color-adjective: oklch(0.85 0.11 92);
@@ -287,13 +408,24 @@
     --color-adverb: oklch(0.82 0.1 345);
     --color-adverb-soft: oklch(0.82 0.1 345 / 0.15);
     --color-learned: oklch(0.78 0.12 275);
-    --color-scrim: oklch(0.1 0.01 265 / 0.6);
-    --shadow-card: 0 4px 18px rgb(0 0 0 / 0.3);
-    --shadow-glow: 0 24px 90px rgb(154 140 240 / 0.4);
-    --shadow-glow-book: 0 20px 80px rgb(120 140 240 / 0.32);
+    --color-scrim: oklch(0.08 0.005 265 / 0.62);
+    --color-production: #8db4ff;
+    --color-frame: #141518;
+    --color-scene-from: #24262b;
+    --color-scene-mid: #17181b;
+    --color-scene-to: #101113;
+    --color-iso-top: #3e4047;
+    --color-iso-left: #202227;
+    --color-iso-right: #2b2d33;
+    --color-iso-edge: rgb(243 242 238 / 0.1);
+    --shadow-card:
+      inset 0 1px 0 rgb(243 242 238 / 0.07), 0 14px 34px rgb(0 0 0 / 0.38);
+    --shadow-glow: 0 24px 90px rgb(74 222 155 / 0.28);
+    --shadow-glow-book: 0 20px 80px rgb(92 214 224 / 0.26);
     --shadow-float: 0 2px 8px rgb(0 0 0 / 0.4), 0 22px 56px rgb(0 0 0 / 0.45);
     --shadow-cover: 0 1px 2px rgb(0 0 0 / 0.6), 0 4px 10px rgb(0 0 0 / 0.6);
-    --shadow-you: 0 8px 24px -8px rgb(127 220 203 / 0.3);
+    --shadow-you: 0 8px 24px -8px rgb(74 222 155 / 0.35);
+    --shadow-lift: 0 22px 48px -14px rgb(0 0 0 / 0.6);
   }
 
   /*
@@ -401,7 +533,7 @@
       summary,
       [role="button"]:not([aria-disabled="true"])
     ):hover {
-      translate: 0 -1px;
+      translate: 0 -2px;
     }
   }
 
@@ -430,7 +562,12 @@
     .animate-orb-spin,
     .animate-orb-pulse,
     .animate-caret,
-    .animate-pulse-soft {
+    .animate-pulse-soft,
+    .animate-ambient-a,
+    .animate-ambient-b,
+    .animate-shimmer,
+    .animate-float,
+    .animate-breathe {
       animation-name: none !important;
       animation-iteration-count: 1 !important;
     }

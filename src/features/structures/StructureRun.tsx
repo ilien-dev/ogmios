@@ -9,6 +9,7 @@ import { Notice } from "@/components/ui/Notice";
 import { Spinner } from "@/components/ui/Spinner";
 import { RunFrame } from "@/features/books/RunFrame";
 import { SittingStage } from "@/features/books/SittingParts";
+import { RunBackdrop, RunCard } from "@/features/drills/ScreenParts";
 import { errorMessage } from "@/lib/errors";
 import {
   answerStructure,
@@ -196,8 +197,8 @@ export function StructureRun({
       >
         <SittingStage step={item === null ? "none" : String(item.index)}>
           {item !== null && (
-            <div className="mx-auto grid w-full max-w-5xl grid-cols-5 items-start gap-10 p-6 nav:px-10">
-              <div className="col-span-3">
+            <div className="mx-auto grid w-full max-w-5xl grid-cols-5 items-start gap-6 p-6 nav:px-10">
+              <RunCard className="col-span-3 max-w-none">
                 <StructureWriting
                   item={item}
                   result={result}
@@ -214,7 +215,7 @@ export function StructureRun({
                   onDropWord={dropWord}
                   onNext={next}
                 />
-              </div>
+              </RunCard>
               <div className="col-span-2">
                 <StructureForm
                   item={item}
@@ -236,14 +237,20 @@ export function StructureRun({
   };
 
   return (
-    <Swap
-      as="div"
-      id={
-        sitting === null ? "loading" : sitting.summary === null ? "run" : "end"
-      }
-      className="h-full"
-    >
-      {view()}
-    </Swap>
+    <RunBackdrop>
+      <Swap
+        as="div"
+        id={
+          sitting === null
+            ? "loading"
+            : sitting.summary === null
+              ? "run"
+              : "end"
+        }
+        className="h-full"
+      >
+        {view()}
+      </Swap>
+    </RunBackdrop>
   );
 }

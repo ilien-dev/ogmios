@@ -53,10 +53,10 @@ export function OnChapter({
           ))}
         </Select>
       </Field>
-      <ul className="flex flex-col divide-y divide-line rounded-xl bg-surface py-1 shadow-card">
+      <ul className="flex flex-col divide-y divide-line rounded-xl glass py-1">
         <li className="flex flex-wrap items-center gap-4 px-5 py-4">
           <span className="flex min-w-0 flex-1 flex-col gap-1">
-            <span className="font-medium text-ink">
+            <span className="font-display font-medium tracking-tight text-ink">
               {t("listening.dictation.title")}
             </span>
             <span className="text-sm text-ink-soft">
@@ -70,7 +70,7 @@ export function OnChapter({
         </li>
         <li className="flex flex-wrap items-center gap-4 px-5 py-4">
           <span className="flex min-w-0 flex-1 flex-col gap-1">
-            <span className="font-medium text-ink">
+            <span className="font-display font-medium tracking-tight text-ink">
               {t("listening.listen.title")}
             </span>
             <span className="text-sm text-ink-soft tabular-nums">

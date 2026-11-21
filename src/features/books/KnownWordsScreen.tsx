@@ -59,7 +59,7 @@ export function KnownWordsScreen({ onBack }: KnownWordsScreenProps): ReactNode {
       <div className="mx-auto flex max-w-2xl flex-col gap-10 px-6 py-12 nav:py-16">
         <Reveal as="header" index={0} className="flex flex-col gap-3">
           <BackLink label={t("books.title")} onClick={onBack} />
-          <h1 className="font-display text-display font-light text-ink">
+          <h1 className="font-display text-display font-light tracking-tight text-ink">
             {t("books.known.title")}
           </h1>
           <p className="text-lead text-ink-soft">{t("books.known.intro")}</p>
@@ -90,10 +90,10 @@ export function KnownWordsScreen({ onBack }: KnownWordsScreenProps): ReactNode {
               index={1}
               className="flex flex-col gap-4"
             >
-              <h2 className="text-sm font-medium text-ink-faint">
+              <h2 className="font-mono text-xs font-medium text-ink-faint">
                 {t("books.chapter.knownCount", { count: words.length })}
               </h2>
-              <ul className="flex flex-col divide-y divide-line rounded-xl bg-surface px-4 py-2 shadow-card">
+              <ul className="flex flex-col divide-y divide-line rounded-xl glass px-4 py-2">
                 <Presence>
                   {words.map((word, index) => (
                     <Reveal

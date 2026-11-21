@@ -57,6 +57,18 @@ export const listeningEn = {
     times_one: "{{count}} time",
     times_other: "{{count}} times",
   },
+  board: {
+    scene: "Your paces",
+    paused_one: "paused dictation",
+    paused_other: "paused dictations",
+    reinforced_one: "word coming back",
+    reinforced_other: "words coming back",
+    typed: "Sentences typed",
+    escaping: "Words escaping",
+    relief:
+      "Each pace as a column, as tall as the share of words you hear at it: {{paces}}",
+    reliefPace: "{{pace}} {{percent}}%",
+  },
   reinforced: {
     title: "Being reinforced",
     hint: "Your next dictations keep sentences for these words, until you hear each one three times running.",

@@ -234,7 +234,7 @@ export function ChapterScreen({
           <Reveal
             as="aside"
             index={1}
-            className="wide:sticky wide:top-0 wide:w-80 wide:shrink-0"
+            className="rounded-2xl glass p-6 wide:sticky wide:top-0 wide:w-80 wide:shrink-0"
           >
             <ChapterAside
               book={book}
@@ -313,7 +313,7 @@ export function ChapterScreen({
               {!preparing && chapter.prepared !== null && words !== null && (
                 <Reveal
                   key="words"
-                  className="flex flex-col gap-6 rounded-xl bg-surface p-6 shadow-card nav:p-8"
+                  className="flex flex-col gap-6 rounded-2xl glass p-6 nav:p-8"
                 >
                   <WordList
                     words={words}
@@ -325,10 +325,10 @@ export function ChapterScreen({
               {!preparing && deeper.length > 0 && (
                 <Reveal
                   key="deeper"
-                  className="flex flex-col gap-4 rounded-xl bg-surface p-6 shadow-card nav:p-8"
+                  className="flex flex-col gap-4 rounded-2xl glass p-6 nav:p-8"
                 >
                   <header className="flex flex-col gap-1">
-                    <h2 className="font-medium text-ink">
+                    <h2 className="font-display font-medium tracking-tight text-ink">
                       {chapter.prepared === null
                         ? t("books.chapter.choose")
                         : t("books.chapter.more")}

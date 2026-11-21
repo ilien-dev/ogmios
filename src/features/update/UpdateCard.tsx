@@ -19,8 +19,11 @@ function body(
     case "available":
       return (
         <>
-          <p className="flex items-center gap-2 font-semibold text-ink">
-            <ArrowUpCircle aria-hidden className="size-4 text-accent-text" />
+          <p className="flex items-center gap-2 font-display font-semibold tracking-tight text-ink">
+            <ArrowUpCircle
+              aria-hidden
+              className="size-4 animate-float text-accent-text"
+            />
             {t("update.cardTitle", { version: state.version })}
           </p>
           <p className="text-sm text-ink-soft">{t("update.cardBody")}</p>
@@ -37,7 +40,11 @@ function body(
     case "downloading":
       return (
         <>
-          <p className="font-semibold text-ink">
+          <p className="flex items-center gap-2 font-display font-semibold tracking-tight text-ink">
+            <span
+              aria-hidden
+              className="size-2 shrink-0 animate-breathe rounded-full bg-mint"
+            />
             {t("update.downloading", { version: state.version })}
           </p>
           <UpdateProgress progress={state.progress} />
@@ -46,7 +53,11 @@ function body(
     case "ready":
       return (
         <>
-          <p className="font-semibold text-ink">
+          <p className="flex items-center gap-2 font-display font-semibold tracking-tight text-ink">
+            <span
+              aria-hidden
+              className="size-2 shrink-0 animate-breathe rounded-full bg-accent"
+            />
             {t("update.ready", { version: state.version })}
           </p>
           <p className="text-sm text-ink-soft">{t("update.readyBody")}</p>
@@ -73,7 +84,7 @@ function body(
       }
       return (
         <>
-          <p className="font-semibold text-danger">
+          <p className="font-display font-semibold tracking-tight text-danger">
             {t("update.downloadFailed")}
           </p>
           <p className="text-sm text-ink-soft">{state.message}</p>
@@ -116,7 +127,7 @@ export function UpdateCard({ shown = true }: UpdateCardProps): ReactNode {
           as="aside"
           aria-label={t("update.card")}
           aria-live="polite"
-          className="absolute right-4 bottom-4 z-10 w-72 rounded-lg bg-surface p-4 shadow-float"
+          className="absolute right-4 bottom-4 z-10 w-72 rounded-xl glass-float p-5"
         >
           <div className="relative">
             <Presence swap>

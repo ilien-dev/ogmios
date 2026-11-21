@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { Book } from "@shared/domain";
 import type { Current } from "@/features/books/currentChapter";
+import { Ambient } from "@/components/ui/Ambient";
 import { UpdateCard } from "@/features/update/UpdateCard";
 import { ChapterBar } from "./ChapterBar";
 import type { Entry } from "./places";
@@ -22,7 +23,10 @@ interface ShellProps {
   children: ReactNode;
 }
 
-/** The rail on the left, and the screens taking turns beside it. */
+/**
+ * The frame every screen sits in, over the canvas: the bar along its top, and
+ * the screens taking turns under it, over the ambient light.
+ */
 export function Shell({
   route,
   navigate,
@@ -32,22 +36,25 @@ export function Shell({
   children,
 }: ShellProps): ReactNode {
   return (
-    <div className="relative flex h-full">
-      <Rail
-        route={route}
-        navigate={navigate}
-        counts={counts}
-        current={current}
-      />
-      <div className="relative flex min-w-0 flex-1 flex-col">
-        <ChapterBar
+    <div className="h-full bg-canvas p-3">
+      <div className="relative isolate flex h-full flex-col gap-2 overflow-hidden rounded-3xl border border-line bg-frame p-4 pb-0">
+        <Ambient />
+        <Rail
           route={route}
           navigate={navigate}
-          books={books}
+          counts={counts}
           current={current}
         />
-        <ScreenStage route={route}>{children}</ScreenStage>
-        <UpdateCard shown={showsNav(route)} />
+        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+          <ChapterBar
+            route={route}
+            navigate={navigate}
+            books={books}
+            current={current}
+          />
+          <ScreenStage route={route}>{children}</ScreenStage>
+          <UpdateCard shown={showsNav(route)} />
+        </div>
       </div>
     </div>
   );

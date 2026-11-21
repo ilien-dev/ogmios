@@ -59,6 +59,18 @@ export const listeningEs: typeof listeningEn = {
     times_one: "{{count}} vez",
     times_other: "{{count}} veces",
   },
+  board: {
+    scene: "Tus velocidades",
+    paused_one: "dictado en pausa",
+    paused_other: "dictados en pausa",
+    reinforced_one: "palabra que vuelve",
+    reinforced_other: "palabras que vuelven",
+    typed: "Frases escritas",
+    escaping: "Se te escapan",
+    relief:
+      "Cada velocidad como una columna, tan alta como la parte de palabras que oyes a esa velocidad: {{paces}}",
+    reliefPace: "{{pace}} {{percent}} %",
+  },
   reinforced: {
     title: "En refuerzo",
     hint: "Tus próximos dictados guardan frases para estas palabras, hasta que oigas cada una tres veces seguidas.",

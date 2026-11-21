@@ -6,10 +6,5 @@ export function Card({
   className,
   ...rest
 }: HTMLAttributes<HTMLDivElement>): ReactNode {
-  return (
-    <div
-      className={cn("rounded-xl bg-surface shadow-card", className)}
-      {...rest}
-    />
-  );
+  return <div className={cn("rounded-xl glass", className)} {...rest} />;
 }

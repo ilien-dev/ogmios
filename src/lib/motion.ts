@@ -21,7 +21,7 @@ export const POINTER_SPRING = { stiffness: 200, damping: 20 };
 
 export type RevealKind = "rise" | "fade" | "scale" | "slide";
 
-type Pose = Record<string, number>;
+type Pose = Record<string, number | string>;
 
 /**
  * Timings sit inside the variants rather than on `MotionConfig`, which holds one
@@ -49,10 +49,15 @@ function reveal(hidden: Pose, rest: Pose, gone: Pose): Variants {
 }
 
 export const REVEAL: Record<RevealKind, Variants> = {
-  rise: reveal({ y: 8 }, { y: 0 }, { y: -4 }),
+  rise: reveal({ y: 12 }, { y: 0 }, { y: -6 }),
   fade: reveal({}, {}, {}),
   scale: reveal({ scale: 0.97 }, { scale: 1 }, { scale: 0.98 }),
-  slide: reveal({ x: 12 }, { x: 0 }, { x: -8 }),
+  // A screen comes in from the side out of a soft blur, and leaves into one.
+  slide: reveal(
+    { x: 24, filter: "blur(6px)" },
+    { x: 0, filter: "blur(0px)" },
+    { x: -16, filter: "blur(4px)" },
+  ),
 };
 
 /** The position of a `Reveal` in the `Stagger` around it. */

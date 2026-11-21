@@ -36,10 +36,10 @@ export function PausedRow({
       className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-4"
     >
       <span className="flex min-w-0 flex-1 flex-col gap-1">
-        <span className="font-medium text-ink">
+        <span className="font-display font-medium tracking-tight text-ink">
           {sitting.structures.map((key) => names.get(key) ?? key).join(", ")}
         </span>
-        <span className="text-sm text-ink-soft">
+        <span className="text-sm text-ink-soft tabular-nums">
           {t("structures.paused.progress", {
             done: sitting.done,
             total: sitting.total,
@@ -78,12 +78,12 @@ export function StructureRow({
         type="button"
         aria-pressed={picked}
         onClick={onToggle}
-        className="flex w-full items-center gap-4 px-5 py-3.5 text-left transition-control hover:bg-raised"
+        className="group flex w-full items-center gap-4 px-5 py-3.5 text-left transition-control hover:bg-sunken/60"
       >
         <span
           aria-hidden
           className={cn(
-            "grid size-5 shrink-0 place-items-center rounded-sm border",
+            "grid size-5 shrink-0 place-items-center rounded-md border transition-transform duration-300 ease-out-expo group-hover:scale-110",
             picked
               ? "border-book bg-book-soft text-book-ink"
               : "border-line-strong",
@@ -98,11 +98,13 @@ export function StructureRow({
           </Presence>
         </span>
         <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <span className="font-medium text-ink">{structure.name}</span>
+          <span className="font-display font-medium tracking-tight text-ink">
+            {structure.name}
+          </span>
           <span className="text-sm text-ink-soft">
             {formOf(structure.key, t)}
             {" · "}
-            <span className="italic">{structure.example}</span>
+            <span className="text-ink-soft">{structure.example}</span>
           </span>
         </span>
         <span className="flex shrink-0 items-center gap-3 text-sm text-ink-faint">
@@ -112,8 +114,12 @@ export function StructureRow({
                 key="due"
                 as="span"
                 kind="fade"
-                className="font-medium text-accent-text"
+                className="flex items-center gap-1.5 font-medium text-accent-text"
               >
+                <span
+                  aria-hidden
+                  className="size-1.5 animate-breathe rounded-full bg-accent"
+                />
                 {t("structures.due")}
               </Reveal>
             )}

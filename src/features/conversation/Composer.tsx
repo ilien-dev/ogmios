@@ -1,15 +1,15 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useImperativeHandle, useRef, useState } from "react";
 import type {
   SyntheticEvent,
   KeyboardEvent,
   PointerEvent,
   ReactNode,
+  Ref,
 } from "react";
 import { useTranslation } from "react-i18next";
 import { Presence } from "@/components/motion/Presence";
 import { Reveal } from "@/components/motion/Reveal";
 import { useScreenLeaving } from "@/lib/motion";
-import type { MotionValue } from "motion/react";
 import { ArrowUp, Trash2 } from "lucide-react";
 import type { Recording } from "@shared/domain";
 import { Button } from "@/components/ui/Button";
@@ -17,25 +17,30 @@ import { Chip } from "@/components/ui/Chip";
 import { Spinner } from "@/components/ui/Spinner";
 import { cn } from "@/lib/cn";
 import { countWords, WORDS_PER_SPEECH_SECOND } from "@/lib/text";
-import { HelpPopover } from "./HelpPopover";
 import { MicButton } from "./MicButton";
 import type { RecorderStatus } from "./useRecorder";
 import { useRecorder } from "./useRecorder";
+
+/** What the screen around the composer may do with it. */
+export interface ComposerHandle {
+  /** Adds words at the end of the answer, as "How do I say…?" does. */
+  insert: (words: string) => void;
+}
 
 /** A press longer than this is push-to-talk; shorter ones toggle. */
 const HOLD_MS = 350;
 
 interface ComposerProps {
-  sessionId: string | null;
   turnWordGoal: number;
   scaffolds: string[];
   voice: boolean;
   disabled: boolean;
   onSend: (text: string, recording: Recording | null) => Promise<boolean>;
-  /** Hands over the microphone level, once, for the orb to beat with. */
-  onLevel?: (level: MotionValue<number>) => void;
   /** Tells what the microphone is doing whenever that changes. */
   onStatus?: (status: RecorderStatus) => void;
+  /** Tells how many words this turn holds whenever that changes. */
+  onWords?: (words: number) => void;
+  ref?: Ref<ComposerHandle>;
 }
 
 function merge(held: Recording | null, next: Recording): Recording {
@@ -59,19 +64,19 @@ function isShortcut(event: globalThis.KeyboardEvent): boolean {
 }
 
 /**
- * The chat box at the foot of the conversation: text, microphone, the live
- * word meter, and "How do I say…?". A recording lands here as editable text;
+ * The glass panel at the foot of the conversation: the answer, the
+ * microphone, sending, and the turn's word meter. A recording lands here as editable text;
  * what the recogniser heard travels with the turn as `recording.text`.
  */
 export function Composer({
-  sessionId,
   turnWordGoal,
   scaffolds,
   voice,
   disabled,
   onSend,
-  onLevel,
   onStatus,
+  onWords,
+  ref,
 }: ComposerProps): ReactNode {
   const { t } = useTranslation();
   const recorder = useRecorder();
@@ -130,9 +135,16 @@ export function Composer({
   const status = useRef(recorder.status);
   status.current = recorder.status;
 
-  useEffect(() => {
-    onLevel?.(recorder.level);
-  }, [onLevel, recorder.level]);
+  useImperativeHandle(
+    ref,
+    () => ({
+      insert: (words: string) => {
+        setText((held) => appended(held, words));
+        field.current?.focus();
+      },
+    }),
+    [],
+  );
 
   useEffect(() => {
     onStatus?.(recorder.status);
@@ -222,56 +234,63 @@ export function Composer({
       : 0;
   const words = Math.round(countWords(shown) + spoken);
   const fill = Math.min(1, words / Math.max(1, turnWordGoal));
+  const meter = t("conversation.meter", { count: words, goal: turnWordGoal });
+
+  useEffect(() => {
+    onWords?.(words);
+  }, [onWords, words]);
 
   return (
     <form
       onSubmit={(event) => void submit(event)}
-      className="flex flex-col gap-3"
+      className="flex flex-col gap-3 rounded-xl glass px-4.5 py-4"
     >
-      <div className="flex flex-wrap items-center gap-2">
-        <HelpPopover
-          sessionId={sessionId}
-          onInsert={(english) => {
-            setText((held) => appended(held, english));
-            field.current?.focus();
-          }}
-        />
-        <Presence>
-          {scaffolds.length > 0 && (
-            <Reveal
-              key="scaffolds"
-              as="span"
-              kind="fade"
-              index={0}
-              className="text-sm text-partner"
-            >
-              {t("conversation.scaffolds")}
-            </Reveal>
-          )}
-          {scaffolds.map((scaffold, i) => (
-            <Reveal key={scaffold} as="span" kind="scale" index={i + 1}>
-              <Chip
-                className="h-8 bg-partner-soft text-partner hover:text-partner"
-                onClick={() => {
-                  setText((held) =>
-                    appended(held, scaffold.replace(/…$/u, "")),
-                  );
-                  field.current?.focus();
-                }}
-              >
-                {scaffold}
-              </Chip>
-            </Reveal>
-          ))}
-        </Presence>
+      <div className="flex items-center justify-between gap-3">
+        <label htmlFor="composer" className="text-sm text-ink-soft">
+          {t("conversation.composer")}
+        </label>
+        <p
+          aria-hidden
+          className="font-mono text-xs text-ink-faint tabular-nums"
+        >
+          {meter}
+        </p>
       </div>
       <Presence>
+        {scaffolds.length > 0 && (
+          <Reveal
+            key="scaffolds"
+            kind="fade"
+            index={0}
+            className="flex flex-wrap items-center gap-2"
+          >
+            <span className="text-sm text-partner">
+              {t("conversation.scaffolds")}
+            </span>
+            <Presence>
+              {scaffolds.map((scaffold, i) => (
+                <Reveal key={scaffold} as="span" kind="scale" index={i + 1}>
+                  <Chip
+                    className="h-8 bg-partner-soft text-partner hover:-translate-y-0.5 hover:bg-partner-line hover:text-partner"
+                    onClick={() => {
+                      setText((held) =>
+                        appended(held, scaffold.replace(/…$/u, "")),
+                      );
+                      field.current?.focus();
+                    }}
+                  >
+                    {scaffold}
+                  </Chip>
+                </Reveal>
+              ))}
+            </Presence>
+          </Reveal>
+        )}
         {recording !== null && (
           <Reveal
             key="transcript"
-            as="div"
             index={0}
-            className="flex items-center justify-between gap-3 px-5"
+            className="flex items-center justify-between gap-3"
           >
             <p className="text-sm text-accent-text">
               {t("conversation.transcriptHint")}
@@ -279,7 +298,13 @@ export function Composer({
             <Button
               size="sm"
               variant="ghost"
-              icon={<Trash2 aria-hidden className="size-3.5" />}
+              className="group"
+              icon={
+                <Trash2
+                  aria-hidden
+                  className="size-3.5 transition-transform duration-300 ease-out-expo group-hover:-rotate-12"
+                />
+              }
               onClick={discard}
             >
               {t("conversation.discard")}
@@ -287,76 +312,48 @@ export function Composer({
           </Reveal>
         )}
       </Presence>
-      <div
-        className={cn(
-          "relative flex items-end gap-2 rounded-xl bg-surface py-2 pr-2 pl-6 shadow-card transition-shadow duration-150",
-          recording === null ? "focus-within:shadow-you" : "shadow-you",
-        )}
-      >
+      <div className="flex items-center gap-3">
         <div
-          role="meter"
-          aria-label={t("conversation.meterLabel")}
-          aria-valuemin={0}
-          aria-valuemax={turnWordGoal}
-          aria-valuenow={Math.min(words, turnWordGoal)}
-          aria-valuetext={t("conversation.meter", {
-            count: words,
-            goal: turnWordGoal,
-          })}
-          className="absolute inset-x-8 bottom-0 h-0.5 overflow-hidden rounded-full"
-        >
-          <div
-            className="h-full origin-left bg-you transition-transform duration-300 ease-out-expo"
-            style={{ transform: `scaleX(${fill})` }}
-          />
-        </div>
-        <label htmlFor="composer" className="sr-only">
-          {t("conversation.composer")}
-        </label>
-        <textarea
-          ref={field}
-          id="composer"
-          rows={2}
-          value={shown}
-          readOnly={listening}
-          placeholder={
-            recorder.status === "recording"
-              ? t("conversation.recording")
-              : recorder.status === "transcribing"
-                ? t("conversation.transcribing")
-                : t("conversation.placeholder")
-          }
-          onChange={(event) => {
-            setText(event.target.value);
-          }}
-          onKeyDown={onKeyDown}
           className={cn(
-            "block field-sizing-content max-h-40 min-h-14 min-w-0 flex-1 resize-none self-center bg-transparent py-2 text-lead focus-visible:outline-none",
-            listening ? "text-ink-soft" : "text-ink",
+            "flex min-w-0 flex-1 items-center gap-2 rounded-lg border bg-sunken/60 px-4 transition-colors duration-300 ease-out-expo",
+            recording === null
+              ? "border-line-strong/60 focus-within:border-you-line"
+              : "border-you-line",
           )}
-        />
-        <Presence>
-          {recorder.status === "transcribing" && (
-            <Reveal
-              key="transcribing"
-              as="span"
-              kind="fade"
-              index={0}
-              className="self-center"
-            >
-              <Spinner />
-            </Reveal>
-          )}
-        </Presence>
-        <p
-          aria-hidden
-          className="shrink-0 self-center text-sm text-ink-faint tabular-nums"
         >
-          {t("conversation.meter", { count: words, goal: turnWordGoal })}
-        </p>
+          <textarea
+            ref={field}
+            id="composer"
+            rows={1}
+            value={shown}
+            readOnly={listening}
+            placeholder={
+              recorder.status === "recording"
+                ? t("conversation.recording")
+                : recorder.status === "transcribing"
+                  ? t("conversation.transcribing")
+                  : t("conversation.placeholder")
+            }
+            onChange={(event) => {
+              setText(event.target.value);
+            }}
+            onKeyDown={onKeyDown}
+            className={cn(
+              "block field-sizing-content max-h-40 min-h-13 min-w-0 flex-1 resize-none bg-transparent py-3.5 text-lead focus-visible:outline-none",
+              listening ? "text-ink-soft" : "text-ink",
+            )}
+          />
+          <Presence>
+            {recorder.status === "transcribing" && (
+              <Reveal key="transcribing" as="span" kind="fade" index={0}>
+                <Spinner />
+              </Reveal>
+            )}
+          </Presence>
+        </div>
         <Presence>
           {voice && (
-            <Reveal key="mic">
+            <Reveal key="mic" kind="scale">
               <MicButton
                 status={recorder.status}
                 level={recorder.level}
@@ -368,9 +365,8 @@ export function Composer({
             </Reveal>
           )}
         </Presence>
-        <Button
+        <button
           type="submit"
-          variant={voice ? "secondary" : "primary"}
           aria-label={t("conversation.send")}
           disabled={
             disabled ||
@@ -378,10 +374,40 @@ export function Composer({
             text.trim() === "" ||
             recorder.status !== "idle"
           }
-          className="size-14 px-0"
+          className={cn(
+            "group grid size-14 shrink-0 place-items-center rounded-full transition-control hover:enabled:-translate-y-0.5 hover:enabled:shadow-lift disabled:cursor-not-allowed disabled:text-ink-faint",
+            voice
+              ? "glass text-ink"
+              : "animate-shimmer text-on-cta bg-cta disabled:bg-raised disabled:bg-none",
+          )}
         >
-          <ArrowUp aria-hidden className="size-5" />
-        </Button>
+          <ArrowUp
+            aria-hidden
+            className="size-5 transition-transform duration-300 ease-out-expo group-enabled:group-hover:-translate-y-0.5"
+          />
+        </button>
+      </div>
+      <div className="flex items-center gap-2">
+        <span
+          aria-hidden
+          className="font-mono text-xs text-ink-faint uppercase"
+        >
+          {t("conversation.turn")}
+        </span>
+        <div
+          role="meter"
+          aria-label={t("conversation.meterLabel")}
+          aria-valuemin={0}
+          aria-valuemax={turnWordGoal}
+          aria-valuenow={Math.min(words, turnWordGoal)}
+          aria-valuetext={meter}
+          className="h-1 flex-1 overflow-hidden rounded-full bg-line-strong/60"
+        >
+          <div
+            className="h-full origin-left rounded-full bg-mint transition-transform duration-300 ease-out-expo"
+            style={{ transform: `scaleX(${String(fill)})` }}
+          />
+        </div>
       </div>
       <Presence>
         {recorder.error !== null && (

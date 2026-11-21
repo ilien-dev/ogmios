@@ -117,7 +117,7 @@ export function TranslateStart({
                           onClick={() =>
                             void run(() => startAttempt(chapterId, direction))
                           }
-                          className="group flex w-full items-center gap-4 rounded-xl bg-surface px-5 py-4 text-left shadow-card transition-control hover:shadow-float disabled:cursor-not-allowed disabled:shadow-none"
+                          className="group flex w-full items-center gap-4 rounded-xl glass px-5 py-4 text-left transition-control hover:enabled:border-book/40 hover:enabled:shadow-lift disabled:cursor-not-allowed disabled:opacity-70"
                         >
                           <span className="flex min-w-0 flex-1 flex-col gap-1">
                             <span className="font-medium text-ink group-disabled:text-ink-faint">
@@ -137,7 +137,7 @@ export function TranslateStart({
                           </span>
                           <ChevronRight
                             aria-hidden
-                            className="size-4 shrink-0 text-ink-faint transition-transform duration-150 group-enabled:group-hover:translate-x-0.5 group-enabled:group-hover:text-ink"
+                            className="size-4 shrink-0 text-ink-faint transition-transform duration-300 ease-out-expo group-enabled:group-hover:translate-x-1 group-enabled:group-hover:text-ink"
                           />
                         </button>
                       </Reveal>
@@ -153,10 +153,10 @@ export function TranslateStart({
                     key="attempts"
                     className="flex flex-col gap-4"
                   >
-                    <h2 className="font-medium text-ink">
+                    <h2 className="font-display font-medium tracking-tight text-ink">
                       {t("books.translate.attempts")}
                     </h2>
-                    <ul className="flex flex-col divide-y divide-line rounded-xl bg-surface py-1 shadow-card">
+                    <ul className="flex flex-col divide-y divide-line rounded-xl glass py-1">
                       <Presence>
                         {found.attempts.map((attempt, index) => (
                           <AttemptRow

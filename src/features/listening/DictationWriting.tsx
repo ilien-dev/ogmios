@@ -57,7 +57,7 @@ export function DictationWriting({
   const right = result?.words.filter((word) => word.heard).length ?? 0;
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="font-display text-title font-normal text-ink">
+      <h1 className="font-display text-title font-normal tracking-tight text-ink">
         {t("listening.run.field")}
       </h1>
       <div className="relative">
@@ -172,7 +172,7 @@ export function DictationWriting({
                 </Presence>
               </div>
               <div className="flex flex-col gap-1">
-                <p className="text-sm text-ink-faint">
+                <p className="font-mono text-xs text-ink-faint">
                   {t("listening.run.said")}
                 </p>
                 <p className="text-lead text-ink" lang="en">

@@ -42,7 +42,7 @@ export function BookCover({ book, className = "" }: BookCoverProps): ReactNode {
             key="drawn"
             as="span"
             kind="fade"
-            className="flex size-full flex-col gap-cover p-cover font-serif text-cover text-book-ink"
+            className="flex size-full flex-col gap-cover p-cover font-display text-cover text-book-ink"
           >
             <span className="text-cover-title font-medium">{book.title}</span>
             {book.author !== null && <span>{book.author}</span>}

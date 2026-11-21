@@ -35,7 +35,13 @@ export function DisputeButton({ itemId }: { itemId: string }): ReactNode {
             size="sm"
             variant="ghost"
             disabled={state === "sending"}
-            icon={<ThumbsDown aria-hidden className="size-3.5" />}
+            className="group"
+            icon={
+              <ThumbsDown
+                aria-hidden
+                className="size-3.5 transition-transform duration-300 ease-out-expo group-enabled:group-hover:-rotate-12"
+              />
+            }
             onClick={() => {
               setState("sending");
               disputeItem(itemId)

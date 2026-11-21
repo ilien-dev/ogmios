@@ -6,12 +6,15 @@ import { Presence } from "@/components/motion/Presence";
 import { Reveal } from "@/components/motion/Reveal";
 import type { Navigate } from "@/app/routes";
 import { Stagger } from "@/components/motion/Stagger";
-import { HubCard, HubGrid } from "@/components/ui/HubCard";
-import { Orb } from "@/components/ui/Orb";
+import { StatChip, StatTile } from "@/components/scene/Stats";
+import { HubCard } from "@/components/ui/HubCard";
 import { SittingWait } from "@/features/books/SittingParts";
 import { chapterName } from "@/features/books/chapterName";
+import { HubScreen } from "@/features/drills/ScreenParts";
+import { StrengthMark } from "@/features/recall/StrengthMark";
 import { errorMessage } from "@/lib/errors";
 import { structuresState } from "@/lib/ipc";
+import { LevelScene, LevelTable } from "./LevelScene";
 
 interface StructuresHubProps {
   navigate: Navigate;
@@ -31,7 +34,7 @@ function Cards({ state, navigate }: CardsProps): ReactNode {
     (each) => each.strength === "firm",
   ).length;
   return (
-    <HubGrid>
+    <Stagger className="flex flex-col gap-3">
       <Reveal>
         <HubCard
           title={t("structures.hub.freeTitle")}
@@ -85,18 +88,17 @@ function Cards({ state, navigate }: CardsProps): ReactNode {
           </Reveal>
         )}
       </Presence>
-    </HubGrid>
+    </Stagger>
   );
 }
 
 /**
- * The structures section: a card for a session on any structure, one for
- * those of the chapter the learner is on, and one for what was left
- * unfinished. The last two are there only when there is something behind
- * them.
+ * The structures section: how the structures stand and the ways in on the
+ * left (any structure, the chapter the learner is on, what was left
+ * unfinished, the last two only when there is something behind them), and
+ * the levels raised in the scene with a table of them along its bottom.
  */
 export function StructuresHub({ navigate }: StructuresHubProps): ReactNode {
-  const { t } = useTranslation();
   const [state, setState] = useState<StructuresState | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
 
@@ -119,29 +121,64 @@ export function StructuresHub({ navigate }: StructuresHubProps): ReactNode {
   }, []);
 
   return (
-    <main className="relative h-full overflow-y-auto">
-      <Presence swap>
-        {state === null ? (
-          <Reveal key="wait" kind="fade" className="h-full">
-            <SittingWait failure={failure} />
+    <Presence swap>
+      {state === null ? (
+        <Reveal key="wait" as="main" kind="fade" className="relative h-full">
+          <SittingWait failure={failure} />
+        </Reveal>
+      ) : (
+        <Reveal key="hub" kind="fade" className="h-full">
+          <Loaded state={state} navigate={navigate} />
+        </Reveal>
+      )}
+    </Presence>
+  );
+}
+
+/** The screen once the structures are read. */
+function Loaded({ state, navigate }: CardsProps): ReactNode {
+  const { t } = useTranslation();
+  const structures = state.structures;
+  const count = (strength: "settling" | "firm"): number =>
+    structures.filter((each) => each.strength === strength).length;
+  const due = structures.filter((each) => each.due).length;
+  return (
+    <HubScreen
+      aside={
+        <>
+          <Reveal className="flex flex-wrap gap-2">
+            <StatChip value={due} tone="accent">
+              {t("structures.board.due")}
+            </StatChip>
+            <StatChip value={state.paused.length}>
+              {t("structures.board.paused", { count: state.paused.length })}
+            </StatChip>
           </Reveal>
-        ) : (
-          <Reveal key="hub" kind="fade">
-            <Stagger className="mx-auto flex max-w-2xl flex-col gap-10 px-6 py-12 nav:py-16">
-              <Reveal as="header" className="flex flex-col gap-4">
-                <Orb size="sm" section="book" />
-                <h1 className="font-display text-display font-light text-ink">
-                  {t("structures.title")}
-                </h1>
-                <p className="text-lead text-ink-soft">
-                  {t("structures.intro")}
-                </p>
-              </Reveal>
-              <Cards state={state} navigate={navigate} />
-            </Stagger>
+          <Reveal className="grid grid-cols-2 gap-3">
+            <StatTile
+              icon={<StrengthMark strength="settling" />}
+              label={t("recall.strength.settling")}
+              value={count("settling")}
+            />
+            <StatTile
+              icon={<StrengthMark strength="firm" />}
+              label={t("recall.strength.firm")}
+              value={count("firm")}
+            />
           </Reveal>
-        )}
-      </Presence>
-    </main>
+          <Reveal>
+            <Cards state={state} navigate={navigate} />
+          </Reveal>
+        </>
+      }
+      scene={
+        <LevelScene
+          title={t("structures.title")}
+          text={t("structures.intro")}
+          structures={structures}
+          footer={<LevelTable structures={structures} />}
+        />
+      }
+    />
   );
 }

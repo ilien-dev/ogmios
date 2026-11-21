@@ -61,7 +61,11 @@ export function AppUpdate(): ReactNode {
         <Presence>
           {state.kind === "downloading" && (
             <Reveal key="downloading" className="flex w-72 flex-col gap-2">
-              <p className="text-ink">
+              <p className="flex items-center gap-2 text-ink">
+                <span
+                  aria-hidden
+                  className="size-2 shrink-0 animate-breathe rounded-full bg-mint"
+                />
                 {t("update.downloading", { version: state.version })}
               </p>
               <UpdateProgress progress={state.progress} />
@@ -76,7 +80,13 @@ export function AppUpdate(): ReactNode {
               </p>
               <Button
                 variant="primary"
-                icon={<RotateCw aria-hidden className="size-4" />}
+                className="group"
+                icon={
+                  <RotateCw
+                    aria-hidden
+                    className="size-4 transition-transform duration-300 ease-out-expo group-hover:rotate-45"
+                  />
+                }
                 onClick={restart}
               >
                 {t("update.restart")}
@@ -90,7 +100,13 @@ export function AppUpdate(): ReactNode {
             <Reveal key="available" as="span" kind="fade">
               <Button
                 variant="primary"
-                icon={<Download aria-hidden className="size-4" />}
+                className="group"
+                icon={
+                  <Download
+                    aria-hidden
+                    className="size-4 transition-transform duration-300 ease-out-expo group-hover:translate-y-0.5"
+                  />
+                }
                 onClick={download}
               >
                 {t(state.kind === "failed" ? "update.retry" : "update.install")}

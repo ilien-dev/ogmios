@@ -1,0 +1,104 @@
+<!--palette
+bg          #0e0f1a #f6f7fb
+panel       #191b2b #ffffff
+raised      #23263a #eef0f7
+sunken      #141624 #f2f4f9
+edge        #4a4e68 #c9ccdb
+line        #23263b #e1e4ee
+muted       #6d7190 #7a7e94
+ink         #f1f2fa #23233a
+body        #a9acc4 #5c5f74
+accent      #7fdccb #0f766e
+you_soft    #14393a #dff2ee
+you_line    #2a6a66 #9bd3c8
+you_ink     #cff5ec #0a3a36
+partner     #c4b5fd #5b21b6
+partner_soft #26244a #ece9fb
+partner_line #3f3b72 #d4cef4
+book        #9fb8ff #2d55c4
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 448" role="img" aria-label="Your computer, drawn as a place with walls. Your voice is turned into text inside it, and your books and progress are kept inside it. Only the text, Honestly, I did a big effort, leaves through the door to Claude, and the answer, How did your team react?, comes back in.">
+<style>
+/* 12 s  voice   |go|
+         text       |in|=========================================|out|
+         out             |------go------|
+         claude                         |lit|
+         back                              |------go------|
+         reply                                            |in|====|out|
+         saved                                               |lit|      */
+@keyframes voice{0%,2%{transform:translateX(0);opacity:0}4%{opacity:1}12%{transform:translateX(56px);opacity:1}14%,100%{transform:translateX(56px);opacity:0}}
+@keyframes text{0%,12%{opacity:0;transform:translateY(10px)}16%,94%{opacity:1;transform:translateY(0)}98%,100%{opacity:0;transform:translateY(10px)}}
+@keyframes out{0%,20%{transform:translateX(0);opacity:0}22%{opacity:1}38%{transform:translateX(392px);opacity:1}40%,100%{transform:translateX(392px);opacity:0}}
+@keyframes claude{0%,36%{opacity:.6}40%,52%{opacity:1}58%,100%{opacity:.6}}
+@keyframes back{0%,48%{transform:translateX(0);opacity:0}50%{opacity:1}66%{transform:translateX(-392px);opacity:1}68%,100%{transform:translateX(-392px);opacity:0}}
+@keyframes reply{0%,64%{opacity:0;transform:translateY(10px)}68%,94%{opacity:1;transform:translateY(0)}98%,100%{opacity:0;transform:translateY(10px)}}
+@keyframes saved{0%,70%{opacity:.6}74%,90%{opacity:1}96%,100%{opacity:.6}}
+@keyframes wave{0%,100%{transform:scaleY(.35)}50%{transform:scaleY(1)}}
+@keyframes flow{to{stroke-dashoffset:-24}}
+.voice{animation:voice 12s cubic-bezier(.4,0,.2,1) infinite}
+.text{animation:text 12s cubic-bezier(0,0,.2,1) infinite}
+.out{animation:out 12s cubic-bezier(.4,0,.2,1) infinite}
+.claude{animation:claude 12s ease-in-out infinite}
+.back{animation:back 12s cubic-bezier(.4,0,.2,1) infinite}
+.reply{animation:reply 12s cubic-bezier(0,0,.2,1) infinite}
+.saved{animation:saved 12s ease-in-out infinite}
+.wave{animation:wave 1.4s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
+.flow{animation:flow 1.2s linear infinite}
+</style>
+<rect width="1280" height="448" fill="$bg"/>
+<g id="backdrop" data-backdrop="plus still"><defs><pattern id="bd-plus" width="36" height="36" patternUnits="userSpaceOnUse"><path d="M14 18H22M18 14V22" fill="none" stroke="$line" stroke-width="1.5" stroke-linecap="round"/></pattern></defs><rect x="-36" y="-36" width="1352" height="520" fill="url(#bd-plus)"/></g>
+
+<text id="eyebrow" class="m" x="40" y="56" font-size="15" fill="$accent" letter-spacing="2">YOUR DATA</text>
+<text id="title" class="b" x="40" y="108" font-size="44" fill="$ink">Your voice never leaves your computer</text>
+<text id="sub" class="s" x="40" y="148" font-size="22" fill="$body">Only text goes to Claude, never your voice.</text>
+
+<g id="stage">
+<!-- the computer: a place with walls -->
+<rect x="40" y="180" width="828" height="244" rx="18" fill="$sunken" stroke="$accent" stroke-width="3"/>
+<g data-asset="lucide:lock" data-icon="kept on your computer" data-size="24" transform="translate(64 196) scale(1)" fill="$accent"><g fill="none" stroke="$accent" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></g></g>
+<text class="b" x="98" y="215" font-size="18" fill="$ink">Your computer</text>
+<!-- the door in the wall -->
+<rect x="860" y="230" width="16" height="44" rx="4" fill="$accent"/>
+
+<!-- your voice -->
+<rect x="64" y="236" width="196" height="168" rx="14" fill="$panel"/>
+<g data-asset="lucide:mic" data-icon="your voice" data-size="28" transform="translate(148 252) scale(1.167)" fill="$accent"><g fill="none" stroke="$accent" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M12 19v3m7-12v2a7 7 0 0 1-14 0v-2"/><rect width="6" height="13" x="9" y="2" rx="3"/></g></g>
+<g fill="$accent">
+<rect class="wave" x="98" y="302" width="6" height="32" rx="3"/>
+<rect class="wave" style="animation-delay:-.2s" x="114" y="298" width="6" height="40" rx="3"/>
+<rect class="wave" style="animation-delay:-.4s" x="130" y="306" width="6" height="24" rx="3"/>
+<rect class="wave" style="animation-delay:-.6s" x="146" y="296" width="6" height="44" rx="3"/>
+<rect class="wave" style="animation-delay:-.8s" x="162" y="302" width="6" height="32" rx="3"/>
+<rect class="wave" style="animation-delay:-1s" x="178" y="308" width="6" height="20" rx="3"/>
+<rect class="wave" style="animation-delay:-1.2s" x="194" y="300" width="6" height="36" rx="3"/>
+<rect class="wave" style="animation-delay:-.5s" x="210" y="304" width="6" height="28" rx="3"/>
+</g>
+<text class="s" x="162" y="384" font-size="16" fill="$body" text-anchor="middle">Your voice</text>
+<g transform="translate(238 304)"><rect class="voice" opacity="0" width="28" height="28" rx="8" fill="$accent"/></g>
+
+<!-- turned into text -->
+<rect x="296" y="236" width="304" height="168" rx="14" fill="$panel"/>
+<text class="s" x="316" y="266" font-size="16" fill="$body">Turned into text</text>
+<g class="text"><rect x="316" y="282" width="264" height="44" rx="10" fill="$you_soft" stroke="$you_line" stroke-width="1.5"/>
+<text class="s" x="332" y="310" font-size="16" fill="$you_ink">Honestly, I did a big effort,</text></g>
+<g class="reply"><rect x="316" y="342" width="236" height="44" rx="10" fill="$partner_soft" stroke="$partner_line" stroke-width="1.5"/>
+<text class="s" x="332" y="370" font-size="16" fill="$ink">How did your team react?</text></g>
+
+<!-- books and progress, kept here -->
+<g class="saved"><rect x="620" y="300" width="232" height="104" rx="14" fill="$panel"/>
+<g data-asset="lucide:database" data-icon="your books and progress, saved" data-size="24" transform="translate(638 316) scale(1)" fill="$book"><g fill="none" stroke="$book" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/></g></g>
+<text class="s" x="672" y="334" font-size="16" fill="$ink">Books and progress</text>
+<rect x="638" y="356" width="160" height="10" rx="5" fill="$book"/>
+<rect x="638" y="376" width="110" height="10" rx="5" fill="$muted"/></g>
+
+<!-- out through the door, to Claude, and back -->
+<path class="flow" d="M884 252H968" fill="none" stroke="$muted" stroke-width="2" stroke-dasharray="8 16"/>
+<path d="M964 244l10 8-10 8" fill="none" stroke="$muted" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<g transform="translate(580 238)"><rect class="out" opacity="0" width="28" height="28" rx="8" fill="$you_line"/></g>
+<g transform="translate(972 238)"><rect class="back" opacity="0" width="28" height="28" rx="8" fill="$partner"/></g>
+<g class="claude"><rect x="992" y="200" width="248" height="104" rx="14" fill="$panel" stroke="$partner" stroke-width="2"/>
+<g data-asset="lucide:sparkles" data-icon="Claude, the AI" data-size="28" transform="translate(1016 236) scale(1.167)" fill="$partner"><g fill="none" stroke="$partner" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594zM20 2v4m2-2h-4"/><circle cx="4" cy="20" r="2"/></g></g>
+<text class="b" x="1060" y="260" font-size="22" fill="$ink">Claude</text></g>
+<text class="s" x="1000" y="340" font-size="16" fill="$body">Only text goes out</text>
+</g>
+</svg>

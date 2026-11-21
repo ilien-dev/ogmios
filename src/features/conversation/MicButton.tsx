@@ -53,10 +53,10 @@ export function MicButton({
         }
       }}
       className={cn(
-        "relative grid size-14 shrink-0 touch-none place-items-center rounded-full transition-control disabled:cursor-not-allowed disabled:text-ink-faint",
+        "group relative grid size-14 shrink-0 touch-none place-items-center rounded-full transition-control hover:enabled:-translate-y-0.5 disabled:cursor-not-allowed disabled:text-ink-faint",
         recording
           ? "bg-ink text-canvas"
-          : "text-on-cta bg-cta disabled:bg-raised disabled:bg-none",
+          : "text-on-cta ring-6 ring-mint/20 bg-cta hover:enabled:ring-mint/30 disabled:bg-raised disabled:bg-none disabled:ring-0",
       )}
     >
       <Presence>
@@ -69,7 +69,9 @@ export function MicButton({
             aria-hidden
             style={{ scale: ring }}
             className="absolute inset-0 rounded-full bg-accent-soft"
-          />
+          >
+            <span className="absolute -inset-1 animate-breathe rounded-full border border-mint/60" />
+          </Reveal>
         )}
       </Presence>
       <Presence>
@@ -91,7 +93,10 @@ export function MicButton({
             index={0}
             className="relative col-start-1 row-start-1"
           >
-            <Mic aria-hidden className="size-6" />
+            <Mic
+              aria-hidden
+              className="size-6 transition-transform duration-300 ease-out-expo group-enabled:group-hover:scale-110"
+            />
           </Reveal>
         )}
       </Presence>

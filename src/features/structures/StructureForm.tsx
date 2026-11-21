@@ -35,15 +35,15 @@ export function StructureForm({
             as="aside"
             key="form"
             kind="fade"
-            className="flex flex-col gap-3 rounded-xl bg-surface p-5 shadow-card"
+            className="flex flex-col gap-3 rounded-xl glass p-5"
           >
-            <h2 className="text-sm font-medium text-ink-faint">
+            <h2 className="font-mono text-xs font-medium text-ink-faint">
               {t("structures.form.title")}
             </h2>
-            <p className="text-lead font-semibold text-ink">
+            <p className="font-display text-lead font-semibold tracking-tight text-ink">
               <FormText form={formOf(item.structure, t)} />
             </p>
-            <p className="text-ink-soft italic">{item.example}</p>
+            <p className="text-ink-soft">{item.example}</p>
             <p className="text-sm text-ink-soft">
               {usageOf(item.structure, t)}
             </p>
@@ -53,7 +53,7 @@ export function StructureForm({
             as="aside"
             key="hidden"
             kind="fade"
-            className="flex flex-col items-start gap-3 rounded-xl bg-raised p-5"
+            className="flex flex-col items-start gap-3 rounded-xl border border-dashed border-line-strong bg-sunken/60 p-5"
           >
             <p className="text-sm text-ink-soft">
               {t("structures.form.hidden")}

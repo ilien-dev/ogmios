@@ -6,27 +6,24 @@ interface LogoProps {
 }
 
 /**
- * The app icon (assets/icon.svg): the partner's orb with two voices closing an
- * O inside it. Its colours are the same in both themes, like the icon's. It
- * sits beside the app's name, so screen readers skip it.
+ * The mark (assets/brand): a square spiral that winds in like an ear, with a
+ * mint square at its centre, which breathes. It sits beside the app's name,
+ * so screen readers skip it.
  */
 export function Logo({ className }: LogoProps): ReactNode {
   return (
     <svg
       aria-hidden
-      viewBox="2 2 60 60"
-      fill="none"
-      strokeWidth={8}
-      strokeLinecap="round"
-      className={cn("rounded-full bg-orb", className)}
+      viewBox="0 0 256 256"
+      className={cn("shrink-0", className)}
     >
       <path
-        d="M19.5 37A13.5 13.5 0 0 1 37 19.5"
-        className="stroke-logo-first"
+        className="fill-logo-first"
+        d="M80 54L202 54L202 202L54 202L54 98L158 98L158 158L98 158L98 116L72 116L72 184L184 184L184 72L28 72L28 228L228 228L228 28L80 28Z"
       />
       <path
-        d="M44.5 27A13.5 13.5 0 0 1 27 44.5"
-        className="stroke-logo-second"
+        className="origin-center animate-breathe fill-logo-second transform-fill"
+        d="M114 113H146V145H114Z"
       />
     </svg>
   );

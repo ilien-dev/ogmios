@@ -1,0 +1,26 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "tiny-text",
+        "value": "*",
+        "files": [
+          "assets/brand/brand-book.html"
+        ],
+        "createdAt": "2026-11-20T10:17:59.402Z",
+        "reason": "agent decision: kothar's brand-book template sets 10-11px mono captions on fixed 1120x630 print slides; non-interactive document, not app UI"
+      },
+      {
+        "rule": "undersized-ui-text",
+        "value": "*",
+        "files": [
+          "assets/brand/brand-book.html"
+        ],
+        "createdAt": "2026-11-20T10:17:59.479Z",
+        "reason": "agent decision: kothar's brand-book template sets 10-11px mono captions on fixed 1120x630 print slides; non-interactive document, not app UI"
+      }
+    ]
+  }
+}

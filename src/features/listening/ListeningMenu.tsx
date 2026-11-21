@@ -1,16 +1,19 @@
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { AudioLines, Ear } from "lucide-react";
 import type { Book } from "@shared/domain";
 import type { ListeningState, Pace } from "@shared/listening";
 import { Presence } from "@/components/motion/Presence";
 import { Reveal } from "@/components/motion/Reveal";
 import type { Navigate } from "@/app/routes";
-import { Stagger } from "@/components/motion/Stagger";
+import { Scene, SceneTitle } from "@/components/scene/Scene";
+import { StatChip, StatTile } from "@/components/scene/Stats";
 import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
-import { Orb } from "@/components/ui/Orb";
 import { Spinner } from "@/components/ui/Spinner";
+import { BarRelief } from "@/features/drills/BarRelief";
+import { HubScreen } from "@/features/drills/ScreenParts";
 import { useSpeech } from "@/features/speech/speech";
 import { errorMessage } from "@/lib/errors";
 import {
@@ -31,10 +34,16 @@ interface ListeningMenuProps {
   navigate: Navigate;
 }
 
+/** The share of the words heard at a pace, 0 before it was tried. */
+function percentOf(right: number, total: number): number {
+  return total === 0 ? 0 : Math.floor((right * 100) / total);
+}
+
 /**
- * The menu of the listening: the pace understood, the chapter with its
- * dictation and its reading aloud, the dictations left unfinished and the
- * words that escape the ear. Without the voice it only offers to get it.
+ * The menu of the listening: the chapter with its dictation and its reading
+ * aloud, the dictations left unfinished and the words that escape the ear in
+ * the column; the paces raised in the scene, the one understood lit, with how
+ * each stands along its bottom. Without the voice it only offers to get it.
  */
 export function ListeningMenu({
   chapterId,
@@ -91,142 +100,209 @@ export function ListeningMenu({
 
   const on = state?.chapter ?? null;
   const voiceless = status !== null && !status.downloaded;
+  const standings = state?.standings ?? [];
+  const typed = standings.reduce((sum, each) => sum + each.sentences, 0);
+  const shown = state !== null && !voiceless;
   return (
-    <main className="h-full overflow-y-auto">
-      <Stagger className="mx-auto flex max-w-3xl flex-col gap-10 px-6 py-12 nav:py-16">
-        <Reveal as="header" className="flex flex-col gap-4">
-          <Orb size="sm" section="book" />
-          <h1 className="font-display text-display font-light text-ink">
-            {t("listening.title")}
-          </h1>
-          <p className="text-lead text-ink-soft">{t("listening.intro")}</p>
-        </Reveal>
-        <Presence>
-          {failure !== null && (
-            <Notice key="failure" tone="danger">
-              {t("common.error", { message: failure })}
-            </Notice>
-          )}
-          {state === null && failure === null && (
-            <Reveal key="wait" kind="fade">
-              <Spinner />
-            </Reveal>
-          )}
-        </Presence>
-        <Presence>
-          {voiceless && (
-            <Reveal
-              as="section"
-              key="voice"
-              className="flex flex-col items-start gap-4"
-            >
-              <Notice>{t("listening.voice.need")}</Notice>
-              <Button
-                variant="primaryBook"
-                disabled={fetching !== null}
-                onClick={() => {
-                  fetch().catch((error: unknown) => {
-                    setFailure(errorMessage(error));
-                  });
-                }}
+    <HubScreen
+      aside={
+        <>
+          <Reveal className="flex flex-wrap gap-2">
+            <StatChip value={state?.paused.length ?? "–"} tone="accent">
+              {t("listening.board.paused", {
+                count: state?.paused.length ?? 0,
+              })}
+            </StatChip>
+            <StatChip value={state?.reinforced.length ?? "–"}>
+              {t("listening.board.reinforced", {
+                count: state?.reinforced.length ?? 0,
+              })}
+            </StatChip>
+          </Reveal>
+          <Reveal className="grid grid-cols-2 gap-3">
+            <StatTile
+              icon={<AudioLines aria-hidden className="size-6 text-book" />}
+              label={t("listening.board.typed")}
+              value={typed}
+            />
+            <StatTile
+              icon={<Ear aria-hidden className="size-6 text-wrong" />}
+              label={t("listening.board.escaping")}
+              value={state?.missed.length ?? 0}
+            />
+          </Reveal>
+          <Presence>
+            {state === null && failure === null && (
+              <Reveal key="wait" kind="fade" className="px-1">
+                <Spinner />
+              </Reveal>
+            )}
+          </Presence>
+          <Presence>
+            {voiceless && (
+              <Reveal
+                as="section"
+                key="voice"
+                className="flex flex-col items-start gap-4 rounded-xl glass p-5"
               >
-                {fetching === null
-                  ? t("listening.voice.get", {
-                      size: formatBytes(status.bytes, i18n.language),
+                <Notice>{t("listening.voice.need")}</Notice>
+                <Button
+                  variant="primaryBook"
+                  disabled={fetching !== null}
+                  onClick={() => {
+                    fetch().catch((error: unknown) => {
+                      setFailure(errorMessage(error));
+                    });
+                  }}
+                >
+                  {fetching === null
+                    ? t("listening.voice.get", {
+                        size: formatBytes(status.bytes, i18n.language),
+                      })
+                    : t("listening.voice.getting", {
+                        percent: Math.round(fetching * 100),
+                      })}
+                </Button>
+              </Reveal>
+            )}
+          </Presence>
+          <Presence>
+            {shown && on === null && (
+              <Reveal
+                key="noBook"
+                as="section"
+                className="flex flex-col items-start gap-4 rounded-xl glass p-5"
+              >
+                <Notice>{t("listening.noBook")}</Notice>
+                <Button
+                  onClick={() => {
+                    navigate({ name: "books", bookId: null });
+                  }}
+                >
+                  {t("listening.toBooks")}
+                </Button>
+              </Reveal>
+            )}
+          </Presence>
+          <Presence>
+            {shown && on !== null && (
+              <Reveal key="on">
+                <OnChapter
+                  on={on}
+                  books={books}
+                  pace={picked ?? state.pace}
+                  busy={busy}
+                  onPace={setPicked}
+                  onChapter={(next) => {
+                    navigate({ name: "listening", chapterId: next });
+                  }}
+                  onDictation={() =>
+                    void run(async () => {
+                      const sitting = await startDictation(
+                        on.chapter.id,
+                        picked ?? state.pace,
+                      );
+                      navigate({
+                        name: "listening",
+                        running: sitting.id,
+                      });
                     })
-                  : t("listening.voice.getting", {
-                      percent: Math.round(fetching * 100),
-                    })}
-              </Button>
-            </Reveal>
-          )}
-        </Presence>
-        <Presence>
-          {state !== null && !voiceless && (
-            <Reveal key="loaded" kind="fade">
-              <Stagger className="flex flex-col gap-10">
-                <Standing state={state} />
-                <Presence swap>
-                  {on === null ? (
-                    <Reveal
-                      key="noBook"
-                      as="section"
-                      className="flex flex-col items-start gap-4"
-                    >
-                      <Notice>{t("listening.noBook")}</Notice>
-                      <Button
-                        onClick={() => {
-                          navigate({ name: "books", bookId: null });
-                        }}
-                      >
-                        {t("listening.toBooks")}
-                      </Button>
-                    </Reveal>
-                  ) : (
-                    <Reveal key="on">
-                      <OnChapter
-                        on={on}
-                        books={books}
-                        pace={picked ?? state.pace}
-                        busy={busy}
-                        onPace={setPicked}
-                        onChapter={(next) => {
-                          navigate({ name: "listening", chapterId: next });
-                        }}
-                        onDictation={() =>
-                          void run(async () => {
-                            const sitting = await startDictation(
-                              on.chapter.id,
-                              picked ?? state.pace,
-                            );
-                            navigate({
-                              name: "listening",
-                              running: sitting.id,
-                            });
-                          })
-                        }
-                        onListen={() => {
-                          navigate({
-                            name: "listening",
-                            reading: on.chapter.id,
-                          });
-                        }}
-                      />
-                    </Reveal>
-                  )}
-                </Presence>
-                <Presence>
-                  {state.paused.length > 0 && (
-                    <Reveal key="paused">
-                      <PausedDictations
-                        paused={state.paused}
-                        onContinue={(id) => {
-                          navigate({ name: "listening", running: id });
-                        }}
-                        onEnd={(id) =>
-                          void run(async () => {
-                            await closeDictation(id, true);
-                            setState(
-                              await listeningState(on?.chapter.id ?? null),
-                            );
-                          })
-                        }
-                      />
-                    </Reveal>
-                  )}
-                </Presence>
-                <Presence>
-                  {state.missed.length > 0 && (
-                    <Reveal key="missed">
-                      <Escaping state={state} />
-                    </Reveal>
-                  )}
-                </Presence>
-              </Stagger>
-            </Reveal>
-          )}
-        </Presence>
-      </Stagger>
-    </main>
+                  }
+                  onListen={() => {
+                    navigate({
+                      name: "listening",
+                      reading: on.chapter.id,
+                    });
+                  }}
+                />
+              </Reveal>
+            )}
+          </Presence>
+          <Presence>
+            {shown && state.paused.length > 0 && (
+              <Reveal key="paused">
+                <PausedDictations
+                  paused={state.paused}
+                  onContinue={(id) => {
+                    navigate({ name: "listening", running: id });
+                  }}
+                  onEnd={(id) =>
+                    void run(async () => {
+                      await closeDictation(id, true);
+                      setState(await listeningState(on?.chapter.id ?? null));
+                    })
+                  }
+                />
+              </Reveal>
+            )}
+          </Presence>
+          <Presence>
+            {shown && state.missed.length > 0 && (
+              <Reveal key="missed">
+                <Escaping state={state} />
+              </Reveal>
+            )}
+          </Presence>
+        </>
+      }
+      scene={
+        <Scene
+          label={t("listening.board.scene")}
+          className="flex-1"
+          header={
+            <>
+              <SceneTitle>{t("listening.title")}</SceneTitle>
+              <p className="max-w-prose text-ink-soft">
+                {t("listening.intro")}
+              </p>
+              <Presence>
+                {failure !== null && (
+                  <Notice key="failure" tone="danger">
+                    {t("common.error", { message: failure })}
+                  </Notice>
+                )}
+              </Presence>
+            </>
+          }
+          footer={
+            <Presence>
+              {shown && (
+                <Reveal key="standing">
+                  <Standing state={state} />
+                </Reveal>
+              )}
+            </Presence>
+          }
+        >
+          <BarRelief
+            label={t("listening.board.relief", {
+              paces: standings
+                .map((each) =>
+                  t("listening.board.reliefPace", {
+                    pace: t(`listening.pace.${each.pace}`),
+                    percent: percentOf(each.right, each.total),
+                  }),
+                )
+                .join(", "),
+            })}
+            bars={standings.map((each) => ({
+              key: each.pace,
+              value: percentOf(each.right, each.total),
+              look: each.held ? "book" : "plain",
+              tip: {
+                title: t(`listening.pace.${each.pace}`),
+                lines: [
+                  t("scene.tip.right", {
+                    percent: percentOf(each.right, each.total),
+                  }),
+                ],
+              },
+              pin: each.pace === state?.understood ? "book" : undefined,
+            }))}
+            className="size-full max-w-2xl px-6 pt-36 pb-80"
+          />
+        </Scene>
+      }
+    />
   );
 }

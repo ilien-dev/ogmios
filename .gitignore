@@ -16,3 +16,6 @@ src-tauri/binaries
 
 # Local portfolio material for arc.dev, not part of the app
 /.promo/
+
+# kothar brand drafts
+.kothar/

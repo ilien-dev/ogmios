@@ -24,7 +24,7 @@ export function TranslateBar({
     : paragraphs.find((each) => each.index === current);
   return (
     <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-      <span className="rounded-md bg-surface px-4 py-1.5 text-sm font-medium text-ink shadow-card">
+      <span className="rounded-full glass px-4 py-1.5 text-sm font-medium text-ink">
         {way}
       </span>
       <div className="w-48">
@@ -35,7 +35,7 @@ export function TranslateBar({
           tone="book"
         />
       </div>
-      <span className="text-sm text-ink-faint tabular-nums">
+      <span className="font-mono text-xs text-ink-faint tabular-nums">
         {being === undefined
           ? t("books.translate.count", { done, total })
           : t("books.translate.paragraph", { current: being.index + 1, total })}

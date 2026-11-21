@@ -61,7 +61,7 @@ export function ListenText({
                       }
                     }}
                     className={cn(
-                      "cursor-pointer rounded-sm box-decoration-clone px-0.5 transition-control hover:bg-raised",
+                      "cursor-pointer rounded-sm box-decoration-clone px-0.5 transition-control hover:bg-book-soft/60",
                       on && "bg-book-soft text-ink",
                     )}
                   >

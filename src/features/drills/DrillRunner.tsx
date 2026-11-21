@@ -16,6 +16,8 @@ import { errorMessage } from "@/lib/errors";
 import { grade } from "@/lib/grade";
 import type { Grade } from "@/lib/grade";
 import { answerDrill } from "@/lib/ipc";
+import { BigNumber } from "@/components/scene/Stats";
+import { RunBackdrop, RunCard } from "./ScreenParts";
 import { SpotErrorChoice } from "./SpotErrorChoice";
 
 function CheckingIcon({ checking }: { checking: boolean }): ReactNode {
@@ -105,168 +107,174 @@ function DrillQuestion({
   return (
     <section
       aria-label={label}
-      className="mx-auto flex w-full max-w-2xl flex-col gap-8 px-6 pt-4 pb-12 nav:px-10"
+      className="mx-auto flex w-full max-w-2xl flex-col gap-8 px-4 pt-4 pb-12"
     >
-      <div className="flex flex-col gap-1">
-        <p className="text-sm font-medium text-ink-faint">
-          {t(`drillFormat.${item.format}`)}
-        </p>
+      <RunCard className="flex flex-col gap-8">
+        <div className="flex flex-col gap-1">
+          <p className="font-mono text-xs font-medium tracking-wide text-ink-faint uppercase">
+            {t(`drillFormat.${item.format}`)}
+          </p>
+          <Presence>
+            {item.focus !== "" && (
+              <Reveal key="focus" as="p" className="text-ink-soft">
+                {t("drills.focus", { pattern: item.focus })}
+              </Reveal>
+            )}
+          </Presence>
+        </div>
+
         <Presence>
-          {item.focus !== "" && (
-            <Reveal key="focus" as="p" className="text-ink-soft">
-              {t("drills.focus", { pattern: item.focus })}
+          {thread.length > 0 && (
+            <Reveal key="thread" as="ol" className="flex flex-col gap-6">
+              {thread.map((entry) => (
+                <li key={entry.item.index} className="flex flex-col gap-3">
+                  <p className="text-lead text-ink-soft">{entry.item.prompt}</p>
+                  <p className="max-w-lg self-end rounded-xl rounded-br-sm bg-sunken/60 px-4 py-3 text-ink-soft">
+                    {entry.response}
+                  </p>
+                </li>
+              ))}
             </Reveal>
           )}
         </Presence>
-      </div>
 
-      <Presence>
-        {thread.length > 0 && (
-          <Reveal key="thread" as="ol" className="flex flex-col gap-6">
-            {thread.map((entry) => (
-              <li key={entry.item.index} className="flex flex-col gap-3">
-                <p className="text-lead text-ink-soft">{entry.item.prompt}</p>
-                <p className="max-w-lg self-end rounded-xl rounded-br-sm bg-raised px-4 py-3 text-ink-soft">
-                  {entry.response}
-                </p>
-              </li>
-            ))}
-          </Reveal>
-        )}
-      </Presence>
+        <div className="flex flex-col gap-3">
+          <h1 className="font-display text-title font-light tracking-tight text-balance text-ink">
+            {item.prompt}
+          </h1>
+          <p className="text-ink-soft">{item.instruction}</p>
+        </div>
 
-      <div className="flex flex-col gap-3">
-        <h1 className="text-lead font-medium text-balance text-ink">
-          {item.prompt}
-        </h1>
-        <p className="text-ink-soft">{item.instruction}</p>
-      </div>
-
-      <div className="relative">
-        <Presence swap>
-          {needsPick ? (
-            <Reveal key="pick" kind="fade">
-              <SpotErrorChoice
-                options={item.options}
-                onPick={(sentence) => {
-                  setPicked(sentence);
-                  setResponse(sentence);
-                }}
-              />
-            </Reveal>
-          ) : (
-            <Reveal key="answer" kind="fade">
-              <form
-                onSubmit={(event) => void submit(event)}
-                className="flex flex-col gap-3"
-              >
-                <label
-                  htmlFor={fieldId}
-                  className="text-sm font-medium text-ink"
-                >
-                  {item.format === "spotError"
-                    ? t("drills.fixIt")
-                    : t("drills.answer")}
-                </label>
-                <TextArea
-                  ref={field}
-                  id={fieldId}
-                  rows={2}
-                  value={response}
-                  readOnly={current !== undefined}
-                  onChange={(event) => {
-                    setResponse(event.target.value);
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" && !event.shiftKey) {
-                      event.preventDefault();
-                      void submit(event);
-                    }
+        <div className="relative">
+          <Presence swap>
+            {needsPick ? (
+              <Reveal key="pick" kind="fade">
+                <SpotErrorChoice
+                  options={item.options}
+                  onPick={(sentence) => {
+                    setPicked(sentence);
+                    setResponse(sentence);
                   }}
                 />
-                <Presence>
-                  {current === undefined && (
-                    <Reveal key="check" kind="fade">
-                      <Button
-                        type="submit"
-                        variant="primary"
-                        disabled={checking || response.trim() === ""}
-                        icon={<CheckingIcon checking={checking} />}
-                      >
-                        {checking ? t("drills.checking") : t("drills.check")}
-                      </Button>
-                    </Reveal>
-                  )}
-                </Presence>
-              </form>
-            </Reveal>
+              </Reveal>
+            ) : (
+              <Reveal key="answer" kind="fade">
+                <form
+                  onSubmit={(event) => void submit(event)}
+                  className="flex flex-col gap-3"
+                >
+                  <label
+                    htmlFor={fieldId}
+                    className="text-sm font-medium text-ink"
+                  >
+                    {item.format === "spotError"
+                      ? t("drills.fixIt")
+                      : t("drills.answer")}
+                  </label>
+                  <TextArea
+                    ref={field}
+                    id={fieldId}
+                    rows={2}
+                    value={response}
+                    readOnly={current !== undefined}
+                    onChange={(event) => {
+                      setResponse(event.target.value);
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" && !event.shiftKey) {
+                        event.preventDefault();
+                        void submit(event);
+                      }
+                    }}
+                  />
+                  <Presence>
+                    {current === undefined && (
+                      <Reveal key="check" kind="fade">
+                        <Button
+                          type="submit"
+                          variant="primary"
+                          disabled={checking || response.trim() === ""}
+                          icon={<CheckingIcon checking={checking} />}
+                        >
+                          {checking ? t("drills.checking") : t("drills.check")}
+                        </Button>
+                      </Reveal>
+                    )}
+                  </Presence>
+                </form>
+              </Reveal>
+            )}
+          </Presence>
+        </div>
+
+        <Presence>
+          {failure !== null && (
+            <Notice key="failure" tone="danger">
+              {t("common.error", { message: failure })}
+            </Notice>
           )}
         </Presence>
-      </div>
 
-      <Presence>
-        {failure !== null && (
-          <Notice key="failure" tone="danger">
-            {t("common.error", { message: failure })}
-          </Notice>
-        )}
-      </Presence>
-
-      <div aria-live="polite">
-        <Presence>
-          {current !== undefined && verdict !== null && (
-            <Reveal key="verdict" className="flex flex-col gap-5">
-              <div className="flex flex-col gap-2">
-                <VerdictLine tone={verdict}>{t(VERDICT[verdict])}</VerdictLine>
-                <Presence>
-                  {!current.result.correct && (
-                    <Reveal key="correct" as="p" className="text-ink">
-                      {t("drills.expected", { text: current.result.expected })}
-                    </Reveal>
-                  )}
-                </Presence>
-                <p className="text-ink-soft">{current.result.explanation}</p>
-              </div>
-              <div>
-                <Button
-                  variant="primary"
-                  onClick={onNext}
-                  icon={
+        <div aria-live="polite">
+          <Presence>
+            {current !== undefined && verdict !== null && (
+              <Reveal key="verdict" className="flex flex-col gap-5">
+                <div className="flex flex-col gap-2">
+                  <VerdictLine tone={verdict}>
+                    {t(VERDICT[verdict])}
+                  </VerdictLine>
+                  <Presence>
+                    {!current.result.correct && (
+                      <Reveal key="correct" as="p" className="text-ink">
+                        {t("drills.expected", {
+                          text: current.result.expected,
+                        })}
+                      </Reveal>
+                    )}
+                  </Presence>
+                  <p className="text-ink-soft">{current.result.explanation}</p>
+                </div>
+                <div>
+                  <Button
+                    variant="primary"
+                    onClick={onNext}
+                    icon={
+                      <Presence>
+                        {current.result.retry !== null && (
+                          <Reveal
+                            key="retry"
+                            as="span"
+                            kind="fade"
+                            className="inline-flex"
+                          >
+                            <RotateCcw aria-hidden className="size-4" />
+                          </Reveal>
+                        )}
+                      </Presence>
+                    }
+                  >
+                    {current.result.retry === null
+                      ? t("drills.next")
+                      : t("drills.retry")}
                     <Presence>
-                      {current.result.retry !== null && (
+                      {current.result.retry === null && (
                         <Reveal
-                          key="retry"
+                          key="next"
                           as="span"
                           kind="fade"
                           className="inline-flex"
                         >
-                          <RotateCcw aria-hidden className="size-4" />
+                          <ArrowRight aria-hidden className="size-4" />
                         </Reveal>
                       )}
                     </Presence>
-                  }
-                >
-                  {current.result.retry === null
-                    ? t("drills.next")
-                    : t("drills.retry")}
-                  <Presence>
-                    {current.result.retry === null && (
-                      <Reveal
-                        key="next"
-                        as="span"
-                        kind="fade"
-                        className="inline-flex"
-                      >
-                        <ArrowRight aria-hidden className="size-4" />
-                      </Reveal>
-                    )}
-                  </Presence>
-                </Button>
-              </div>
-            </Reveal>
-          )}
-        </Presence>
-      </div>
+                  </Button>
+                </div>
+              </Reveal>
+            )}
+          </Presence>
+        </div>
+      </RunCard>
     </section>
   );
 }
@@ -288,12 +296,18 @@ function DrillSummary({
   const { t } = useTranslation();
   const correct = answered.filter((entry) => entry.result.correct).length;
   return (
-    <div className="grid h-full place-items-center px-10">
-      <div className="flex w-full max-w-lg flex-col gap-8">
-        <h1 className="font-display text-display font-light text-ink">
+    <div className="grid h-full place-items-center px-4 pb-12">
+      <RunCard className="flex max-w-lg flex-col gap-8">
+        <h1 className="font-display text-display font-light tracking-tight text-ink">
           {t("drills.summary")}
         </h1>
         <div className="flex flex-col gap-3">
+          <BigNumber
+            value={correct}
+            unit={`/ ${String(answered.length)}`}
+            size="xl"
+            className="text-ink"
+          />
           <ol aria-hidden className="flex gap-1.5">
             <Presence>
               {answered.map((entry) => (
@@ -310,7 +324,7 @@ function DrillSummary({
               ))}
             </Presence>
           </ol>
-          <p className="text-lead text-ink">
+          <p className="font-mono text-sm text-ink-soft tabular-nums">
             {t("drills.summaryCount", { correct, total: answered.length })}
           </p>
         </div>
@@ -323,7 +337,7 @@ function DrillSummary({
             {t("drills.home")}
           </Button>
         </div>
-      </div>
+      </RunCard>
     </div>
   );
 }
@@ -412,40 +426,44 @@ export function DrillRunner({
             ))}
           </Presence>
         </ol>
-        <p className="text-sm text-ink-faint tabular-nums">{label}</p>
+        <p className="font-mono text-xs text-ink-faint tabular-nums">{label}</p>
       </Reveal>
     );
 
   return (
-    <SittingFrame
-      leave={t("drills.close")}
-      progress={null}
-      section="partner"
-      bar={bar}
-      onClose={onClose}
-    >
-      <SittingStage step={item === undefined ? "summary" : String(item.index)}>
-        {item === undefined ? (
-          <DrillSummary
-            answered={answered}
-            graded={graded}
-            onAgain={onAgain}
-            onClose={onClose}
-          />
-        ) : (
-          <DrillQuestion
-            item={item}
-            label={label}
-            current={current}
-            verdict={current === undefined ? null : graded(current)}
-            thread={thread}
-            onAnswer={(text) => answer(item, text)}
-            onNext={() => {
-              setPosition(position + 1);
-            }}
-          />
-        )}
-      </SittingStage>
-    </SittingFrame>
+    <RunBackdrop>
+      <SittingFrame
+        leave={t("drills.close")}
+        progress={null}
+        section="partner"
+        bar={bar}
+        onClose={onClose}
+      >
+        <SittingStage
+          step={item === undefined ? "summary" : String(item.index)}
+        >
+          {item === undefined ? (
+            <DrillSummary
+              answered={answered}
+              graded={graded}
+              onAgain={onAgain}
+              onClose={onClose}
+            />
+          ) : (
+            <DrillQuestion
+              item={item}
+              label={label}
+              current={current}
+              verdict={current === undefined ? null : graded(current)}
+              thread={thread}
+              onAnswer={(text) => answer(item, text)}
+              onNext={() => {
+                setPosition(position + 1);
+              }}
+            />
+          )}
+        </SittingStage>
+      </SittingFrame>
+    </RunBackdrop>
   );
 }

@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import type { ChapterStructures } from "@shared/structures";
 import { Presence } from "@/components/motion/Presence";
 import { Reveal } from "@/components/motion/Reveal";
+import { Stagger } from "@/components/motion/Stagger";
 import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
 import { chapterName } from "@/features/books/chapterName";
@@ -29,35 +30,37 @@ export function ChapterCard({
   const scan = useChapterScan(stored.chapter.id);
   const found = scan.found ?? stored;
   return (
-    <section className="flex flex-col items-start gap-4 rounded-xl bg-surface p-6 shadow-card">
+    <section className="flex flex-col items-start gap-4 rounded-xl glass p-6">
       <header className="flex flex-col gap-1">
-        <p className="text-sm text-ink-faint">
+        <p className="font-mono text-xs text-ink-faint">
           {t("structures.chapter.book", {
             book: found.bookTitle,
             chapter: chapterName(found.chapter, t),
           })}
         </p>
-        <h2 className="text-lead font-semibold text-ink">
+        <h2 className="font-display text-lead font-semibold tracking-tight text-ink">
           {t("structures.chapter.title")}
         </h2>
       </header>
       <Presence>
         {found.structures.length > 0 && (
           <Reveal key="used">
-            <ul className="flex flex-wrap gap-2">
+            <Stagger as="ul" className="flex flex-wrap gap-2">
               {found.structures.map((each) => (
-                <li
+                <Reveal
+                  as="li"
                   key={each.key}
-                  className="rounded-sm bg-raised px-3 py-1 text-sm text-ink-soft"
+                  kind="scale"
+                  className="rounded-full bg-sunken/60 px-3 py-1 text-sm text-ink-soft tabular-nums"
                 >
                   <span className="font-medium text-ink">
                     {names.get(each.key) ?? each.key}
                   </span>
                   {" · "}
                   {t("structures.chapter.count", { count: each.count })}
-                </li>
+                </Reveal>
               ))}
-            </ul>
+            </Stagger>
           </Reveal>
         )}
         {found.scanned && found.structures.length === 0 && (

@@ -43,13 +43,16 @@ export function AnalysisView({ sessionId }: AnalysisViewProps): ReactNode {
       <Stagger className="flex w-full max-w-sm flex-col items-center gap-8 text-center">
         <Orb size="lg" state="thinking" shared />
         <Reveal as="div" className="flex flex-col gap-2">
-          <h1 className="text-title font-semibold text-ink">
+          <h1 className="font-display text-title font-semibold tracking-tight text-ink">
             {t("analysis.title")}
           </h1>
           <p className="text-sm text-ink-soft">{t("analysis.note")}</p>
         </Reveal>
         <Reveal as="div" className="w-full">
-          <ol aria-live="polite" className="flex flex-col gap-4">
+          <ol
+            aria-live="polite"
+            className="flex flex-col gap-1 rounded-xl glass p-2"
+          >
             {STEPS.map((name, i) => {
               const done = i < reached;
               const current = i === reached;
@@ -58,7 +61,8 @@ export function AnalysisView({ sessionId }: AnalysisViewProps): ReactNode {
                   key={name}
                   aria-current={current ? "step" : undefined}
                   className={cn(
-                    "flex items-center justify-center gap-3 text-base",
+                    "flex items-center justify-center gap-3 rounded-lg px-4 py-2.5 text-base transition-colors duration-300 ease-out-expo",
+                    current && "bg-sunken/60",
                     done || current ? "text-ink" : "text-ink-faint",
                   )}
                 >
@@ -94,8 +98,10 @@ export function AnalysisView({ sessionId }: AnalysisViewProps): ReactNode {
                           kind="scale"
                           index={0}
                           aria-hidden
-                          className="col-start-1 row-start-1 size-1.5 rounded-full bg-line-strong"
-                        />
+                          className="col-start-1 row-start-1 size-1.5"
+                        >
+                          <span className="block size-full animate-breathe rounded-full bg-line-strong" />
+                        </Reveal>
                       )}
                     </Presence>
                   </span>

@@ -1,174 +1,175 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="assets/hero-dark.svg">
-    <img src="assets/hero-light.svg" alt="Ogmios: practice English speaking with AI. Your own book, Alice's Adventures in Wonderland, is prepared chapter by chapter: a chart shows which chapters are ready to read, and the words of chapter one (tumble, curtsey, give up...) are studied with the book's own sentence and come back after 1, 3, 7, 21 and 60 days." width="100%">
+    <img src="assets/hero-light.svg" alt="Ogmios: speak English freely, learn from it after. You speak into the microphone, and a laptop running Ogmios shows the conversation, where the partner answers without correcting you. Then three cards come out: your focus, where I did a big effort becomes I made a big effort; tumble, a word from your book with its sentence; and the day it comes back." width="100%">
   </picture>
 </p>
+
+<p align="center"><b>English</b> · <a href="README.es.md">Español</a></p>
+
+<h1 align="center">Ogmios: practise speaking English with AI</h1>
+
+<p align="center"><b>Talk freely, with nobody stopping you. Learn from it after.</b></p>
 
 <p align="center">
   <a href="https://github.com/ilien-dev/ogmios/releases/latest"><img src="https://img.shields.io/github/v/release/ilien-dev/ogmios?label=release&color=5b4bc4" alt="Latest release"></a>
   <a href="https://github.com/ilien-dev/ogmios/releases/latest"><img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows-2d55c4" alt="macOS and Windows"></a>
-  <a href="https://github.com/ilien-dev/ogmios/actions/workflows/ci.yml"><img src="https://github.com/ilien-dev/ogmios/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-0f766e" alt="License: AGPL-3.0"></a>
   <a href="https://ogmios.ilien.dev"><img src="https://img.shields.io/badge/website-ogmios.ilien.dev-a3245f" alt="Website"></a>
 </p>
 
-# Ogmios: practice English speaking with AI (Claude)
+<p align="center"><a href="#talk-and-nobody-stops-you">Talk</a> · <a href="#how-it-helps-you-improve">Improve</a> · <a href="#learn-the-words-of-your-own-books">Books</a> · <a href="#your-data-stays-on-your-computer">Your data</a> · <a href="#install">Install</a> · <a href="#questions">Questions</a></p>
 
-**English** | [Español](README.es.md)
+---
 
-Ogmios is a free, open-source desktop app for macOS and Windows to practice
-spoken English with Claude, Anthropic's AI. You talk or type, nobody corrects
-you mid-sentence, and when you finish you get one thing to focus on. It also
-teaches you the vocabulary of your own books before you read them.
+**Ogmios is a free app for your computer where you practise spoken English
+with Claude, Anthropic's AI.** You talk or type, and nobody corrects you
+mid-sentence. When you finish, you get one thing to work on, explained in your
+own language. It also teaches you the words of the books you want to read. It
+runs on macOS and Windows.
 
-![An English conversation in Ogmios: the AI partner asks about a small win at work and the learner answers](docs/screenshots/conversation.png)
+## Talk, and nobody stops you
 
-**[Download for Windows](https://github.com/ilien-dev/ogmios/releases/latest)** ·
-**[Install on macOS](#install)** ·
-**[See it running on the website](https://ogmios.ilien.dev)**
+<p align="center"><picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/readme/talk-dark.svg">
+  <img src="assets/readme/talk-light.svg" alt="The real Ogmios conversation screen. The cursor holds the microphone while you speak and the partner answers. Beside it, the notes No corrections now, just talk, and Stuck? Ask how to say it." width="100%">
+</picture></p>
 
-Ogmios is free. The AI is not included: you connect your own Claude, with an
-Anthropic API key or with Claude Code. [More on that below](#what-you-need).
+Pick a topic and a level, from basic to advanced, and start talking. Hold the
+microphone and speak, or type. Your partner asks, listens and follows what you
+say, like a patient friend would. If you get stuck, the "How do I say…?" button gives you
+a few ways to say it in English from your own language. Your voice is turned
+into text on your computer, and you can fix that text before you send it.
 
-## What it does
+## How it helps you improve
 
-### English conversation practice
+<p align="center"><picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/readme/improve-dark.svg">
+  <img src="assets/readme/improve-light.svg" alt="One repeated mistake, I did a big effort, moves along four stops: detected, in focus, improving in a two-minute drill, and mastered only when you say I made a big effort in a real conversation." width="100%">
+</picture></p>
 
-You pick a topic and a level, from basic to advanced, and talk. You can hold
-the microphone and speak, or type. Your partner asks, listens and follows what
-you say.
+1. **You finish a conversation.** You see what went well, one thing to work on
+   and at most two smaller points. For grammar, you try to fix your own
+   sentence before the answer shows.
+2. **Ogmios remembers what you repeat.** A mistake that comes back becomes a
+   pattern that moves from detected to in focus, improving and mastered.
+3. **Your next conversations bring it back.** Your partner steers the talk
+   towards situations where you will need it, and two-minute drills help when
+   you want them.
+4. **You master it by speaking.** A pattern counts as mastered only when you
+   get it right in real conversations, not just in drills.
 
-- **No corrections while you talk.** The partner never stops you to fix a
-  mistake. If you get stuck, "How do I say…?" gives you a few ways to say
-  something in English from your own language.
-- **Feedback after the conversation.** You get what went well, one thing to
-  work on and at most two smaller points, explained in your native language.
-  For grammar, you see your own sentence and try to fix it before the answer
-  shows.
-- **An error memory.** A mistake you repeat becomes a pattern that moves
-  through detected → in focus → improving → mastered. Your partner steers the
-  next conversations towards the one in focus. A pattern counts as mastered
-  only when you get it right in real conversations, not just in drills.
-- **Short drills when you want them.** Two minutes, mixing the structure you
-  are working on with the others.
-- **Speech-to-text on your computer.** Your voice is turned into text on your
-  machine, and you can edit the text before you send it.
+The details of each step are in [How Ogmios decides what you practise](docs/HOW-IT-WORKS.md).
 
-![The feedback after a conversation: the learner's sentence, their own fix, and a short explanation](docs/screenshots/feedback.png)
+## Learn the words of your own books
 
-### Vocabulary from your own books
+<p align="center"><picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/readme/books-dark.svg">
+  <img src="assets/readme/books-light.svg" alt="Alice's Adventures in Wonderland as an EPUB becomes a bar per chapter. The word curtsey is learned with the book's sentence, She tried to curtsey as she spoke, and comes back after 1, 3, 7, 21 and 60 days, until the chapter is ready to read." width="100%">
+</picture></p>
 
-Add a book in English as an EPUB or a PDF. Ogmios prepares it chapter by
+Add a book in English as an EPUB or a PDF, and Ogmios prepares it chapter by
 chapter.
 
-- **See how ready you are for each chapter.** A chart shows which chapters you
-  can read now and which still have words to learn.
-- **Learn the words with the book's own sentences.** Each word is asked with a
-  sentence from the book, into your language and back into English. Words you
-  already know can be marked and left out.
-- **Daily review with spaced repetition.** A learned word comes back after 1,
-  3, 7, 21 and 60 days. Your conversation partner also uses the words you are
-  about to forget.
-- **More ways into the same chapter.** Translate it sentence by sentence,
-  practice its sentence structures, or train your ear with dictations.
+- **See which chapters you can read.** A bar per chapter fills as you learn
+  its words, and a full bar means the chapter is ready to read.
+- **Learn each word in its sentence.** Every word is asked with a sentence
+  from the book, into your language and back into English.
+- **Skip what you know.** Words you already know can be marked and left out.
+- **Review before you forget.** A learned word comes back after 1, 3, 7, 21
+  and 60 days, and your partner uses it in conversation too.
+- **Go further with a chapter.** Translate it sentence by sentence, practise
+  its sentence structures, or train your ear with dictations.
 
-![A book in Ogmios: a bar for each chapter of Alice's Adventures in Wonderland and the words of the first one](docs/screenshots/book.png)
+## Your data stays on your computer
 
-## What you need
+<p align="center"><picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/readme/privacy-dark.svg">
+  <img src="assets/readme/privacy-light.svg" alt="Your computer drawn as a place with walls: your voice becomes text inside it, and your books and progress stay inside it. Only text leaves for Claude, never your voice, and the answer comes back." width="100%">
+</picture></p>
 
-Ogmios works with Claude and does not run without it. You need one of these:
-
-1. **An Anthropic API key** (recommended). It is stored in your system's
-   keychain, and you pay Anthropic for what you use. A 20-minute conversation
-   costs roughly $0.20 with Sonnet 5. That is an estimate, not a measurement.
-2. **Your own Claude Code.** Ogmios runs the `claude` you installed and logged
-   into yourself. It never sees your credentials. Anthropic may limit
-   subscription use in third-party apps, so this way can stop working at any
-   time.
-
-Ogmios is an independent project. It is not affiliated with or endorsed by
-Anthropic.
+Your conversations, recordings, books and progress are saved on your computer,
+and there is no Ogmios account. Speech recognition runs on your machine, so
+your voice never leaves it. Claude receives the text of your conversations
+and, when you prepare a chapter, the text of that chapter.
 
 ## Install
 
-**Windows**: download `Ogmios_x64-setup.exe` from the
-[latest release](https://github.com/ilien-dev/ogmios/releases/latest) and run
-it. The installer is not signed yet, so SmartScreen warns about it: choose
-**More info → Run anyway**.
+**Windows:** download `Ogmios_x64-setup.exe` from the
+[latest release](https://github.com/ilien-dev/ogmios/releases/latest) and open
+it. The installer is not signed yet, so Windows warns about it: choose
+"More info", then "Run anyway".
 
-**macOS** (Apple Silicon), with Homebrew:
+**macOS** (a Mac with an Apple chip, M1 or later): open Terminal and paste
+these two lines. They use [Homebrew](https://brew.sh), a free tool that
+installs Mac apps.
 
 ```sh
 brew tap ilien-dev/ogmios https://github.com/ilien-dev/ogmios
 brew install --cask ogmios
 ```
 
-After that Ogmios updates itself: it checks for a new release at start-up, and
-**Settings → About Ogmios** shows the version and installs the update.
+Ogmios updates itself after that. **Settings → About Ogmios** shows the
+version.
 
-There is no mobile app and no web version.
-
-## Your data
-
-Conversations, recordings, books and progress stay in a SQLite file on your
-computer. Speech recognition runs locally and the audio never leaves your
-machine. What is sent to Claude is the text of your conversations and, when
-you prepare a chapter, the text of that chapter. There is no Ogmios account.
+> [!IMPORTANT]
+> Ogmios needs Claude to hold the conversations, and Claude is not included.
+> Connect an Anthropic API key, where you pay Anthropic for what you use
+> (roughly $0.20 for 20 minutes, an estimate), or your own Claude Code.
+> [Connect Ogmios to Claude](docs/CLAUDE-SETUP.md) shows both, step by step.
 
 ## Questions
 
-**Is it free?** The app is, and its code is open under AGPL-3.0. You pay
-Anthropic for your own use of Claude.
+<details><summary><b>Is it free?</b></summary>
 
-**How is it different from practicing English with ChatGPT or Claude
-directly?** In a chat you write the prompt, ask for corrections and keep track
-of your own mistakes. Ogmios has the conversation set up, holds every
-correction until the end, remembers the mistakes you repeat and brings them
-back in later conversations.
+The app is, and its code is open. You pay Anthropic for your own use of
+Claude.
 
-**What level of English do I need?** Any. You choose basic, intermediate or
-advanced for each conversation.
+</details>
 
-**Which languages?** Ogmios teaches English. The interface is in English and
-Spanish, and explanations are written in the native language you choose.
+<details><summary><b>Why not just chat with Claude?</b></summary>
 
-## Development
+In a chat you write the instructions, ask for corrections and keep track of
+your own mistakes. Ogmios has the conversation set up, keeps every correction
+until the end, remembers the mistakes you repeat and brings them back in later
+conversations.
 
-Requirements: [Bun](https://bun.sh) 1.3+, Rust stable, and the
-[Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) for your
-platform (on Linux, also `libasound2-dev`).
+</details>
 
-```bash
-bun install
-bun run hooks:install   # formatting check before each commit
-bun run tauri:dev       # the desktop app
-bun run dev             # the interface alone, on a fake backend
-bun run check           # types, lint, format, tests (TypeScript and Rust)
-```
+<details><summary><b>What level of English do I need?</b></summary>
 
-The speech recogniser for Linux x86_64 is in
-`src-tauri/vendor/parakeet/`. For another platform, run
-`scripts/build-parakeet.sh` (needs CMake, Ninja and a C++ compiler).
+Any. You choose basic, intermediate or advanced for each conversation.
 
-Layout: `src/` is the React interface, `src-tauri/` the Rust backend (data,
-error memory, speech), `sidecar/` the process that talks to Claude, `shared/`
-the types they exchange. The product spec is in `docs/SPEC.md`.
+</details>
 
-The website ([ogmios.ilien.dev](https://ogmios.ilien.dev)) is its own
-repository, [ogmios-site](https://github.com/ilien-dev/ogmios-site), included
-here as the `site/` submodule. Its windows play the real interface, so after a
-change to the interface the demo is built again:
+<details><summary><b>Which languages does it speak?</b></summary>
 
-```bash
-bun run site:install    # once: fetch the submodule and its packages
-bun run site:demo       # rebuild the demo from this checkout
-bun run site:dev        # the site, on http://localhost:4321
-```
+Ogmios teaches English. The app is in English and Spanish, and explanations
+are written in the native language you choose.
 
-Commit inside `site/` and push it, then commit the new `site` pointer here.
+</details>
+
+<details><summary><b>Is there a phone or web version?</b></summary>
+
+No. Ogmios runs on macOS and Windows computers.
+
+</details>
+
+<details><summary><b>Is it made by Anthropic?</b></summary>
+
+No. Ogmios is an independent project, not affiliated with or endorsed by
+Anthropic.
+
+</details>
+
+## For developers
+
+Building, testing and how the parts fit together are in
+[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md). To send a change, read
+[CONTRIBUTING.md](CONTRIBUTING.md). The product spec is
+[docs/SPEC.md](docs/SPEC.md).
 
 ## Licence
 
-AGPL-3.0-only. See `LICENSE`. The speech recogniser (parakeet.cpp, ggml) is
-MIT; the Parakeet models are CC-BY-4.0 by NVIDIA.
+AGPL-3.0-only, see [LICENSE](LICENSE). The speech recogniser (parakeet.cpp,
+ggml) is MIT; the Parakeet models are CC-BY-4.0 by NVIDIA.

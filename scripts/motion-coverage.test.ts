@@ -83,11 +83,6 @@ const ALLOWED: readonly Allowance[] = [
     why: "A book's author: fixed for the cover, which is drawn whole.",
   },
   {
-    file: "src/features/progress/WeeklyBars.tsx",
-    when: "i % 2 === lastIndex % 2",
-    why: "Which bars carry a label: arithmetic on their place, never a change.",
-  },
-  {
     file: "src/components/ui/Notice.tsx",
     when: "icon !== undefined",
     why: "Fixed by whoever writes the notice, whose own Reveal carries it.",

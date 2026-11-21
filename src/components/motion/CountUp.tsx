@@ -7,18 +7,21 @@ interface CountUpProps {
   value: number;
   format?: (n: number) => string;
   className?: string;
+  /** Where it counts from when it first appears; without it, it starts on its value. */
+  from?: number;
 }
 
-/** A number that counts to its value when the value changes. */
+/** A number that counts to its value when the value changes, and on arrival from `from`. */
 export function CountUp({
   value,
   format = String,
   className,
+  from: start,
 }: CountUpProps): ReactNode {
   const reduced = useReducedMotionConfig();
   const still = !animated() || reduced === true;
-  const [counted, setCounted] = useState(value);
-  const from = useRef(value);
+  const [counted, setCounted] = useState(start ?? value);
+  const from = useRef(start ?? value);
 
   useEffect(() => {
     if (still) {

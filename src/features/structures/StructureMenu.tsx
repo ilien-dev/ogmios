@@ -6,7 +6,6 @@ import type { StructuresState } from "@shared/structures";
 import type { Navigate } from "@/app/routes";
 import { Presence } from "@/components/motion/Presence";
 import { Reveal } from "@/components/motion/Reveal";
-import { Stagger } from "@/components/motion/Stagger";
 import { BackLink } from "@/components/ui/BackLink";
 import { Chip } from "@/components/ui/Chip";
 import { Notice } from "@/components/ui/Notice";
@@ -17,12 +16,13 @@ import {
   startStructureSitting,
   structuresState,
 } from "@/lib/ipc";
+import { StatChip } from "@/components/scene/Stats";
+import { HubScreen } from "@/features/drills/ScreenParts";
 import { ChapterCard } from "./ChapterCard";
+import { LEVELS, LevelScene } from "./LevelScene";
 import { StartBar } from "./StartBar";
 import { PausedRow, StructureRow } from "./StructureRows";
 import { DEFAULT_SIZE } from "./structureText";
-
-const LEVELS: readonly Level[] = ["basic", "intermediate", "advanced"];
 
 interface StructureMenuProps {
   navigate: Navigate;
@@ -99,37 +99,34 @@ export function StructureMenu({ navigate }: StructureMenuProps): ReactNode {
   const chapter = state?.chapter ?? null;
   const paused = state?.paused ?? [];
   return (
-    <main className="flex h-full flex-col">
-      <div className="relative min-h-0 flex-1 overflow-y-auto">
-        <Presence swap>
-          {state === null ? (
-            <Reveal key="wait" kind="fade" className="h-full">
-              <SittingWait failure={failure} />
-            </Reveal>
-          ) : (
-            <Reveal key="menu" kind="fade">
-              <Stagger className="mx-auto flex max-w-3xl flex-col gap-10 px-6 py-12 nav:py-16">
-                <Reveal as="header" className="flex flex-col gap-3">
+    <Presence swap>
+      {state === null ? (
+        <Reveal key="wait" as="main" kind="fade" className="relative h-full">
+          <SittingWait failure={failure} />
+        </Reveal>
+      ) : (
+        <Reveal key="menu" kind="fade" className="h-full">
+          <HubScreen
+            aside={
+              <>
+                <Reveal className="flex flex-col gap-3">
                   <BackLink
                     label={t("structures.title")}
                     onClick={() => {
                       navigate({ name: "structures" });
                     }}
                   />
-                  <h1 className="font-display text-display font-light text-ink">
-                    {t("structures.hub.freeTitle")}
-                  </h1>
-                  <p className="text-lead text-ink-soft">
-                    {t("structures.hub.freeText")}
-                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <StatChip value={chosen.length} tone="accent">
+                      {t("structures.board.picked", { count: chosen.length })}
+                    </StatChip>
+                    <StatChip value={shown.length}>
+                      {t("structures.board.structures", {
+                        count: shown.length,
+                      })}
+                    </StatChip>
+                  </div>
                 </Reveal>
-                <Presence>
-                  {failure !== null && (
-                    <Notice key="failure" tone="danger">
-                      {t("common.error", { message: failure })}
-                    </Notice>
-                  )}
-                </Presence>
                 <Presence>
                   {chapter !== null && (
                     <Reveal key="chapter">
@@ -151,12 +148,12 @@ export function StructureMenu({ navigate }: StructureMenuProps): ReactNode {
                     <Reveal
                       as="section"
                       key="paused"
-                      className="flex flex-col gap-4"
+                      className="flex flex-col gap-2.5"
                     >
-                      <h2 className="text-sm font-medium text-ink-faint">
+                      <h2 className="px-1 font-display text-base tracking-tight text-ink">
                         {t("structures.paused.title")}
                       </h2>
-                      <ul className="flex flex-col divide-y divide-line rounded-xl bg-surface py-1 shadow-card">
+                      <ul className="flex flex-col divide-y divide-line rounded-xl glass py-1">
                         <Presence>
                           {paused.map((sitting, index) => (
                             <PausedRow
@@ -178,9 +175,9 @@ export function StructureMenu({ navigate }: StructureMenuProps): ReactNode {
                     </Reveal>
                   )}
                 </Presence>
-                <Reveal as="section" className="flex flex-col gap-4">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <h2 className="text-sm font-medium text-ink-faint">
+                <Reveal as="section" className="flex flex-col gap-2.5">
+                  <div className="flex flex-wrap items-center justify-between gap-3 px-1">
+                    <h2 className="font-display text-base tracking-tight text-ink">
                       {t("structures.all")}
                     </h2>
                     <div
@@ -209,7 +206,7 @@ export function StructureMenu({ navigate }: StructureMenuProps): ReactNode {
                       ))}
                     </div>
                   </div>
-                  <ul className="flex flex-col divide-y divide-line rounded-xl bg-surface py-1 shadow-card">
+                  <ul className="flex flex-col divide-y divide-line rounded-xl glass py-1">
                     <Presence>
                       {shown.map((structure, index) => (
                         <StructureRow
@@ -225,28 +222,41 @@ export function StructureMenu({ navigate }: StructureMenuProps): ReactNode {
                     </Presence>
                   </ul>
                 </Reveal>
-              </Stagger>
-            </Reveal>
-          )}
-        </Presence>
-      </div>
-      <Presence>
-        {state !== null && (
-          <Reveal key="start" kind="fade" className="shrink-0">
-            <StartBar
-              size={size}
-              onSize={setSize}
-              note={
-                chosen.length > 0
-                  ? t("structures.selection", { count: chosen.length })
-                  : t("structures.selectionNone", { count: shown.length })
-              }
-              starting={starting}
-              onStart={() => void start()}
-            />
-          </Reveal>
-        )}
-      </Presence>
-    </main>
+              </>
+            }
+            scene={
+              <LevelScene
+                title={t("structures.hub.freeTitle")}
+                text={t("structures.hub.freeText")}
+                structures={state.structures}
+                picked={picked}
+                extra={
+                  <Presence>
+                    {failure !== null && (
+                      <Notice key="failure" tone="danger">
+                        {t("common.error", { message: failure })}
+                      </Notice>
+                    )}
+                  </Presence>
+                }
+                footer={
+                  <StartBar
+                    size={size}
+                    onSize={setSize}
+                    note={
+                      chosen.length > 0
+                        ? t("structures.selection", { count: chosen.length })
+                        : t("structures.selectionNone", { count: shown.length })
+                    }
+                    starting={starting}
+                    onStart={() => void start()}
+                  />
+                }
+              />
+            }
+          />
+        </Reveal>
+      )}
+    </Presence>
   );
 }

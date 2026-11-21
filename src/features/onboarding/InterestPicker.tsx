@@ -2,6 +2,8 @@ import type { ReactNode } from "react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Plus, X } from "lucide-react";
+import { Presence } from "@/components/motion/Presence";
+import { Reveal } from "@/components/motion/Reveal";
 import { Button } from "@/components/ui/Button";
 import { Chip } from "@/components/ui/Chip";
 import { TextInput } from "@/components/ui/TextInput";
@@ -52,19 +54,33 @@ export function InterestPicker({
             {label}
           </Chip>
         ))}
-        {own.map((label) => (
-          <Chip
-            key={label}
-            selected
-            aria-label={t("onboarding.interests.remove", { label })}
-            onClick={() => {
-              toggle(label);
-            }}
-          >
-            {label}
-            <X aria-hidden className="size-3.5" />
-          </Chip>
-        ))}
+        <Presence>
+          {own.map((label) => (
+            <Reveal
+              key={label}
+              as="span"
+              kind="scale"
+              index={0}
+              layout="position"
+              className="inline-flex"
+            >
+              <Chip
+                selected
+                className="group"
+                aria-label={t("onboarding.interests.remove", { label })}
+                onClick={() => {
+                  toggle(label);
+                }}
+              >
+                {label}
+                <X
+                  aria-hidden
+                  className="size-3.5 transition-transform duration-300 ease-out-expo group-hover:rotate-90"
+                />
+              </Chip>
+            </Reveal>
+          ))}
+        </Presence>
       </div>
       <div className="flex items-center gap-2">
         <label htmlFor="interest-own" className="sr-only">
@@ -86,9 +102,14 @@ export function InterestPicker({
           }}
         />
         <Button
-          className="h-11"
+          className="group h-11"
           disabled={draft.trim() === ""}
-          icon={<Plus aria-hidden className="size-4" />}
+          icon={
+            <Plus
+              aria-hidden
+              className="size-4 transition-transform duration-300 ease-out-expo group-hover:rotate-90"
+            />
+          }
           onClick={add}
         >
           {t("onboarding.interests.addButton")}

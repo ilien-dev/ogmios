@@ -15,9 +15,10 @@ import { StrengthMark } from "@/features/recall/StrengthMark";
 import { errorMessage } from "@/lib/errors";
 import { deleteSession, getProgress } from "@/lib/ipc";
 import { formatDate } from "@/lib/text";
-import { PatternList } from "./PatternList";
+import { focusPattern } from "./ladder";
+import { ProgressBoard } from "./ProgressBoard";
+import { ProgressScene } from "./ProgressScene";
 import { SessionList } from "./SessionList";
-import { WeeklyBars } from "./WeeklyBars";
 
 function Section({
   title,
@@ -31,8 +32,13 @@ function Section({
   className?: string;
 }): ReactNode {
   return (
-    <Reveal as="section" className={cn("flex flex-col gap-5", className)}>
-      <h2 className="text-lg font-semibold text-ink">{title}</h2>
+    <Reveal
+      as="section"
+      className={cn("flex flex-col gap-5 rounded-xl glass p-6", className)}
+    >
+      <h2 className="font-display text-2xl font-light tracking-tight text-ink">
+        {title}
+      </h2>
       <Presence swap>
         {empty === null ? (
           <Reveal key="filled" kind="fade" index={0}>
@@ -113,7 +119,11 @@ function Vocabulary({ words }: { words: VocabEntry[] }): ReactNode {
   );
 }
 
-/** §11: the progress map. Levels live here and nowhere else. */
+/**
+ * §11: the progress map, as in the brand proposal: a column of glass beside
+ * the staircase of patterns, and below them the level, the best sentences,
+ * the words and the conversations. Levels live here and nowhere else.
+ */
 export function ProgressScreen({
   navigate,
 }: {
@@ -122,6 +132,7 @@ export function ProgressScreen({
   const { t, i18n } = useTranslation();
   const [progress, setProgress] = useState<Progress | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
+  const [picked, setPicked] = useState<string | null>(null);
 
   useEffect(() => {
     let live = true;
@@ -162,35 +173,48 @@ export function ProgressScreen({
 
     const cefr = progress.cefrHistory.at(-1);
     const locale = i18n.language;
+    const shown =
+      progress.patterns.find((pattern) => pattern.id === picked) ??
+      focusPattern(progress.patterns);
 
     return (
       <main className="h-full overflow-y-auto">
-        <Stagger className="mx-auto flex max-w-4xl flex-col gap-16 px-10 pt-16 pb-20">
-          <Reveal as="header" className="flex flex-col gap-3">
-            <h1 className="font-display text-display font-light text-ink">
-              {t("progress.title")}
-            </h1>
-          </Reveal>
+        <div className="flex flex-col gap-4 pt-2 pb-6">
+          <div className="flex flex-col gap-4 wide:flex-row wide:items-stretch">
+            <div className="flex w-full shrink-0 flex-col wide:max-w-md">
+              <ProgressBoard
+                progress={progress}
+                selected={shown?.id ?? null}
+                onSelect={setPicked}
+              />
+            </div>
+            <Stagger className="flex min-h-195 min-w-0 flex-1 flex-col">
+              <ProgressScene
+                progress={progress}
+                shown={shown}
+                className="flex-1"
+              />
+            </Stagger>
+          </div>
 
-          <div className="grid grid-cols-5 gap-12">
+          <Stagger className="grid gap-4 wide:grid-cols-2">
             <Section
               title={t("progress.cefr")}
               empty={cefr === undefined ? t("progress.cefrEmpty") : null}
-              className="col-span-2"
             >
               <div className="flex flex-col gap-4">
-                <p className="text-6xl font-semibold tracking-tight text-ink">
+                <p className="font-display text-6xl leading-none font-light tracking-tight text-ink tabular-nums">
                   {cefr?.cefr}
                 </p>
-                <ol className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-ink-faint">
+                <ol className="flex flex-wrap gap-2">
                   <Presence>
-                    {progress.cefrHistory.map((point) => (
+                    {progress.cefrHistory.map((point, index) => (
                       <Reveal
                         key={point.date}
                         as="li"
                         kind="fade"
-                        index={0}
-                        className="tabular-nums"
+                        index={index}
+                        className="rounded-full glass px-3 py-1 font-mono text-xs text-ink-soft tabular-nums"
                       >
                         {`${formatDate(point.date, locale)} · ${point.cefr}`}
                       </Reveal>
@@ -202,31 +226,6 @@ export function ProgressScreen({
                 </p>
               </div>
             </Section>
-            <Section
-              title={t("progress.weekly")}
-              empty={
-                progress.weeklyMinutes.some((week) => week.minutes > 0)
-                  ? null
-                  : t("progress.weeklyEmpty")
-              }
-              className="col-span-3"
-            >
-              <WeeklyBars weeks={progress.weeklyMinutes} />
-            </Section>
-          </div>
-
-          <Section
-            title={t("progress.patterns")}
-            empty={
-              progress.patterns.length === 0
-                ? t("progress.patternsEmpty")
-                : null
-            }
-          >
-            <PatternList patterns={progress.patterns} />
-          </Section>
-
-          <div className="grid grid-cols-2 gap-12">
             <Section
               title={t("progress.best")}
               empty={
@@ -243,12 +242,12 @@ export function ProgressScreen({
                       as="li"
                       kind="fade"
                       index={0}
-                      className="flex flex-col gap-1"
+                      className="flex flex-col gap-1 border-l-2 border-mint pl-4"
                     >
                       <p className="leading-relaxed text-ink">
                         {sentence.text}
                       </p>
-                      <p className="text-sm text-ink-faint">
+                      <p className="font-mono text-xs text-ink-faint">
                         {formatDate(sentence.date, locale)}
                       </p>
                     </Reveal>
@@ -266,26 +265,25 @@ export function ProgressScreen({
             >
               <Vocabulary words={progress.vocabulary} />
             </Section>
-          </div>
-
-          <Section
-            title={t("progress.sessions")}
-            empty={
-              progress.sessions.length === 0
-                ? t("progress.sessionsEmpty")
-                : null
-            }
-          >
-            <SessionList
-              sessions={progress.sessions}
-              navigate={navigate}
-              onDelete={async (sessionId) => {
-                await deleteSession(sessionId);
-                setProgress(await getProgress());
-              }}
-            />
-          </Section>
-        </Stagger>
+            <Section
+              title={t("progress.sessions")}
+              empty={
+                progress.sessions.length === 0
+                  ? t("progress.sessionsEmpty")
+                  : null
+              }
+            >
+              <SessionList
+                sessions={progress.sessions}
+                navigate={navigate}
+                onDelete={async (sessionId) => {
+                  await deleteSession(sessionId);
+                  setProgress(await getProgress());
+                }}
+              />
+            </Section>
+          </Stagger>
+        </div>
       </main>
     );
   };

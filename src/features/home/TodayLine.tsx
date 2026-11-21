@@ -71,7 +71,7 @@ function Line({ kind, home, topic, navigate }: LineProps): ReactNode {
               onClick={() => {
                 navigate({ name: "setup", preset: action.preset });
               }}
-              className="shrink-0 rounded-sm px-2 py-1 font-medium text-accent-text underline-offset-4 transition-control hover:underline"
+              className="shrink-0 rounded-full px-3 py-1 font-medium text-accent-text transition-control hover:bg-accent-soft"
             >
               {action.label}
             </button>

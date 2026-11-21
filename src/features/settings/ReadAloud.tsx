@@ -95,12 +95,15 @@ export function ReadAloud(): ReactNode {
           ) : (
             <Reveal key="download" className="flex flex-col gap-3">
               <Button
-                className="self-start"
+                className="group self-start"
                 disabled={fraction !== null}
                 icon={
                   <Swap id={fraction === null ? "download" : "fetching"}>
                     {fraction === null ? (
-                      <Download aria-hidden className="size-4" />
+                      <Download
+                        aria-hidden
+                        className="size-4 transition-transform duration-300 ease-out-expo group-hover:translate-y-0.5"
+                      />
                     ) : (
                       <Spinner />
                     )}

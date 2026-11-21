@@ -34,9 +34,12 @@ function BookCard({ book, index, navigate }: BookCardProps): ReactNode {
           onClick={() => {
             navigate({ name: "books", bookId: book.id });
           }}
-          className="group flex w-full items-center gap-5 rounded-lg bg-surface p-4 text-left shadow-card transition-control"
+          className="group flex w-full items-center gap-5 rounded-xl glass p-4 text-left transition-control hover:border-book/40 hover:shadow-lift"
         >
-          <BookCover book={book} className="w-15" />
+          <BookCover
+            book={book}
+            className="w-15 transition-transform duration-500 ease-out-expo group-hover:-translate-y-0.5 group-hover:-rotate-2"
+          />
           <span className="flex min-w-0 flex-1 flex-col gap-1">
             <span className="truncate font-medium text-ink">{book.title}</span>
             <span className="truncate text-sm text-ink-faint">
@@ -59,7 +62,7 @@ function BookCard({ book, index, navigate }: BookCardProps): ReactNode {
           </span>
           <ChevronRight
             aria-hidden
-            className="size-4 shrink-0 text-ink-faint transition-transform duration-150 group-hover:translate-x-0.5 group-hover:text-ink"
+            className="size-4 shrink-0 text-ink-faint transition-transform duration-300 ease-out-expo group-hover:translate-x-1 group-hover:text-ink"
           />
         </button>
       </Tilt>
@@ -94,7 +97,7 @@ export function BookShelf({
         <Reveal index={0} className="flex items-center gap-6">
           <Orb size="md" section="book" />
           <header className="flex min-w-0 flex-col gap-2">
-            <h1 className="font-display text-display font-light text-ink">
+            <h1 className="font-display text-display font-light tracking-tight text-ink">
               {t("books.title")}
             </h1>
             <p className="text-lead text-ink-soft">{t("books.intro")}</p>

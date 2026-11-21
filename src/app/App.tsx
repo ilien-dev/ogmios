@@ -72,7 +72,9 @@ export function App(): ReactNode {
           className="flex h-full flex-col items-center justify-center gap-6"
           aria-busy
         >
-          <Logo className="size-12" />
+          <div className="animate-float">
+            <Logo className="size-12" />
+          </div>
           <p className="flex items-center gap-3 text-sm text-ink-faint">
             <Spinner />
             {t("app.loading")}
@@ -85,7 +87,7 @@ export function App(): ReactNode {
     return (
       <BootStage name="failed">
         <div className="grid h-full place-items-center p-8">
-          <Notice tone="danger">
+          <Notice tone="danger" className="max-w-lg">
             {t("app.loadFailed", { message: boot.message })}
           </Notice>
         </div>

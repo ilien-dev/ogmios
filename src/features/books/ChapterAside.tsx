@@ -76,7 +76,7 @@ function Actions(props: ChapterAsideProps): ReactNode {
     return (
       <div className={cn("flex flex-col gap-4", ALIGN)}>
         <p className="flex items-center gap-2 text-lead font-medium text-accent-text">
-          <CircleCheck aria-hidden className="size-5" />
+          <CircleCheck aria-hidden className="size-5 animate-float" />
           {t("books.ready")}
         </p>
         <SentenceStock readying={readying && refreshable} writing={writing} />
@@ -141,7 +141,7 @@ export function ChapterAside(props: ChapterAsideProps): ReactNode {
       <div className={cn("flex min-w-0 flex-col gap-5", ALIGN)}>
         <div className="flex flex-col gap-1">
           <p className="text-sm font-semibold text-book">{book.title}</p>
-          <h1 className="font-display text-title font-light text-ink">
+          <h1 className="font-display text-title font-light tracking-tight text-ink">
             {name}
           </h1>
         </div>

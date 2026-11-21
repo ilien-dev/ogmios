@@ -46,7 +46,7 @@ export function DictationPlayer({
     <Reveal
       as="aside"
       kind="fade"
-      className="flex flex-col items-start gap-4 rounded-xl bg-surface p-6 shadow-card"
+      className="flex flex-col items-start gap-4 rounded-xl glass p-6"
     >
       <Button
         variant="primaryBook"
@@ -75,7 +75,7 @@ export function DictationPlayer({
       <PaceChoice value={pace} onChange={onPace} />
       <p
         className={cn(
-          "text-sm tabular-nums",
+          "font-mono text-xs tabular-nums",
           heard > FREE_LISTENS ? "text-partial" : "text-ink-soft",
         )}
       >

@@ -24,13 +24,17 @@ export function PreparingBar({
           <span
             key={piece}
             className={cn(
-              "flex-1 rounded-full transition-colors duration-150",
-              piece < progress.done ? "bg-book" : "bg-line",
+              "flex-1 rounded-full transition-colors duration-300",
+              piece < progress.done
+                ? "bg-book"
+                : piece === progress.done
+                  ? "animate-pulse-soft bg-book-soft"
+                  : "bg-line",
             )}
           />
         ))}
       </div>
-      <p className="text-sm text-ink-faint tabular-nums">
+      <p className="font-mono text-xs text-ink-faint tabular-nums">
         {t("books.chapter.progress", {
           done: progress.done,
           total: progress.total,

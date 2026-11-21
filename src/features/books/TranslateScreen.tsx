@@ -76,7 +76,7 @@ function Run({ opened, native, onFinished, onLeave }: RunProps): ReactNode {
         <Stagger className="mx-auto flex max-w-5xl flex-col gap-8 px-6 py-12 nav:px-10 nav:py-16">
           <Reveal as="header" className="flex flex-col gap-3">
             <BackLink label={t("books.translate.attempts")} onClick={onLeave} />
-            <h1 className="font-display text-display font-light text-ink">
+            <h1 className="font-display text-display font-light tracking-tight text-ink">
               {t("books.translate.title")}
             </h1>
           </Reveal>
@@ -109,7 +109,7 @@ function Run({ opened, native, onFinished, onLeave }: RunProps): ReactNode {
     <main className="flex h-full flex-col">
       <Stagger className="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col gap-6 px-6 pt-8 nav:px-10 nav:pt-10">
         <Reveal as="header" className="flex flex-col gap-4">
-          <h1 className="font-display text-title font-normal text-ink">
+          <h1 className="font-display text-title font-normal tracking-tight text-ink">
             {t("books.translate.title")}
           </h1>
           <TranslateBar translation={translation} native={native} />
@@ -170,7 +170,7 @@ export function TranslateScreen({
         <Stagger className="mx-auto flex max-w-2xl flex-col gap-8 px-6 py-12 nav:py-16">
           <Reveal as="header" className="flex flex-col gap-3">
             <BackLink label={chapterName(chapter, t)} onClick={onBack} />
-            <h1 className="font-display text-display font-light text-ink">
+            <h1 className="font-display text-display font-light tracking-tight text-ink">
               {t("books.translate.title")}
             </h1>
           </Reveal>

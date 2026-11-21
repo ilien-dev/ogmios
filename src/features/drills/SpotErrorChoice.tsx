@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
+import { Reveal } from "@/components/motion/Reveal";
+import { Stagger } from "@/components/motion/Stagger";
 
 interface SpotErrorChoiceProps {
   options: string[];
@@ -20,18 +22,21 @@ export function SpotErrorChoice({
       <legend className="mb-3 text-sm font-medium text-ink">
         {t("drills.pickWrong")}
       </legend>
-      {options.map((option) => (
-        <button
-          key={option}
-          type="button"
-          onClick={() => {
-            onPick(option);
-          }}
-          className="rounded-md border border-line-strong px-4 py-3.5 text-left text-lead text-ink transition-control hover:border-ink-faint hover:bg-raised"
-        >
-          {option}
-        </button>
-      ))}
+      <Stagger className="flex flex-col gap-3">
+        {options.map((option) => (
+          <Reveal key={option}>
+            <button
+              type="button"
+              onClick={() => {
+                onPick(option);
+              }}
+              className="w-full rounded-lg glass px-4 py-3.5 text-left text-lead text-ink transition-control hover:border-accent/40 hover:shadow-lift"
+            >
+              {option}
+            </button>
+          </Reveal>
+        ))}
+      </Stagger>
     </fieldset>
   );
 }

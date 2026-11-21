@@ -37,7 +37,7 @@ export function ChapterBar({
           key="chapter-bar"
           as="header"
           kind="fade"
-          className="relative z-10 flex h-14 shrink-0 items-center px-6"
+          className="relative z-10 flex shrink-0 items-center px-1 pt-1 pb-3"
         >
           <ChapterMenu books={books} current={current} navigate={navigate} />
         </Reveal>

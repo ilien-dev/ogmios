@@ -2,6 +2,8 @@ import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Eye, EyeOff, Pause, Play, SkipBack, SkipForward } from "lucide-react";
 import type { Pace } from "@shared/listening";
+import { Presence } from "@/components/motion/Presence";
+import { Reveal } from "@/components/motion/Reveal";
 import { Swap } from "@/components/motion/Swap";
 import { Button } from "@/components/ui/Button";
 import { ProgressBar } from "@/components/ui/ProgressBar";
@@ -35,7 +37,7 @@ export function ListenPlayer({
 }: ListenPlayerProps): ReactNode {
   const { t } = useTranslation();
   return (
-    <div className="mx-auto flex max-w-3xl flex-wrap items-center gap-3 rounded-xl bg-surface px-5 py-3 shadow-card">
+    <div className="mx-auto flex max-w-3xl flex-wrap items-center gap-3 rounded-2xl glass px-5 py-3">
       <Button
         aria-label={t("listening.reading.previous")}
         icon={<SkipBack aria-hidden className="size-4" />}
@@ -77,7 +79,16 @@ export function ListenPlayer({
           tone="book"
         />
       </div>
-      <p className="text-sm text-ink-faint tabular-nums">
+      <span aria-hidden className="flex size-2 shrink-0">
+        <Presence>
+          {playing && (
+            <Reveal key="live" as="span" kind="scale" className="flex">
+              <span className="size-2 animate-breathe rounded-full bg-book" />
+            </Reveal>
+          )}
+        </Presence>
+      </span>
+      <p className="font-mono text-xs text-ink-faint tabular-nums">
         {t("listening.reading.place", { current: place + 1, total })}
       </p>
       <PaceChoice value={pace} onChange={onPace} />

@@ -7,7 +7,6 @@ import { Composer } from "./Composer";
 function composer(onSend: () => Promise<boolean>): void {
   render(
     <Composer
-      sessionId="s1"
       turnWordGoal={40}
       scaffolds={[]}
       voice={false}

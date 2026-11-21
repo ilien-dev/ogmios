@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import type { ReactNode, SyntheticEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { X } from "lucide-react";
+import { ArrowRight, X } from "lucide-react";
 import type {
   PracticeOptions,
   SessionSize,
@@ -20,6 +20,16 @@ import { GRADE_TEXT } from "@/components/ui/Verdict";
 import { cn } from "@/lib/cn";
 import type { Grade } from "@/lib/grade";
 import { languageName } from "@/lib/text";
+
+/** The arrow of a way onward, nudged on: its button carries `group`. */
+export function NextArrow(): ReactNode {
+  return (
+    <ArrowRight
+      aria-hidden
+      className="size-4 transition-transform duration-300 ease-out-expo group-hover:translate-x-1"
+    />
+  );
+}
 
 interface SittingFrameProps {
   /** What the way out is called. */
@@ -67,9 +77,12 @@ export function SittingFrame({
           type="button"
           aria-label={leave}
           onClick={onClose}
-          className="grid size-10 shrink-0 cursor-pointer place-items-center rounded-full bg-surface text-ink-soft shadow-card transition-control hover:text-ink"
+          className="group grid size-10 shrink-0 cursor-pointer place-items-center rounded-full glass text-ink-soft transition-control hover:text-ink hover:shadow-lift"
         >
-          <X aria-hidden className="size-5" />
+          <X
+            aria-hidden
+            className="size-5 transition-transform duration-300 ease-out-expo group-hover:rotate-90"
+          />
         </button>
         <div className="min-w-0 flex-1">
           <Presence>
@@ -238,7 +251,7 @@ export function SittingSizes({
         onSubmit={start}
         className="flex w-full max-w-lg flex-col items-start gap-8"
       >
-        <h1 className="font-display text-display font-light text-ink">
+        <h1 className="font-display text-display font-light tracking-tight text-ink">
           {t("books.sitting.size")}
         </h1>
         <Presence>
@@ -339,7 +352,7 @@ export function SittingEnd({
   return (
     <div className="grid h-full place-items-center px-10">
       <div className="flex w-full max-w-lg flex-col items-center gap-8 text-center">
-        <h1 className="font-display text-display font-light text-ink">
+        <h1 className="font-display text-display font-light tracking-tight text-ink">
           {title}
         </h1>
         <div className="flex flex-col gap-2">

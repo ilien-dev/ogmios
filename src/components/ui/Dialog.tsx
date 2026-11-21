@@ -61,7 +61,7 @@ export function Dialog({
           key="scrim"
           kind="fade"
           onClick={onScrim}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-scrim p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-scrim p-4 backdrop-blur-sm"
         >
           <Reveal
             ref={panel}
@@ -71,7 +71,7 @@ export function Dialog({
             aria-labelledby={labelledBy}
             tabIndex={-1}
             onKeyDown={onKeyDown}
-            className="flex max-h-full w-full max-w-lg flex-col gap-4 overflow-y-auto rounded-xl bg-surface p-6 shadow-float outline-none"
+            className="flex max-h-full w-full max-w-lg flex-col gap-4 overflow-y-auto rounded-2xl border border-line bg-surface/95 p-6 shadow-float backdrop-blur-xl outline-none"
           >
             {children}
           </Reveal>

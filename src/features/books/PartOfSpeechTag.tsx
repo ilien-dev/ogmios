@@ -46,7 +46,7 @@ export function PartOfSpeechTag({
       data-part-of-speech={kind}
       tabIndex={offTabPath ? -1 : undefined}
       className={cn(
-        "rounded-sm px-2 py-0.5 text-xs font-medium",
+        "rounded-full px-2 py-0.5 text-xs font-medium",
         TAG[kind],
         className,
       )}

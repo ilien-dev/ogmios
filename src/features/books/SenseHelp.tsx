@@ -20,7 +20,7 @@ function KindMark({ kind }: { kind: Kind }): ReactNode {
   return (
     <span
       data-kind-mark={kind}
-      className={cn("rounded-sm px-1.5 py-0.5 text-sm font-medium", TAG[kind])}
+      className={cn("rounded-full px-2 py-0.5 text-sm font-medium", TAG[kind])}
     >
       {t(`books.chapter.partOfSpeech.${kind}`)}
     </span>
@@ -54,7 +54,7 @@ export function SenseHintCard({ hint }: { hint: SenseHint }): ReactNode {
   return (
     <div
       data-sense-hint
-      className="flex w-full flex-col gap-2 rounded-lg border border-dashed border-line-strong bg-surface px-4 py-3 text-left text-ink"
+      className="flex w-full flex-col gap-2 rounded-lg border border-dashed border-line-strong bg-sunken/60 px-4 py-3 text-left text-ink"
     >
       <p>{t("books.sense.notThis", { meaning: hint.meaning, place: where })}</p>
       <Presence>
