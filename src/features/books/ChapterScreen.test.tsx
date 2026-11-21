@@ -63,7 +63,8 @@ describe("ChapterScreen", () => {
         name: "Words learned in this chapter",
       }),
     ).toBeInTheDocument();
-    expect(beside.getByText("0 learned")).toBeInTheDocument();
+    expect(beside.getByText("Learned")).toBeInTheDocument();
+    expect(beside.getByText(/^of \d+$/u)).toBeInTheDocument();
     expect(
       beside.getByRole("button", { name: "Practice" }),
     ).toBeInTheDocument();
@@ -253,7 +254,7 @@ describe("ChapterScreen", () => {
     // "hedge" is known; the other three are done, and say so.
     expect(screen.queryByText(/to learn/u)).toBeNull();
     expect(screen.getAllByRole("img", { name: "Done" })).toHaveLength(3);
-    expect(screen.getByText("3 learned")).toBeInTheDocument();
+    expect(screen.getByText("of 3")).toBeInTheDocument();
     expect(screen.getByRole("progressbar")).toHaveAttribute(
       "aria-valuenow",
       "100",
@@ -296,7 +297,7 @@ describe("ChapterScreen", () => {
     expect(await screen.findAllByRole("img", { name: "Done" })).toHaveLength(5);
     // The bar over the list says how far the chapter's words have come.
     const open = screen.getAllByRole("button", { name: /^I know this/u });
-    expect(screen.getByText("5 learned")).toBeInTheDocument();
+    expect(screen.getByText(/^of \d+$/u)).toBeInTheDocument();
     expect(
       screen.getByRole("progressbar", {
         name: "Words learned in this chapter",

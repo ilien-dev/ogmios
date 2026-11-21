@@ -61,7 +61,8 @@ interface ChapterScreenProps {
  * choice of how many to learn, the reading of the chapter, and then its word
  * list with the way into practising it. A word the learner knows already is
  * set aside there, and can be taken back. A chapter that is ready to read
- * offers a warm-up of its done words.
+ * offers a warm-up of its done words. The chapter and its way in stand over
+ * the words, in the one column of the tab.
  */
 export function ChapterScreen({
   book,

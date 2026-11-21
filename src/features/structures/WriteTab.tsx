@@ -4,10 +4,10 @@ import { useTranslation } from "react-i18next";
 import type { ChapterStructures, StructureInfo } from "@shared/structures";
 import { Presence } from "@/components/motion/Presence";
 import { Reveal } from "@/components/motion/Reveal";
-import { Stagger } from "@/components/motion/Stagger";
 import type { Navigate } from "@/app/routes";
 import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
+import { cn } from "@/lib/cn";
 import { errorMessage } from "@/lib/errors";
 import { startStructureSitting, structuresState } from "@/lib/ipc";
 import { ScanProgress, useChapterScan } from "./ChapterScan";
@@ -48,7 +48,8 @@ interface WriteTabProps {
 
 /**
  * Writing with the chapter the learner is on: the structures it uses most,
- * each with a sentence of the book that has it, and the way into a session
+ * in a row to slide along, the picked one with a sentence of the book that
+ * has it, and the way into a session
  * on them with the chapter's own words. A chapter is read for them once, when
  * the learner asks, since that asks the model; after that they are kept.
  */
@@ -66,6 +67,8 @@ export function WriteTab({
   const [failure, setFailure] = useState<string | null>(null);
   const [size, setSize] = useState<number>(DEFAULT_SIZE);
   const [starting, setStarting] = useState(false);
+  /** The structure whose sentence of the book is shown; the first, until one is picked. */
+  const [picked, setPicked] = useState<string | null>(null);
   const names = new Map(catalogue.map((each) => [each.key, each.name]));
 
   useEffect(() => {
@@ -110,7 +113,10 @@ export function WriteTab({
 
   const found = scan.found ?? kept;
   const shown = failure ?? scan.failure;
-  const keys = found?.structures.map((each) => each.key) ?? [];
+  const structures = found?.structures ?? [];
+  const keys = structures.map((each) => each.key);
+  const sample =
+    structures.find((each) => each.key === picked) ?? structures[0];
   const mode = modeOf({
     prepared,
     loaded,
@@ -181,45 +187,88 @@ export function WriteTab({
           )}
           {mode === "found" && (
             <Reveal key="found" kind="fade" className="flex flex-col gap-4">
-              <Stagger
-                as="ul"
-                className="flex flex-col divide-y divide-line rounded-xl border border-line bg-surface/60 py-1"
+              <ul
+                aria-label={t("structures.chapter.screenTitle")}
+                className="-mx-1 scrollbar-none flex gap-2 overflow-x-auto px-1 py-0.5"
               >
-                {(found?.structures ?? []).map((each) => (
-                  <Reveal
-                    as="li"
-                    key={each.key}
-                    kind="fade"
-                    className="flex flex-col gap-2 px-5 py-4"
-                  >
-                    <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                      <p>
-                        <span className="font-display font-medium tracking-tight text-ink">
+                {structures.map((each, index) => {
+                  const on = each.key === sample?.key;
+                  return (
+                    <Reveal
+                      as="li"
+                      key={each.key}
+                      kind="fade"
+                      index={index}
+                      className="shrink-0"
+                    >
+                      <button
+                        type="button"
+                        aria-pressed={on}
+                        onClick={() => {
+                          setPicked(each.key);
+                        }}
+                        className={cn(
+                          "flex min-w-32 flex-col items-start gap-0.5 rounded-xl border px-3.5 py-2.5 text-left transition-control",
+                          on
+                            ? "border-partial bg-partial-soft"
+                            : "border-line bg-surface/40 hover:border-line-strong",
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            "font-mono text-xs tabular-nums",
+                            on ? "text-partial" : "text-ink-faint",
+                          )}
+                        >
+                          {t("structures.chapter.count", { count: each.count })}
+                        </span>
+                        <span className="font-display text-sm font-medium tracking-tight whitespace-nowrap text-ink">
                           {names.get(each.key) ?? each.key}
                         </span>
-                        <span className="text-sm text-ink-soft">
-                          {" · "}
-                          {formOf(each.key, t)}
-                        </span>
-                      </p>
-                      <p className="font-mono text-xs text-ink-faint tabular-nums">
-                        {t("structures.chapter.count", { count: each.count })}
-                      </p>
-                    </div>
-                    <Presence>
-                      {each.example !== "" && (
-                        <Reveal
-                          key="example"
-                          as="blockquote"
-                          className="border-l-2 border-book/40 pl-3 text-sm text-ink-soft"
-                        >
-                          {each.example}
-                        </Reveal>
-                      )}
-                    </Presence>
-                  </Reveal>
-                ))}
-              </Stagger>
+                      </button>
+                    </Reveal>
+                  );
+                })}
+              </ul>
+              <div className="relative">
+                <Presence swap>
+                  {sample !== undefined && (
+                    <Reveal
+                      key={sample.key}
+                      kind="fade"
+                      className="flex flex-col gap-2.5 rounded-xl border border-partial bg-surface/60 px-5 py-4 shadow-card"
+                    >
+                      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                        <p>
+                          <span className="font-display font-medium tracking-tight text-ink">
+                            {names.get(sample.key) ?? sample.key}
+                          </span>
+                          <span className="text-sm text-ink-soft">
+                            {" · "}
+                            {formOf(sample.key, t)}
+                          </span>
+                        </p>
+                        <p className="font-mono text-xs text-partial tabular-nums">
+                          {t("structures.chapter.count", {
+                            count: sample.count,
+                          })}
+                        </p>
+                      </div>
+                      <Presence>
+                        {sample.example !== "" && (
+                          <Reveal
+                            key="example"
+                            as="blockquote"
+                            className="text-sm leading-relaxed text-ink-soft"
+                          >
+                            {sample.example}
+                          </Reveal>
+                        )}
+                      </Presence>
+                    </Reveal>
+                  )}
+                </Presence>
+              </div>
               <StartBar
                 size={size}
                 onSize={setSize}

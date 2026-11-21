@@ -32,9 +32,10 @@ async function open(): Promise<UserEvent> {
   return user;
 }
 
-/** Starts a new attempt in a direction. */
+/** Starts a new attempt in a direction: picks it, then starts. */
 async function begin(user: UserEvent, direction: string): Promise<void> {
   await user.click(button(new RegExp(direction, "u")));
+  await user.click(button("Start"));
   await screen.findByLabelText(FIELD);
 }
 

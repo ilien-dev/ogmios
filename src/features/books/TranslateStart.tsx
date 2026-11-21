@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { ChevronRight } from "lucide-react";
+import { motion } from "motion/react";
 import type {
   Translation,
   TranslationAttempts,
@@ -10,8 +10,10 @@ import type {
 import { Presence } from "@/components/motion/Presence";
 import { Reveal } from "@/components/motion/Reveal";
 import { Stagger } from "@/components/motion/Stagger";
+import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
 import { Spinner } from "@/components/ui/Spinner";
+import { cn } from "@/lib/cn";
 import { errorMessage } from "@/lib/errors";
 import {
   closeAttempt,
@@ -33,8 +35,8 @@ interface TranslateStartProps {
 }
 
 /**
- * Where a session begins: a new attempt in one direction, chosen here and
- * not inside it, or one of the attempts kept. A paused one is gone on with
+ * Where a session begins: a new attempt in one direction, chosen here with a
+ * pill and not inside it, or one of the attempts kept. A paused one is gone on with
  * or finished as it is; a finished one is read. Back into English is open
  * once a paragraph is whole the other way.
  */
@@ -46,6 +48,7 @@ export function TranslateStart({
   const { t } = useTranslation();
   const [found, setFound] = useState<TranslationAttempts | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
+  const [direction, setDirection] = useState<TranslationDirection>("toNative");
 
   const load = useCallback(async (): Promise<void> => {
     try {
@@ -76,6 +79,8 @@ export function TranslateStart({
     }
   };
 
+  /** Nothing is whole in the learner's language yet to bring back. */
+  const closed = found?.back === 0;
   return (
     <div className="relative">
       <Presence swap>
@@ -105,45 +110,95 @@ export function TranslateStart({
               </Presence>
               <Reveal as="section" className="flex flex-col gap-4">
                 <p className="text-ink-soft">{t("books.translate.choose")}</p>
-                <Stagger as="ul" className="flex flex-col gap-3">
-                  {DIRECTIONS.map((direction) => {
-                    const closed =
-                      direction === "toEnglish" && found.back === 0;
+                <div
+                  role="group"
+                  aria-label={t("books.translate.direction")}
+                  className="flex gap-1 rounded-3xl bg-sunken p-1 @max-md:flex-col"
+                >
+                  {DIRECTIONS.map((each) => {
+                    const on = each === direction;
                     return (
-                      <Reveal as="li" key={direction}>
-                        <button
-                          type="button"
-                          disabled={closed}
-                          onClick={() =>
-                            void run(() => startAttempt(chapterId, direction))
-                          }
-                          className="group flex w-full items-center gap-4 rounded-xl glass px-5 py-4 text-left transition-control hover:enabled:border-book/40 hover:enabled:shadow-lift disabled:cursor-not-allowed disabled:opacity-70"
-                        >
-                          <span className="flex min-w-0 flex-1 flex-col gap-1">
-                            <span className="font-medium text-ink group-disabled:text-ink-faint">
-                              {t(`books.translate.${direction}.name`, {
-                                language: native,
-                              })}
-                            </span>
-                            <span className="text-sm text-ink-soft">
-                              {closed
-                                ? t("books.translate.toEnglish.none", {
-                                    language: native,
-                                  })
-                                : t(`books.translate.${direction}.hint`, {
-                                    language: native,
-                                  })}
-                            </span>
-                          </span>
-                          <ChevronRight
+                      <button
+                        key={each}
+                        type="button"
+                        aria-pressed={on}
+                        disabled={each === "toEnglish" && closed}
+                        onClick={() => {
+                          setDirection(each);
+                        }}
+                        className={cn(
+                          "relative flex h-11 flex-1 items-center justify-center gap-2 rounded-full px-4 text-sm transition-control disabled:cursor-not-allowed disabled:text-ink-faint",
+                          on
+                            ? "font-semibold text-ink"
+                            : "text-ink-soft hover:enabled:text-ink",
+                        )}
+                      >
+                        {on && (
+                          <motion.span
                             aria-hidden
-                            className="size-4 shrink-0 text-ink-faint transition-transform duration-300 ease-out-expo group-enabled:group-hover:translate-x-1 group-enabled:group-hover:text-ink"
+                            layoutId={`${chapterId}-direction`}
+                            transition={{
+                              type: "spring",
+                              stiffness: 420,
+                              damping: 36,
+                            }}
+                            className="absolute inset-0 rounded-full bg-surface shadow-card"
                           />
-                        </button>
-                      </Reveal>
+                        )}
+                        <span
+                          aria-hidden
+                          className={cn(
+                            "relative size-2 rounded-full",
+                            each === "toNative" ? "bg-book" : "bg-accent",
+                          )}
+                        />
+                        <span className="relative">
+                          {t(`books.translate.${each}.name`, {
+                            language: native,
+                          })}
+                        </span>
+                      </button>
                     );
                   })}
-                </Stagger>
+                </div>
+                <div className="relative">
+                  <Presence swap>
+                    <Reveal
+                      key={direction}
+                      as="p"
+                      kind="fade"
+                      className="text-sm text-ink-soft"
+                    >
+                      {t(`books.translate.${direction}.hint`, {
+                        language: native,
+                      })}
+                    </Reveal>
+                  </Presence>
+                </div>
+                <Presence>
+                  {closed && (
+                    <Reveal
+                      key="closed"
+                      as="p"
+                      kind="fade"
+                      className="text-sm text-ink-faint"
+                    >
+                      {t("books.translate.toEnglish.none", {
+                        language: native,
+                      })}
+                    </Reveal>
+                  )}
+                </Presence>
+                <Button
+                  variant="primaryBook"
+                  size="lg"
+                  className="self-start @max-md:self-stretch"
+                  onClick={() =>
+                    void run(() => startAttempt(chapterId, direction))
+                  }
+                >
+                  {t("books.translate.start")}
+                </Button>
               </Reveal>
 
               <Presence>

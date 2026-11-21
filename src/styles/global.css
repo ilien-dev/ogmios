@@ -113,6 +113,8 @@
   --breakpoint-nav: 62.5rem;
   /* Where a screen beside the rail has room for an aside and a table side by side. */
   --breakpoint-wide: 75rem;
+  /* Where the book has room for its scene and the picked tab side by side. */
+  --breakpoint-split: 100rem;
 
   --font-sans:
     "Plus Jakarta Sans Variable", ui-sans-serif, system-ui, -apple-system,

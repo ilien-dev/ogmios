@@ -45,7 +45,7 @@ export function ChapterTabs({
         aria-label={t("bookHome.tabs.label", {
           chapter: chapterName(chapter, t),
         })}
-        className="grid grid-cols-2 gap-1 nav:grid-cols-4"
+        className="grid grid-cols-2 gap-1 @3xl:grid-cols-4"
       >
         {BOOK_TABS.map((each) => {
           const on = each === tab;
