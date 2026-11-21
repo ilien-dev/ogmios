@@ -96,11 +96,9 @@ pub(super) fn next_sentence(
     drawn_for: &str,
 ) -> Result<Option<Sentence>> {
     let held = sentences::bank(conn, key, chapter)?;
-    let last = sentences::last_shown(conn, key)?;
-    let banked: Vec<Banked> = held
-        .iter()
-        .map(|each| banked(each, own, last.as_deref()))
-        .collect();
+    let mut recent = sentences::shown_during(conn, key, drawn_for)?;
+    recent.extend(sentences::last_shown(conn, key)?);
+    let banked: Vec<Banked> = held.iter().map(|each| banked(each, own, &recent)).collect();
     let shown: u32 = held.iter().map(|each| each.shows).sum();
     let turn = usize::try_from(shown).unwrap_or(usize::MAX);
     let chosen = choose(&banked, |len| {
@@ -1303,7 +1301,12 @@ pub async fn answer_word(
             now,
         )?;
         // Its sentences running low: more are written before they run out.
-        if let Some(chapter) = refill_after(&*ctx.conn()?, &word_id, now)? {
+        // Only a nicety: the answer is kept already, whatever happens here.
+        let due = ctx
+            .conn()
+            .ok()
+            .and_then(|conn| refill_after(&conn, &word_id, now).ok().flatten());
+        if let Some(chapter) = due {
             refill(app, Some(chapter));
         }
         Ok(answered)

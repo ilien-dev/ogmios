@@ -24,7 +24,7 @@ For each sentence of the chapter, give:
 
 "sense" is the sentence that fixes the meaning of the word: translate the word in that meaning wherever the sentence uses it so.
 
-Then write as many new sentences as <write> says, none when it is 0, under "written". Each one uses the word exactly once, in the meaning "sense" gives it and never in another, so that the sentence alone makes that meaning clear. Natural, everyday English a careful native writer would write, one sentence of at most 25 words, each about something different, none copied from the chapter, and none that negates the word. Vary the form where the word has several (tenses, plural). For each, give:
+Then write as many new sentences as <write> says, none when it is 0, under "written". Each one uses the word exactly once, in the meaning "sense" gives it and never in another, so that the sentence alone makes that meaning clear. Natural, everyday English a careful native writer would write, one sentence of at most 25 words, each about something different, none copied from the chapter, none that is or reads like one of <avoid> (the sentences the learner has already met for it: a new situation, other words around it), and none that negates the word. Vary the form where the word has several (tenses, plural). For each, give:
 - sentence: the sentence.
 - form: the word as the sentence writes it, copied from it exactly.
 - translation and hint: as for the sentences of the chapter.
@@ -47,6 +47,7 @@ export function sentenceWriteUserPrompt(params: SentenceWriteParams): string {
       `  <sense>${word.sense}</sense>`,
       `  <write>${String(word.write)}</write>`,
       ...book,
+      ...word.avoid.map((sentence) => `  <avoid>${sentence}</avoid>`),
       `</word>`,
     ].join("\n");
   });

@@ -36,13 +36,15 @@ pub struct Banked {
     pub own: bool,
     /// Times it was shown: the answers given to it.
     pub shows: u32,
-    /// The word was asked with it the last time it was asked.
+    /// The word was asked with it the last time it was asked, or already in
+    /// this sitting.
     pub last: bool,
 }
 
 /// The sentence a word is asked with next; none for a word with no bank.
-/// Never the one it was asked with the last time while there is another,
-/// so that no sentence is learned by heart. The first time, the one of the
+/// Never the one it was asked with the last time, nor one already shown in
+/// the same sitting, while there is another, so that no sentence is learned
+/// by heart. The first time, the one of the
 /// chapter itself, or failing that another of the book. After that one of
 /// those not yet spent, drawn by `draw` among that many; and when all are
 /// spent, the one shown least.

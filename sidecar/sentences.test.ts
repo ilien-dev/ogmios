@@ -29,6 +29,7 @@ const write: SentenceWriteParams = {
       sense: "She had peeped into the book.",
       book: ["She had peeped into the book.", "Do not peep."],
       write: 5,
+      avoid: [],
     },
   ],
 };
