@@ -18,6 +18,11 @@ export interface Ladder {
   hint: SenseHint | null;
   /** On step 2: the sentence, the word marked. */
   context: SentencePart[] | null;
+  /**
+   * The word was asked with the few words that fix its sense, not its whole
+   * sentence: what step 2 shows is more than it had.
+   */
+  short: boolean;
 }
 
 /** The other word an answer meant. */
@@ -51,6 +56,8 @@ export interface SenseTip {
    * fix its sense, and was right only with its whole sentence.
    */
   tied: boolean;
+  /** It was asked with those few words, not its whole sentence. */
+  short: boolean;
 }
 
 /** Event `sentence-progress`: words given their sentences so far. */

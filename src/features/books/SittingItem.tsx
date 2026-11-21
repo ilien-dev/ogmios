@@ -1,5 +1,6 @@
 import { useId, useLayoutEffect, useRef, useState } from "react";
 import type { ReactNode, SyntheticEvent } from "react";
+import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import type {
   AnotherWord,
@@ -70,6 +71,20 @@ export interface Checked {
   sentence?: ShownSentence | null;
 }
 
+/**
+ * What a verdict says of a word right only with its sentence: understood,
+ * not known. A word its tag could not tell apart comes back with its few
+ * words, or, asked with its whole sentence from the start, simply later.
+ */
+function understoodLine(tip: SenseTip, t: TFunction): string {
+  if (!tip.tied) {
+    return t("books.sitting.understood");
+  }
+  return tip.short
+    ? t("books.sitting.understoodTied")
+    : t("books.sitting.understoodWhole");
+}
+
 interface VerdictProps {
   result: Checked;
   /** The learner said "I don't know": the answer is shown, nothing judged. */
@@ -91,9 +106,7 @@ function Verdict({ result, unknown, heard }: VerdictProps): ReactNode {
     return (
       <div className="flex flex-col items-center gap-2">
         <VerdictLine tone="partial">
-          {understood.tied
-            ? t("books.sitting.understoodTied")
-            : t("books.sitting.understood")}
+          {understoodLine(understood, t)}
         </VerdictLine>
         <SenseTipLine tip={understood} />
       </div>
@@ -244,6 +257,8 @@ export function SittingItem<Result extends Checked>({
   /** On its steps: which word the answer was, and then its sentence. */
   const [sense, setSense] = useState<SenseHint | null>(null);
   const [steps, setSteps] = useState<SentencePart[] | null>(null);
+  /** Asked with its few words: the step after shows its whole sentence. */
+  const [short, setShort] = useState(false);
   const [result, setResult] = useState<Result | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   /** The hint asked for, and how often: each time gives a little more. */
@@ -295,6 +310,7 @@ export function SittingItem<Result extends Checked>({
           if (ladder.context !== null) {
             setSteps(ladder.context);
           }
+          setShort(ladder.short);
           setResponse("");
           return;
         }
@@ -395,9 +411,12 @@ export function SittingItem<Result extends Checked>({
     }
     if (rung === 2) {
       // Straight from the word alone: its tag could not tell it apart.
-      return sense === null
+      if (sense !== null) {
+        return t("books.sitting.readSentence");
+      }
+      return short
         ? t("books.sitting.otherMeaningRead")
-        : t("books.sitting.readSentence");
+        : t("books.sitting.otherMeaningLook");
     }
     return (
       kindLine(kind, t, item.verbForm) ??
@@ -425,7 +444,7 @@ export function SittingItem<Result extends Checked>({
             from={from}
             to={to}
             kind={item.partOfSpeech}
-            pointed={rung > 0}
+            pointed={rung > 0 && sense !== null}
             irregular={item.irregular}
           />
           <Presence>

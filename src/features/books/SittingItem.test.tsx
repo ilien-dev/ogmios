@@ -897,6 +897,7 @@ describe("telling which word is meant", () => {
                 givenForm: null,
               },
               context: null,
+              short: false,
             },
           };
         }
@@ -907,7 +908,7 @@ describe("telling which word is meant", () => {
             accepted: [],
             step: "next",
             again: true,
-            ladder: { rung: 2, hint: null, context: sentence },
+            ladder: { rung: 2, hint: null, context: sentence, short: false },
           };
         }
         return {
@@ -915,7 +916,12 @@ describe("telling which word is meant", () => {
           correct: false,
           accepted: [answer],
           step: "next",
-          understood: { kind: "adjective", kindsDiffer: true, tied: false },
+          understood: {
+            kind: "adjective",
+            kindsDiffer: true,
+            tied: false,
+            short: false,
+          },
         };
       },
     );
@@ -991,14 +997,19 @@ describe("telling which word is meant", () => {
               accepted: [],
               step: "next",
               again: true,
-              ladder: { rung: 2, hint: null, context: sentence },
+              ladder: { rung: 2, hint: null, context: sentence, short: true },
             }
           : {
               ...PLAIN,
               correct: false,
               accepted: [answer],
               step: "next",
-              understood: { kind: "adjective", kindsDiffer: false, tied: true },
+              understood: {
+                kind: "adjective",
+                kindsDiffer: false,
+                tied: true,
+                short: true,
+              },
             },
     );
     // From the start, the few words that fix its sense.
@@ -1052,6 +1063,7 @@ describe("telling which word is meant", () => {
             givenForm: "past",
           },
           context: null,
+          short: false,
         },
       }),
     );
@@ -1065,5 +1077,66 @@ describe("telling which word is meant", () => {
       (each) => each.textContent,
     );
     expect(forms).toEqual(["past simple", "base form"]);
+  });
+  test("a word its tag cannot tell apart asked with its whole sentence says so", async () => {
+    const user = userEvent.setup();
+    const sentence = [
+      { text: "She tied back her ", marked: false },
+      { text: "fair", marked: true },
+      { text: " hair.", marked: false },
+    ];
+    stage(
+      {
+        ...SHOWN,
+        prompt: "fair",
+        partOfSpeech: "adjective",
+        verbForm: null,
+        irregular: null,
+        context: sentence,
+      },
+      (answer, _second, rung) =>
+        rung === 0
+          ? {
+              ...PLAIN,
+              correct: false,
+              accepted: [],
+              step: "next",
+              again: true,
+              ladder: { rung: 2, hint: null, context: sentence, short: false },
+            }
+          : {
+              ...PLAIN,
+              correct: false,
+              accepted: [answer],
+              step: "next",
+              understood: {
+                kind: "adjective",
+                kindsDiffer: false,
+                tied: true,
+                short: false,
+              },
+            },
+    );
+    const field = screen.getByLabelText("Your translation");
+    await user.type(field, "justo{Enter}");
+    // The sentence is on the screen already: nothing says to read it again.
+    expect(
+      await screen.findByText(
+        "That's right too, but it's not the one I'm after. Look at the sentence.",
+      ),
+    ).toBeInTheDocument();
+    // Its tag could not tell it apart: nothing points at it.
+    expect(
+      document.querySelector("[data-band] [data-part-of-speech]")?.className,
+    ).not.toContain("ring-2");
+    await user.type(field, "rubio{Enter}");
+    expect(
+      await screen.findByText(
+        "Right, with the help of the sentence. It will come back later.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("the short sentence under the word", { exact: false }),
+    ).toBeNull();
   });
 });

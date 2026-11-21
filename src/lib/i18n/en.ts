@@ -714,10 +714,14 @@ export const en = {
       otherWord:
         "That's right, but I'm after another word here. Try once more.",
       otherMeaning: "That's right too, but it's not the one I'm after.",
+      otherMeaningLook:
+        "That's right too, but it's not the one I'm after. Look at the sentence.",
       otherMeaningRead:
         "That's right too, but it's not the one I'm after. Read the whole sentence.",
       readSentence:
         "Read the sentence: it tells you which meaning we're after.",
+      understoodWhole:
+        "Right, with the help of the sentence. It will come back later.",
       understoodTied:
         "Right, with the help of the whole sentence. It will come back so you can get it with the short one alone.",
       understood:
