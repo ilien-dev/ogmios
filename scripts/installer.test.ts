@@ -59,7 +59,10 @@ test("the Windows installer uses Ogmios's template, pages, languages and icon", 
     nsis.installerHooks,
     nsis.installerIcon,
     ...Object.values(nsis.customLanguageFiles),
-    ...[100, 125, 150, 175, 200].map((scale) => `windows/logo-${scale}.bmp`),
+    ...[100, 125, 150, 175, 200].flatMap((scale) => [
+      `windows/logo-${scale}.bmp`,
+      `windows/lockup-${scale}.bmp`,
+    ]),
   ];
   expect(files.filter((file) => !existsSync(join(tauri, file)))).toEqual([]);
 });
@@ -82,6 +85,18 @@ test("the template keeps what the updater and the hooks need", () => {
     "NSIS_HOOK_POSTUNINSTALL",
   ];
   expect(kept.filter((piece) => !template.includes(piece))).toEqual([]);
+});
+
+test("an update shows its window restored and in front of everything", () => {
+  // The app that starts the update has just quit, so Windows will not hand
+  // the installer the foreground: it opens minimized or behind other windows.
+  const show =
+    text(nsis.installerHooks).split("Function ${UN}ogProgressShow")[1] ?? "";
+  const update = show.split("FunctionEnd")[0] ?? "";
+  expect(update).toContain("${If} $UpdateMode = 1");
+  expect(update).toContain("user32::ShowWindow(p $HWNDPARENT, i 9)");
+  expect(update).toContain("user32::SetWindowPos(p $HWNDPARENT, p -1,");
+  expect(update).toContain("user32::SetForegroundWindow(p $HWNDPARENT)");
 });
 
 test("the template does not show the stock wizard pages", () => {
