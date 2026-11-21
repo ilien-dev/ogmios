@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.24.0](https://github.com/ilien-dev/ogmios/compare/v0.23.0...v0.24.0) (2026-11-21)
+
+
+### Features
+
+* let the app fill the window without an outer frame ([#50](https://github.com/ilien-dev/ogmios/issues/50)) ([edfdfcf](https://github.com/ilien-dev/ogmios/commit/edfdfcf2f084e0874d0ef0e245aee39eec6d0ccf))
+
+
+### Bug Fixes
+
+* let settings take the whole window and close with x or escape ([#53](https://github.com/ilien-dev/ogmios/issues/53)) ([70fdaef](https://github.com/ilien-dev/ogmios/commit/70fdaef506a78fd81711a5df9f6bee023d660bc6))
+
 ## [0.23.0](https://github.com/ilien-dev/ogmios/compare/v0.22.0...v0.23.0) (2026-11-21)
 
 
