@@ -990,6 +990,10 @@ pub struct Ladder {
     pub hint: Option<SenseHint>,
     /// On step 2: the sentence, the word marked.
     pub context: Option<Vec<SentencePart>>,
+    /// The word was asked with the few words that fix its sense
+    /// (`commands::ladder::tied`), not its whole sentence: what step 2
+    /// shows is more than it had.
+    pub short: bool,
 }
 
 /// The other word an answer meant: what it means, where it is from, and
@@ -1025,6 +1029,8 @@ pub struct SenseTip {
     /// fix its sense, and was right only with its whole sentence
     /// (`commands::ladder::tied`).
     pub tied: bool,
+    /// It was asked with those few words, not its whole sentence.
+    pub short: bool,
 }
 
 /// An answer that is a word of another kind from the root of the one

@@ -471,7 +471,7 @@ repaso rápido antes de leer no cambia.
        «qué no es»: más intentos llevarían a la respuesta por descarte.
     2. **La frase completa**, el último intento. Acertar con ella no es fallo ni acierto: «Correcto,
        con ayuda de la frase completa. Volverá para que la aciertes solo con la frase corta.», con
-       el consejo de que la frase corta dice qué significado se busca. Fallar es fallo completo.
+       el consejo de que la frase corta dice qué significado se busca. Fallar es fallo completo. Si se preguntó con la frase entera, porque aún no tenía frase corta, nada dice que la lea otra vez: «También es correcta, pero no es la que busco. Fíjate en la frase.» y, acertada, «Correcto, con ayuda de la frase. Volverá más adelante.». En estas palabras la etiqueta de la banda no lleva aro: no es lo que ayuda.
        Fuera de la etiqueta nada avisa de que la palabra tiene rivales. Cualquier error dentro de los
        intentos pasa al siguiente. La frase se muestra siempre tras responder, y por eso cuenta como
        vista: la próxima vez sale otra del banco.

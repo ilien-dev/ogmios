@@ -20,6 +20,7 @@
 use rusqlite::Connection;
 
 use crate::books::practice::{accepts_native, inflects, mark};
+use crate::books::sentences::fragment;
 use crate::books::spelling::Spelling;
 use crate::db::practice::WordRow;
 use crate::db::sentences::Sentence;
@@ -118,6 +119,15 @@ pub fn rise(
     let tied = rivals
         .iter()
         .any(|rival| !told_apart((word.part_of_speech, form), rival));
+    // Asked with its few words (`commands::practice::tie`), or with its
+    // whole sentence, where those are not known.
+    let short = tied
+        && sentence.is_some_and(|each| {
+            each.cue
+                .as_deref()
+                .and_then(|cue| fragment(&each.text, &each.form, cue))
+                .is_some()
+        });
     Ok(match rung {
         ALONE if right || answer.trim().is_empty() => Climb::Off,
         ALONE => rivals
@@ -137,12 +147,14 @@ pub fn rise(
                         rung: SHOWN,
                         hint: None,
                         context: Some(context(word, sentence)),
+                        short,
                     }
                 } else {
                     Ladder {
                         rung: TOLD,
                         hint: Some(hint(word, form, rival, meaning)),
                         context: None,
+                        short: false,
                     }
                 })
             }),
@@ -151,6 +163,7 @@ pub fn rise(
             rung: SHOWN,
             hint: None,
             context: Some(context(word, sentence)),
+            short: false,
         }),
         _ if right => Climb::Understood(SenseTip {
             kind: word.part_of_speech,
@@ -161,6 +174,7 @@ pub fn rise(
                 )
             }),
             tied,
+            short,
         }),
         _ => Climb::Off,
     })

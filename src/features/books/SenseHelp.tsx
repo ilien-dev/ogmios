@@ -172,12 +172,12 @@ export function SenseTipLine({ tip }: { tip: SenseTip }): ReactNode {
             {t("books.sense.tipTagEnd")}
           </Reveal>
         )}
-        {tip.tied && (
+        {tip.tied && tip.short && (
           <Reveal key="short" as="span" kind="fade">
             {t("books.sense.tipShort")}
           </Reveal>
         )}
-        {!tagged && !tip.tied && (
+        {!tagged && !(tip.tied && tip.short) && (
           <Reveal key="words" as="span" kind="fade">
             {t("books.sense.tipWords")}
           </Reveal>

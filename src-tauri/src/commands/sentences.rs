@@ -3037,11 +3037,18 @@ pub mod tests {
         // The other book's meaning: straight to the whole sentence, with no
         // word of what it is not.
         let shown = say(other, 0).ladder.expect("a step");
-        assert_eq!((shown.rung, shown.hint.is_none()), (2, true));
+        // No few words known yet: it had its whole sentence, and says so.
+        assert_eq!(
+            (shown.rung, shown.hint.is_none(), shown.short),
+            (2, true, false)
+        );
         assert!(shown.context.is_some());
         // Right with it: understood, and the word comes back.
         let understood = say(&sentence.hint, 2);
-        assert_eq!(understood.understood.map(|tip| tip.tied), Some(true));
+        assert_eq!(
+            understood.understood.map(|tip| (tip.tied, tip.short)),
+            Some((true, false))
+        );
         assert_eq!(desk.count("SELECT COUNT(*) FROM word_answers"), 0);
         assert_eq!(desk.count("SELECT COUNT(*) FROM understood_answers"), 1);
     }

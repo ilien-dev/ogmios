@@ -712,9 +712,12 @@ export const es: Catalog<typeof en> = {
         "Es la palabra, pero la pido en su forma base: el infinitivo. Prueba otra vez.",
       otherWord: "Es correcto, pero aquí busco otra palabra. Prueba otra vez.",
       otherMeaning: "También es correcta, pero no es la que busco.",
+      otherMeaningLook:
+        "También es correcta, pero no es la que busco. Fíjate en la frase.",
       otherMeaningRead:
         "También es correcta, pero no es la que busco. Lee la frase completa.",
       readSentence: "Lee la frase: te dice qué significado buscamos.",
+      understoodWhole: "Correcto, con ayuda de la frase. Volverá más adelante.",
       understoodTied:
         "Correcto, con ayuda de la frase completa. Volverá para que la aciertes solo con la frase corta.",
       understood:
