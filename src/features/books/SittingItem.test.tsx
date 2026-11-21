@@ -42,6 +42,7 @@ const BLANKED: PracticeItem = {
   nativeContext: null,
   sentenceId: "s1",
   verbForm: "past",
+  irregular: false,
 };
 
 /** The same word shown in its sentence, to be translated. */
@@ -605,6 +606,25 @@ describe("a word asked with a sentence of its bank", () => {
     cleanup();
   });
 
+  test("a verb says on the band whether it is regular or irregular", () => {
+    const never = (): Checked => ({ correct: false, accepted: [], step: null });
+    const regularity = (item: PracticeItem): string | null => {
+      stage(item, never);
+      const chip = document.querySelector("[data-band] [data-regularity]");
+      const text = chip?.textContent ?? null;
+      cleanup();
+      return text;
+    };
+    expect(regularity({ ...SHOWN, irregular: false })).toBe("regular");
+    expect(regularity({ ...SHOWN, irregular: true })).toBe("irregular");
+    // Asked for in English too: it is part of what the verb is.
+    expect(regularity({ ...BLANKED, irregular: true })).toBe("irregular");
+    // No verb: no chip.
+    expect(
+      regularity({ ...SHOWN, partOfSpeech: "noun", irregular: null }),
+    ).toBeNull();
+  });
+
   test("a word with no form to ask it in has no row of forms", () => {
     stage({ ...SHOWN, partOfSpeech: "noun", verbForm: null }, () => ({
       correct: false,
@@ -803,6 +823,7 @@ describe("telling which word is meant", () => {
         prompt: "punta",
         partOfSpeech: "noun",
         verbForm: null,
+        irregular: null,
         context: null,
         nativeContext: [
           { text: "Con la ", marked: false },
@@ -872,8 +893,11 @@ describe("telling which word is meant", () => {
                 chapterTitle: "Chapter One",
                 asked: "adjective",
                 given: "verb",
+                askedForm: null,
+                givenForm: null,
               },
               context: null,
+              short: false,
             },
           };
         }
@@ -884,7 +908,7 @@ describe("telling which word is meant", () => {
             accepted: [],
             step: "next",
             again: true,
-            ladder: { rung: 2, hint: null, context: sentence },
+            ladder: { rung: 2, hint: null, context: sentence, short: false },
           };
         }
         return {
@@ -892,7 +916,12 @@ describe("telling which word is meant", () => {
           correct: false,
           accepted: [answer],
           step: "next",
-          understood: { kind: "adjective", kindsDiffer: true },
+          understood: {
+            kind: "adjective",
+            kindsDiffer: true,
+            tied: false,
+            short: false,
+          },
         };
       },
     );
@@ -939,5 +968,175 @@ describe("telling which word is meant", () => {
       "girando",
       "giratoria",
     ]);
+  });
+  test("a word its tag cannot tell apart comes with its few words and goes straight to its sentence", async () => {
+    const user = userEvent.setup();
+    const few = [
+      { text: "fair", marked: true },
+      { text: " hair", marked: false },
+    ];
+    const sentence = [
+      { text: "She tied back her ", marked: false },
+      { text: "fair", marked: true },
+      { text: " hair.", marked: false },
+    ];
+    stage(
+      {
+        ...SHOWN,
+        prompt: "fair",
+        partOfSpeech: "adjective",
+        verbForm: null,
+        irregular: null,
+        context: few,
+      },
+      (answer, _second, rung) =>
+        rung === 0
+          ? {
+              ...PLAIN,
+              correct: false,
+              accepted: [],
+              step: "next",
+              again: true,
+              ladder: { rung: 2, hint: null, context: sentence, short: true },
+            }
+          : {
+              ...PLAIN,
+              correct: false,
+              accepted: [answer],
+              step: "next",
+              understood: {
+                kind: "adjective",
+                kindsDiffer: false,
+                tied: true,
+                short: true,
+              },
+            },
+    );
+    // From the start, the few words that fix its sense.
+    expect(screen.getByText("hair", { exact: false })).toBeVisible();
+    const field = screen.getByLabelText("Your translation");
+    await user.type(field, "justo{Enter}");
+    expect(
+      await screen.findByText(
+        "That's right too, but it's not the one I'm after. Read the whole sentence.",
+      ),
+    ).toBeInTheDocument();
+    // No card of what it is not: only the whole sentence.
+    expect(document.querySelector("[data-sense-hint]")).toBeNull();
+    expect(
+      screen.getByText("She tied back her", { exact: false }),
+    ).toBeVisible();
+    await user.type(field, "rubio{Enter}");
+    expect(
+      await screen.findByText(
+        "Right, with the help of the whole sentence. It will come back so you can get it with the short one alone.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "the short sentence under the word tells you which meaning I'm after.",
+        { exact: false },
+      ),
+    ).toBeInTheDocument();
+  });
+
+  test("two verbs written alike are told apart by their forms", async () => {
+    const user = userEvent.setup();
+    stage(
+      { ...SHOWN, prompt: "found", context: null, verbForm: "base" },
+      () => ({
+        ...PLAIN,
+        correct: false,
+        accepted: [],
+        step: "next",
+        again: true,
+        ladder: {
+          rung: 1,
+          hint: {
+            meaning: "encontró",
+            book: null,
+            chapter: 2,
+            chapterTitle: "The Letter",
+            asked: "verb",
+            given: "verb",
+            askedForm: "base",
+            givenForm: "past",
+          },
+          context: null,
+          short: false,
+        },
+      }),
+    );
+    await user.type(
+      screen.getByLabelText("Your translation"),
+      "encontró{Enter}",
+    );
+    const card = await screen.findByText(/is what it meant in/u);
+    expect(card).toBeInTheDocument();
+    const forms = [...document.querySelectorAll("[data-form-mark]")].map(
+      (each) => each.textContent,
+    );
+    expect(forms).toEqual(["past simple", "base form"]);
+  });
+  test("a word its tag cannot tell apart asked with its whole sentence says so", async () => {
+    const user = userEvent.setup();
+    const sentence = [
+      { text: "She tied back her ", marked: false },
+      { text: "fair", marked: true },
+      { text: " hair.", marked: false },
+    ];
+    stage(
+      {
+        ...SHOWN,
+        prompt: "fair",
+        partOfSpeech: "adjective",
+        verbForm: null,
+        irregular: null,
+        context: sentence,
+      },
+      (answer, _second, rung) =>
+        rung === 0
+          ? {
+              ...PLAIN,
+              correct: false,
+              accepted: [],
+              step: "next",
+              again: true,
+              ladder: { rung: 2, hint: null, context: sentence, short: false },
+            }
+          : {
+              ...PLAIN,
+              correct: false,
+              accepted: [answer],
+              step: "next",
+              understood: {
+                kind: "adjective",
+                kindsDiffer: false,
+                tied: true,
+                short: false,
+              },
+            },
+    );
+    const field = screen.getByLabelText("Your translation");
+    await user.type(field, "justo{Enter}");
+    // The sentence is on the screen already: nothing says to read it again.
+    expect(
+      await screen.findByText(
+        "That's right too, but it's not the one I'm after. Look at the sentence.",
+      ),
+    ).toBeInTheDocument();
+    // Its tag could not tell it apart: nothing points at it.
+    expect(
+      document.querySelector("[data-band] [data-part-of-speech]")?.className,
+    ).not.toContain("ring-2");
+    await user.type(field, "rubio{Enter}");
+    expect(
+      await screen.findByText(
+        "Right, with the help of the sentence. It will come back later.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("the short sentence under the word", { exact: false }),
+    ).toBeNull();
   });
 });

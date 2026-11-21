@@ -13,13 +13,14 @@ use chrono::{DateTime, Utc};
 use rusqlite::Connection;
 use tauri::AppHandle;
 
-use super::ladder::{rise, Climb, ALONE};
+use super::ladder::{self, rise, Climb, ALONE};
 use super::penalty;
 use super::profile::require_profile;
 use super::run;
-use super::sentences::banked;
+use super::sentences::{banked, refill, refill_after};
 use crate::agent::protocol::RelatedWord;
 use crate::books::hint::{first_letter, letters, mask, most};
+use crate::books::irregular::regularity;
 use crate::books::practice::pick;
 use crate::books::practice::{
     accepts, accepts_english, accepts_native, articles, asked_in, blank, fills, in_forms, inflects,
@@ -27,7 +28,8 @@ use crate::books::practice::{
     session_questions, sizes, SIZES,
 };
 use crate::books::sentences::{
-    asked_alone, choose, in_form, inflected, or_other, production, recognition, Banked, Verdict,
+    asked_alone, choose, fragment, in_form, inflected, or_other, production, recognition, Banked,
+    Verdict,
 };
 use crate::books::spelling::Spelling;
 use crate::db::practice::{self, SittingRow, WordRow};
@@ -94,7 +96,9 @@ pub(super) fn next_sentence(
     drawn_for: &str,
 ) -> Result<Option<Sentence>> {
     let held = sentences::bank(conn, key, chapter)?;
-    let banked: Vec<Banked> = held.iter().map(|each| banked(each, own)).collect();
+    let mut recent = sentences::shown_during(conn, key, drawn_for)?;
+    recent.extend(sentences::last_shown(conn, key)?);
+    let banked: Vec<Banked> = held.iter().map(|each| banked(each, own, &recent)).collect();
     let shown: u32 = held.iter().map(|each| each.shows).sum();
     let turn = usize::try_from(shown).unwrap_or(usize::MAX);
     let chosen = choose(&banked, |len| {
@@ -162,7 +166,44 @@ pub(super) fn asked_with(
         native_context,
         sentence_id: Some(sentence.id.clone()),
         verb_form: verb_form(part_of_speech, sentence),
+        irregular: regularity(part_of_speech, &sentence.key, sentence.verb_form),
     }
+}
+
+/// A word its tag cannot tell from a rival (`commands::ladder::tied`) has
+/// no one answer on its own: English → native it is asked with the few
+/// words of its sentence that fix its sense
+/// (`books::sentences::fragment`), or with the `whole` sentence while those
+/// are not known. Nothing else is held back or added.
+pub(super) fn tie(
+    mut item: PracticeItem,
+    shown: Option<&Sentence>,
+    whole: Vec<SentencePart>,
+    tied: bool,
+) -> PracticeItem {
+    if tied && item.direction == Direction::Recognition {
+        let few = shown.and_then(|sentence| {
+            sentence
+                .cue
+                .as_deref()
+                .and_then(|cue| fragment(&sentence.text, &sentence.form, cue))
+        });
+        item.context = few
+            .or_else(|| shown.and_then(|sentence| in_place(sentence, Direction::Recognition)))
+            .or(Some(whole));
+    }
+    item
+}
+
+/// [`item`], with [`tie`] for a word its tag cannot tell from a rival.
+pub(super) fn item_tied(
+    conn: &Connection,
+    word: WordRow,
+    direction: Direction,
+) -> Result<PracticeItem> {
+    let tied = ladder::tied(conn, &word, None)?;
+    let whole = mark(&word.sentence, &word.forms);
+    Ok(tie(item(word, direction), None, whole, tied))
 }
 
 /// A word, or what it means, as an exercise shows it: in small letters,
@@ -192,7 +233,8 @@ fn verb_form(part_of_speech: Option<PartOfSpeech>, sentence: &Sentence) -> Optio
 /// chapter's bank, a different one each time, or, until it has a bank, as
 /// its chapter has it ([`item`]). A word written alike to another one in
 /// another sense comes alone, and is told apart on its steps
-/// (`commands::ladder`).
+/// (`commands::ladder`); one its tag cannot tell apart comes with the few
+/// words that fix its sense ([`tie`]).
 fn in_sentence(
     conn: &Connection,
     word: WordRow,
@@ -209,14 +251,17 @@ fn in_sentence(
             Some(sentence) => {
                 let alone = word.alone_in(&sentence.form).map(<[String]>::to_vec);
                 let shows = word.shows_context(direction);
-                asked_with(
+                let tied = ladder::tied(conn, &word, sentence.verb_form)?;
+                let whole = mark(&word.sentence, &word.forms);
+                let asked = asked_with(
                     (word.id, word.part_of_speech),
                     &sentence,
                     direction,
                     (shows, alone.as_deref()),
-                )
+                );
+                tie(asked, Some(&sentence), whole, tied)
             }
-            None => item(word, direction),
+            None => item_tied(conn, word, direction)?,
         },
     )
 }
@@ -555,6 +600,11 @@ pub(super) fn item(word: WordRow, direction: Direction) -> PracticeItem {
         context,
         native_context: None,
         sentence_id: None,
+        irregular: regularity(
+            word.part_of_speech,
+            word.base.as_ref().unwrap_or(&word.key),
+            word.verb_form,
+        ),
         verb_form: word.verb_form,
     }
 }
@@ -1064,7 +1114,8 @@ pub fn answer_shown(
             });
         }
         Climb::Understood(tip) => {
-            practice::understood(&tx, &sitting.id, (word_id, direction), now)?;
+            let spent = sentence.as_ref().map(|each| each.id.as_str());
+            practice::understood(&tx, &sitting.id, (word_id, direction), (spent, now))?;
             let step = step(&tx, &sitting, now)?;
             tx.commit()?;
             return Ok(AnswerResult {
@@ -1239,15 +1290,26 @@ pub async fn answer_word(
     sentence_id: Option<String>,
     tries: Option<Tries>,
 ) -> Result<AnswerResult> {
-    run(app, move |_, ctx| {
+    run(app, move |app, ctx| {
         let shown = Shown::of(sentence_id.as_deref(), tries);
-        answer_shown(
+        let now = Utc::now();
+        let answered = answer_shown(
             ctx,
             &sitting_id,
             (&word_id, direction),
             (&answer, shown),
-            Utc::now(),
-        )
+            now,
+        )?;
+        // Its sentences running low: more are written before they run out.
+        // Only a nicety: the answer is kept already, whatever happens here.
+        let due = ctx
+            .conn()
+            .ok()
+            .and_then(|conn| refill_after(&conn, &word_id, now).ok().flatten());
+        if let Some(chapter) = due {
+            refill(app, Some(chapter));
+        }
+        Ok(answered)
     })
     .await
 }
@@ -1914,6 +1976,7 @@ pub mod tests {
             hints: Vec::new(),
             verb_form: None,
             chapter_id: None,
+            cue: None,
         };
         let asked = |direction, shows| {
             asked_with(
@@ -1996,6 +2059,7 @@ pub mod tests {
             hints: vec!["tendría posibilidades".into()],
             verb_form: None,
             chapter_id: None,
+            cue: None,
         };
         let spelling = profile::spelling(&conn).expect("spelling");
         let meaning = Meaning::of(&conn, &row).expect("meaning");

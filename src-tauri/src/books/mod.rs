@@ -3,6 +3,7 @@
 
 pub mod epub;
 pub mod hint;
+pub mod irregular;
 pub mod pdf;
 mod pdftext;
 pub mod penalty;

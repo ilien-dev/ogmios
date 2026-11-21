@@ -30,6 +30,7 @@ function item(
       nativeContext: null,
       sentenceId: null,
       verbForm: null,
+      irregular: null,
     },
     progress,
   };

@@ -4,7 +4,7 @@
  * with `SentenceProgress`, kept apart from `domain.ts` only for its length. The rules are
  * `src-tauri/src/commands/ladder.rs`.
  */
-import type { PartOfSpeech, SentencePart } from "./domain.ts";
+import type { PartOfSpeech, SentencePart, VerbForm } from "./domain.ts";
 
 /**
  * What a word written alike to another one in another sense is asked with
@@ -18,6 +18,11 @@ export interface Ladder {
   hint: SenseHint | null;
   /** On step 2: the sentence, the word marked. */
   context: SentencePart[] | null;
+  /**
+   * The word was asked with the few words that fix its sense, not its whole
+   * sentence: what step 2 shows is more than it had.
+   */
+  short: boolean;
 }
 
 /** The other word an answer meant. */
@@ -32,6 +37,12 @@ export interface SenseHint {
   /** The kind of the word asked, and of the other one. */
   asked: PartOfSpeech | null;
   given: PartOfSpeech | null;
+  /**
+   * The form a verb is asked in, and the form the other one had; null for
+   * any other word, and where nobody said.
+   */
+  askedForm: VerbForm | null;
+  givenForm: VerbForm | null;
 }
 
 /** Right only once the sentence was shown: what to look at next time. */
@@ -40,6 +51,13 @@ export interface SenseTip {
   kind: PartOfSpeech | null;
   /** Its rivals are another kind of word: its tag tells them apart. */
   kindsDiffer: boolean;
+  /**
+   * Its tag cannot tell it from a rival: it is asked with the few words that
+   * fix its sense, and was right only with its whole sentence.
+   */
+  tied: boolean;
+  /** It was asked with those few words, not its whole sentence. */
+  short: boolean;
 }
 
 /** Event `sentence-progress`: words given their sentences so far. */

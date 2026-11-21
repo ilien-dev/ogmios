@@ -6,9 +6,10 @@
 //! form the sentence has it, in the learner's language, and translates the
 //! sentence. A word some other chapter, of any book, has written alike in
 //! another sense (`db::spellings::rivals`) is also written [`WRITTEN`]
-//! sentences of its own in its chapter's sense, once: those are the words a
+//! sentences of its own in its chapter's sense: those are the words a
 //! learner can mistake for one another, and the only ones worth what
-//! writing costs. When a chapter brings the first rival of a word, both are
+//! writing costs. They are written again when they run low
+//! ([`refill_due`]), before the learner runs out of them. When a chapter brings the first rival of a word, both are
 //! written for; a word written for already is not written for again. A
 //! chapter of a deleted book is not read again: only sentences written for
 //! it are asked for.
@@ -36,7 +37,7 @@
 use std::collections::HashMap;
 use std::sync::Mutex;
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, TimeDelta, Utc};
 use rusqlite::Connection;
 use tauri::{AppHandle, Emitter};
 
@@ -48,8 +49,8 @@ use crate::agent::protocol::{
 };
 use crate::books::segment::{paragraphs, sentences as cut};
 use crate::books::sentences::{
-    fits, found, hint_fits, in_translation, other_hints, shown_in, unaided, Banked, GIVEN,
-    SENTENCE_CHARS, WORDS_PER_CALL,
+    cue_in, fits, found, hint_fits, in_translation, left, other_hints, shown_in, unaided, Banked,
+    GIVEN, LOW, SENTENCE_CHARS, WORDS_PER_CALL,
 };
 use crate::books::variety::peninsular;
 use crate::db::recall::{self, Source};
@@ -186,14 +187,94 @@ fn wanted(conn: &Connection, scope: Scope<'_>) -> Result<Vec<Wanted>> {
     }
 }
 
-/// A sentence of a bank as `books::sentences` reads it.
-pub(super) fn banked(sentence: &Sentence, own: &str) -> Banked {
+/// A sentence of a bank as `books::sentences` reads it: `own` is the
+/// sentence of the chapter being practised, and `recent` the ones the word
+/// was asked with the last time and in this sitting.
+pub(super) fn banked(sentence: &Sentence, own: &str, recent: &[String]) -> Banked {
     Banked {
         id: sentence.id.clone(),
         book: sentence.book,
         own: sentence.text == own,
         shows: sentence.shows,
+        last: recent.contains(&sentence.id),
     }
+}
+
+/// How many sentences the model is to write for a word in `chapter`'s
+/// sense: [`WRITTEN`] for a word written alike to another one the first
+/// time, and again when it runs low ([`refill_due`]); none otherwise.
+fn to_write(conn: &Connection, word: &Wanted, chapter: &str) -> Result<u32> {
+    let Some(id) = word.word_id.as_deref() else {
+        return Ok(0);
+    };
+    let first = bank::senses_differ(conn, id)? && !bank::written(conn, &word.key, chapter)?;
+    let again = refill_due(conn, (id, &word.key, chapter), Utc::now())?;
+    Ok(if first || again { WRITTEN } else { 0 })
+}
+
+/// The sentences a word already has in `chapter`'s sense, for the model to
+/// write none like them; none when it is not to write.
+fn avoided(conn: &Connection, due: &Due, chapter: &str) -> Result<Vec<String>> {
+    if due.write == 0 {
+        return Ok(Vec::new());
+    }
+    Ok(bank::bank(conn, &due.word.key, Some(chapter))?
+        .into_iter()
+        .map(|each| each.text)
+        .collect())
+}
+
+/// Hours between two refills of a word: about one sitting, so that a word
+/// missed many times in a row is written for at most once in it.
+const REFILL_GAP_HOURS: i64 = 12;
+
+/// Whether a word written alike to another one has run low on the
+/// sentences of its chapter's sense ([`LOW`] uses or fewer left) and was
+/// not written for in the last [`REFILL_GAP_HOURS`]: then more are written,
+/// in the background, before the ones it has run out. A word never written
+/// for is not due here: it is written for once in any case.
+pub fn refill_due(
+    conn: &Connection,
+    (word_id, key, chapter): (&str, &str, &str),
+    now: DateTime<Utc>,
+) -> Result<bool> {
+    if !bank::senses_differ(conn, word_id)? || !bank::written(conn, key, chapter)? {
+        return Ok(false);
+    }
+    let held: Vec<Banked> = bank::bank(conn, key, Some(chapter))?
+        .iter()
+        .map(|each| banked(each, "", &[]))
+        .collect();
+    if left(&held) > LOW {
+        return Ok(false);
+    }
+    let gap = TimeDelta::hours(REFILL_GAP_HOURS);
+    Ok(bank::last_write(conn, key, chapter)?.is_none_or(|at| now - at >= gap))
+}
+
+/// After an answer to the word `word_id`: the chapter whose sentences of it
+/// are to be written again now ([`refill_due`]); none when none are.
+pub fn refill_after(
+    conn: &Connection,
+    word_id: &str,
+    now: DateTime<Utc>,
+) -> Result<Option<String>> {
+    let (key, chapter): (String, String) = conn.query_row(
+        "SELECT key, chapter_id FROM chapter_words WHERE id = ?1",
+        [word_id],
+        |row| Ok((row.get(0)?, row.get(1)?)),
+    )?;
+    Ok(refill_due(conn, (word_id, &key, &chapter), now)?.then_some(chapter))
+}
+
+/// Writes the sentences of `chapter` again in the background, as opening
+/// it does: the answer that made them due does not wait for them.
+pub fn refill(app: &AppHandle, chapter: Option<String>) {
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        // Nothing to tell the learner if it fails: the next run tries again.
+        let _ = write_sentences(app, chapter).await;
+    });
 }
 
 /// The sentences of a chapter: only its own show the sense it gives a word.
@@ -256,6 +337,7 @@ fn asked_about(word: Wanted, from_book: Vec<(String, String)>, write: u32) -> As
                 .map(|(sentence, _)| sentence.clone())
                 .collect(),
             write,
+            avoid: Vec::new(),
         },
         book: from_book,
         word,
@@ -427,6 +509,7 @@ fn kept(
             .collect(),
         hints: other_hints(&label.hints, (&sentence.hint, &sentence.form, lang), base),
         verb_form: label.verb_form,
+        cue: cue_in(&label.cue, (&sentence.text, &sentence.form)),
     }
 }
 
@@ -593,15 +676,7 @@ pub fn top_up(
             };
             let given = bank::given(&conn, &word.key, &chapter)?;
             let read = !given && !bank::archived(&conn, &chapter)?;
-            let rival = match word.word_id.as_deref() {
-                Some(id) => bank::senses_differ(&conn, id)?,
-                None => false,
-            };
-            let write = if rival && !bank::written(&conn, &word.key, &chapter)? {
-                WRITTEN
-            } else {
-                0
-            };
+            let write = to_write(&conn, &word, &chapter)?;
             if given {
                 stale.extend(outdated(&conn, word.clone(), &profile.native_lang)?);
             }
@@ -627,8 +702,12 @@ pub fn top_up(
                 Vec::new()
             };
             for due in words {
+                let avoid = avoided(&conn, &due, &chapter)?;
                 let chapter = due.read.then_some(text.as_slice());
-                asked.extend(ask(due.word, chapter, due.write));
+                asked.extend(ask(due.word, chapter, due.write).map(|mut each| {
+                    each.params.avoid = avoid;
+                    each
+                }));
             }
         }
     }
@@ -651,8 +730,11 @@ pub fn top_up(
                 if let Some(answer) = answer {
                     keep(&tx, (each, answer), &profile.native_lang, now)?;
                 }
-                // Asked once to write, whatever it wrote.
+                // Asked to write, whatever it wrote: the first time, or again.
                 if let (Some(chapter), true) = (&each.word.chapter, each.params.write > 0) {
+                    if bank::written(&tx, &each.word.key, chapter)? {
+                        bank::refilled(&tx, &each.word.key, chapter, now)?;
+                    }
                     bank::wrote(&tx, &each.word.key, chapter, now)?;
                 }
             }
@@ -844,6 +926,7 @@ pub mod tests {
                             each.meaning.first().cloned().unwrap_or_default(),
                         ],
                         verb_form: Some(VerbForm::Past),
+                        cue: Vec::new(),
                     })
                     .collect(),
             })
@@ -1120,6 +1203,7 @@ pub mod tests {
             also: vec!["peered".into()],
             hints: vec!["mirada".into()],
             verb_form: Some(VerbForm::PastParticiple),
+            cue: Vec::new(),
         };
         bank::review(&conn, &waiting.id, true, &labels).expect("review");
         waiting
@@ -1264,6 +1348,7 @@ pub mod tests {
                 also: Vec::new(),
                 hints: vec!["me había asegurado de".into()],
                 verb_form: Some(VerbForm::PastParticiple),
+                cue: Vec::new(),
             };
             bank::review(&conn, &waiting.id, true, &labels).expect("review");
         }
@@ -1320,6 +1405,7 @@ pub mod tests {
                 also: Vec::new(),
                 hints: vec!["tendría posibilidades".into()],
                 verb_form: Some(VerbForm::Base),
+                cue: Vec::new(),
             };
             bank::review(&conn, &waiting.id, true, &labels).expect("review");
         }
@@ -1363,6 +1449,7 @@ pub mod tests {
             also: Vec::new(),
             hints: vec!["no lo había notado".into()],
             verb_form: Some(VerbForm::PastParticiple),
+            cue: Vec::new(),
         };
         bank::review(&conn, &waiting.id, true, &labels).expect("review");
         assert_eq!(bank::unaid(&conn, "es").expect("unaid"), 1);
@@ -2717,6 +2804,29 @@ pub mod tests {
         }
     }
 
+    /// "fuzzy", blurred, labelled another kind of word than "fuzzy", furry:
+    /// its tag tells the two apart.
+    fn blurring() -> Word {
+        Word {
+            part_of_speech: Some(PartOfSpeech::Noun),
+            ..blurred()
+        }
+    }
+
+    /// "fuzzy" of the cat book called an adjective: furry, told apart by its
+    /// tag from "fuzzy", to blur.
+    fn furry_is_an_adjective(desk: &Desk) {
+        desk.db
+            .lock()
+            .expect("db")
+            .execute(
+                "UPDATE chapter_words SET part_of_speech = 'adjective'
+                 WHERE key = 'fuzzy' AND part_of_speech IS NULL",
+                [],
+            )
+            .expect("kind");
+    }
+
     /// A book about a cat whose second chapter has "fuzzy" too, unprepared,
     /// and one about a picture: its chapters, [cat 1, cat 2, picture].
     fn two_books(desk: &Desk, picture: &Word) -> [String; 3] {
@@ -2832,6 +2942,83 @@ pub mod tests {
         assert_eq!(written_for(&third), ["My head felt fuzzy."]);
     }
 
+    /// Shows every sentence of "fuzzy" in `chapter` but the first `keep`
+    /// twice, as answers of the daily recall: they are spent.
+    fn spend_all_but(desk: &Desk, chapter: &str, keep: usize) {
+        let conn = desk.db.lock().expect("db");
+        let bank = bank::bank(&conn, "fuzzy", Some(chapter)).expect("bank");
+        for each in bank.iter().skip(keep) {
+            for _ in 0..2 {
+                conn.execute(
+                    "INSERT INTO word_events (key, kind, direction, answer, created_at, sentence_id)
+                     VALUES ('fuzzy', 'right', 'recognition', 'x', '2026-01-01T00:00:00.000Z', ?1)",
+                    [&each.id],
+                )
+                .expect("event");
+            }
+        }
+    }
+
+    #[test]
+    fn a_word_written_alike_is_written_for_again_once_its_sentences_run_low() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let desk = Desk::new(&dir);
+        let [cat, ..] = two_books(&desk, &blurred());
+        let mut first = pen();
+        top_up(desk.ctx(), Scope::Chapter(&cat), &mut first, &|_, _| {}).expect("top up");
+        let word: String = desk
+            .db
+            .lock()
+            .expect("db")
+            .query_row(
+                "SELECT id FROM chapter_words WHERE key = 'fuzzy' AND chapter_id = ?1",
+                [&cat],
+                |row| row.get(0),
+            )
+            .expect("word");
+        let now = Utc::now();
+        let due =
+            |at: DateTime<Utc>| refill_after(&desk.db.lock().expect("db"), &word, at).expect("due");
+        // Plenty left: nothing to write.
+        assert_eq!(due(now), None);
+        // Three sentences left: six uses, still enough.
+        spend_all_but(&desk, &cat, 3);
+        assert_eq!(due(now + TimeDelta::hours(REFILL_GAP_HOURS)), None);
+        // Two left: four uses, the threshold.
+        spend_all_but(&desk, &cat, 2);
+        assert_eq!(due(now), None, "written for a moment ago");
+        let later = now + TimeDelta::hours(REFILL_GAP_HOURS);
+        assert_eq!(due(later), Some(cat.clone()));
+        // A run past the gap writes for it again, and once only.
+        desk.db
+            .lock()
+            .expect("db")
+            .execute(
+                "UPDATE sentence_writes SET created_at = '2026-01-01T00:00:00.000Z'",
+                [],
+            )
+            .expect("old");
+        let mut again = pen();
+        top_up(desk.ctx(), Scope::Chapter(&cat), &mut again, &|_, _| {}).expect("top up");
+        assert!(written_for(&again).contains(&"The fuzzy cat slept.".to_owned()));
+        // It is shown what it has already, so that nothing new reads like it.
+        let asked = again
+            .writes
+            .iter()
+            .flat_map(|each| each.words.iter())
+            .find(|each| each.sense == "The fuzzy cat slept.")
+            .expect("asked");
+        assert!(
+            asked.avoid.contains(&"The fuzzy cat slept.".to_owned()),
+            "{:?}",
+            asked.avoid
+        );
+        assert_eq!(desk.count("SELECT COUNT(*) FROM sentence_refills"), 1);
+        let mut third = pen();
+        top_up(desk.ctx(), Scope::Chapter(&cat), &mut third, &|_, _| {}).expect("top up");
+        assert!(!written_for(&third).contains(&"The fuzzy cat slept.".to_owned()));
+    }
+
     #[test]
     fn a_word_no_other_chapter_has_in_another_sense_is_never_written_for() {
         let dir = tempfile::tempdir().expect("tempdir");
@@ -2911,6 +3098,7 @@ pub mod tests {
             ..word("fuzzy", &["difuminar"], 1)
         };
         let [cat, _, picture] = two_books(&desk, &verb);
+        furry_is_an_adjective(&desk);
         stock(&desk, &cat);
         stock(&desk, &picture);
         let sitting =
@@ -2967,10 +3155,101 @@ pub mod tests {
     }
 
     #[test]
-    fn right_once_told_the_kind_is_helped_and_spends_its_sentence() {
+    fn a_word_its_tag_cannot_tell_apart_comes_with_its_sentence_and_skips_the_step_between() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let desk = Desk::new(&dir);
+        // "fuzzy", blurred, and "fuzzy", furry: no tag tells them apart.
+        let [cat, _, picture] = two_books(&desk, &blurred());
+        stock(&desk, &cat);
+        stock(&desk, &picture);
+        let sitting =
+            crate::commands::practice::start(desk.ctx(), &cat, (None, Ways::Recognition), t0())
+                .expect("start");
+        let asked = item(&sitting.step).clone();
+        // Never alone: the word alone has no one answer. No words that fix
+        // its sense were said yet, so its whole sentence comes.
+        let context = asked.context.clone().expect("its sentence from the start");
+        assert!(context.iter().any(|part| part.marked));
+        let say = |text: &str, rung: u8| {
+            let shown = Shown {
+                sentence_id: asked.sentence_id.as_deref(),
+                rung,
+                ..Shown::default()
+            };
+            answer_shown(
+                desk.ctx(),
+                &sitting.id,
+                (&asked.word_id, asked.direction),
+                (text, shown),
+                t0(),
+            )
+            .expect("answer")
+        };
+        let sentence = sentence_of(&desk, &asked);
+        let other = if sentence.chapter_id.as_deref() == Some(cat.as_str()) {
+            "difuso"
+        } else {
+            "peludo"
+        };
+        // The other book's meaning: straight to the whole sentence, with no
+        // word of what it is not.
+        let shown = say(other, 0).ladder.expect("a step");
+        // No few words known yet: it had its whole sentence, and says so.
+        assert_eq!(
+            (shown.rung, shown.hint.is_none(), shown.short),
+            (2, true, false)
+        );
+        assert!(shown.context.is_some());
+        // Right with it: understood, and the word comes back.
+        let understood = say(&sentence.hint, 2);
+        assert_eq!(
+            understood.understood.map(|tip| (tip.tied, tip.short)),
+            Some((true, false))
+        );
+        // It was shown: the sentence is spent once, like any answer.
+        assert_eq!(sentence_of(&desk, &asked).shows, 1);
+        assert_eq!(desk.count("SELECT COUNT(*) FROM word_answers"), 0);
+        assert_eq!(desk.count("SELECT COUNT(*) FROM understood_answers"), 1);
+    }
+
+    #[test]
+    fn a_word_its_tag_cannot_tell_apart_comes_with_the_few_words_that_fix_its_sense() {
         let dir = tempfile::tempdir().expect("tempdir");
         let desk = Desk::new(&dir);
         let [cat, _, picture] = two_books(&desk, &blurred());
+        stock(&desk, &cat);
+        stock(&desk, &picture);
+        desk.db
+            .lock()
+            .expect("db")
+            .execute(
+                "UPDATE word_sentences SET cue = '[\"cat\",\"dog\",\"picture\"]'",
+                [],
+            )
+            .expect("cue");
+        let sitting =
+            crate::commands::practice::start(desk.ctx(), &cat, (None, Ways::Recognition), t0())
+                .expect("start");
+        let asked = item(&sitting.step).clone();
+        let shown: String = asked
+            .context
+            .clone()
+            .expect("its few words")
+            .iter()
+            .map(|part| part.text.as_str())
+            .collect();
+        let sentence = sentence_of(&desk, &asked);
+        // Fewer words than its sentence, the word and what fixes it.
+        assert!(shown.len() < sentence.text.len(), "{shown}");
+        assert!(shown.to_lowercase().contains("fuzzy"), "{shown}");
+    }
+
+    #[test]
+    fn right_once_told_the_kind_is_helped_and_spends_its_sentence() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let desk = Desk::new(&dir);
+        let [cat, _, picture] = two_books(&desk, &blurring());
+        furry_is_an_adjective(&desk);
         stock(&desk, &cat);
         stock(&desk, &picture);
         learn_in(&desk, &cat);
@@ -3013,7 +3292,8 @@ pub mod tests {
     fn a_word_understood_with_its_sentence_in_the_recall_stays_due_and_leaves_the_run() {
         let dir = tempfile::tempdir().expect("tempdir");
         let desk = Desk::new(&dir);
-        let [cat, _, picture] = two_books(&desk, &blurred());
+        let [cat, _, picture] = two_books(&desk, &blurring());
+        furry_is_an_adjective(&desk);
         stock(&desk, &cat);
         stock(&desk, &picture);
         learn_in(&desk, &cat);

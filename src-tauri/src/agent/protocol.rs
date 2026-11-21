@@ -584,6 +584,10 @@ pub struct SentenceWord {
     pub book: Vec<String>,
     /// How many sentences to write in the sense of `sense`; 0 for none.
     pub write: u32,
+    /// Sentences the word already has in that sense: the new ones are none
+    /// of them nor close to one.
+    #[serde(default)]
+    pub avoid: Vec<String>,
 }
 
 /// The model glosses the sentences the chapter has, and writes `write`
@@ -666,6 +670,10 @@ pub struct SentenceVerdict {
     pub hints: Vec<String>,
     /// The form a verb has in the sentence; none for any other word.
     pub verb_form: Option<crate::domain::VerbForm>,
+    /// The words of the sentence, besides the word, that fix its sense
+    /// there; empty when none does.
+    #[serde(default)]
+    pub cue: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

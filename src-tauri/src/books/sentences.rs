@@ -1,8 +1,11 @@
 //! The sentences a word is asked with: which one comes next, whether one
 //! can be used, and what an answer given to one is worth. A word is given
 //! [`GIVEN`] of them, once; a bank kept before that has more, each shown
-//! [`SHOWS`] times before another is drawn. Nothing here touches the
+//! [`SHOWS`] times before another is drawn, never the one of the last time
+//! while there is another. Nothing here touches the
 //! database, the clock or the model.
+
+use crate::domain::SentencePart;
 
 use super::practice::{
     accepts, accepts_native, articles, auxiliary, clitic, is_base, mark, shape, Auxiliary,
@@ -19,6 +22,10 @@ pub const WORDS_PER_CALL: usize = 10;
 /// The longest sentence kept, in characters: one to read at a glance.
 pub const SENTENCE_CHARS: usize = 240;
 
+/// Uses left in a word's bank at or under which more sentences are written
+/// for it, in the background, before they run out: two sentences' worth.
+pub const LOW: u32 = 4;
+
 /// One sentence of a word's bank that can still be asked.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Banked {
@@ -29,30 +36,51 @@ pub struct Banked {
     pub own: bool,
     /// Times it was shown: the answers given to it.
     pub shows: u32,
+    /// The word was asked with it the last time it was asked, or already in
+    /// this sitting.
+    pub last: bool,
 }
 
 /// The sentence a word is asked with next; none for a word with no bank.
-/// The first time, the one of the chapter itself, or failing that another
-/// of the book. After that one of those not yet spent, drawn by `draw`
-/// among that many; and when all are spent, the one shown least.
+/// Never the one it was asked with the last time, nor one already shown in
+/// the same sitting, while there is another, so that no sentence is learned
+/// by heart. The first time, the one of the
+/// chapter itself, or failing that another of the book. After that one of
+/// those not yet spent, drawn by `draw` among that many; and when all are
+/// spent, the one shown least.
 pub fn choose(bank: &[Banked], draw: impl Fn(usize) -> Option<usize>) -> Option<&Banked> {
-    if bank.iter().all(|sentence| sentence.shows == 0) {
-        let first = bank
+    let fresh: Vec<&Banked> = bank.iter().filter(|sentence| !sentence.last).collect();
+    let pool: Vec<&Banked> = if fresh.is_empty() {
+        bank.iter().collect()
+    } else {
+        fresh
+    };
+    if pool.iter().all(|sentence| sentence.shows == 0) {
+        let first = pool
             .iter()
             .find(|sentence| sentence.own)
-            .or_else(|| bank.iter().find(|sentence| sentence.book));
-        if first.is_some() {
-            return first;
+            .or_else(|| pool.iter().find(|sentence| sentence.book));
+        if let Some(first) = first {
+            return Some(first);
         }
     }
-    let unspent: Vec<&Banked> = bank
+    let unspent: Vec<&Banked> = pool
         .iter()
+        .copied()
         .filter(|sentence| sentence.shows < SHOWS)
         .collect();
     if unspent.is_empty() {
-        return bank.iter().min_by_key(|sentence| sentence.shows);
+        return pool.into_iter().min_by_key(|sentence| sentence.shows);
     }
     draw(unspent.len()).and_then(|at| unspent.get(at).copied())
+}
+
+/// How many more times the sentences of a bank can be shown before every
+/// one of them is spent.
+pub fn left(bank: &[Banked]) -> u32 {
+    bank.iter()
+        .map(|sentence| SHOWS.saturating_sub(sentence.shows))
+        .sum()
 }
 
 /// How often `form` is in `sentence` as written.
@@ -588,17 +616,146 @@ pub fn or_other(verdict: Verdict, answer: &str, rivals: &[String], spelling: Spe
     }
 }
 
+/// The longest short sentence a word is asked with when its tag cannot
+/// tell it from a word written alike, in words.
+pub const FRAGMENT_WORDS: usize = 8;
+
+/// The words the second look said fix the sense of the word in a sentence,
+/// kept only where the sentence has them as words of its own, outside the
+/// word itself, three at most and each once.
+pub fn cue_in(cue: &[String], (sentence, form): (&str, &str)) -> Vec<String> {
+    let words = tokens(sentence);
+    let own = tokens(form);
+    let mut kept: Vec<String> = Vec::new();
+    for each in cue {
+        let said = tokens(each);
+        let fits = !said.is_empty()
+            && said.iter().all(|word| !own.contains(word))
+            && words.windows(said.len()).any(|run| run == said.as_slice());
+        let text = said.join(" ");
+        if fits && !kept.contains(&text) && kept.len() < 3 {
+            kept.push(text);
+        }
+    }
+    kept
+}
+
+/// Where the run of words `run` starts among `words`, the first time.
+fn at(words: &[String], run: &[String]) -> Option<usize> {
+    if run.is_empty() {
+        return None;
+    }
+    words.windows(run.len()).position(|each| each == run)
+}
+
+/// The short sentence a word is asked with when its tag cannot tell it from
+/// a word written alike: the words of `sentence` from the first of the word
+/// and the words that fix its sense (`cue`) to the last, as written, the
+/// word marked ("her fair hair"). None when the sentence has no such words,
+/// or they are too far apart for a glance: the whole sentence is shown then.
+pub fn fragment(sentence: &str, form: &str, cue: &[String]) -> Option<Vec<SentencePart>> {
+    let written: Vec<&str> = sentence.split_whitespace().collect();
+    let words: Vec<String> = written.iter().map(|each| tokens(each).join(" ")).collect();
+    let flat: Vec<String> = words.iter().flat_map(|each| tokens(each)).collect();
+    if flat.len() != written.len() {
+        // A word of the text is two to the tokenizer ("don't" aside): the
+        // places would not line up, so the whole sentence is shown.
+        return None;
+    }
+    let own = tokens(form);
+    let start = at(&words, &own)?;
+    let mut first = start;
+    let mut last = start + own.len() - 1;
+    let mut any = false;
+    for each in cue {
+        let said = tokens(each);
+        if let Some(place) = at(&words, &said) {
+            first = first.min(place);
+            last = last.max(place + said.len() - 1);
+            any = true;
+        }
+    }
+    if !any || last - first + 1 > FRAGMENT_WORDS {
+        return None;
+    }
+    let text = written[first..=last].join(" ");
+    let text = text.trim_matches(|c: char| !c.is_alphanumeric());
+    Some(mark(text, &[form.to_owned()]))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    fn shown(parts: &[crate::domain::SentencePart]) -> (String, Vec<String>) {
+        let text = parts.iter().map(|part| part.text.as_str()).collect();
+        let marked = parts
+            .iter()
+            .filter(|part| part.marked)
+            .map(|part| part.text.clone())
+            .collect();
+        (text, marked)
+    }
+
+    #[test]
+    fn a_fragment_runs_from_the_word_to_the_words_that_fix_its_sense() {
+        let cue = vec!["hair".to_owned()];
+        let parts =
+            fragment("She tied back her fair hair and left.", "fair", &cue).expect("a fragment");
+        assert_eq!(
+            shown(&parts),
+            ("fair hair".to_owned(), vec!["fair".to_owned()])
+        );
+        let cue = vec!["her".to_owned(), "hair".to_owned()];
+        let parts =
+            fragment("She tied back her fair hair, and left.", "fair", &cue).expect("a fragment");
+        assert_eq!(shown(&parts).0, "her fair hair");
+    }
+
+    #[test]
+    fn no_fragment_without_words_that_fix_the_sense_or_too_far_apart() {
+        assert!(fragment("Her fair hair shone.", "fair", &[]).is_none());
+        let far = vec!["end".to_owned()];
+        let long = "A fair one came along the road by the river to the very end.";
+        assert!(fragment(long, "fair", &far).is_none());
+    }
+
+    #[test]
+    fn only_words_the_sentence_has_outside_the_word_fix_its_sense() {
+        let said = vec![
+            "hair".to_owned(),
+            "Hair".to_owned(),
+            "fair".to_owned(),
+            "blond".to_owned(),
+            " ".to_owned(),
+        ];
+        assert_eq!(cue_in(&said, ("Her fair hair shone.", "fair")), ["hair"]);
+    }
+
     fn banked(id: &str, book: bool, own: bool, shows: u32) -> Banked {
         Banked {
+            last: false,
             id: id.into(),
             book,
             own,
             shows,
         }
+    }
+
+    #[test]
+    fn never_the_sentence_of_the_last_time_while_there_is_another() {
+        let mut bank = vec![
+            banked("a", true, true, 1),
+            banked("b", false, false, 2),
+            banked("c", false, false, 2),
+        ];
+        bank[0].last = true;
+        // "a" is the only one not spent, but it was the last one: the least
+        // shown of the others comes.
+        assert_eq!(chosen(&bank, 0), Some("b"));
+        // Alone in its bank, it comes all the same.
+        assert_eq!(chosen(&bank[..1], 0), Some("a"));
+        assert_eq!(left(&bank), 1);
     }
 
     fn chosen(bank: &[Banked], at: usize) -> Option<&str> {

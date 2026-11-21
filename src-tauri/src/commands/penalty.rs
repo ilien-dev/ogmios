@@ -10,7 +10,7 @@ use rusqlite::Connection;
 use tauri::AppHandle;
 
 use super::ladder::{rise, Climb, ALONE};
-use super::practice::{all_small, item, plain, small, Tries};
+use super::practice::{all_small, item_tied, plain, small, Tries};
 use super::profile::require_profile;
 use super::run;
 use crate::books::penalty::{after_clean, after_slip, order, raised, reps, Standing};
@@ -76,7 +76,7 @@ pub(super) fn step(
             answered,
             english,
             native,
-            item: item(word, direction),
+            item: item_tied(conn, word, direction)?,
         },
         progress,
     }))

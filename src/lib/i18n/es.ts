@@ -712,12 +712,26 @@ export const es: Catalog<typeof en> = {
         "Es la palabra, pero la pido en su forma base: el infinitivo. Prueba otra vez.",
       otherWord: "Es correcto, pero aquí busco otra palabra. Prueba otra vez.",
       otherMeaning: "También es correcta, pero no es la que busco.",
+      otherMeaningLook:
+        "También es correcta, pero no es la que busco. Fíjate en la frase.",
+      otherMeaningRead:
+        "También es correcta, pero no es la que busco. Lee la frase completa.",
       readSentence: "Lee la frase: te dice qué significado buscamos.",
+      understoodWhole: "Correcto, con ayuda de la frase. Volverá más adelante.",
+      understoodTied:
+        "Correcto, con ayuda de la frase completa. Volverá para que la aciertes solo con la frase corta.",
       understood:
         "Lo entendiste con la frase. Volverá para que la aciertes sin ella.",
       otherKind:
         "Recuerda: busco «{{asked}}»{{form}}, no «{{given}}». {{title}}: {{meaning}} Prueba otra vez.",
       exact: "En esta frase:",
+      regularity: {
+        regular: "regular",
+        irregular: "irregular",
+        regularHint: "Su pasado y su participio se forman con -ed.",
+        irregularHint:
+          "Su pasado o su participio no se forman con -ed: cambian.",
+      },
       verbForm: {
         base: "forma base",
         present: "presente",
@@ -806,6 +820,12 @@ export const es: Catalog<typeof en> = {
       likeYours: ", como «{{meaning}}».",
       like: ", como en {{example}}.",
       ask: "Pregúntate:",
+      inForm: "en",
+      tipShort: "la frase corta bajo la palabra te dice qué significado busco.",
+      ing: {
+        example: "«el niño está corriendo»",
+        question: "¿Qué está haciendo?",
+      },
       tipTitle: "Consejo:",
       tipTag: "antes de responder, mira la etiqueta de la banda (",
       tipTagEnd: "). Te dice qué significado buscamos.",

@@ -21,11 +21,12 @@ use tauri::AppHandle;
 
 use super::ladder::{rise, Climb, ALONE};
 use super::practice::{
-    all_small, another, asked_with, climb, clue, in_place, item, judged, next_sentence, plain,
-    shown_sentence, small, whole, Judged, Meaning, Shown, Tries,
+    all_small, another, asked_with, climb, clue, in_place, item_tied, judged, next_sentence, plain,
+    shown_sentence, small, tie, whole, Judged, Meaning, Shown, Tries,
 };
 use super::profile::require_profile;
 use super::run;
+use super::sentences::{refill, refill_after};
 use crate::books::practice::{accepts_english, pass_progress, pick, seed};
 use crate::books::sentences::{or_other, Verdict};
 use crate::books::spelling::Spelling;
@@ -123,26 +124,29 @@ fn asked(
 ) -> Result<PracticeItem> {
     let own = sense(conn, word)?;
     if let Some(sentence) = next_sentence(conn, (&word.key, &own), None, run_id)? {
-        let (part_of_speech, needs_context, alone) = match &word.source {
+        let (part_of_speech, needs_context, alone, tied) = match &word.source {
             Source::Book { word_id } => {
                 let row = as_in(conn, word_id, &sentence)?;
                 let alone = row.alone_in(&sentence.form).map(<[String]>::to_vec);
                 let shows = row.shows_context(direction);
-                (row.part_of_speech, shows, alone)
+                let tied = super::ladder::tied(conn, &row, sentence.verb_form)?;
+                (row.part_of_speech, shows, alone, tied)
             }
-            Source::Chat { .. } => (None, false, None),
+            Source::Chat { .. } => (None, false, None, false),
         };
-        return Ok(asked_with(
+        let asked = asked_with(
             (word.key.clone(), part_of_speech),
             &sentence,
             direction,
             (needs_context, alone.as_deref()),
-        ));
+        );
+        let whole = in_place(&sentence, Direction::Recognition).unwrap_or_default();
+        return Ok(tie(asked, Some(&sentence), whole, tied));
     }
     Ok(match &word.source {
         Source::Book { word_id } => PracticeItem {
             word_id: word.key.clone(),
-            ..item(practice::word(conn, word_id)?, direction)
+            ..item_tied(conn, practice::word(conn, word_id)?, direction)?
         },
         Source::Chat { asked } => PracticeItem {
             word_id: word.key.clone(),
@@ -153,6 +157,7 @@ fn asked(
             native_context: None,
             sentence_id: None,
             verb_form: None,
+            irregular: None,
         },
     })
 }
@@ -377,7 +382,8 @@ pub fn answer_shown(
             });
         }
         Climb::Understood(tip) => {
-            recall::understood(&tx, &run.id, key, now)?;
+            let spent = sentence.as_ref().map(|each| each.id.as_str());
+            recall::understood(&tx, &run.id, key, (spent, now))?;
             let step = step(&tx, &run, now)?;
             tx.commit()?;
             return Ok(RecallAnswer {
@@ -504,6 +510,25 @@ pub async fn start_recall(app: AppHandle, ways: Ways) -> Result<Recall> {
     run(app, move |_, ctx| start(ctx, ways, Utc::now())).await
 }
 
+/// The chapter whose sentences of the word `key` are to be written again
+/// after it was answered with the sentence `sentence_id` (`refill_after`).
+fn refill_of(
+    conn: &Connection,
+    (key, sentence_id): (&str, Option<&str>),
+    now: DateTime<Utc>,
+) -> Result<Option<String>> {
+    let Some(id) = sentence_id else {
+        return Ok(None);
+    };
+    let Some(chapter) = sentences::usable(conn, id)?.and_then(|each| each.chapter_id) else {
+        return Ok(None);
+    };
+    match sentences::word_in(conn, key, &chapter)? {
+        Some(word) => refill_after(conn, &word, now),
+        None => Ok(None),
+    }
+}
+
 #[tauri::command]
 pub async fn answer_recall(
     app: AppHandle,
@@ -513,9 +538,22 @@ pub async fn answer_recall(
     sentence_id: Option<String>,
     tries: Option<Tries>,
 ) -> Result<RecallAnswer> {
-    run(app, move |_, ctx| {
+    run(app, move |app, ctx| {
         let shown = Shown::of(sentence_id.as_deref(), tries);
-        answer_shown(ctx, &sitting_id, &word_id, (&answer, shown), Utc::now())
+        let now = Utc::now();
+        let answered = answer_shown(ctx, &sitting_id, &word_id, (&answer, shown), now)?;
+        // The chapter of the sentence it was asked with: its sentences of the
+        // word running low are written again before they run out. Only a
+        // nicety: the answer is kept already, whatever happens here.
+        let due = ctx
+            .conn()
+            .ok()
+            .and_then(|conn| refill_of(&conn, (&word_id, sentence_id.as_deref()), now).ok())
+            .flatten();
+        if let Some(chapter) = due {
+            refill(app, Some(chapter));
+        }
+        Ok(answered)
     })
     .await
 }

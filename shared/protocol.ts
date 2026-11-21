@@ -630,6 +630,11 @@ const sentenceWordSchema = z.object({
   book: z.array(z.string()),
   /** How many sentences to write in the sense of `sense`; 0 for none. */
   write: z.number().int().min(0),
+  /**
+   * Sentences the word already has in that sense: the new ones are none of
+   * them nor close to one, so that none is learned by heart.
+   */
+  avoid: z.array(z.string()),
 });
 
 /**
@@ -705,6 +710,11 @@ const sentenceVerdictSchema = z.object({
   hints: z.array(z.string()),
   /** The form a verb has in the sentence; null for any other word. */
   verbForm: verbFormSchema.nullable(),
+  /**
+   * The one to three words of the sentence, besides the word, that fix the
+   * meaning it has there; empty when none does.
+   */
+  cue: z.array(z.string()),
 });
 
 /** The model's labels; a sentence without a good one is not used. */

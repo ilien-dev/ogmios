@@ -1,5 +1,6 @@
 import { useId, useLayoutEffect, useRef, useState } from "react";
 import type { ReactNode, SyntheticEvent } from "react";
+import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import type {
   AnotherWord,
@@ -30,6 +31,7 @@ import { FRAME, PracticeBand, VerbForms, toneOf } from "./PracticeBand";
 import { kindLine, retryKey } from "./retryLine";
 import { SenseHintCard, SenseTipLine } from "./SenseHelp";
 import { NextArrow } from "./SittingParts";
+import { Clue, Whole } from "./SittingClue";
 import { Context, whole } from "./SentenceContext";
 
 /**
@@ -69,6 +71,20 @@ export interface Checked {
   sentence?: ShownSentence | null;
 }
 
+/**
+ * What a verdict says of a word right only with its sentence: understood,
+ * not known. A word its tag could not tell apart comes back with its few
+ * words, or, asked with its whole sentence from the start, simply later.
+ */
+function understoodLine(tip: SenseTip, t: TFunction): string {
+  if (!tip.tied) {
+    return t("books.sitting.understood");
+  }
+  return tip.short
+    ? t("books.sitting.understoodTied")
+    : t("books.sitting.understoodWhole");
+}
+
 interface VerdictProps {
   result: Checked;
   /** The learner said "I don't know": the answer is shown, nothing judged. */
@@ -90,7 +106,7 @@ function Verdict({ result, unknown, heard }: VerdictProps): ReactNode {
     return (
       <div className="flex flex-col items-center gap-2">
         <VerdictLine tone="partial">
-          {t("books.sitting.understood")}
+          {understoodLine(understood, t)}
         </VerdictLine>
         <SenseTipLine tip={understood} />
       </div>
@@ -128,90 +144,6 @@ function Verdict({ result, unknown, heard }: VerdictProps): ReactNode {
           </Reveal>
         )}
       </Presence>
-    </div>
-  );
-}
-
-interface ClueProps {
-  clue: WordHint;
-  /** The word is the answer: its sentence comes with a blank. */
-  blanked: boolean;
-}
-
-/**
- * The hint the learner asked for: the sentence the word came without, and,
- * from the next one on, the answer letter by letter, a mark for each one
- * not given yet.
- */
-function Clue({ clue, blanked }: ClueProps): ReactNode {
-  const { t } = useTranslation();
-  return (
-    <Reveal data-hint className="flex flex-col gap-2">
-      <Presence>
-        {clue.context !== null && (
-          <Reveal key="context">
-            <Context parts={clue.context} blanked={blanked} />
-          </Reveal>
-        )}
-      </Presence>
-      <Presence>
-        {clue.mask !== null && (
-          <Reveal key="mask" as="p" className="text-ink-soft">
-            <span className="sr-only">{t("books.sitting.hintIs")} </span>
-            <span
-              data-mask
-              className="font-mono text-lead tracking-widest whitespace-pre text-ink"
-            >
-              {clue.mask}
-            </span>
-          </Reveal>
-        )}
-      </Presence>
-    </Reveal>
-  );
-}
-
-interface WholeProps {
-  sentence: ShownSentence;
-  /** Calls the sentence bad; null where that is not offered. */
-  onBad: (() => void) | null;
-  busy: boolean;
-}
-
-/**
- * The sentence a word was asked with, once it is answered: whole, to read
- * and to hear, with what it says in the learner's language and where it is
- * from. A sentence that is wrong or odd can be called bad: it is never
- * asked with again, and the answer given to it does not count.
- */
-function Whole({ sentence, onBad, busy }: WholeProps): ReactNode {
-  const { t } = useTranslation();
-  return (
-    <div className="flex w-full flex-col gap-1 border-l-2 border-line pl-4 text-left">
-      <p className="text-lead text-ink">
-        {sentence.text}
-        <SpeakButton text={sentence.text} className="ml-1" />
-      </p>
-      <p className="text-ink-soft">{sentence.translation}</p>
-      <p className="flex items-center gap-3 text-sm text-ink-faint">
-        {sentence.book
-          ? t("books.sitting.fromBook")
-          : t("books.sitting.fromClaude")}
-        <Presence>
-          {onBad !== null && (
-            <Reveal key="onBad" as="span" kind="fade">
-              <button
-                type="button"
-                disabled={busy}
-                onClick={onBad}
-                className="rounded-sm underline-offset-4 transition-control hover:text-ink hover:underline"
-              >
-                {t("books.sitting.badSentence")}
-              </button>
-            </Reveal>
-          )}
-        </Presence>
-      </p>
     </div>
   );
 }
@@ -325,6 +257,8 @@ export function SittingItem<Result extends Checked>({
   /** On its steps: which word the answer was, and then its sentence. */
   const [sense, setSense] = useState<SenseHint | null>(null);
   const [steps, setSteps] = useState<SentencePart[] | null>(null);
+  /** Asked with its few words: the step after shows its whole sentence. */
+  const [short, setShort] = useState(false);
   const [result, setResult] = useState<Result | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   /** The hint asked for, and how often: each time gives a little more. */
@@ -376,6 +310,7 @@ export function SittingItem<Result extends Checked>({
           if (ladder.context !== null) {
             setSteps(ladder.context);
           }
+          setShort(ladder.short);
           setResponse("");
           return;
         }
@@ -475,7 +410,13 @@ export function SittingItem<Result extends Checked>({
       return t("books.sitting.otherMeaning");
     }
     if (rung === 2) {
-      return t("books.sitting.readSentence");
+      // Straight from the word alone: its tag could not tell it apart.
+      if (sense !== null) {
+        return t("books.sitting.readSentence");
+      }
+      return short
+        ? t("books.sitting.otherMeaningRead")
+        : t("books.sitting.otherMeaningLook");
     }
     return (
       kindLine(kind, t, item.verbForm) ??
@@ -503,7 +444,8 @@ export function SittingItem<Result extends Checked>({
             from={from}
             to={to}
             kind={item.partOfSpeech}
-            pointed={rung > 0}
+            pointed={rung > 0 && sense !== null}
+            irregular={item.irregular}
           />
           <Presence>
             {item.verbForm !== null && (

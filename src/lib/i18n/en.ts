@@ -714,13 +714,28 @@ export const en = {
       otherWord:
         "That's right, but I'm after another word here. Try once more.",
       otherMeaning: "That's right too, but it's not the one I'm after.",
+      otherMeaningLook:
+        "That's right too, but it's not the one I'm after. Look at the sentence.",
+      otherMeaningRead:
+        "That's right too, but it's not the one I'm after. Read the whole sentence.",
       readSentence:
         "Read the sentence: it tells you which meaning we're after.",
+      understoodWhole:
+        "Right, with the help of the sentence. It will come back later.",
+      understoodTied:
+        "Right, with the help of the whole sentence. It will come back so you can get it with the short one alone.",
       understood:
         "You got it with the sentence. It will come back so you can get it without.",
       otherKind:
         "Remember: I'm asking for “{{asked}}”{{form}}, not “{{given}}”. {{title}}: {{meaning}} Try once more.",
       exact: "In this sentence:",
+      regularity: {
+        regular: "regular",
+        irregular: "irregular",
+        regularHint: "Its past and past participle add -ed.",
+        irregularHint:
+          "Its past or past participle is not just -ed: it changes.",
+      },
       verbForm: {
         base: "base form",
         present: "present",
@@ -809,6 +824,13 @@ export const en = {
       likeYours: ", like “{{meaning}}”.",
       like: ", like {{example}}.",
       ask: "Ask yourself:",
+      inForm: "in the",
+      tipShort:
+        "the short sentence under the word tells you which meaning I'm after.",
+      ing: {
+        example: "“the boy is running”",
+        question: "What is being done?",
+      },
       tipTitle: "Tip:",
       tipTag: "before you answer, look at the tag on the band (",
       tipTagEnd: "). It tells you which meaning we're after.",

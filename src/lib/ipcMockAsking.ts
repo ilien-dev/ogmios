@@ -104,9 +104,20 @@ export function hintOf(
   return { mask, context: null, more: letters < most };
 }
 
+/** The irregular verbs of the mock's books (`books::irregular` decides). */
+const IRREGULAR = new Set(["give up", "run out", "fall", "find"]);
+
+/** Whether a verb is irregular; null for any other word. */
+function regularity(word: BookWord): boolean | null {
+  const verb =
+    word.partOfSpeech === "verb" || word.partOfSpeech === "phrasalVerb";
+  return verb ? IRREGULAR.has(word.lemma.toLowerCase()) : null;
+}
+
 /** The word as it is asked: nothing of `production` holds the English. */
 export function itemOf(word: BookWord, direction: Direction): PracticeItem {
   const context = CONTEXT[word.lemma] ?? null;
+  const irregular = regularity(word);
   if (direction === "recognition") {
     return {
       wordId: word.id,
@@ -117,6 +128,7 @@ export function itemOf(word: BookWord, direction: Direction): PracticeItem {
       nativeContext: null,
       sentenceId: null,
       verbForm: null,
+      irregular,
     };
   }
   return {
@@ -130,5 +142,6 @@ export function itemOf(word: BookWord, direction: Direction): PracticeItem {
     nativeContext: null,
     sentenceId: null,
     verbForm: null,
+    irregular,
   };
 }

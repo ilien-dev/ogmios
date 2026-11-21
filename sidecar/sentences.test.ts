@@ -29,6 +29,7 @@ const write: SentenceWriteParams = {
       sense: "She had peeped into the book.",
       book: ["She had peeped into the book.", "Do not peep."],
       write: 5,
+      avoid: [],
     },
   ],
 };
@@ -250,13 +251,27 @@ describe("sentences through the dispatcher", () => {
     });
   });
 
-  test("the fake refuses the clumsy ones on the second look", async () => {
+  test("the fake refuses the clumsy ones on the second look, and names a cue", async () => {
     const verdicts = sentenceVerdictsSchema.parse(
       await ask("sentenceReview", review),
     );
     expect(verdicts.verdicts).toEqual([
-      { id: "s1", good: true, also: [], hints: [], verbForm: null },
-      { id: "s2", good: false, also: [], hints: [], verbForm: null },
+      {
+        id: "s1",
+        good: true,
+        also: [],
+        hints: [],
+        verbForm: null,
+        cue: ["over"],
+      },
+      {
+        id: "s2",
+        good: false,
+        also: [],
+        hints: [],
+        verbForm: null,
+        cue: ["in"],
+      },
     ]);
   });
 

@@ -765,6 +765,9 @@ pub struct PracticeItem {
     /// The form a verb has in that sentence; none for any other word, for
     /// one asked as its chapter has it, and until the sentence is labelled.
     pub verb_form: Option<VerbForm>,
+    /// Whether a verb is irregular: its past or its past participle is not
+    /// the verb with "-ed" (`books::irregular`). None for any other word.
+    pub irregular: Option<bool>,
 }
 
 /// The sentence a word was asked with, shown whole once it is answered.
@@ -987,6 +990,10 @@ pub struct Ladder {
     pub hint: Option<SenseHint>,
     /// On step 2: the sentence, the word marked.
     pub context: Option<Vec<SentencePart>>,
+    /// The word was asked with the few words that fix its sense
+    /// (`commands::ladder::tied`), not its whole sentence: what step 2
+    /// shows is more than it had.
+    pub short: bool,
 }
 
 /// The other word an answer meant: what it means, where it is from, and
@@ -1004,6 +1011,10 @@ pub struct SenseHint {
     /// The kind of the word asked, and of the other one.
     pub asked: Option<PartOfSpeech>,
     pub given: Option<PartOfSpeech>,
+    /// The form a verb is asked in, and the form the other one had; none
+    /// for any other word, and where nobody said.
+    pub asked_form: Option<VerbForm>,
+    pub given_form: Option<VerbForm>,
 }
 
 /// Right only once the sentence was shown: what to look at next time.
@@ -1014,6 +1025,12 @@ pub struct SenseTip {
     pub kind: Option<PartOfSpeech>,
     /// Its rivals are another kind of word: its tag tells them apart.
     pub kinds_differ: bool,
+    /// Its tag cannot tell it from a rival: it is asked with the words that
+    /// fix its sense, and was right only with its whole sentence
+    /// (`commands::ladder::tied`).
+    pub tied: bool,
+    /// It was asked with those few words, not its whole sentence.
+    pub short: bool,
 }
 
 /// An answer that is a word of another kind from the root of the one
