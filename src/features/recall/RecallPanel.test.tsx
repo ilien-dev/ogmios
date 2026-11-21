@@ -4,15 +4,15 @@ import { useState } from "react";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { UserEvent } from "@testing-library/user-event";
-import type { Route } from "@/app/routes";
-import { showsNav } from "@/app/routes";
+import type { Ways } from "@shared/domain";
 import { seedMockReadiness } from "@/lib/ipcMockChapters";
 import {
   holdMockSentences,
   setMockSentencesFail,
 } from "@/lib/ipcMockSentences";
 import { useMockBackend } from "@/test/mockBackend";
-import { RecallScreen } from "./RecallScreen";
+import { RecallBoard, RecallScene, useRecallToday } from "./RecallPanel";
+import { RecallRun } from "./RecallRun";
 
 /** A right answer to each word the seeded shelf has finished. */
 const RIGHT: Record<string, string> = {
@@ -25,22 +25,33 @@ const RIGHT: Record<string, string> = {
   "give up": "rendirse",
 };
 
-/** The recall section, as the app holds it. */
-function Section(): ReactNode {
-  const [route, setRoute] = useState<Route>({ name: "recall" });
-  if (route.name !== "recall") {
-    return <p>{`Left for ${route.name}`}</p>;
-  }
+/** The daily review between runs, as the words of the learner show it. */
+function Panel({ onStart }: { onStart: (ways: Ways) => void }): ReactNode {
+  const recall = useRecallToday();
   return (
     <>
-      {showsNav(route) && <nav aria-label="Sections" />}
-      <RecallScreen
-        nativeLang="es"
-        running={route.running ?? null}
-        navigate={setRoute}
-      />
+      <nav aria-label="Places" />
+      <RecallBoard state={recall.state} />
+      <RecallScene recall={recall} nativeLang="es" onStart={onStart} />
     </>
   );
+}
+
+/** The daily review as the app holds it: a run takes the whole window. */
+function Section(): ReactNode {
+  const [running, setRunning] = useState<Ways | null>(null);
+  if (running !== null) {
+    return (
+      <RecallRun
+        ways={running}
+        nativeLang="es"
+        onDone={() => {
+          setRunning(null);
+        }}
+      />
+    );
+  }
+  return <Panel onStart={setRunning} />;
 }
 
 function prompt(): string {
@@ -65,11 +76,11 @@ async function start(user: UserEvent): Promise<void> {
 describe("the daily recall", () => {
   useMockBackend();
 
-  test("leaves the way out to the menu", async () => {
+  test("goes by one name, the one the navigation gives it", async () => {
     render(<Section />);
 
-    await screen.findByRole("heading", { name: "Review" });
-    expect(screen.queryByRole("button", { name: "Book" })).toBeNull();
+    await screen.findByRole("heading", { name: "Daily review" });
+    expect(screen.queryByRole("heading", { name: "Review" })).toBeNull();
   });
 
   test("with nothing learned it says where its words come from", async () => {

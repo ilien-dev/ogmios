@@ -2,19 +2,19 @@ import { ArrowUpRight, BookOpen, Library } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import type { Book, BookWord, Chapter, RecallState } from "@shared/domain";
+import type { Book, BookWord, Chapter } from "@shared/domain";
 import { Presence } from "@/components/motion/Presence";
 import { Reveal } from "@/components/motion/Reveal";
 import { Swap } from "@/components/motion/Swap";
 import { Tilt } from "@/components/motion/Tilt";
 import { Scene, SceneTitle } from "@/components/scene/Scene";
 import { BigNumber } from "@/components/scene/Stats";
-import type { Navigate } from "@/app/routes";
+import type { BookTab, Navigate } from "@/app/routes";
 import { cn } from "@/lib/cn";
 import { getChapterWords } from "@/lib/ipc";
 import { BookCover } from "./BookCover";
 import { BARS } from "./BookHomeBoard";
-import { Review, Words } from "./BookHomePanels";
+import { ChapterTabs } from "./ChapterTabs";
 import { ChapterRelief } from "./ChapterRelief";
 import { barState, chapterWindow } from "./chapterChart";
 import { chapterName } from "./chapterName";
@@ -158,11 +158,12 @@ function Tooltip({
 
 interface BookSceneProps {
   book: Book;
+  /** The chapter the learner is on. */
   selected: Chapter;
-  due: number;
-  recall: RecallState | null;
-  learned: number;
-  known: number;
+  /** What is being done with it. */
+  tab: BookTab;
+  /** The chapter a row of the list points at: its block rises. */
+  pointed: string | null;
   navigate: Navigate;
   /** Picks a chapter: a block of the relief does it as its bar does. */
   onPick: (chapterId: string) => void;
@@ -171,16 +172,14 @@ interface BookSceneProps {
 
 /**
  * The scene of the book: its title, its chapters raised as blocks as tall
- * as they are ready with the picked one lit, and along the bottom today's
- * review and every word the learner has.
+ * as they are ready with the one the learner is on lit, and along the bottom
+ * the four things done with that chapter, as tabs.
  */
 export function BookScene({
   book,
   selected,
-  due,
-  recall,
-  learned,
-  known,
+  tab,
+  pointed,
   navigate,
   onPick,
   className,
@@ -190,7 +189,7 @@ export function BookScene({
   const about = t("bookHome.board.chapters", { count });
   return (
     <Scene
-      label={t("bookHome.board.scene")}
+      label={book.title}
       zoom
       className={className}
       header={
@@ -229,23 +228,15 @@ export function BookScene({
         </>
       }
       overlay={<Tooltip book={book} chapter={selected} />}
-      footer={
-        <Reveal className="flex flex-col gap-x-8 gap-y-5 rounded-xl glass px-5.5 py-4.5 wide:flex-row wide:items-center">
-          <Review due={due} state={recall} navigate={navigate} />
-          <span
-            aria-hidden
-            className="hidden self-stretch border-l border-line wide:block"
-          />
-          <Words learned={learned} known={known} />
-        </Reveal>
-      }
+      footer={<ChapterTabs chapter={selected} tab={tab} navigate={navigate} />}
     >
       <ChapterRelief
         chapters={chapterWindow(book.chapters, selected.id, BARS)}
         selectedId={selected.id}
+        pointed={pointed}
         onSelect={onPick}
         label={t("bookHome.board.relief")}
-        className="size-full max-w-4xl px-6 pt-40 pb-60"
+        className="size-full max-w-4xl pt-40 pr-72 pb-32 pl-6"
       />
     </Scene>
   );

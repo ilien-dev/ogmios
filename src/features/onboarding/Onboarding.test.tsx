@@ -68,6 +68,13 @@ describe("Onboarding", () => {
     ).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /Next/u }));
+    // The voice step offers the same two switches as the rest of the app.
+    expect(
+      await screen.findByRole("button", { name: /^Turn on Speak/u }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /^Turn on Listen/u }),
+    ).toBeInTheDocument();
     await user.click(
       await screen.findByRole("button", { name: "Text only for now" }),
     );

@@ -1,34 +1,49 @@
 import { describe, expect, test } from "bun:test";
 import type { ReactNode } from "react";
 import { useState } from "react";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { UserEvent } from "@testing-library/user-event";
-import type { Route } from "@/app/routes";
-import { showsNav } from "@/app/routes";
+import type { Navigate, Route } from "@/app/routes";
 import { useMockBackend } from "@/test/mockBackend";
-import { StructuresScreen } from "./StructuresScreen";
+import { CatalogueBoard, CatalogueScene, useCatalogue } from "./StructureMenu";
+import { StructureRun } from "./StructureRun";
 
-/** The structures section, as the app holds it. */
-function Section({ hub = false }: { hub?: boolean }): ReactNode {
-  const [route, setRoute] = useState<Route>({
-    name: "structures",
-    catalog: !hub,
-  });
-  if (route.name !== "structures") {
-    return <p>{`Left for ${route.name}`}</p>;
-  }
+const CATALOGUE: Route = { name: "progress", tab: "structures" };
+
+/** The catalogue, as the learner's own screen shows it on its tab. */
+function Catalogue({ navigate }: { navigate: Navigate }): ReactNode {
+  const catalogue = useCatalogue(navigate);
   return (
     <>
-      {showsNav(route) && <nav aria-label="Sections" />}
-      <StructuresScreen
-        running={route.running ?? null}
-        catalog={route.catalog === true}
-        chapterId={route.chapterId ?? null}
-        navigate={setRoute}
-      />
+      <nav aria-label="Places" />
+      <CatalogueBoard catalogue={catalogue} />
+      <CatalogueScene catalogue={catalogue} />
     </>
   );
+}
+
+/** The structures, as the app holds them: a session takes the whole window. */
+function Section(): ReactNode {
+  const [route, setRoute] = useState<Route>(CATALOGUE);
+  if (route.name === "structures") {
+    return (
+      <StructureRun
+        key={route.running}
+        sittingId={route.running}
+        onLeave={() => {
+          setRoute(CATALOGUE);
+        }}
+        onAgain={(again) => {
+          setRoute({ name: "structures", running: again });
+        }}
+      />
+    );
+  }
+  if (route.name !== "progress") {
+    return <p>{`Left for ${route.name}`}</p>;
+  }
+  return <Catalogue navigate={setRoute} />;
 }
 
 /** The form of the structure, as it reads with its terms put together. */
@@ -42,11 +57,11 @@ function asked(): string {
   return screen.getByRole("heading", { level: 1 }).textContent;
 }
 
-/** The menu on the screen, with every structure listed. */
+/** The catalogue on the screen, with every structure listed. */
 async function open(): Promise<UserEvent> {
   const user = userEvent.setup();
   render(<Section />);
-  await screen.findByRole("heading", { name: "Free session" });
+  await screen.findByText("None picked: the 36 listed, mixed");
   return user;
 }
 
@@ -72,69 +87,7 @@ async function next(user: UserEvent): Promise<void> {
   await screen.findByLabelText("Your sentence, in English");
 }
 
-describe("the structures section", () => {
-  useMockBackend();
-
-  test("opens on a card for any structure and one for the chapter's", async () => {
-    const user = userEvent.setup();
-    render(<Section hub />);
-
-    const free = await screen.findByRole("button", { name: /^Free session/ });
-    expect(free.textContent).toContain("36 structures · 0 firm");
-    expect(
-      screen.getByRole("button", { name: /^From the chapter/ }).textContent,
-    ).toContain("Alice's Adventures in Wonderland · I. Down the Rabbit-Hole");
-    expect(screen.queryByRole("button", { name: /^Paused/ })).toBeNull();
-
-    await user.click(free);
-    await screen.findByRole("heading", { name: "Free session" });
-    await user.click(screen.getByRole("button", { name: "Structures" }));
-    await screen.findByRole("button", { name: /^Free session/ });
-  });
-
-  test("the chapter's card opens the structures of the chapter", async () => {
-    const user = userEvent.setup();
-    render(<Section hub />);
-
-    await user.click(
-      await screen.findByRole("button", { name: /^From the chapter/ }),
-    );
-    await screen.findByRole("heading", { name: "Chapter structures" });
-  });
-
-  test("with no book on the shelf there is no card for a chapter", async () => {
-    const { clearMockBooks } = await import("@/lib/ipcMockBooks");
-    clearMockBooks();
-    render(<Section hub />);
-
-    await screen.findByRole("button", { name: /^Free session/ });
-    expect(
-      screen.queryByRole("button", { name: /^From the chapter/ }),
-    ).toBeNull();
-  });
-
-  test("with several sessions paused, the card opens the menu that lists them", async () => {
-    const user = await begin();
-    await write(user, "I can peep now.");
-    await user.click(screen.getByRole("button", { name: "Pause" }));
-    await user.click(
-      await screen.findByRole("button", { name: /^Free session/ }),
-    );
-    await user.click(screen.getByRole("button", { name: /^Can \/ can't/ }));
-    await user.click(screen.getByRole("button", { name: "Start" }));
-    await screen.findByLabelText("Your sentence, in English");
-    await write(user, "I can't peep now.");
-    await user.click(screen.getByRole("button", { name: "Pause" }));
-
-    const card = await screen.findByRole("button", { name: /^Paused/ });
-    expect(card.textContent).toContain("2 sessions");
-    await user.click(card);
-    await screen.findByRole("heading", { name: "Paused" });
-    expect(screen.getAllByRole("button", { name: "Continue" })).toHaveLength(2);
-  });
-});
-
-describe("the structures menu", () => {
+describe("the catalogue of structures", () => {
   useMockBackend();
 
   test("lists every structure, and only a level's once one is chosen", async () => {
@@ -161,6 +114,35 @@ describe("the structures menu", () => {
     await user.click(screen.getByRole("button", { name: "All" }));
     expect(all()).toHaveLength(36);
     expect(screen.getByText("2 structures")).toBeDefined();
+  });
+
+  test("is the screen of the structures, with how each level stands", async () => {
+    await open();
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Structures" }),
+    ).toBeDefined();
+    expect(
+      screen.getByRole("region", { name: "Your structures by level" }),
+    ).toBeDefined();
+    // The table of the levels is beside the list, not on a screen of its own.
+    expect(screen.getByText("Practised")).toBeDefined();
+    expect(screen.queryByRole("heading", { name: "Paused" })).toBeNull();
+    // What a chapter uses is practised from the book, not from here.
+    expect(
+      screen.queryByRole("button", { name: "Find this chapter's structures" }),
+    ).toBeNull();
+  });
+
+  test("with no book on the shelf a session asks about a topic, with no word", async () => {
+    const { clearMockBooks } = await import("@/lib/ipcMockBooks");
+    clearMockBooks();
+    const user = await open();
+    await user.click(screen.getByRole("button", { name: "Start" }));
+    await screen.findByLabelText("Your sentence, in English");
+    expect(screen.queryByText("Use the word")).toBeNull();
+    expect(asked()).toBe(
+      "Write a sentence with “Present simple” about a trip.",
+    );
   });
 
   test("offers four sizes and starts on the normal one", async () => {
@@ -334,26 +316,40 @@ describe("a session of structures", () => {
     await screen.findByText("Not yet");
   });
 
-  test("paused, it waits on a card to be gone on with, and in the menu to be finished", async () => {
+  test("paused, it waits in the catalogue to be gone on with, or finished", async () => {
     const user = await begin();
     await write(user, "I can peep now.");
     await user.click(screen.getByRole("button", { name: "Pause" }));
-    const card = await screen.findByRole("button", { name: /^Paused/ });
-    expect(card.textContent).toContain("1 of 10 sentences");
+    await screen.findByRole("heading", { name: "Paused" });
+    expect(screen.getByText("1 of 10 sentences")).toBeDefined();
     expect(screen.getByRole("navigation")).toBeDefined();
 
-    await user.click(card);
+    await user.click(screen.getByRole("button", { name: "Continue" }));
     await screen.findByLabelText("Your sentence, in English");
     expect(screen.getByText("2 of 10")).toBeDefined();
 
     await user.click(screen.getByRole("button", { name: "Pause" }));
-    await user.click(
-      await screen.findByRole("button", { name: /^Free session/ }),
-    );
     await screen.findByRole("heading", { name: "Paused" });
     await user.click(screen.getByRole("button", { name: "Finish" }));
-    await screen.findByText("None picked: the 36 listed, mixed");
-    expect(screen.queryByRole("heading", { name: "Paused" })).toBeNull();
+    await waitFor(() => {
+      expect(screen.queryByRole("heading", { name: "Paused" })).toBeNull();
+    });
+    expect(screen.getByText("None picked: the 36 listed, mixed")).toBeDefined();
+  });
+
+  test("several sessions paused are each listed", async () => {
+    const user = await begin();
+    await write(user, "I can peep now.");
+    await user.click(screen.getByRole("button", { name: "Pause" }));
+    await screen.findByRole("heading", { name: "Paused" });
+    await user.click(screen.getByRole("button", { name: /^Can \/ can't/ }));
+    await user.click(screen.getByRole("button", { name: "Start" }));
+    await screen.findByLabelText("Your sentence, in English");
+    await write(user, "I can't peep now.");
+    await user.click(screen.getByRole("button", { name: "Pause" }));
+
+    await screen.findByRole("heading", { name: "Paused" });
+    expect(screen.getAllByRole("button", { name: "Continue" })).toHaveLength(2);
   });
 
   test("left with nothing written, it is not kept", async () => {
@@ -382,69 +378,5 @@ describe("a session of structures", () => {
     expect(screen.getByText("1 of 10")).toBeDefined();
     await user.click(screen.getByRole("button", { name: "Finish" }));
     await screen.findByRole("heading", { name: "Structures" });
-  });
-});
-
-describe("the structures of a chapter", () => {
-  useMockBackend();
-
-  test("are read once from the menu's card, and practised with its words", async () => {
-    const user = await open();
-    expect(
-      screen.getByText(
-        "Alice's Adventures in Wonderland · I. Down the Rabbit-Hole",
-      ),
-    ).toBeDefined();
-    await user.click(
-      screen.getByRole("button", { name: "Find this chapter's structures" }),
-    );
-    // Read in place, with the reading in sight until it is done.
-    expect(screen.getByRole("status").textContent).toContain(
-      "Reading the chapter…",
-    );
-    expect(
-      screen.getByRole("progressbar", { name: "How far the reading is" }),
-    ).toBeDefined();
-    await user.click(
-      await screen.findByRole("button", { name: "Practise the chapter's" }),
-    );
-    expect(screen.queryByRole("status")).toBeNull();
-    await screen.findByRole("heading", { name: "Chapter structures" });
-    await screen.findByText("Past simple");
-    expect(screen.getByText("212 sentences")).toBeDefined();
-    expect(
-      screen.getByText("Alice was beginning to get very tired."),
-    ).toBeDefined();
-    expect(screen.getByText("With words from this chapter")).toBeDefined();
-
-    await user.click(screen.getByRole("button", { name: "Start" }));
-    await screen.findByLabelText("Your sentence, in English");
-    expect(asked()).toBe("Write a sentence with “Past simple”.");
-    expect(screen.getByText("1 of 20")).toBeDefined();
-
-    await user.click(screen.getByRole("button", { name: "Pause" }));
-    await user.click(
-      await screen.findByRole("button", { name: /^Free session/ }),
-    );
-    // Read already: the card lists them and goes straight to practising.
-    expect(
-      screen.getByRole("button", { name: "Practise the chapter's" }),
-    ).toBeDefined();
-    expect(screen.getByText(/48 sentences/)).toBeDefined();
-  });
-
-  test("with no book on the shelf there is no chapter and no word", async () => {
-    const { clearMockBooks } = await import("@/lib/ipcMockBooks");
-    clearMockBooks();
-    const user = await open();
-    expect(
-      screen.queryByRole("button", { name: "Find this chapter's structures" }),
-    ).toBeNull();
-    await user.click(screen.getByRole("button", { name: "Start" }));
-    await screen.findByLabelText("Your sentence, in English");
-    expect(screen.queryByText("Use the word")).toBeNull();
-    expect(asked()).toBe(
-      "Write a sentence with “Present simple” about a trip.",
-    );
   });
 });

@@ -10,8 +10,6 @@ export const listeningEs: typeof listeningEn = {
     get: "Descargar la voz ({{size}})",
     getting: "Descargando la voz · {{percent}} %",
   },
-  noBook: "Lo que escuchas es tu propia lectura. Añade antes un libro.",
-  toBooks: "Ir a Libros",
   pace: {
     label: "Velocidad",
     slow: "Lenta",
@@ -31,9 +29,6 @@ export const listeningEs: typeof listeningEn = {
     none: "Sin probar",
     held: "Esta velocidad es tuya",
     note: "Una velocidad es tuya cuando oyes el 90 % de las palabras en tus últimas 30 frases a esa velocidad.",
-  },
-  chapter: {
-    label: "Capítulo",
   },
   dictation: {
     title: "Dictado",
@@ -59,24 +54,11 @@ export const listeningEs: typeof listeningEn = {
     times_one: "{{count}} vez",
     times_other: "{{count}} veces",
   },
-  board: {
-    scene: "Tus velocidades",
-    paused_one: "dictado en pausa",
-    paused_other: "dictados en pausa",
-    reinforced_one: "palabra que vuelve",
-    reinforced_other: "palabras que vuelven",
-    typed: "Frases escritas",
-    escaping: "Se te escapan",
-    relief:
-      "Cada velocidad como una columna, tan alta como la parte de palabras que oyes a esa velocidad: {{paces}}",
-    reliefPace: "{{pace}} {{percent}} %",
-  },
   reinforced: {
     title: "En refuerzo",
     hint: "Tus próximos dictados guardan frases para estas palabras, hasta que oigas cada una tres veces seguidas.",
   },
   reading: {
-    back: "Oído",
     play: "Reproducir",
     pause: "Pausar",
     previous: "Frase anterior",

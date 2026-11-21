@@ -52,8 +52,6 @@ const ROUTERS = new Set([
   "src/features/books/BooksScreen.tsx",
   "src/features/books/SittingScreen.tsx",
   "src/features/listening/ListeningScreen.tsx",
-  "src/features/recall/RecallScreen.tsx",
-  "src/features/structures/StructuresScreen.tsx",
 ]);
 
 /** Not an appearance: the browser draws these only when the control opens. */

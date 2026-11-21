@@ -38,8 +38,8 @@ describe("App", () => {
     render(<App />);
     expect(screen.getByText("Opening Ogmios…")).toBeInTheDocument();
 
-    // The book section opens first, with the rail beside it.
-    const home = await screen.findByRole("group", { name: "Sections" });
+    // Today opens first, with the rail and its four places beside it.
+    const home = await screen.findByRole("navigation", { name: "Places" });
     const loading = screen.getByText("Opening Ogmios…");
     expect(loading.closest("[inert]")).not.toBeNull();
     await waitForElementToBeRemoved(loading);

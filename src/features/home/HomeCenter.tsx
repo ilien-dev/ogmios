@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { History, Mic, Shuffle, SlidersHorizontal } from "lucide-react";
 import type {
+  DrillFormat,
   HomeState,
   PatternState,
   Progress,
@@ -88,6 +89,13 @@ export function HomeCenter({
     t("home.board.colRight"),
     t("home.board.colSeen"),
   ];
+  /** A round of drills, on one pattern or in one format. */
+  const practise = (
+    patternId: string | null,
+    format: DrillFormat | null,
+  ): void => {
+    navigate({ name: "practice", patternId, format });
+  };
 
   return (
     <Scene
@@ -283,7 +291,7 @@ export function HomeCenter({
               <Reveal
                 key="patterns"
                 kind="fade"
-                className="grid grid-cols-6 items-center gap-x-3.5 gap-y-2 text-sm"
+                className="grid grid-cols-9 items-center gap-x-3.5 gap-y-1.5 text-sm"
               >
                 {heads.map((head, at) => (
                   <span
@@ -291,6 +299,8 @@ export function HomeCenter({
                     className={cn(
                       "font-mono text-xs tracking-wider text-ink-faint uppercase",
                       at === 0 && "col-span-3",
+                      at === 1 && "col-span-2",
+                      at === heads.length - 1 && "col-span-3",
                     )}
                   >
                     {head}
@@ -303,7 +313,7 @@ export function HomeCenter({
                     </span>
                     <span
                       className={cn(
-                        "flex items-center gap-1.5",
+                        "col-span-2 flex items-center gap-1.5",
                         STATE_TEXT[pattern.state],
                       )}
                     >
@@ -320,6 +330,20 @@ export function HomeCenter({
                     </span>
                     <span className="font-mono text-ink-soft">
                       {pattern.sessionsSeen}
+                    </span>
+                    <span className="col-span-2 flex justify-end">
+                      <Button
+                        size="sm"
+                        variant="learn"
+                        aria-label={t("home.board.practiseOn", {
+                          pattern: pattern.description,
+                        })}
+                        onClick={() => {
+                          practise(pattern.id, null);
+                        }}
+                      >
+                        {t("home.board.practise")}
+                      </Button>
                     </span>
                   </Fragment>
                 ))}

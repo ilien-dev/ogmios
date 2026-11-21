@@ -29,7 +29,8 @@ import { toSteps } from "./steps";
 interface ReportScreenProps {
   sessionId: string;
   initial: Report | null;
-  origin: "session" | "progress";
+  /** Straight after its conversation, or from the list of past ones. */
+  origin: "session" | "past";
   navigate: Navigate;
 }
 
@@ -50,7 +51,6 @@ function typing(target: EventTarget | null): boolean {
 export function ReportScreen({
   sessionId,
   initial,
-  origin,
   navigate,
 }: ReportScreenProps): ReactNode {
   const { t } = useTranslation();
@@ -108,7 +108,7 @@ export function ReportScreen({
   }, [total, leaving]);
 
   const leave = (): void => {
-    navigate(origin === "progress" ? { name: "progress" } : { name: "home" });
+    navigate({ name: "home" });
   };
 
   const view = (): ReactNode => {

@@ -13,8 +13,7 @@ import { Reveal } from "@/components/motion/Reveal";
 import { Magnetic } from "@/components/motion/Magnetic";
 import { Stagger } from "@/components/motion/Stagger";
 import { Scene, SceneTitle } from "@/components/scene/Scene";
-import { StatChip, StatTile } from "@/components/scene/Stats";
-import type { Navigate } from "@/app/routes";
+import { StatChip } from "@/components/scene/Stats";
 import { Button } from "@/components/ui/Button";
 import { ChoiceGroup } from "@/components/ui/ChoiceGroup";
 import { Notice } from "@/components/ui/Notice";
@@ -24,8 +23,6 @@ import { onSentenceProgress, recallState, writeSentences } from "@/lib/ipc";
 import { languageName } from "@/lib/text";
 import { SentenceStock } from "@/features/books/SentenceStock";
 import { BarRelief } from "@/features/drills/BarRelief";
-import { HubScreen } from "@/features/drills/ScreenParts";
-import { RecallRun } from "./RecallRun";
 import { StrengthMark } from "./StrengthMark";
 
 const WAYS = ["both", "recognition", "production"] as const;
@@ -152,28 +149,37 @@ function Strengths({ state }: { state: RecallState }): ReactNode {
   );
 }
 
-interface BetweenProps {
-  nativeLang: string;
-  onStart: (ways: Ways) => void;
+/** How the daily review stands, and whether a run of it can start. */
+export interface RecallToday {
+  /** Null until read. */
+  state: RecallState | null;
+  /** Why it could not be read. */
+  failure: string | null;
+  /** The words' sentences are being prepared: the run waits for them. */
+  readying: boolean;
+  /** How far that is, once it says. */
+  writing: SentenceProgress | null;
+  /** Why the sentences could not be prepared; a run starts all the same. */
+  unwritten: string | null;
 }
 
 /**
- * The screen between runs: it reads how the recall stands as it opens. The
- * words learned, by strength, are on the left; the scene raises them as
- * columns, and the panel along it starts the run of the day.
+ * Reads how the daily review stands as its screen opens and, once its panel
+ * shows (`shown`), prepares the sentences its words are asked with. The run
+ * waits for them, so that it asks what an update brought. A failure lets it
+ * start, and says so: a word without sentences yet is asked as it was
+ * learned.
  */
-function Between({ nativeLang, onStart }: BetweenProps): ReactNode {
-  const { t } = useTranslation();
+export function useRecallToday(shown = true): RecallToday {
   const [state, setState] = useState<RecallState | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
-
-  // The run waits for the words' sentences, so that it asks what an update
-  // brought. A failure lets it start, and says so: a word without sentences
-  // yet is asked as it was learned.
   const [readying, setReadying] = useState(true);
   const [writing, setWriting] = useState<SentenceProgress | null>(null);
   const [unwritten, setUnwritten] = useState<string | null>(null);
   useEffect(() => {
+    if (!shown) {
+      return;
+    }
     let live = true;
     const unlisten = onSentenceProgress((heard) => {
       if (heard.chapterId === null && live) {
@@ -197,7 +203,7 @@ function Between({ nativeLang, onStart }: BetweenProps): ReactNode {
         stop();
       });
     };
-  }, []);
+  }, [shown]);
 
   useEffect(() => {
     let live = true;
@@ -217,167 +223,153 @@ function Between({ nativeLang, onStart }: BetweenProps): ReactNode {
     };
   }, []);
 
-  const learned =
-    state === null ? 0 : state.fresh + state.settling + state.firm;
-  return (
-    <HubScreen
-      aside={
-        <>
-          <Reveal className="flex flex-wrap gap-2">
-            <StatChip value={state?.due ?? "–"} tone="accent">
-              {t("recall.board.due")}
-            </StatChip>
-            <StatChip value={state === null ? "–" : learned}>
-              {t("recall.board.learned", { count: learned })}
-            </StatChip>
-          </Reveal>
-          <Reveal className="grid grid-cols-2 gap-3">
-            <StatTile
-              icon={<StrengthMark strength="settling" />}
-              label={t("recall.strength.settling")}
-              value={state?.settling ?? 0}
-            />
-            <StatTile
-              icon={<StrengthMark strength="firm" />}
-              label={t("recall.strength.firm")}
-              value={state?.firm ?? 0}
-            />
-          </Reveal>
-          <Presence>
-            {state !== null && learned > 0 && (
-              <Reveal key="strengths">
-                <Strengths state={state} />
-              </Reveal>
-            )}
-          </Presence>
-          <Reveal as="p" className="px-1 text-sm text-ink-faint">
-            {t("recall.intro")}
-          </Reveal>
-        </>
-      }
-      scene={
-        <Scene
-          label={t("recall.board.scene")}
-          className="flex-1"
-          header={
-            <>
-              <SceneTitle>{t("recall.title")}</SceneTitle>
-              <Presence>
-                {unwritten !== null && (
-                  <Reveal key="unwritten">
-                    <Notice tone="neutral">
-                      {t("books.sentences.failed", { message: unwritten })}
-                    </Notice>
-                  </Reveal>
-                )}
-              </Presence>
-              <Presence>
-                {failure !== null && (
-                  <Notice key="failure" tone="danger">
-                    {t("common.error", { message: failure })}
-                  </Notice>
-                )}
-              </Presence>
-            </>
-          }
-          footer={
-            <div className="relative">
-              <Presence swap>
-                {state === null && failure === null && (
-                  <Reveal
-                    key="loading"
-                    as="span"
-                    kind="fade"
-                    className="inline-flex rounded-full glass p-3"
-                  >
-                    <Spinner />
-                  </Reveal>
-                )}
-                {state !== null && learned === 0 && (
-                  <Reveal
-                    key="empty"
-                    as="p"
-                    className="rounded-xl glass px-5.5 py-4.5 text-ink-soft"
-                  >
-                    {t("recall.empty")}
-                  </Reveal>
-                )}
-                {state !== null && learned > 0 && (
-                  <Reveal key="today">
-                    <Today
-                      state={state}
-                      nativeLang={nativeLang}
-                      readying={readying}
-                      writing={writing}
-                      onStart={onStart}
-                    />
-                  </Reveal>
-                )}
-              </Presence>
-            </div>
-          }
-        >
-          <BarRelief
-            label={t("recall.board.relief", {
-              fresh: state?.fresh ?? 0,
-              settling: state?.settling ?? 0,
-              firm: state?.firm ?? 0,
-            })}
-            bars={(state === null ? [] : counts(state)).map(
-              ([strength, count]) => ({
-                key: strength,
-                value: count,
-                look: strength === "firm" ? "book" : "plain",
-                tip: {
-                  title: t(`recall.strength.${strength}`),
-                  lines: [t("scene.tip.words", { count })],
-                },
-              }),
-            )}
-            className="size-full max-w-2xl px-6 pt-28 pb-72"
-          />
-        </Scene>
-      }
-    />
-  );
+  return { state, failure, readying, writing, unwritten };
 }
 
-interface RecallScreenProps {
-  /** The learner's first language: the other side of English. */
-  nativeLang: string;
-  /** The ways of the run on the screen; null between runs. */
-  running: Ways | null;
-  navigate: Navigate;
+/** Every word in the daily review, whatever its strength. */
+export function learnedCount(state: RecallState | null): number {
+  return state === null ? 0 : state.fresh + state.settling + state.firm;
 }
 
 /**
- * The daily recall: the words learned in the books and asked for in
- * conversations come back here over the days, a few minutes at a time.
- * Between runs it says how many are due today and how strong the learned
- * words are; a run takes the whole window.
+ * The daily review on the column of glass: what is due today, how many
+ * words it holds, how strong they are, and how it brings them back.
  */
-export function RecallScreen({
-  nativeLang,
-  running,
-  navigate,
-}: RecallScreenProps): ReactNode {
-  if (running !== null) {
-    return (
-      <RecallRun
-        ways={running}
-        nativeLang={nativeLang}
-        onDone={() => {
-          navigate({ name: "recall" });
-        }}
-      />
-    );
-  }
+export function RecallBoard({
+  state,
+}: {
+  state: RecallState | null;
+}): ReactNode {
+  const { t } = useTranslation();
+  const learned = learnedCount(state);
   return (
-    <Between
-      nativeLang={nativeLang}
-      onStart={(ways) => {
-        navigate({ name: "recall", running: ways });
-      }}
-    />
+    <Stagger className="flex flex-col gap-3.5">
+      <Reveal className="flex flex-wrap gap-2">
+        <StatChip value={state?.due ?? "–"} tone="accent">
+          {t("recall.board.due")}
+        </StatChip>
+        <StatChip value={state === null ? "–" : learned}>
+          {t("recall.board.learned", { count: learned })}
+        </StatChip>
+      </Reveal>
+      <Presence>
+        {state !== null && learned > 0 && (
+          <Reveal key="strengths">
+            <Strengths state={state} />
+          </Reveal>
+        )}
+      </Presence>
+      <Reveal as="p" className="px-1 text-sm text-ink-faint">
+        {t("recall.intro")}
+      </Reveal>
+    </Stagger>
+  );
+}
+
+interface RecallSceneProps {
+  recall: RecallToday;
+  /** The learner's first language: the other side of English. */
+  nativeLang: string;
+  /** A run of the daily review, in these ways. */
+  onStart: (ways: Ways) => void;
+  className?: string;
+}
+
+/**
+ * The scene of the daily review: the words learned in the books and asked
+ * for in conversations raised as columns by strength, and along it the panel
+ * that says how many are due today and starts the run of the day.
+ */
+export function RecallScene({
+  recall,
+  nativeLang,
+  onStart,
+  className,
+}: RecallSceneProps): ReactNode {
+  const { t } = useTranslation();
+  const { state, failure, readying, writing, unwritten } = recall;
+  const learned = learnedCount(state);
+  return (
+    <Scene
+      label={t("recall.board.scene")}
+      className={className}
+      header={
+        <>
+          <SceneTitle>{t("recall.title")}</SceneTitle>
+          <Presence>
+            {unwritten !== null && (
+              <Reveal key="unwritten">
+                <Notice tone="neutral">
+                  {t("books.sentences.failed", { message: unwritten })}
+                </Notice>
+              </Reveal>
+            )}
+          </Presence>
+          <Presence>
+            {failure !== null && (
+              <Notice key="failure" tone="danger">
+                {t("common.error", { message: failure })}
+              </Notice>
+            )}
+          </Presence>
+        </>
+      }
+      footer={
+        <div className="relative">
+          <Presence swap>
+            {state === null && failure === null && (
+              <Reveal
+                key="loading"
+                as="span"
+                kind="fade"
+                className="inline-flex rounded-full glass p-3"
+              >
+                <Spinner />
+              </Reveal>
+            )}
+            {state !== null && learned === 0 && (
+              <Reveal
+                key="empty"
+                as="p"
+                className="rounded-xl glass px-5.5 py-4.5 text-ink-soft"
+              >
+                {t("recall.empty")}
+              </Reveal>
+            )}
+            {state !== null && learned > 0 && (
+              <Reveal key="today">
+                <Today
+                  state={state}
+                  nativeLang={nativeLang}
+                  readying={readying}
+                  writing={writing}
+                  onStart={onStart}
+                />
+              </Reveal>
+            )}
+          </Presence>
+        </div>
+      }
+    >
+      <BarRelief
+        label={t("recall.board.relief", {
+          fresh: state?.fresh ?? 0,
+          settling: state?.settling ?? 0,
+          firm: state?.firm ?? 0,
+        })}
+        bars={(state === null ? [] : counts(state)).map(
+          ([strength, count]) => ({
+            key: strength,
+            value: count,
+            look: strength === "firm" ? "book" : "plain",
+            tip: {
+              title: t(`recall.strength.${strength}`),
+              lines: [t("scene.tip.words", { count })],
+            },
+          }),
+        )}
+        className="size-full max-w-2xl px-6 pt-28 pb-72"
+      />
+    </Scene>
   );
 }

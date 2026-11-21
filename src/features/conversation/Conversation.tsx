@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
 import type { Navigate } from "@/app/routes";
 import { useReadAloud, useSpeech } from "@/features/speech/speech";
+import { ListenToggle } from "@/features/speech/VoiceCard";
 import { errorMessage } from "@/lib/errors";
 import { endSession } from "@/lib/ipc";
 import { AnalysisView } from "./AnalysisView";
@@ -44,9 +45,12 @@ export function Conversation({
 }: ConversationProps): ReactNode {
   const { t } = useTranslation();
   const { state, send, dismissTarget } = useConversation(setup);
-  const { speaking } = useSpeech();
+  const { speaking, talk } = useSpeech();
+  // The app's own switch decides once it is known; before that, the setting.
+  const voice = talk.status === null ? sttModel !== null : talk.on;
   const [ending, setEnding] = useState(false);
   const [endError, setEndError] = useState<string | null>(null);
+  const [voiceError, setVoiceError] = useState<string | null>(null);
   // What the microphone does, for the partner's card to say.
   const [mic, setMic] = useState<RecorderStatus>("idle");
   const [words, setWords] = useState(0);
@@ -84,6 +88,14 @@ export function Conversation({
       setEnding(false);
       setEndError(errorMessage(error));
     }
+  };
+
+  /** Speak, turned on from the composer itself: nothing else is left. */
+  const enableVoice = (): void => {
+    setVoiceError(null);
+    talk.activate().catch((error: unknown) => {
+      setVoiceError(errorMessage(error));
+    });
   };
 
   const view = (): ReactNode => {
@@ -159,6 +171,7 @@ export function Conversation({
                       </SceneTitle>
                       <p className="truncate text-sm text-ink-faint">{meta}</p>
                     </div>
+                    <ListenToggle />
                     <Button
                       className="group"
                       icon={
@@ -226,10 +239,11 @@ export function Conversation({
                           </div>
                         </Notice>
                       )}
-                      {(state.error ?? endError) !== null && (
+                      {(state.error ?? endError ?? voiceError) !== null && (
                         <Notice key="error" tone="danger">
                           {t("common.error", {
-                            message: state.error ?? endError ?? "",
+                            message:
+                              state.error ?? endError ?? voiceError ?? "",
                           })}
                         </Notice>
                       )}
@@ -238,7 +252,13 @@ export function Conversation({
                       ref={composer}
                       turnWordGoal={state.turnWordGoal}
                       scaffolds={state.scaffolds}
-                      voice={sttModel !== null}
+                      voice={voice}
+                      onEnableVoice={
+                        talk.status?.available === false
+                          ? undefined
+                          : enableVoice
+                      }
+                      enabling={talk.fetching}
                       disabled={state.phase !== "ready"}
                       onSend={send}
                       onStatus={setMic}

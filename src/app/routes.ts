@@ -1,162 +1,134 @@
-import type { DrillFormat, Report, SessionSetup, Ways } from "@shared/domain";
+import type {
+  DrillFormat,
+  Report,
+  SessionSetup,
+  Translation,
+  Ways,
+} from "@shared/domain";
+
+/** What is done with a chapter: each is a tab of the book's screen. */
+export type BookTab = "words" | "listen" | "translate" | "write";
+
+export const BOOK_TABS: readonly BookTab[] = [
+  "words",
+  "listen",
+  "translate",
+  "write",
+];
+
+/** What the learner has gathered: each is a tab of their own screen. */
+export type MineTab = "words" | "patterns" | "structures" | "time";
+
+export const MINE_TABS: readonly MineTab[] = [
+  "words",
+  "patterns",
+  "structures",
+  "time",
+];
 
 /** Every screen the app can show, with what it needs to render. */
 export type Route =
+  /** What comes back today, and where the learner left off. */
+  | { name: "today" }
+  /** The partner, today's topic and what came out of the conversations. */
   | { name: "home" }
-  /** The book section's own screen: its chapters at a glance. */
-  | { name: "book" }
+  /** The book: its chapters, and the picked one's tab. */
+  | { name: "book"; tab?: BookTab }
   | { name: "setup"; preset: Partial<SessionSetup> | null }
   | { name: "conversation"; setup: SessionSetup }
   | {
       name: "report";
       sessionId: string;
       report: Report | null;
-      origin: "session" | "progress";
+      /** Straight after its conversation, or from the list of past ones. */
+      origin: "session" | "past";
     }
+  /** A round of drills: on that pattern, in that format, or as they come. */
   | {
       name: "practice";
       patternId: string | null;
       format: DrillFormat | null;
-      autostart: boolean;
     }
   | {
       name: "books";
+      /** The book a sitting is on; null shows the library. */
       bookId: string | null;
       chapterId?: string;
-      /** Instead of the shelf: every word the learner already knows. */
-      known?: boolean;
       /** A sitting on that chapter is running. */
       practising?: boolean;
-      /** That sitting is the quick refresh before reading. */
+      /** That sitting is the warm-up before reading. */
       refresh?: boolean;
       /** That sitting sorts the chapter's words into known and not. */
       triage?: boolean;
-      /** Instead of the chapter's words: translating it. */
-      translating?: boolean;
+      /** That chapter is being translated: the attempt on the screen. */
+      translating?: Translation;
     }
-  | {
-      name: "recall";
-      /** A run of the recall in these ways is on the screen. */
-      running?: Ways;
-    }
-  | {
-      name: "structures";
-      /** The session on the screen, by its id. */
-      running?: string;
-      /** Instead of the section's own screen: every structure, to pick from. */
-      catalog?: boolean;
-      /** Instead of the menu: the structures of that chapter. */
-      chapterId?: string;
-    }
+  /** A run of the daily review's words, in these ways. */
+  | { name: "recall"; running: Ways }
+  /** A session of written structures, by its id. */
+  | { name: "structures"; running: string }
   | {
       name: "listening";
       /** The dictation on the screen, by its id. */
       running?: string;
-      /** Instead of the menu: that chapter, read aloud. */
+      /** That chapter, read aloud. */
       reading?: string;
-      /** The chapter the menu is on; the one opened last without it. */
-      chapterId?: string;
     }
-  | { name: "progress" }
+  /** Everything the learner has: words, patterns, structures and time. */
+  | { name: "progress"; tab?: MineTab }
   | { name: "settings" };
 
 export type Navigate = (route: Route) => void;
 
 /**
- * The chapter the learner is on: the one on the screen, or else the one the
- * backend says was opened last. The backend learns of a chapter only once its
- * screen has loaded, too late for what is read at the move that opens it.
- */
-export function chapterOn(route: Route, opened: string | null): string | null {
-  return route.name === "books" && route.chapterId !== undefined
-    ? route.chapterId
-    : opened;
-}
-
-/**
- * The screens that live beside the navigation rather than instead of it. A
- * conversation, a report straight after one, a running drill, a sitting on a
- * chapter, a run of the recall, a session of structures and a dictation
- * take the whole window: one thing at a time.
+ * The screens that live beside the navigation rather than instead of it. An
+ * activity takes the whole window, one thing at a time: a conversation, the
+ * report straight after one, a round of drills, a sitting on a chapter, a
+ * translation, a run of the daily review, a session of structures, a
+ * dictation and a chapter read aloud.
  */
 export function showsNav(route: Route): boolean {
-  if (route.name === "conversation") {
-    return false;
-  }
-  if (route.name === "practice") {
-    return !route.autostart;
-  }
-  if (route.name === "books") {
-    return route.practising !== true;
-  }
-  if (
-    route.name === "recall" ||
-    route.name === "structures" ||
-    route.name === "listening"
-  ) {
-    return route.running === undefined;
-  }
-  return route.name !== "report" || route.origin === "progress";
-}
-
-/** The two things the app is for. */
-export type Section = "conversation" | "book";
-
-/**
- * The section a screen is under; Settings stands outside both. Home is where
- * the partner waits, so it is the conversation's own screen.
- */
-export function sectionOf(route: Route): Section | null {
   switch (route.name) {
-    case "settings":
-      return null;
-    case "book":
-    case "books":
+    case "conversation":
+    case "practice":
     case "recall":
     case "structures":
     case "listening":
-      return "book";
+      return false;
+    case "books":
+      return route.chapterId === undefined;
+    case "report":
+      return route.origin === "past";
     default:
-      return "conversation";
+      return true;
   }
 }
 
 /**
  * What tells one screen from another, so that only a move to a different one
- * animates. What a screen changes from the inside stays out, such as the
- * chapter picked on the listening menu or the preset of a setup.
+ * animates. What a screen changes from the inside stays out: the tab of the
+ * book or of what the learner has, and the preset of a setup.
  */
 export function screenKey(route: Route): string {
   switch (route.name) {
     case "report":
       return JSON.stringify([route.name, route.sessionId]);
     case "practice":
-      return JSON.stringify([
-        route.name,
-        route.patternId,
-        route.format,
-        route.autostart,
-      ]);
+      return JSON.stringify([route.name, route.patternId, route.format]);
     case "books":
       return JSON.stringify([
         route.name,
         route.bookId,
         route.chapterId ?? null,
-        route.known === true,
         route.practising === true,
         route.refresh === true,
         route.triage === true,
-        route.translating === true,
+        route.translating?.attemptId ?? null,
       ]);
     case "recall":
-      return JSON.stringify([route.name, route.running ?? null]);
+      return JSON.stringify([route.name, route.running]);
     case "structures":
-      return JSON.stringify([
-        route.name,
-        route.running ?? null,
-        route.chapterId ?? null,
-        route.catalog === true,
-      ]);
+      return JSON.stringify([route.name, route.running]);
     case "listening":
       return JSON.stringify([
         route.name,

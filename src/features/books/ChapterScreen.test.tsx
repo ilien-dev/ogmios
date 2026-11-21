@@ -1,10 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import type { ReactNode } from "react";
-import { useState } from "react";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { UserEvent } from "@testing-library/user-event";
-import type { Route } from "@/app/routes";
 import { i18n } from "@/lib/i18n/i18n";
 import { setMockLatency } from "@/lib/ipcMock";
 import {
@@ -17,34 +15,22 @@ import {
   setMockSentencesFail,
 } from "@/lib/ipcMockSentences";
 import { setMockWordKnown } from "@/lib/ipcMockWords";
+import { BookSection } from "@/test/BookSection";
 import { useMockBackend } from "@/test/mockBackend";
-import { BooksScreen } from "./BooksScreen";
 
 const REFRESH = "Quick refresh before reading";
 
 /** The books section with the route it is given, as the app holds it. */
 function Shelf(): ReactNode {
-  const [route, setRoute] = useState<Route>({
-    name: "books",
-    bookId: "book-alice",
-  });
-  if (route.name !== "books") {
-    return null;
-  }
-  return (
-    <BooksScreen
-      nativeLang="es"
-      bookId={route.bookId}
-      chapterId={route.chapterId ?? null}
-      navigate={setRoute}
-    />
-  );
+  return <BookSection />;
 }
 
 async function openChapter(user: UserEvent, name: string): Promise<void> {
   render(<Shelf />);
   await user.click(await screen.findByRole("button", { name }));
-  expect(screen.getByRole("heading", { level: 1, name })).toBeInTheDocument();
+  expect(
+    await screen.findByRole("heading", { level: 2, name }),
+  ).toBeInTheDocument();
 }
 
 /** The word list as rows of text, without its heading row. */
@@ -68,7 +54,7 @@ describe("ChapterScreen", () => {
     expect(beside.getByText("Alice's Adventures in Wonderland")).toBeVisible();
     expect(
       beside.getByRole("heading", {
-        level: 1,
+        level: 2,
         name: "I. Down the Rabbit-Hole",
       }),
     ).toBeInTheDocument();
@@ -88,7 +74,7 @@ describe("ChapterScreen", () => {
   test("each state of the chapter still shows", async () => {
     const user = userEvent.setup();
     await openChapter(user, "II. The Pool of Tears");
-    // Choosing the depth: nothing to practise yet, translating is within reach.
+    // Choosing the depth: nothing to practise yet.
     expect(
       screen.getByRole("heading", {
         name: "How many words do you want to learn?",
@@ -96,9 +82,6 @@ describe("ChapterScreen", () => {
     ).toBeInTheDocument();
     const aside = within(screen.getByRole("complementary"));
     expect(aside.queryByRole("button", { name: "Practice" })).toBeNull();
-    expect(
-      aside.getByRole("button", { name: "Translate the chapter" }),
-    ).toBeInTheDocument();
 
     // Preparing.
     setMockLatency(0.03);

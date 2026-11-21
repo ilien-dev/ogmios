@@ -1,15 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import type { ReactNode } from "react";
-import { useState } from "react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { UserEvent } from "@testing-library/user-event";
-import type { Route } from "@/app/routes";
-import { showsNav } from "@/app/routes";
 import { i18n } from "@/lib/i18n/i18n";
 import { seedMockLongChapter } from "@/lib/ipcMockChapters";
+import { BookSection } from "@/test/BookSection";
 import { useMockBackend } from "@/test/mockBackend";
-import { BooksScreen } from "./BooksScreen";
 
 const CHAPTER = "I. Down the Rabbit-Hole";
 
@@ -64,26 +61,7 @@ function Shelf({
 }: {
   chapterId?: string;
 }): ReactNode {
-  const [route, setRoute] = useState<Route>({
-    name: "books",
-    bookId: "book-alice",
-    chapterId,
-  });
-  if (route.name !== "books") {
-    return null;
-  }
-  return (
-    <>
-      {showsNav(route) && <nav aria-label="Sections" />}
-      <BooksScreen
-        nativeLang="es"
-        bookId={route.bookId}
-        chapterId={route.chapterId ?? null}
-        practising={route.practising === true}
-        navigate={setRoute}
-      />
-    </>
-  );
+  return <BookSection chapterId={chapterId} />;
 }
 
 /** Moves the focus forward until it is on the button called `name`. */
@@ -157,7 +135,7 @@ describe("SittingScreen", () => {
   test("a sitting is played to its summary with the keyboard alone", async () => {
     const user = userEvent.setup();
     render(<Shelf />);
-    expect(screen.getByRole("navigation")).toBeInTheDocument();
+    expect(await screen.findByRole("navigation")).toBeInTheDocument();
     await tabTo(user, "Practice");
     await user.keyboard("{Enter}");
     // Both ways and every word are chosen already: Enter starts.
@@ -249,7 +227,7 @@ describe("SittingScreen", () => {
     expect(screen.getByRole("button", { name: "Done" })).toHaveFocus();
     await user.keyboard("{Enter}");
     expect(
-      screen.getByRole("heading", { level: 1, name: CHAPTER }),
+      screen.getByRole("heading", { level: 2, name: CHAPTER }),
     ).toBeInTheDocument();
     expect(screen.getByRole("navigation")).toBeInTheDocument();
   });
@@ -406,7 +384,7 @@ describe("SittingScreen", () => {
     ).toHaveFocus();
     await user.keyboard("{Enter}");
     expect(
-      screen.getByRole("heading", { level: 1, name: LONG_NAME }),
+      screen.getByRole("heading", { level: 2, name: LONG_NAME }),
     ).toBeInTheDocument();
     await tabTo(user, "Practice");
     await user.keyboard("{Enter}");

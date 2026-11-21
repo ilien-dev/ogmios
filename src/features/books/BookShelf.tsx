@@ -7,6 +7,7 @@ import { Presence } from "@/components/motion/Presence";
 import { Reveal } from "@/components/motion/Reveal";
 import { Swap } from "@/components/motion/Swap";
 import { Tilt } from "@/components/motion/Tilt";
+import { BackLink } from "@/components/ui/BackLink";
 import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
 import { Orb } from "@/components/ui/Orb";
@@ -94,6 +95,14 @@ export function BookShelf({
   return (
     <main className="h-full overflow-y-auto">
       <div className="mx-auto flex max-w-2xl flex-col gap-10 px-6 py-12 nav:py-16">
+        <Reveal index={0}>
+          <BackLink
+            label={t("nav.backTo", { place: t("nav.places.book") })}
+            onClick={() => {
+              navigate({ name: "book" });
+            }}
+          />
+        </Reveal>
         <Reveal index={0} className="flex items-center gap-6">
           <Orb size="md" section="book" />
           <header className="flex min-w-0 flex-col gap-2">
@@ -163,7 +172,7 @@ export function BookShelf({
                 size="sm"
                 className="-ml-3 text-ink-faint"
                 onClick={() => {
-                  navigate({ name: "books", bookId: null, known: true });
+                  navigate({ name: "progress", tab: "words" });
                 }}
               >
                 {t("books.chapter.knownCount", { count: knownCount })}

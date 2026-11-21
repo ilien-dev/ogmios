@@ -24,6 +24,8 @@ import { Select } from "@/components/ui/Select";
 import { TextInput } from "@/components/ui/TextInput";
 import { AppUpdate } from "@/features/update/AppUpdate";
 import { UpdateRow } from "@/features/update/UpdateRow";
+import { useSpeech } from "@/features/speech/speech";
+import { VoiceRows } from "@/features/speech/VoiceCard";
 import { InterestPicker } from "@/features/onboarding/InterestPicker";
 import { ReminderPicker } from "@/features/onboarding/ReminderPicker";
 import { errorMessage } from "@/lib/errors";
@@ -58,7 +60,6 @@ const SECTIONS = [
   ["settings-spelling", "settings.spelling"],
   ["settings-connection", "settings.connection"],
   ["settings-voice", "settings.voice"],
-  ["settings-read-aloud", "settings.readAloud"],
   ["settings-memory", "settings.memory"],
   ["settings-data", "settings.data"],
   ["settings-about", "update.about"],
@@ -133,6 +134,7 @@ export function SettingsScreen({
   onSettingsChange,
 }: SettingsScreenProps): ReactNode {
   const { t, i18n } = useTranslation();
+  const { talk } = useSpeech();
   const [name, setName] = useState(profile.name ?? "");
   const [hasKey, setHasKey] = useState(false);
   const [facts, setFacts] = useState<Array<{ id: string; text: string }>>([]);
@@ -432,15 +434,30 @@ export function SettingsScreen({
             </Section>
 
             <Section id="settings-voice" title={t("settings.voice")}>
-              <VoiceModels
-                onSelected={(sttModel) => {
-                  onSettingsChange({ ...settings, sttModel });
-                }}
+              <p className="text-ink-soft">{t("voice.lead")}</p>
+              <VoiceRows
+                settings={settings}
+                onSettingsChange={onSettingsChange}
               />
-            </Section>
-
-            <Section id="settings-read-aloud" title={t("settings.readAloud")}>
-              <ReadAloud />
+              <details className="text-sm text-ink-soft">
+                <summary className="w-fit cursor-pointer py-1 text-ink-faint transition-colors duration-300 ease-out-expo hover:text-ink">
+                  {t("voice.advanced")}
+                </summary>
+                <div className="flex flex-col gap-6 pt-5">
+                  <div className="flex flex-col gap-3">
+                    <h3 className="text-sm font-medium text-ink">
+                      {t("voice.model")}
+                    </h3>
+                    <VoiceModels
+                      onSelected={(sttModel) => {
+                        onSettingsChange({ ...settings, sttModel });
+                        void talk.refresh();
+                      }}
+                    />
+                  </div>
+                  <ReadAloud />
+                </div>
+              </details>
             </Section>
 
             <Section id="settings-memory" title={t("settings.memory")}>

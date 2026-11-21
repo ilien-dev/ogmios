@@ -9,7 +9,6 @@ import { BigNumber, StatChip } from "@/components/scene/Stats";
 import { formatDate } from "@/lib/text";
 import { stepsLeft } from "./ladder";
 import { Staircase } from "./Staircase";
-import { WeeklyBars } from "./WeeklyBars";
 
 /** The glass card over the staircase: the pattern picked, or the focus. */
 function PatternTip({ pattern }: { pattern: PatternView | null }): ReactNode {
@@ -65,9 +64,8 @@ interface ProgressSceneProps {
 }
 
 /**
- * The scene of Progress: the patterns as a staircase from noticed to
- * mastered, the pattern picked in a glass card over it, and the time spoken
- * week by week along the bottom.
+ * The scene of the patterns: a staircase from noticed to mastered, and the
+ * pattern picked in a glass card over it.
  */
 export function ProgressScene({
   progress,
@@ -80,7 +78,6 @@ export function ProgressScene({
     .filter((date) => date !== null)
     .sort()
     .at(0);
-  const spoke = progress.weeklyMinutes.some((week) => week.minutes > 0);
 
   return (
     <Scene
@@ -131,38 +128,11 @@ export function ProgressScene({
           </Presence>
         </Reveal>
       }
-      footer={
-        <Reveal
-          index={6}
-          className="flex flex-col gap-3 rounded-xl glass px-5.5 py-4.5"
-        >
-          <span className="font-display text-base tracking-tight text-ink">
-            {t("progress.weekly")}
-          </span>
-          <Presence swap>
-            {spoke ? (
-              <Reveal key="weeks" kind="fade" index={0}>
-                <WeeklyBars weeks={progress.weeklyMinutes} />
-              </Reveal>
-            ) : (
-              <Reveal
-                key="empty"
-                as="span"
-                kind="fade"
-                index={0}
-                className="text-sm text-ink-faint"
-              >
-                {t("progress.weeklyEmpty")}
-              </Reveal>
-            )}
-          </Presence>
-        </Reveal>
-      }
     >
       <Staircase
         patterns={progress.patterns}
         selected={shown?.id ?? null}
-        className="size-full max-w-4xl px-6 pt-32 pb-72"
+        className="size-full max-w-4xl px-6 pt-32 pb-16"
       />
     </Scene>
   );

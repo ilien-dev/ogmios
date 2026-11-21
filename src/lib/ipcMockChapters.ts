@@ -338,6 +338,10 @@ export function chapterCommands(
   };
 
   return {
+    open_chapter: (args) =>
+      after(60, () => {
+        setMockOpened(arg(args, "id"));
+      }),
     get_chapter_words: (args) =>
       after(150, () => {
         setMockOpened(arg(args, "id"));

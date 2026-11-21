@@ -3,26 +3,12 @@ import type { structuresEn } from "./structures.en";
 
 /** The structures section in Spanish. Same keys as `structures.en.ts`. */
 export const structuresEs: Catalog<typeof structuresEn> = {
-  hub: {
-    freeTitle: "Sesión libre",
-    freeText: "Elige estructuras del catálogo y escribe frases con ellas.",
-    freeStatus: "{{count}} estructuras · {{firm}} firmes",
-    chapterTitle: "Del capítulo",
-    chapterText: "Las estructuras que más usa el capítulo que estás leyendo.",
-    pausedTitle: "En pausa",
-    pausedText: "Continúa la sesión que dejaste, o termínala.",
-    pausedOne: "{{done}} de {{total}} frases",
-    pausedMany: "{{count}} sesiones",
-  },
+  free: "Elige estructuras del catálogo y escribe frases con ellas. Sin elegir ninguna, la sesión mezcla todas las de la lista.",
   board: {
     scene: "Tus estructuras por nivel",
     structures_one: "estructura",
     structures_other: "estructuras",
     due: "para repasar",
-    paused_one: "sesión en pausa",
-    paused_other: "sesiones en pausa",
-    sentences_one: "frase en el capítulo",
-    sentences_other: "frases en el capítulo",
     picked_one: "elegida",
     picked_other: "elegidas",
     level: "Nivel",
@@ -34,8 +20,6 @@ export const structuresEs: Catalog<typeof structuresEn> = {
     reliefLevel: "{{level}} {{practised}} de {{count}}",
   },
   title: "Estructuras",
-  intro:
-    "Escribe frases con una estructura hasta que te salga sola. Usarás palabras que ya viste en tus libros.",
   all: "Todas las estructuras",
   due: "toca hoy",
   filter: {
@@ -43,8 +27,6 @@ export const structuresEs: Catalog<typeof structuresEn> = {
     all: "Todas",
   },
   chapter: {
-    book: "{{book}} · {{chapter}}",
-    title: "Las estructuras que más usa tu capítulo",
     find: "Buscar las estructuras de este capítulo",
     finding: "Leyendo el capítulo…",
     pieces: "{{done}} de {{total}} partes leídas",
@@ -53,12 +35,14 @@ export const structuresEs: Catalog<typeof structuresEn> = {
     none: "Ninguna de las estructuras de aquí apareció en este capítulo.",
     count_one: "{{count}} frase",
     count_other: "{{count}} frases",
-    practise: "Practicar las del capítulo",
-    open: "Estructuras del capítulo",
     screenTitle: "Estructuras del capítulo",
     screenIntro:
       "Las que más usa este texto. Practícalas y las reconocerás al leerlo.",
     words: "Con palabras de este capítulo",
+    unprepared:
+      "Prepara antes el capítulo: las frases se piden con sus palabras.",
+    toWords: "Ir a Palabras",
+    catalogue: "Ver todas las estructuras",
   },
   paused: {
     title: "En pausa",

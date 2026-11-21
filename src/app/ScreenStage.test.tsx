@@ -64,14 +64,10 @@ test("two moves in a row leave only the last screen", async () => {
 });
 
 test("a change that stays on the screen keeps it in place", () => {
-  const { rerender } = render(
-    <Stage route={{ name: "listening" }} label="Same" />,
-  );
+  const { rerender } = render(<Stage route={{ name: "book" }} label="Same" />);
   const held = screen.getByRole("button", { name: "Same" });
 
-  rerender(
-    <Stage route={{ name: "listening", chapterId: "c" }} label="Same" />,
-  );
+  rerender(<Stage route={{ name: "book", tab: "listen" }} label="Same" />);
 
   expect(screen.getByRole("button", { name: "Same" })).toBe(held);
 });

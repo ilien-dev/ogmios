@@ -49,7 +49,6 @@ export function ClosingCard({
                       name: "practice",
                       patternId: focusPatternId,
                       format: null,
-                      autostart: true,
                     });
                   }}
                 >

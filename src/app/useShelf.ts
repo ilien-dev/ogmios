@@ -1,21 +1,25 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { Book } from "@shared/domain";
-import { homeState, listBooks, structuresState } from "@/lib/ipc";
-import type { Entry } from "./places";
+import { homeState, listBooks, openChapter, structuresState } from "@/lib/ipc";
 import type { Route } from "./routes";
 import { showsNav } from "./routes";
 
-interface Shelf {
-  /** What is due today, by place. */
-  counts: Partial<Record<Entry, number>>;
+interface Held {
+  /** Everything that comes back today: words, drills and structures. */
+  due: number;
   books: Book[];
-  /** The chapter opened last. */
+  /** The chapter the learner is on. */
   currentId: string | null;
   /** The shelf has been read once: an empty one is really empty. */
   loaded: boolean;
 }
 
-const EMPTY: Shelf = { counts: {}, books: [], currentId: null, loaded: false };
+export interface Shelf extends Held {
+  /** Makes that chapter the one the learner is on, here and for good. */
+  pick: (chapterId: string) => void;
+}
+
+const EMPTY: Held = { due: 0, books: [], currentId: null, loaded: false };
 
 /**
  * What is due and the chapter the learner is on change behind every screen:
@@ -33,7 +37,10 @@ export function useShelf(route: Route, enabled: boolean): Shelf {
       .then(([home, books, structures]) => {
         if (live) {
           setShelf({
-            counts: { drills: home.dueReviews, recall: home.dueWords },
+            due:
+              home.dueWords +
+              home.dueReviews +
+              structures.structures.filter((each) => each.due).length,
             books,
             currentId: structures.chapter?.chapter.id ?? null,
             loaded: true,
@@ -47,5 +54,11 @@ export function useShelf(route: Route, enabled: boolean): Shelf {
     };
   }, [enabled, route]);
 
-  return shelf;
+  const pick = useCallback((chapterId: string): void => {
+    // Shown at once; the backend is told so that it holds after a restart.
+    setShelf((held) => ({ ...held, currentId: chapterId }));
+    openChapter(chapterId).catch(() => null);
+  }, []);
+
+  return { ...shelf, pick };
 }
