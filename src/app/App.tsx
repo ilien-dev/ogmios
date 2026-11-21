@@ -44,7 +44,10 @@ export function App(): ReactNode {
   const { t } = useTranslation();
   const [boot, setBoot] = useState<Boot>({ state: "loading" });
   const [route, setRoute] = useState<Route>(START);
-  /** The last screen beside the navigation: where an activity goes back to. */
+  /**
+   * The last screen beside the navigation: where an activity, or Settings,
+   * goes back to.
+   */
   const [origin, setOrigin] = useState<Route>(START);
   const [theme, setTheme] = useTheme();
   const onboarded = boot.state === "ready" && boot.profile?.onboarded === true;
@@ -127,12 +130,12 @@ export function App(): ReactNode {
 
   const current = chapterOn(books, currentId);
   const navigate = (next: Route): void => {
-    if (showsNav(next)) {
+    if (showsNav(next) && next.name !== "settings") {
       setOrigin(next);
     }
     setRoute(next);
   };
-  /** Out of an activity: back to exactly where it was started from. */
+  /** Out of an activity or Settings: back to where it was started from. */
   const leave = (): void => {
     setRoute(origin);
   };
@@ -262,7 +265,7 @@ export function App(): ReactNode {
     <BootStage name="app">
       <SpeechProvider>
         <UpdateProvider>
-          <Shell route={route} navigate={navigate} due={due}>
+          <Shell route={route} navigate={navigate} onClose={leave} due={due}>
             {screen}
           </Shell>
         </UpdateProvider>

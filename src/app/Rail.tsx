@@ -1,7 +1,8 @@
 import { motion } from "motion/react";
+import { useEffect } from "react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Settings } from "lucide-react";
+import { Settings, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Presence } from "@/components/motion/Presence";
 import { Reveal } from "@/components/motion/Reveal";
@@ -86,20 +87,40 @@ function Item({
 interface RailProps {
   route: Route;
   navigate: Navigate;
+  /** Out of Settings: back to where it was opened from. */
+  onClose: () => void;
   /** Everything that comes back today: the count beside Today. */
   due: number;
 }
 
 /**
  * The navigation, along the top of every screen that leaves room for it: the
- * mark, the four places as tabs, and Settings at the far end. It keeps its
- * shape everywhere, and only Today carries a count.
+ * mark, the four places as tabs, and Settings at the far end. Only Today
+ * carries a count. Settings takes the whole window: the places go, and its
+ * button becomes the close, as Escape is.
  */
-export function Rail({ route, navigate, due }: RailProps): ReactNode {
+export function Rail({ route, navigate, onClose, due }: RailProps): ReactNode {
   const { t } = useTranslation();
   const { state, folded } = useUpdate();
   const on = placeOf(route);
+  const inSettings = on === "settings";
   const waiting = folded && offered(state) !== null;
+
+  useEffect(() => {
+    if (!inSettings) {
+      return;
+    }
+    const onKey = (event: KeyboardEvent): void => {
+      // A dialog or a tooltip in Settings takes its own Escape first.
+      if (event.key === "Escape" && !event.defaultPrevented) {
+        onClose();
+      }
+    };
+    globalThis.addEventListener("keydown", onKey);
+    return () => {
+      globalThis.removeEventListener("keydown", onKey);
+    };
+  }, [inSettings, onClose]);
 
   return (
     <Presence>
@@ -116,51 +137,83 @@ export function Rail({ route, navigate, due }: RailProps): ReactNode {
               ogmios
             </span>
           </div>
-          <nav
-            aria-label={t("nav.label")}
-            className="scrollbar-none flex min-w-0 gap-0.5 overflow-x-auto rounded-full border border-line bg-sunken/80 p-1"
-          >
-            {PLACES.map(({ place, icon }) => {
-              const name = t(`nav.places.${place}`);
-              const count = place === "today" ? due : 0;
-              return (
-                <Item
-                  key={place}
-                  label={
-                    count > 0 ? `${name}, ${t("nav.due", { count })}` : name
-                  }
-                  text={name}
-                  icon={icon}
-                  active={on === place}
-                  tone={place}
-                  count={count}
-                  onClick={() => {
-                    navigate(placeTarget(place));
-                  }}
-                />
-              );
-            })}
-          </nav>
+          <Presence>
+            {!inSettings && (
+              <Reveal
+                key="places"
+                as="nav"
+                kind="fade"
+                aria-label={t("nav.label")}
+                className="scrollbar-none flex min-w-0 gap-0.5 overflow-x-auto rounded-full border border-line bg-sunken/80 p-1"
+              >
+                {PLACES.map(({ place, icon }) => {
+                  const name = t(`nav.places.${place}`);
+                  const count = place === "today" ? due : 0;
+                  return (
+                    <Item
+                      key={place}
+                      label={
+                        count > 0 ? `${name}, ${t("nav.due", { count })}` : name
+                      }
+                      text={name}
+                      icon={icon}
+                      active={on === place}
+                      tone={place}
+                      count={count}
+                      onClick={() => {
+                        navigate(placeTarget(place));
+                      }}
+                    />
+                  );
+                })}
+              </Reveal>
+            )}
+          </Presence>
           <button
             type="button"
-            aria-current={on === "settings" ? "page" : undefined}
-            aria-label={t(waiting ? "nav.settingsWaiting" : "nav.settings")}
+            aria-label={t(
+              inSettings
+                ? "nav.closeSettings"
+                : waiting
+                  ? "nav.settingsWaiting"
+                  : "nav.settings",
+            )}
             onClick={() => {
-              navigate({ name: "settings" });
+              if (inSettings) {
+                onClose();
+              } else {
+                navigate({ name: "settings" });
+              }
             }}
             className={cn(
               "group relative ml-auto flex size-11 shrink-0 items-center justify-center rounded-full border border-line transition-control",
-              on === "settings"
+              inSettings
                 ? "bg-raised text-ink shadow-card"
                 : "bg-sunken/80 text-ink-soft hover:text-ink",
             )}
           >
-            <Settings
-              aria-hidden
-              className="size-5 transition-transform duration-500 ease-out-expo group-hover:rotate-90"
-            />
+            <Presence swap>
+              <Reveal
+                key={inSettings ? "close" : "open"}
+                as="span"
+                kind="scale"
+                className="flex"
+              >
+                {inSettings ? (
+                  <X
+                    aria-hidden
+                    className="size-5 transition-transform duration-300 ease-out-expo group-hover:rotate-90"
+                  />
+                ) : (
+                  <Settings
+                    aria-hidden
+                    className="size-5 transition-transform duration-500 ease-out-expo group-hover:rotate-90"
+                  />
+                )}
+              </Reveal>
+            </Presence>
             <Presence>
-              {waiting && (
+              {waiting && !inSettings && (
                 <Reveal
                   key="dot"
                   as="span"

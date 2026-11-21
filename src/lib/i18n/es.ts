@@ -29,6 +29,7 @@ export const es: Catalog<typeof en> = {
     label: "Lugares",
     settings: "Ajustes",
     settingsWaiting: "Ajustes, hay una actualización pendiente",
+    closeSettings: "Cerrar ajustes",
     due: "{{count}} vuelven hoy",
     places: {
       today: "Hoy",

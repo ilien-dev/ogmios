@@ -30,11 +30,17 @@ const RUN: Route = { name: "recall", running: "both" };
 interface BarProps {
   route: Route;
   navigate?: (route: Route) => void;
+  onClose?: () => void;
   due?: number;
 }
 
-function Bar({ route, navigate = mock(), due = 0 }: BarProps): ReactNode {
-  return <Rail route={route} navigate={navigate} due={due} />;
+function Bar({
+  route,
+  navigate = mock(),
+  onClose = mock(),
+  due = 0,
+}: BarProps): ReactNode {
+  return <Rail route={route} navigate={navigate} onClose={onClose} due={due} />;
 }
 
 function names(nav: HTMLElement): string[] {
@@ -139,7 +145,6 @@ describe("Rail", () => {
       BOOK,
       { name: "home" },
       { name: "progress" },
-      { name: "settings" },
       { name: "books", bookId: null },
     ] satisfies Route[]) {
       rerender(<Bar route={route} />);
@@ -161,7 +166,7 @@ describe("Rail", () => {
   test("every place is one press away from anywhere", async () => {
     const user = userEvent.setup();
     const navigate = mock();
-    render(<Bar route={{ name: "settings" }} navigate={navigate} />);
+    render(<Bar route={BOOK} navigate={navigate} />);
 
     await user.click(screen.getByRole("button", { name: "Today" }));
     expect(navigate).toHaveBeenLastCalledWith({ name: "today" });
@@ -199,18 +204,53 @@ describe("Rail", () => {
     );
   });
 
-  test("Settings has its own place and none of the four", () => {
+  test("Settings takes the whole window: no places, and a close in place of its button", () => {
     render(<Bar route={{ name: "settings" }} />);
 
-    expect(screen.getByRole("button", { name: "Settings" })).toHaveAttribute(
-      "aria-current",
-      "page",
+    expect(
+      screen.queryByRole("navigation", { name: "Places" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Settings" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Close settings" }),
+    ).toBeVisible();
+  });
+
+  test("Settings closes with its button and with Escape", async () => {
+    const user = userEvent.setup();
+    const navigate = mock();
+    const onClose = mock();
+    render(
+      <Bar
+        route={{ name: "settings" }}
+        navigate={navigate}
+        onClose={onClose}
+      />,
     );
-    for (const place of within(
-      screen.getByRole("navigation", { name: "Places" }),
-    ).getAllByRole("button")) {
-      expect(place).not.toHaveAttribute("aria-current");
-    }
+
+    await user.click(screen.getByRole("button", { name: "Close settings" }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+    await user.keyboard("{Escape}");
+    expect(onClose).toHaveBeenCalledTimes(2);
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  test("Escape closes nothing outside Settings, nor what something else took", () => {
+    const onClose = mock();
+    const { rerender } = render(<Bar route={TODAY} onClose={onClose} />);
+    globalThis.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    expect(onClose).not.toHaveBeenCalled();
+
+    rerender(<Bar route={{ name: "settings" }} onClose={onClose} />);
+    const taken = new KeyboardEvent("keydown", {
+      key: "Escape",
+      cancelable: true,
+    });
+    taken.preventDefault();
+    globalThis.dispatchEvent(taken);
+    expect(onClose).not.toHaveBeenCalled();
   });
 
   test("everything that comes back today is one count, on Today", () => {
@@ -254,5 +294,14 @@ describe("Rail", () => {
       "Tu inglés",
     ]);
     expect(screen.getByRole("button", { name: "Ajustes" })).toBeVisible();
+  });
+
+  test("its close is in Spanish too", async () => {
+    await i18n.changeLanguage("es");
+    render(<Bar route={{ name: "settings" }} />);
+
+    expect(
+      screen.getByRole("button", { name: "Cerrar ajustes" }),
+    ).toBeVisible();
   });
 });
