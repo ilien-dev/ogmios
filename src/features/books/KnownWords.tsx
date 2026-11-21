@@ -9,15 +9,23 @@ import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
 import { Spinner } from "@/components/ui/Spinner";
 import { SpeakButton } from "@/features/speech/SpeakButton";
+import { cn } from "@/lib/cn";
 import { errorMessage } from "@/lib/errors";
 import { forgetKnownWord, listKnownWords } from "@/lib/ipc";
 
+interface KnownWordsProps {
+  /** Inside a sheet: no card of its own, and its heading names the sheet. */
+  sheet?: { headingId: string };
+  /** How many there are, each time that changes. */
+  onCount?: (count: number) => void;
+}
+
 /**
  * Every word the learner said they know, from any chapter of any book, the
- * latest first: a card among what they have gathered. Any of them can be
- * taken back, which puts it in practice again wherever a chapter has it.
+ * latest first. Any of them can be taken back, which puts it in practice
+ * again wherever a chapter has it.
  */
-export function KnownWords(): ReactNode {
+export function KnownWords({ sheet, onCount }: KnownWordsProps): ReactNode {
   const { t } = useTranslation();
   const [words, setWords] = useState<KnownWord[] | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
@@ -40,6 +48,12 @@ export function KnownWords(): ReactNode {
     };
   }, []);
 
+  useEffect(() => {
+    if (words !== null) {
+      onCount?.(words.length);
+    }
+  }, [words, onCount]);
+
   const undo = async (word: KnownWord): Promise<void> => {
     setFailure(null);
     try {
@@ -53,10 +67,18 @@ export function KnownWords(): ReactNode {
     <Reveal
       as="section"
       aria-label={t("books.known.title")}
-      className="flex flex-col gap-5 rounded-xl glass p-6"
+      className={cn(
+        "flex flex-col gap-5",
+        sheet === undefined && "rounded-xl glass p-6",
+      )}
     >
-      <header className="flex flex-col gap-2">
-        <h2 className="font-display text-2xl font-light tracking-tight text-ink">
+      <header
+        className={cn("flex flex-col gap-2", sheet !== undefined && "pr-12")}
+      >
+        <h2
+          id={sheet?.headingId}
+          className="font-display text-2xl font-light tracking-tight text-ink"
+        >
           {t("books.known.title")}
         </h2>
         <p className="text-sm text-ink-soft">{t("books.known.intro")}</p>

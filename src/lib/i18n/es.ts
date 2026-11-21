@@ -1109,7 +1109,13 @@ export const es: Catalog<typeof en> = {
       learned_one: "palabra aprendida",
       learned_other: "palabras aprendidas",
       relief:
-        "Tus palabras como columnas: {{fresh}} nuevas, {{settling}} asentándose, {{firm}} firmes",
+        "Tus palabras como torres, un piso cada pocas: {{fresh}} nuevas, {{settling}} asentándose, {{firm}} firmes",
+    },
+    towers: {
+      per_one: "Cada piso es {{count}} palabra.",
+      per_other: "Cada piso son {{count}} palabras.",
+      more_one: "+{{count}} más",
+      more_other: "+{{count}} más",
     },
   },
   progress: {
@@ -1144,6 +1150,9 @@ export const es: Catalog<typeof en> = {
       "Las palabras que preguntas o aprendes de un libro aparecen aquí.",
     vocabularyAll_one: "Ver {{count}} palabra",
     vocabularyAll_other: "Ver las {{count}} palabras",
+    latest: "Las últimas que aprendiste",
+    vocabularyOpen_one: "Ver tu {{count}} palabra",
+    vocabularyOpen_other: "Ver tus {{count}} palabras",
     chipSessions_one: "charla",
     chipSessions_other: "charlas",
     chipPatterns_one: "patrón",

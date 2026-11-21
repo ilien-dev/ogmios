@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
+import { ChevronRight, CircleCheck } from "lucide-react";
 import type { Progress, VocabEntry } from "@shared/domain";
 import type { ListeningState } from "@shared/listening";
 import { Presence } from "@/components/motion/Presence";
@@ -8,6 +9,7 @@ import { Reveal } from "@/components/motion/Reveal";
 import { Swap } from "@/components/motion/Swap";
 import { Stagger } from "@/components/motion/Stagger";
 import { Button } from "@/components/ui/Button";
+import { Dialog } from "@/components/ui/Dialog";
 import { Notice } from "@/components/ui/Notice";
 import { Spinner } from "@/components/ui/Spinner";
 import type { MineTab, Navigate } from "@/app/routes";
@@ -20,6 +22,7 @@ import {
   useRecallToday,
 } from "@/features/recall/RecallPanel";
 import type { RecallToday } from "@/features/recall/RecallPanel";
+import { wordsByStrength } from "@/features/recall/towers";
 import { StrengthMark } from "@/features/recall/StrengthMark";
 import {
   CatalogueBoard,
@@ -29,7 +32,12 @@ import {
 import type { Catalogue } from "@/features/structures/StructureMenu";
 import { cn } from "@/lib/cn";
 import { errorMessage } from "@/lib/errors";
-import { getProgress, homeState, listeningState } from "@/lib/ipc";
+import {
+  getProgress,
+  homeState,
+  listKnownWords,
+  listeningState,
+} from "@/lib/ipc";
 import { formatDate } from "@/lib/text";
 import { focusPattern } from "./ladder";
 import { MineTiles } from "./MineTiles";
@@ -189,28 +197,173 @@ interface BoardProps extends TabProps {
   onSelect: (id: string) => void;
 }
 
-/** The words tab on the column of glass. */
+/** Words named before the learner opens all of them. */
+const LATEST_SHOWN = 4;
+/** Words a tower of the daily review names beside it. */
+const TOWER_SHOWN = 4;
+
+/** The few words learned last, each with how strong it stands. */
+function Latest({ words }: { words: VocabEntry[] }): ReactNode {
+  return (
+    <ul className="flex flex-col gap-2.5">
+      <Presence>
+        {words.slice(0, LATEST_SHOWN).map((word, index) => (
+          <Reveal
+            key={`${word.date}-${word.english}-${word.asked ?? ""}`}
+            as="li"
+            kind="fade"
+            index={index}
+            className="flex items-baseline gap-3"
+          >
+            <span className="font-medium text-ink">{word.english}</span>
+            <span className="min-w-0 flex-1 truncate text-sm text-ink-faint">
+              {word.asked ?? ""}
+            </span>
+            <Presence>
+              {word.strength !== null && (
+                <Reveal key="strength" as="span" kind="fade">
+                  <StrengthMark strength={word.strength} />
+                </Reveal>
+              )}
+            </Presence>
+          </Reveal>
+        ))}
+      </Presence>
+    </ul>
+  );
+}
+
+/** A glass row that opens a sheet: its name, its count and an arrow. */
+function SheetButton({
+  label,
+  count,
+  onClick,
+}: {
+  label: string;
+  count: number | null;
+  onClick: () => void;
+}): ReactNode {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="group flex items-center gap-3.5 rounded-xl glass px-5 py-4 text-left transition-control hover:shadow-lift"
+    >
+      <CircleCheck aria-hidden className="size-5.5 text-known" />
+      <span className="flex-1 font-medium text-ink">{label}</span>
+      <Presence>
+        {count !== null && (
+          <Reveal
+            key="count"
+            as="span"
+            kind="fade"
+            className="font-mono text-sm text-ink-soft tabular-nums"
+          >
+            {count}
+          </Reveal>
+        )}
+      </Presence>
+      <ChevronRight
+        aria-hidden
+        className="size-4 text-ink-faint transition-transform duration-300 ease-out-expo group-hover:translate-x-0.5"
+      />
+    </button>
+  );
+}
+
+/**
+ * The words tab on the column of glass: how the daily review stands, the
+ * words learned last, and two sheets: every word learned, and the words the
+ * learner said they already know.
+ */
 function WordsBoard({
   progress,
   recall,
 }: Pick<TabProps, "progress" | "recall">): ReactNode {
   const { t } = useTranslation();
+  const [sheet, setSheet] = useState<"words" | "known" | null>(null);
+  const [known, setKnown] = useState<number | null>(null);
+  const wordsTitle = useId();
+  const knownTitle = useId();
+  const close = (): void => {
+    setSheet(null);
+  };
+
+  useEffect(() => {
+    let live = true;
+    listKnownWords()
+      .then((words) => {
+        if (live) {
+          setKnown(words.length);
+        }
+      })
+      .catch(() => null);
+    return () => {
+      live = false;
+    };
+  }, []);
+
   return (
     <Stagger className="flex flex-col gap-3.5">
       <Reveal>
         <RecallBoard state={recall.state} />
       </Reveal>
       <Section
-        title={t("progress.vocabulary")}
+        title={t("progress.latest")}
         empty={
           progress.vocabulary.length === 0
             ? t("progress.vocabularyEmpty")
             : null
         }
       >
-        <Vocabulary words={progress.vocabulary} />
+        <div className="flex flex-col items-start gap-4">
+          <Latest words={progress.vocabulary} />
+          <Button
+            variant="ghost"
+            size="sm"
+            className="-ml-3"
+            icon={<ChevronRight aria-hidden className="size-4" />}
+            onClick={() => {
+              setSheet("words");
+            }}
+          >
+            {t("progress.vocabularyOpen", {
+              count: progress.vocabulary.length,
+            })}
+          </Button>
+        </div>
       </Section>
-      <KnownWords />
+      <Reveal>
+        <SheetButton
+          label={t("books.known.title")}
+          count={known}
+          onClick={() => {
+            setSheet("known");
+          }}
+        />
+      </Reveal>
+      <Dialog
+        open={sheet === "words"}
+        placement="side"
+        labelledBy={wordsTitle}
+        onClose={close}
+      >
+        <h2
+          id={wordsTitle}
+          className="pr-12 font-display text-2xl font-light tracking-tight text-ink"
+        >
+          {t("progress.vocabulary")}
+        </h2>
+        <Vocabulary words={progress.vocabulary} />
+      </Dialog>
+      <Dialog
+        open={sheet === "known"}
+        placement="side"
+        labelledBy={knownTitle}
+        onClose={close}
+      >
+        <KnownWords sheet={{ headingId: knownTitle }} onCount={setKnown} />
+      </Dialog>
     </Stagger>
   );
 }
@@ -339,6 +492,7 @@ function Stage({
         <RecallScene
           recall={recall}
           nativeLang={nativeLang}
+          words={wordsByStrength(progress.vocabulary, TOWER_SHOWN)}
           onStart={(ways) => {
             navigate({ name: "recall", running: ways });
           }}

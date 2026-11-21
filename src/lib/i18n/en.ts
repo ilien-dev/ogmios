@@ -1112,7 +1112,13 @@ export const en = {
       learned_one: "word learned",
       learned_other: "words learned",
       relief:
-        "Your words as columns: {{fresh}} new, {{settling}} settling, {{firm}} firm",
+        "Your words as towers, a floor for every few: {{fresh}} new, {{settling}} settling, {{firm}} firm",
+    },
+    towers: {
+      per_one: "Each floor is {{count}} word.",
+      per_other: "Each floor is {{count}} words.",
+      more_one: "+{{count}} more",
+      more_other: "+{{count}} more",
     },
   },
   progress: {
@@ -1146,6 +1152,9 @@ export const en = {
     vocabularyEmpty: "Words you ask for or learn from a book appear here.",
     vocabularyAll_one: "Show all {{count}} word",
     vocabularyAll_other: "Show all {{count}} words",
+    latest: "The latest you learned",
+    vocabularyOpen_one: "See your {{count}} word",
+    vocabularyOpen_other: "See your {{count}} words",
     chipSessions_one: "conversation",
     chipSessions_other: "conversations",
     chipPatterns_one: "pattern",
