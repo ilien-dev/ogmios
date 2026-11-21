@@ -29,7 +29,8 @@ pub struct Sentence {
     pub hint: String,
     /// The sentence in the learner's language.
     pub translation: String,
-    /// Times it was shown: the answers given to it, anywhere.
+    /// Times it was shown: the answers given to it, anywhere, the ones
+    /// understood only with it among them.
     pub shows: u32,
     /// The other English words its hint could be answered with, as the
     /// second look listed them; none while it has not been labelled.
@@ -51,7 +52,9 @@ pub struct Sentence {
 const SENTENCE: &str = "SELECT s.id, s.key, s.source = 'book', s.sentence, s.form, s.hint,
             s.translation,
             (SELECT COUNT(*) FROM word_answers a WHERE a.sentence_id = s.id)
-              + (SELECT COUNT(*) FROM word_events e WHERE e.sentence_id = s.id),
+              + (SELECT COUNT(*) FROM word_events e WHERE e.sentence_id = s.id)
+              + (SELECT COUNT(*) FROM understood_answers u WHERE u.sentence_id = s.id)
+              + (SELECT COUNT(*) FROM understood_recalls r WHERE r.sentence_id = s.id),
             COALESCE(s.also, '[]'), COALESCE(s.hints, '[]'), s.verb_form, s.chapter_id,
             s.cue
      FROM word_sentences s";
@@ -178,6 +181,54 @@ pub fn wrote(conn: &Connection, key: &str, chapter: &str, now: DateTime<Utc>) ->
         params![key, chapter, ts(now)],
     )?;
     Ok(())
+}
+
+/// More sentences were asked for the word in this chapter's sense, after
+/// the first ones.
+pub fn refilled(conn: &Connection, key: &str, chapter: &str, now: DateTime<Utc>) -> Result<()> {
+    conn.execute(
+        "INSERT INTO sentence_refills (key, chapter_id, created_at) VALUES (?1, ?2, ?3)",
+        params![key, chapter, ts(now)],
+    )?;
+    Ok(())
+}
+
+/// When the model was last asked to write sentences for the word in this
+/// chapter's sense; none if it never was.
+pub fn last_write(conn: &Connection, key: &str, chapter: &str) -> Result<Option<DateTime<Utc>>> {
+    let at: Option<String> = conn.query_row(
+        "SELECT MAX(created_at) FROM (
+           SELECT created_at FROM sentence_writes WHERE key = ?1 AND chapter_id = ?2
+           UNION ALL
+           SELECT created_at FROM sentence_refills WHERE key = ?1 AND chapter_id = ?2)",
+        [key, chapter],
+        |row| row.get(0),
+    )?;
+    super::parse_ts_opt(at.as_deref())
+}
+
+/// The sentence the word was asked with the last time, anywhere; none if
+/// it never was asked with one.
+pub fn last_shown(conn: &Connection, key: &str) -> Result<Option<String>> {
+    Ok(conn
+        .query_row(
+            "SELECT shown.id FROM (
+               SELECT s.id, a.created_at AS at FROM word_answers a
+                 JOIN word_sentences s ON s.id = a.sentence_id WHERE s.key = ?1
+               UNION ALL
+               SELECT s.id, e.created_at FROM word_events e
+                 JOIN word_sentences s ON s.id = e.sentence_id WHERE s.key = ?1
+               UNION ALL
+               SELECT s.id, u.created_at FROM understood_answers u
+                 JOIN word_sentences s ON s.id = u.sentence_id WHERE s.key = ?1
+               UNION ALL
+               SELECT s.id, r.created_at FROM understood_recalls r
+                 JOIN word_sentences s ON s.id = r.sentence_id WHERE s.key = ?1
+             ) shown ORDER BY shown.at DESC LIMIT 1",
+            [key],
+            |row| row.get(0),
+        )
+        .optional()?)
 }
 
 /// Whether the chapter is of a deleted book: the sentences of its text are

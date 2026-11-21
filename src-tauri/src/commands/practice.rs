@@ -17,7 +17,7 @@ use super::ladder::{self, rise, Climb, ALONE};
 use super::penalty;
 use super::profile::require_profile;
 use super::run;
-use super::sentences::banked;
+use super::sentences::{banked, refill, refill_after};
 use crate::agent::protocol::RelatedWord;
 use crate::books::hint::{first_letter, letters, mask, most};
 use crate::books::irregular::regularity;
@@ -96,7 +96,11 @@ pub(super) fn next_sentence(
     drawn_for: &str,
 ) -> Result<Option<Sentence>> {
     let held = sentences::bank(conn, key, chapter)?;
-    let banked: Vec<Banked> = held.iter().map(|each| banked(each, own)).collect();
+    let last = sentences::last_shown(conn, key)?;
+    let banked: Vec<Banked> = held
+        .iter()
+        .map(|each| banked(each, own, last.as_deref()))
+        .collect();
     let shown: u32 = held.iter().map(|each| each.shows).sum();
     let turn = usize::try_from(shown).unwrap_or(usize::MAX);
     let chosen = choose(&banked, |len| {
@@ -1112,7 +1116,8 @@ pub fn answer_shown(
             });
         }
         Climb::Understood(tip) => {
-            practice::understood(&tx, &sitting.id, (word_id, direction), now)?;
+            let spent = sentence.as_ref().map(|each| each.id.as_str());
+            practice::understood(&tx, &sitting.id, (word_id, direction), (spent, now))?;
             let step = step(&tx, &sitting, now)?;
             tx.commit()?;
             return Ok(AnswerResult {
@@ -1287,15 +1292,21 @@ pub async fn answer_word(
     sentence_id: Option<String>,
     tries: Option<Tries>,
 ) -> Result<AnswerResult> {
-    run(app, move |_, ctx| {
+    run(app, move |app, ctx| {
         let shown = Shown::of(sentence_id.as_deref(), tries);
-        answer_shown(
+        let now = Utc::now();
+        let answered = answer_shown(
             ctx,
             &sitting_id,
             (&word_id, direction),
             (&answer, shown),
-            Utc::now(),
-        )
+            now,
+        )?;
+        // Its sentences running low: more are written before they run out.
+        if let Some(chapter) = refill_after(&*ctx.conn()?, &word_id, now)? {
+            refill(app, Some(chapter));
+        }
+        Ok(answered)
     })
     .await
 }

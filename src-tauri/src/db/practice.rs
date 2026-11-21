@@ -664,12 +664,12 @@ pub fn understood(
     conn: &Connection,
     sitting_id: &str,
     (word_id, direction): (&str, Direction),
-    now: DateTime<Utc>,
+    (sentence_id, now): (Option<&str>, DateTime<Utc>),
 ) -> Result<()> {
     conn.execute(
-        "INSERT INTO understood_answers (sitting_id, word_id, direction, created_at)
-         VALUES (?1, ?2, ?3, ?4)",
-        params![sitting_id, word_id, direction, ts(now)],
+        "INSERT INTO understood_answers (sitting_id, word_id, direction, created_at, sentence_id)
+         VALUES (?1, ?2, ?3, ?4, ?5)",
+        params![sitting_id, word_id, direction, ts(now), sentence_id],
     )?;
     Ok(())
 }

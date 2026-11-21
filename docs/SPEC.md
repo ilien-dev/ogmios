@@ -487,8 +487,15 @@ repaso rápido antes de leer no cambia.
   pueden confundir. Cuando un capítulo trae el primer rival de una palabra, se escriben para las
   dos; con un tercer significado, solo para el nuevo. Las palabras pedidas en charlas no tienen
   libro y se preguntan sin frase.
-- **Una vez por capítulo:** en cada capítulo la palabra recibe 1 frase suya y, si tiene rivales,
-  se piden sus 5 escritas una sola vez. No se repone nunca, para no gastar tokens: lo ya pedido no se vuelve a
+- **Una vez por capítulo, y más cuando se acaban:** en cada capítulo la palabra recibe 1 frase
+  suya y, si tiene rivales, se piden sus 5 escritas. Cada frase se usa como mucho 2 veces (una
+  pregunta es un uso, también la que se acierta solo con la frase). Cuando a las frases de ese
+  significado les quedan 4 usos o menos, se piden otras 5 en segundo plano, antes de que se
+  acaben: se mira tras cada respuesta, y también al abrir el capítulo o Repaso. Como mucho una
+  tanda por palabra cada 12 horas, para que una palabra fallada muchas veces seguidas no gaste
+  tokens sin fin. Si aun así se acaban, sale la usada menos veces, y si no hay ninguna, la del
+  libro; la pregunta nunca espera a que lleguen. Nunca se repite la frase de la vez anterior
+  mientras haya otra. Una frase gastada no vuelve mientras queden otras. Lo demás no se vuelve a
   pedir, aunque se rechazara o se marcara como malo. Se prepara en segundo
   plano al abrir el capítulo y al entrar en Repaso, unas 10 palabras por petición, y cada
   respuesta se guarda al llegar. Una palabra sin frase se pregunta como antes. Las frases
