@@ -494,8 +494,9 @@ repaso rápido antes de leer no cambia.
   acaben: se mira tras cada respuesta, y también al abrir el capítulo o Repaso. Como mucho una
   tanda por palabra cada 12 horas, para que una palabra fallada muchas veces seguidas no gaste
   tokens sin fin. Si aun así se acaban, sale la usada menos veces, y si no hay ninguna, la del
-  libro; la pregunta nunca espera a que lleguen. Nunca se repite la frase de la vez anterior
-  mientras haya otra. Una frase gastada no vuelve mientras queden otras. Lo demás no se vuelve a
+  libro; la pregunta nunca espera a que lleguen. Nunca se repite la frase de la vez anterior,
+  ni una ya vista en la misma sesión, mientras haya otra. Las nuevas se piden distintas de las que
+  ya tiene (se le pasan al modelo para evitarlas). Una frase gastada no vuelve mientras queden otras. Lo demás no se vuelve a
   pedir, aunque se rechazara o se marcara como malo. Se prepara en segundo
   plano al abrir el capítulo y al entrar en Repaso, unas 10 palabras por petición, y cada
   respuesta se guarda al llegar. Una palabra sin frase se pregunta como antes. Las frases

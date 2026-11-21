@@ -630,6 +630,11 @@ const sentenceWordSchema = z.object({
   book: z.array(z.string()),
   /** How many sentences to write in the sense of `sense`; 0 for none. */
   write: z.number().int().min(0),
+  /**
+   * Sentences the word already has in that sense: the new ones are none of
+   * them nor close to one, so that none is learned by heart.
+   */
+  avoid: z.array(z.string()),
 });
 
 /**

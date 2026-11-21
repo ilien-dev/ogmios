@@ -584,6 +584,10 @@ pub struct SentenceWord {
     pub book: Vec<String>,
     /// How many sentences to write in the sense of `sense`; 0 for none.
     pub write: u32,
+    /// Sentences the word already has in that sense: the new ones are none
+    /// of them nor close to one.
+    #[serde(default)]
+    pub avoid: Vec<String>,
 }
 
 /// The model glosses the sentences the chapter has, and writes `write`

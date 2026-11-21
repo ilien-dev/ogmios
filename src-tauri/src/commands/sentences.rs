@@ -188,16 +188,40 @@ fn wanted(conn: &Connection, scope: Scope<'_>) -> Result<Vec<Wanted>> {
 }
 
 /// A sentence of a bank as `books::sentences` reads it: `own` is the
-/// sentence of the chapter being practised, and `last` the one the word was
-/// asked with the last time.
-pub(super) fn banked(sentence: &Sentence, own: &str, last: Option<&str>) -> Banked {
+/// sentence of the chapter being practised, and `recent` the ones the word
+/// was asked with the last time and in this sitting.
+pub(super) fn banked(sentence: &Sentence, own: &str, recent: &[String]) -> Banked {
     Banked {
         id: sentence.id.clone(),
         book: sentence.book,
         own: sentence.text == own,
         shows: sentence.shows,
-        last: last == Some(sentence.id.as_str()),
+        last: recent.contains(&sentence.id),
     }
+}
+
+/// How many sentences the model is to write for a word in `chapter`'s
+/// sense: [`WRITTEN`] for a word written alike to another one the first
+/// time, and again when it runs low ([`refill_due`]); none otherwise.
+fn to_write(conn: &Connection, word: &Wanted, chapter: &str) -> Result<u32> {
+    let Some(id) = word.word_id.as_deref() else {
+        return Ok(0);
+    };
+    let first = bank::senses_differ(conn, id)? && !bank::written(conn, &word.key, chapter)?;
+    let again = refill_due(conn, (id, &word.key, chapter), Utc::now())?;
+    Ok(if first || again { WRITTEN } else { 0 })
+}
+
+/// The sentences a word already has in `chapter`'s sense, for the model to
+/// write none like them; none when it is not to write.
+fn avoided(conn: &Connection, due: &Due, chapter: &str) -> Result<Vec<String>> {
+    if due.write == 0 {
+        return Ok(Vec::new());
+    }
+    Ok(bank::bank(conn, &due.word.key, Some(chapter))?
+        .into_iter()
+        .map(|each| each.text)
+        .collect())
 }
 
 /// Hours between two refills of a word: about one sitting, so that a word
@@ -219,7 +243,7 @@ pub fn refill_due(
     }
     let held: Vec<Banked> = bank::bank(conn, key, Some(chapter))?
         .iter()
-        .map(|each| banked(each, "", None))
+        .map(|each| banked(each, "", &[]))
         .collect();
     if left(&held) > LOW {
         return Ok(false);
@@ -313,6 +337,7 @@ fn asked_about(word: Wanted, from_book: Vec<(String, String)>, write: u32) -> As
                 .map(|(sentence, _)| sentence.clone())
                 .collect(),
             write,
+            avoid: Vec::new(),
         },
         book: from_book,
         word,
@@ -651,19 +676,7 @@ pub fn top_up(
             };
             let given = bank::given(&conn, &word.key, &chapter)?;
             let read = !given && !bank::archived(&conn, &chapter)?;
-            let rival = match word.word_id.as_deref() {
-                Some(id) => bank::senses_differ(&conn, id)?,
-                None => false,
-            };
-            let refill = match word.word_id.as_deref() {
-                Some(id) => refill_due(&conn, (id, &word.key, &chapter), Utc::now())?,
-                None => false,
-            };
-            let write = if rival && (!bank::written(&conn, &word.key, &chapter)? || refill) {
-                WRITTEN
-            } else {
-                0
-            };
+            let write = to_write(&conn, &word, &chapter)?;
             if given {
                 stale.extend(outdated(&conn, word.clone(), &profile.native_lang)?);
             }
@@ -689,8 +702,12 @@ pub fn top_up(
                 Vec::new()
             };
             for due in words {
+                let avoid = avoided(&conn, &due, &chapter)?;
                 let chapter = due.read.then_some(text.as_slice());
-                asked.extend(ask(due.word, chapter, due.write));
+                asked.extend(ask(due.word, chapter, due.write).map(|mut each| {
+                    each.params.avoid = avoid;
+                    each
+                }));
             }
         }
     }
@@ -2984,6 +3001,18 @@ pub mod tests {
         let mut again = pen();
         top_up(desk.ctx(), Scope::Chapter(&cat), &mut again, &|_, _| {}).expect("top up");
         assert!(written_for(&again).contains(&"The fuzzy cat slept.".to_owned()));
+        // It is shown what it has already, so that nothing new reads like it.
+        let asked = again
+            .writes
+            .iter()
+            .flat_map(|each| each.words.iter())
+            .find(|each| each.sense == "The fuzzy cat slept.")
+            .expect("asked");
+        assert!(
+            asked.avoid.contains(&"The fuzzy cat slept.".to_owned()),
+            "{:?}",
+            asked.avoid
+        );
         assert_eq!(desk.count("SELECT COUNT(*) FROM sentence_refills"), 1);
         let mut third = pen();
         top_up(desk.ctx(), Scope::Chapter(&cat), &mut third, &|_, _| {}).expect("top up");

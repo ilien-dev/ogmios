@@ -207,6 +207,22 @@ pub fn last_write(conn: &Connection, key: &str, chapter: &str) -> Result<Option<
     super::parse_ts_opt(at.as_deref())
 }
 
+/// The sentences the word was asked with in the sitting or the run
+/// `sitting_id`, of practice or of the recall.
+pub fn shown_during(conn: &Connection, key: &str, sitting_id: &str) -> Result<Vec<String>> {
+    let mut stmt = conn.prepare(
+        "SELECT DISTINCT s.id FROM word_sentences s WHERE s.key = ?1 AND (
+           EXISTS (SELECT 1 FROM word_answers a WHERE a.sentence_id = s.id AND a.sitting_id = ?2)
+           OR EXISTS (SELECT 1 FROM word_events e WHERE e.sentence_id = s.id AND e.sitting_id = ?2)
+           OR EXISTS (SELECT 1 FROM understood_answers u
+                      WHERE u.sentence_id = s.id AND u.sitting_id = ?2)
+           OR EXISTS (SELECT 1 FROM understood_recalls r
+                      WHERE r.sentence_id = s.id AND r.sitting_id = ?2))",
+    )?;
+    let rows = stmt.query_map([key, sitting_id], |row| row.get(0))?;
+    Ok(rows.collect::<rusqlite::Result<_>>()?)
+}
+
 /// The sentence the word was asked with the last time, anywhere; none if
 /// it never was asked with one.
 pub fn last_shown(conn: &Connection, key: &str) -> Result<Option<String>> {
@@ -591,4 +607,39 @@ pub fn meaning(
             || (key.to_owned(), Vec::new()),
             |(english, asked)| (english, vec![asked]),
         ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_sentences_shown_in_a_run_and_the_last_one_are_known() {
+        let conn = crate::db::open_in_memory().expect("db");
+        conn.execute_batch(
+            "INSERT INTO recall_sittings (id, started_at) VALUES ('r1', '2026-01-01'),
+                                                              ('r2', '2026-01-02');
+             INSERT INTO word_sentences
+               (id, key, source, sentence, form, hint, translation, created_at,
+                reviewed, discarded)
+             VALUES ('a', 'fair', 'model', 'A fair trial.', 'fair', 'justo', 'Un juicio justo.',
+                     '2026-01-01', 1, 0),
+                    ('b', 'fair', 'model', 'A fair deal.', 'fair', 'justo', 'Un trato justo.',
+                     '2026-01-01', 1, 0);
+             INSERT INTO word_events (key, kind, direction, answer, sitting_id, created_at,
+                                      sentence_id)
+             VALUES ('fair', 'right', 'recognition', 'justo', 'r1', '2026-01-01T10:00', 'a'),
+                    ('fair', 'miss', 'recognition', 'x', 'r2', '2026-01-02T10:00', 'b');",
+        )
+        .expect("rows");
+        assert_eq!(shown_during(&conn, "fair", "r1").expect("shown"), ["a"]);
+        assert_eq!(
+            shown_during(&conn, "fair", "r3").expect("shown"),
+            Vec::<String>::new()
+        );
+        assert_eq!(
+            last_shown(&conn, "fair").expect("last").as_deref(),
+            Some("b")
+        );
+    }
 }

@@ -510,6 +510,25 @@ pub async fn start_recall(app: AppHandle, ways: Ways) -> Result<Recall> {
     run(app, move |_, ctx| start(ctx, ways, Utc::now())).await
 }
 
+/// The chapter whose sentences of the word `key` are to be written again
+/// after it was answered with the sentence `sentence_id` (`refill_after`).
+fn refill_of(
+    conn: &Connection,
+    (key, sentence_id): (&str, Option<&str>),
+    now: DateTime<Utc>,
+) -> Result<Option<String>> {
+    let Some(id) = sentence_id else {
+        return Ok(None);
+    };
+    let Some(chapter) = sentences::usable(conn, id)?.and_then(|each| each.chapter_id) else {
+        return Ok(None);
+    };
+    match sentences::word_in(conn, key, &chapter)? {
+        Some(word) => refill_after(conn, &word, now),
+        None => Ok(None),
+    }
+}
+
 #[tauri::command]
 pub async fn answer_recall(
     app: AppHandle,
@@ -524,21 +543,13 @@ pub async fn answer_recall(
         let now = Utc::now();
         let answered = answer_shown(ctx, &sitting_id, &word_id, (&answer, shown), now)?;
         // The chapter of the sentence it was asked with: its sentences of the
-        // word running low are written again before they run out.
-        let due = {
-            let conn = ctx.conn()?;
-            let chapter = match sentence_id.as_deref() {
-                Some(id) => sentences::usable(&conn, id)?.and_then(|each| each.chapter_id),
-                None => None,
-            };
-            match chapter {
-                Some(chapter) => match sentences::word_in(&conn, &word_id, &chapter)? {
-                    Some(word) => refill_after(&conn, &word, now)?,
-                    None => None,
-                },
-                None => None,
-            }
-        };
+        // word running low are written again before they run out. Only a
+        // nicety: the answer is kept already, whatever happens here.
+        let due = ctx
+            .conn()
+            .ok()
+            .and_then(|conn| refill_of(&conn, (&word_id, sentence_id.as_deref()), now).ok())
+            .flatten();
         if let Some(chapter) = due {
             refill(app, Some(chapter));
         }
