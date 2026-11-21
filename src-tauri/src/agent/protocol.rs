@@ -588,6 +588,10 @@ pub struct SentenceWord {
     /// of them nor close to one.
     #[serde(default)]
     pub avoid: Vec<String>,
+    /// What the word means in other chapters, where it is written alike:
+    /// every new sentence rules each of these out.
+    #[serde(default)]
+    pub others: Vec<String>,
 }
 
 /// The model glosses the sentences the chapter has, and writes `write`
@@ -649,6 +653,9 @@ pub struct ReviewedSentence {
     pub form: String,
     pub hint: String,
     pub translation: String,
+    /// What the word means in other chapters, where it is written alike.
+    #[serde(default)]
+    pub others: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

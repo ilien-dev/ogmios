@@ -485,6 +485,7 @@ repaso rápido antes de leer no cambia.
   pueden confundir. Cuando un capítulo trae el primer rival de una palabra, se escriben para las
   dos; con un tercer significado, solo para el nuevo. Las palabras pedidas en charlas no tienen
   libro y se preguntan sin frase.
+  Cada frase escrita tiene que llevar a la misma traducción que la del libro, igual de seguro, con otro ejemplo: el modelo recibe lo que la palabra significa en los otros capítulos y cada frase descarta todos esos significados, con las palabras que deciden a lo sumo a tres palabras de ella, para que la frase corta también lleve sola a la traducción. La segunda mirada rechaza una escrita que pueda leerse con otro significado. Una palabra que su etiqueta no distingue se pregunta solo con frases cuya frase corta fija el significado (mientras tenga alguna), y la reposición cuenta solo esas.
 - **Una vez por capítulo, y más cuando se acaban:** en cada capítulo la palabra recibe 1 frase
   suya y, si tiene rivales, se piden sus 5 escritas. Cada frase se usa como mucho 2 veces (una
   pregunta es un uso, también la que se acierta solo con la frase). Cuando a las frases de ese
