@@ -34,3 +34,16 @@ export interface KindCount {
   learned: number;
   total: number;
 }
+
+/** The learner's pace, and how long until a chapter can be read at it. */
+export interface LearningPace {
+  /** The words finished in each of the last 14 days, oldest first. */
+  daily: number[];
+  /** The chapter's words still to learn; null for one not prepared. */
+  left: number | null;
+  /**
+   * Days until it is ready at that pace: 0 when it is, null when no word was
+   * learned to tell by.
+   */
+  days: number | null;
+}

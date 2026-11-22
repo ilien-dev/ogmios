@@ -3,7 +3,12 @@ import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { Book, Chapter } from "@shared/domain";
-import type { ChapterStrength, BookReviews, KindCount } from "@shared/board";
+import type {
+  ChapterStrength,
+  BookReviews,
+  KindCount,
+  LearningPace,
+} from "@shared/board";
 import type { Navigate } from "@/app/routes";
 import { CountUp } from "@/components/motion/CountUp";
 import { Presence } from "@/components/motion/Presence";
@@ -11,7 +16,12 @@ import { Reveal } from "@/components/motion/Reveal";
 import { Stagger } from "@/components/motion/Stagger";
 import { Swap } from "@/components/motion/Swap";
 import { StatChip } from "@/components/scene/Stats";
-import { bookDue, bookStrengths, chapterKindCounts } from "@/lib/ipc";
+import {
+  bookDue,
+  bookStrengths,
+  chapterKindCounts,
+  learningPace,
+} from "@/lib/ipc";
 import { cn } from "@/lib/cn";
 import { EASE_OUT, animated, staggerDelay } from "@/lib/motion";
 import { barState, chapterTop, chapterWindow } from "./chapterChart";
@@ -447,6 +457,122 @@ function KindsCard({ chapter, counts }: KindsCardProps): ReactNode {
   );
 }
 
+/** The learner's pace and the picked chapter's days left; null until read. */
+function usePace(book: Book, chapter: Chapter): LearningPace | null {
+  const [pace, setPace] = useState<{ id: string; pace: LearningPace } | null>(
+    null,
+  );
+  useEffect(() => {
+    let live = true;
+    void learningPace(chapter.id).then((found) => {
+      if (live) {
+        setPace({ id: chapter.id, pace: found });
+      }
+    });
+    return () => {
+      live = false;
+    };
+  }, [book, chapter.id]);
+  return pace?.id === chapter.id ? pace.pace : null;
+}
+
+/** The sparkline's box. */
+const LINE_W = 120;
+const LINE_H = 40;
+
+/** The words learned day by day, as a thin line that draws itself in. */
+function Sparkline({ daily }: { daily: readonly number[] }): ReactNode {
+  const { t } = useTranslation();
+  const reduced = useReducedMotionConfig() === true;
+  const top = Math.max(1, ...daily);
+  const step = LINE_W / Math.max(1, daily.length - 1);
+  const points = daily
+    .map((count, day) => {
+      const x = day * step;
+      const y = LINE_H - 4 - (count / top) * (LINE_H - 8);
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(" ");
+  return (
+    <svg
+      viewBox={`0 0 ${String(LINE_W)} ${String(LINE_H)}`}
+      role="img"
+      aria-label={t("bookHome.pace.line", { count: daily.length })}
+      className="h-10 w-30 shrink-0 overflow-visible"
+    >
+      <motion.polyline
+        points={points}
+        fill="none"
+        strokeWidth="2"
+        strokeLinejoin="round"
+        strokeLinecap="round"
+        className="stroke-accent"
+        initial={animated() && !reduced ? { pathLength: 0 } : false}
+        animate={{ pathLength: 1 }}
+        transition={{ duration: 0.9, ease: EASE_OUT }}
+      />
+    </svg>
+  );
+}
+
+interface PaceCardProps {
+  chapter: Chapter;
+  pace: LearningPace;
+}
+
+/**
+ * At the learner's pace, about how many days until the picked chapter can be
+ * read, with the words learned day by day over the last two weeks.
+ */
+function PaceCard({ chapter, pace }: PaceCardProps): ReactNode {
+  const { t } = useTranslation();
+  const name = chapterName(chapter, t);
+  const learned = pace.daily.reduce((all, day) => all + day, 0);
+  const perDay = learned / Math.max(1, pace.daily.length);
+  let state = "pace";
+  if (pace.days === 0) {
+    state = "ready";
+  } else if (pace.days === null) {
+    state = "none";
+  }
+  return (
+    <section
+      aria-label={t("bookHome.pace.title")}
+      className="flex flex-col gap-2.5 rounded-xl glass px-5.5 py-4.5"
+    >
+      <h3 className="font-mono text-xs font-semibold tracking-wider text-ink-soft uppercase">
+        {t("bookHome.pace.title")}
+      </h3>
+      <div className="flex items-center gap-4">
+        <span className="relative font-display text-4xl leading-none font-light tabular-nums">
+          <Swap id={`${state}-${String(pace.days)}`} as="div">
+            {pace.days === null ? "–" : `~${String(pace.days)}`}
+          </Swap>
+        </span>
+        <div className="relative min-w-0 flex-1 text-sm leading-snug text-ink">
+          <Swap id={`${state}-${chapter.id}`} as="div">
+            {state === "pace" && (
+              <>
+                {t("bookHome.pace.days", { count: pace.days ?? 0 })}{" "}
+                <b className="font-semibold">{name}</b>
+              </>
+            )}
+            {state === "ready" && t("bookHome.pace.ready", { chapter: name })}
+            {state === "none" && t("bookHome.pace.none", { chapter: name })}
+          </Swap>
+        </div>
+        <Sparkline daily={pace.daily} />
+      </div>
+      <p className="text-xs text-ink-soft">
+        {t("bookHome.pace.mean", {
+          count: perDay >= 10 ? Math.round(perDay) : Number(perDay.toFixed(1)),
+          days: pace.daily.length,
+        })}
+      </p>
+    </section>
+  );
+}
+
 interface BookBoardProps {
   book: Book;
   /** The chapter the learner is on. */
@@ -461,7 +587,7 @@ interface BookBoardProps {
 /**
  * The column of glass beside the scene: the book in counts, how firm what
  * was learned in each chapter is, what of it the daily review asks today,
- * and the picked chapter's words by kind. A bar picks a chapter, as a block of
+ * the picked chapter's words by kind, and how long until it can be read. A bar picks a chapter, as a block of
  * the scene and the list in the chapter's band do.
  */
 export function BookBoard({
@@ -474,6 +600,7 @@ export function BookBoard({
   const { t } = useTranslation();
   const reviews = useReviews(book);
   const kinds = useKinds(book, selected);
+  const pace = usePace(book, selected);
   const states = book.chapters.map(barState);
   const ready = states.filter((state) => state === "ready").length;
   const learning = states.filter((state) => state === "learning").length;
@@ -508,6 +635,13 @@ export function BookBoard({
         {kinds !== null && kinds.length > 0 && (
           <Reveal key={`kinds-${selected.id}`} kind="fade">
             <KindsCard chapter={selected} counts={kinds} />
+          </Reveal>
+        )}
+      </Presence>
+      <Presence>
+        {pace !== null && pace.left !== null && (
+          <Reveal key="pace" kind="fade">
+            <PaceCard chapter={selected} pace={pace} />
           </Reveal>
         )}
       </Presence>

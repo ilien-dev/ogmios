@@ -1087,6 +1087,17 @@ export const en = {
       expression: "Expressions",
       other: "Others",
     },
+    pace: {
+      title: "At your pace",
+      days_one: "day until you can read",
+      days_other: "days until you can read",
+      ready: "{{chapter}} is ready to read",
+      none: "Learn a few words to see when you can read {{chapter}}",
+      mean_one: "{{count}} word learned a day, mean of {{days}} days",
+      mean_other: "{{count}} words learned a day, mean of {{days}} days",
+      line_one: "Words learned each day, the last {{count}} day",
+      line_other: "Words learned each day, the last {{count}} days",
+    },
     reviews: {
       count_one: "review of this book for today",
       count_other: "reviews of this book for today",

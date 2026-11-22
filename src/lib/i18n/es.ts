@@ -1081,6 +1081,18 @@ export const es: Catalog<typeof en> = {
       expression: "Expresiones",
       other: "Otras",
     },
+    pace: {
+      title: "A tu ritmo",
+      days_one: "día para poder leer",
+      days_other: "días para poder leer",
+      ready: "{{chapter}} ya está listo para leer",
+      none: "Aprende unas palabras para ver cuándo podrás leer {{chapter}}",
+      mean_one: "{{count}} palabra aprendida al día, media de {{days}} días",
+      mean_other:
+        "{{count}} palabras aprendidas al día, media de {{days}} días",
+      line_one: "Palabras aprendidas cada día, el último {{count}} día",
+      line_other: "Palabras aprendidas cada día, los últimos {{count}} días",
+    },
     reviews: {
       count_one: "repaso de este libro para hoy",
       count_other: "repasos de este libro para hoy",
