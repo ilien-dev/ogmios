@@ -497,7 +497,7 @@ fn answers(conn: &Connection, word_id: &str) -> Result<Vec<Answer>> {
 }
 
 /// A word the learner has not said they know (`db::words::set_known`).
-pub(super) const NOT_KNOWN: &str = "w.key NOT IN (SELECT key FROM known_words)";
+pub(crate) const NOT_KNOWN: &str = "w.key NOT IN (SELECT key FROM known_words)";
 
 /// A chapter's words neither finished nor known, most frequent first; the
 /// chapter is `?1`.

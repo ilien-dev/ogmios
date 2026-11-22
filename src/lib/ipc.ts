@@ -61,7 +61,7 @@ import type {
   UpdateDownload,
   UpdateInfo,
 } from "@shared/domain";
-import type { ChapterStrength, BookReviews } from "@shared/board";
+import type { ChapterStrength, BookReviews, KindCount } from "@shared/board";
 import type {
   ChapterListening,
   ChapterReading,
@@ -449,6 +449,12 @@ export const bookStrengths = (bookId: string): Promise<ChapterStrength[]> =>
  */
 export const bookDue = (bookId: string): Promise<BookReviews> =>
   call("book_due", { bookId });
+/**
+ * A chapter's words by kind, each with how many are learned: the words its
+ * panel counts.
+ */
+export const chapterKindCounts = (chapterId: string): Promise<KindCount[]> =>
+  call("chapter_kind_counts", { chapterId });
 /**
  * Starts a run of the recall in these ways: at most ten of the learned words
  * that are due, of any book or conversation, each asked once.

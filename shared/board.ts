@@ -3,6 +3,7 @@
  * has it: kept apart from `domain.ts` only for its length. The counts are
  * `src-tauri/src/commands/board.rs`.
  */
+import type { PartOfSpeech } from "./domain.ts";
 
 /**
  * How strong the words learned in a chapter are, counted by strength:
@@ -22,4 +23,14 @@ export interface ChapterStrength {
 export interface BookReviews {
   due: number;
   minutes: number;
+}
+
+/**
+ * How many words of a chapter are of one kind, and how many of them are
+ * learned. `kind` is null for the words nobody labelled.
+ */
+export interface KindCount {
+  kind: PartOfSpeech | null;
+  learned: number;
+  total: number;
 }

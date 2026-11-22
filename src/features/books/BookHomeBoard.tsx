@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { Book, Chapter } from "@shared/domain";
-import type { ChapterStrength, BookReviews } from "@shared/board";
+import type { ChapterStrength, BookReviews, KindCount } from "@shared/board";
 import type { Navigate } from "@/app/routes";
 import { CountUp } from "@/components/motion/CountUp";
 import { Presence } from "@/components/motion/Presence";
@@ -11,10 +11,12 @@ import { Reveal } from "@/components/motion/Reveal";
 import { Stagger } from "@/components/motion/Stagger";
 import { Swap } from "@/components/motion/Swap";
 import { StatChip } from "@/components/scene/Stats";
-import { bookDue, bookStrengths } from "@/lib/ipc";
+import { bookDue, bookStrengths, chapterKindCounts } from "@/lib/ipc";
 import { cn } from "@/lib/cn";
 import { EASE_OUT, animated, staggerDelay } from "@/lib/motion";
 import { barState, chapterTop, chapterWindow } from "./chapterChart";
+import { kindTallies } from "./chapterKinds";
+import type { KindGroup } from "./chapterKinds";
 import { chapterName } from "./chapterName";
 
 /** How many chapters the chart has room for. */
@@ -349,6 +351,102 @@ function ReviewsCard({
   );
 }
 
+/** The colour of each group of kinds, as the words' tags have it. */
+const KIND_FILL: Record<KindGroup, string> = {
+  noun: "bg-noun",
+  verb: "bg-verb",
+  adjective: "bg-adjective",
+  adverb: "bg-adverb",
+  expression: "bg-expression",
+  other: "bg-line-strong",
+};
+
+/** A chapter's words by kind; null until read, and for another chapter. */
+function useKinds(book: Book, chapter: Chapter): readonly KindCount[] | null {
+  const [kinds, setKinds] = useState<{
+    id: string;
+    counts: readonly KindCount[];
+  } | null>(null);
+  useEffect(() => {
+    let live = true;
+    void chapterKindCounts(chapter.id).then((counts) => {
+      if (live) {
+        setKinds({ id: chapter.id, counts });
+      }
+    });
+    return () => {
+      live = false;
+    };
+  }, [book, chapter.id]);
+  return kinds?.id === chapter.id ? kinds.counts : null;
+}
+
+interface KindsCardProps {
+  chapter: Chapter;
+  counts: readonly KindCount[];
+}
+
+/**
+ * The picked chapter's words by kind: a bar split by how many each kind
+ * has, and each kind with how many of its words are learned.
+ */
+function KindsCard({ chapter, counts }: KindsCardProps): ReactNode {
+  const { t } = useTranslation();
+  const tallies = kindTallies(counts);
+  const title = t("bookHome.kinds.title", { number: chapter.index + 1 });
+  return (
+    <section
+      aria-label={title}
+      className="flex flex-col gap-3 rounded-xl glass px-5.5 py-4.5"
+    >
+      <div className="flex items-baseline justify-between gap-3">
+        <h3 className="font-mono text-xs font-semibold tracking-wider text-ink-soft uppercase">
+          {title}
+        </h3>
+        <span className="text-xs text-ink-faint">
+          {t("bookHome.kinds.scale")}
+        </span>
+      </div>
+      <div
+        aria-hidden
+        className="flex h-2.5 gap-0.5 overflow-hidden rounded-full"
+      >
+        {tallies.map((tally) => (
+          <motion.span
+            key={tally.group}
+            initial={false}
+            animate={{ flexGrow: tally.total }}
+            transition={{ duration: 0.5, ease: EASE_OUT }}
+            className={cn("block basis-0", KIND_FILL[tally.group])}
+          />
+        ))}
+      </div>
+      <ul className="grid grid-cols-2 gap-x-5 gap-y-1.5">
+        {tallies.map((tally) => (
+          <li key={tally.group} className="flex items-center gap-2 text-sm">
+            <span
+              aria-hidden
+              className={cn(
+                "size-2 shrink-0 rounded-full",
+                KIND_FILL[tally.group],
+              )}
+            />
+            <span className="min-w-0 flex-1 truncate text-ink">
+              {t(`bookHome.kinds.${tally.group}`)}
+            </span>
+            <span className="font-mono text-xs text-ink-soft tabular-nums">
+              {t("bookHome.kinds.count", {
+                learned: tally.learned,
+                total: tally.total,
+              })}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 interface BookBoardProps {
   book: Book;
   /** The chapter the learner is on. */
@@ -362,8 +460,8 @@ interface BookBoardProps {
 
 /**
  * The column of glass beside the scene: the book in counts, how firm what
- * was learned in each chapter is, and what of it the daily review asks
- * today. A bar picks a chapter, as a block of
+ * was learned in each chapter is, what of it the daily review asks today,
+ * and the picked chapter's words by kind. A bar picks a chapter, as a block of
  * the scene and the list in the chapter's band do.
  */
 export function BookBoard({
@@ -375,6 +473,7 @@ export function BookBoard({
 }: BookBoardProps): ReactNode {
   const { t } = useTranslation();
   const reviews = useReviews(book);
+  const kinds = useKinds(book, selected);
   const states = book.chapters.map(barState);
   const ready = states.filter((state) => state === "ready").length;
   const learning = states.filter((state) => state === "learning").length;
@@ -402,6 +501,13 @@ export function BookBoard({
               todayDue={todayDue}
               navigate={navigate}
             />
+          </Reveal>
+        )}
+      </Presence>
+      <Presence>
+        {kinds !== null && kinds.length > 0 && (
+          <Reveal key={`kinds-${selected.id}`} kind="fade">
+            <KindsCard chapter={selected} counts={kinds} />
           </Reveal>
         )}
       </Presence>

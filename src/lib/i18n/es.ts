@@ -1070,6 +1070,17 @@ export const es: Catalog<typeof en> = {
         "{{chapter}}: {{firm}} firmes, {{settling}} asentándose, {{fresh}} nuevas",
       unprepared: "{{chapter}}, sin preparar",
     },
+    kinds: {
+      title: "Por tipo · capítulo {{number}}",
+      scale: "aprendidas / total",
+      count: "{{learned}} / {{total}}",
+      noun: "Sustantivos",
+      verb: "Verbos",
+      adjective: "Adjetivos",
+      adverb: "Adverbios",
+      expression: "Expresiones",
+      other: "Otras",
+    },
     reviews: {
       count_one: "repaso de este libro para hoy",
       count_other: "repasos de este libro para hoy",

@@ -144,6 +144,7 @@ macro_rules! every_command {
             commands::recall::recall_state,
             commands::board::book_strengths,
             commands::board::book_due,
+            commands::board::chapter_kind_counts,
             commands::recall::start_recall,
             commands::recall::answer_recall,
             commands::label::label_words,

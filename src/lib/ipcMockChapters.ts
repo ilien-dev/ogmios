@@ -13,7 +13,7 @@ import type {
   KnownWord,
   PartOfSpeech,
 } from "@shared/domain";
-import type { ChapterStrength } from "@shared/board";
+import type { ChapterStrength, KindCount } from "@shared/board";
 import { READY } from "@shared/domain";
 import {
   allMockChapters,
@@ -208,6 +208,26 @@ function chapterStrengths(bookId: string): ChapterStrength[] {
     });
 }
 
+/** A chapter's words not known, by kind, with how many are done. */
+function chapterKinds(chapterId: string): KindCount[] {
+  const chapter = findMockChapter(chapterId);
+  const counts: Map<PartOfSpeech | null, KindCount> = new Map();
+  for (const word of chapter === undefined ? [] : wordsOf(chapter)) {
+    if (word.known) {
+      continue;
+    }
+    const count = counts.get(word.partOfSpeech) ?? {
+      kind: word.partOfSpeech,
+      learned: 0,
+      total: 0,
+    };
+    count.total += 1;
+    count.learned += word.done ? 1 : 0;
+    counts.set(word.partOfSpeech, count);
+  }
+  return [...counts.values()].sort((a, b) => b.total - a.total);
+}
+
 /** The chapter each learned word was first finished in, by its lemma. */
 export function mockLearnedChapters(): Map<string, string> {
   const of: Map<string, string> = new Map();
@@ -349,7 +369,7 @@ function checkCanPrepare(id: string): void {
 
 function arg(
   args: unknown,
-  key: "id" | "depth" | "wordId" | "key" | "bookId",
+  key: "id" | "depth" | "wordId" | "key" | "bookId" | "chapterId",
 ): string {
   return String((args as Record<string, unknown>)[key]);
 }
@@ -400,6 +420,8 @@ export function chapterCommands(
       after(60, () => {
         setMockOpened(arg(args, "id"));
       }),
+    chapter_kind_counts: (args) =>
+      after(90, () => chapterKinds(arg(args, "chapterId"))),
     book_strengths: (args) =>
       after(90, () => chapterStrengths(arg(args, "bookId"))),
     get_chapter_words: (args) =>
