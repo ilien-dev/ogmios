@@ -1,12 +1,13 @@
 //! What the column beside a book's scene counts: how strong the words
 //! learned in each chapter are, how many of the book's words the daily
-//! review asks today, and what kinds of word a chapter has. Every count is of the words the chapter's
+//! review asks today, what kinds of word a chapter has, and at the
+//! learner's pace how long until a chapter can be read. Every count is of the words the chapter's
 //! panel calls learned (finished, and not marked known), so the column and
 //! the panel always agree.
 
 use std::collections::{HashMap, HashSet};
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, TimeDelta, Utc};
 use rusqlite::Connection;
 use tauri::AppHandle;
 
@@ -15,7 +16,8 @@ use super::run;
 use crate::books::practice::pace;
 use crate::db::practice::{pace_sample, NOT_KNOWN};
 use crate::db::recall::{self, Source};
-use crate::domain::{BookReviews, ChapterStrength, KindCount, Strength, Ways};
+use crate::db::{parse_ts, ts};
+use crate::domain::{BookReviews, ChapterStrength, KindCount, LearningPace, Strength, Ways};
 use crate::error::Result;
 use crate::Ctx;
 
@@ -111,6 +113,91 @@ pub fn chapter_kinds(ctx: Ctx<'_>, chapter_id: &str) -> Result<Vec<KindCount>> {
         })
     })?;
     Ok(rows.collect::<rusqlite::Result<_>>()?)
+}
+
+/// How many days the pace is read over.
+pub const PACE_DAYS: u32 = 14;
+
+/// How many days `left` words take at the pace of `learned` words in the
+/// last [`PACE_DAYS`] days, rounded up: none left is no day, and no word
+/// learned is no pace to tell by.
+pub fn days_to_read(left: u32, learned: u32) -> Option<u32> {
+    if left == 0 {
+        return Some(0);
+    }
+    if learned == 0 {
+        return None;
+    }
+    let days = u64::from(left)
+        .saturating_mul(u64::from(PACE_DAYS))
+        .div_ceil(u64::from(learned));
+    Some(u32::try_from(days).unwrap_or(u32::MAX))
+}
+
+/// The words finished in each of the last [`PACE_DAYS`] days up to `now`, in
+/// any book, oldest first: a day is the 24 hours before the next one starts.
+fn learned_by_day(conn: &Connection, now: DateTime<Utc>) -> Result<Vec<u32>> {
+    let from = now - TimeDelta::days(i64::from(PACE_DAYS));
+    let mut stmt =
+        conn.prepare("SELECT done_at FROM chapter_words WHERE done_at > ?1 AND done_at <= ?2")?;
+    let times = stmt
+        .query_map([ts(from), ts(now)], |row| row.get::<_, String>(0))?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    let mut daily = vec![0_u32; usize::try_from(PACE_DAYS).unwrap_or(0)];
+    for at in times {
+        let ago = (now - parse_ts(&at)?).num_days();
+        let day = i64::from(PACE_DAYS) - 1 - ago;
+        if let Some(count) = usize::try_from(day).ok().and_then(|day| daily.get_mut(day)) {
+            *count = count.saturating_add(1);
+        }
+    }
+    Ok(daily)
+}
+
+/// How many words of a chapter are still to learn before it is ready, as
+/// its readiness counts them; None for a chapter not prepared.
+fn left_to_learn(conn: &Connection, chapter_id: &str) -> Result<Option<u32>> {
+    let prepared: Option<String> = conn.query_row(
+        "SELECT prepared FROM book_chapters WHERE id = ?1",
+        [chapter_id],
+        |row| row.get(0),
+    )?;
+    if prepared.is_none() {
+        return Ok(None);
+    }
+    let left = conn.query_row(
+        &format!(
+            "SELECT COUNT(*) FROM chapter_words w
+             WHERE w.chapter_id = ?1 AND w.done_at IS NULL AND {NOT_KNOWN}"
+        ),
+        [chapter_id],
+        |row| row.get(0),
+    )?;
+    Ok(Some(left))
+}
+
+/// The learner's pace over the last [`PACE_DAYS`] days, and at it how many
+/// days until the chapter can be read.
+pub fn chapter_pace(ctx: Ctx<'_>, chapter_id: &str, now: DateTime<Utc>) -> Result<LearningPace> {
+    let conn = ctx.conn()?;
+    let daily = learned_by_day(&conn, now)?;
+    let left = left_to_learn(&conn, chapter_id)?;
+    let learned = daily
+        .iter()
+        .fold(0_u32, |all, day| all.saturating_add(*day));
+    Ok(LearningPace {
+        days: left.and_then(|left| days_to_read(left, learned)),
+        daily,
+        left,
+    })
+}
+
+#[tauri::command]
+pub async fn learning_pace(app: AppHandle, chapter_id: String) -> Result<LearningPace> {
+    run(app, move |_, ctx| {
+        chapter_pace(ctx, &chapter_id, Utc::now())
+    })
+    .await
 }
 
 #[tauri::command]
@@ -263,6 +350,52 @@ mod tests {
         assert!(chapter_kinds(desk.ctx(), &chapter)
             .expect("kinds")
             .contains(&kind(Some(PartOfSpeech::Verb), 1, 1)));
+    }
+
+    #[test]
+    fn the_days_left_are_rounded_up_at_the_pace_of_two_weeks() {
+        // 28 words in 14 days is 2 a day: 7 words take 4 days.
+        assert_eq!(days_to_read(7, 28), Some(4));
+        assert_eq!(days_to_read(8, 28), Some(4));
+        assert_eq!(days_to_read(1, 1), Some(14));
+        assert_eq!(days_to_read(0, 0), Some(0));
+        assert_eq!(days_to_read(5, 0), None);
+    }
+
+    #[test]
+    fn the_pace_counts_the_words_finished_each_day_and_what_the_chapter_has_left() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let desk = Desk::new(&dir);
+        let done = desk.chapter("done", &numbered(3));
+        let open = desk.chapter("open", &numbered(4));
+        let finish = |chapter: &str, at: DateTime<Utc>| {
+            desk.db
+                .lock()
+                .expect("db")
+                .execute(
+                    "UPDATE chapter_words SET done_at = ?1 WHERE chapter_id = ?2",
+                    [ts(at), chapter.to_owned()],
+                )
+                .expect("done");
+        };
+        finish(&done, t0());
+        let now = t0() + TimeDelta::hours(30);
+        let pace = chapter_pace(desk.ctx(), &open, now).expect("pace");
+
+        let mut daily = vec![0; 14];
+        daily[12] = 3;
+        assert_eq!(pace.daily, daily);
+        assert_eq!(pace.left, Some(4));
+        // 3 words in 14 days: 4 words take 19 days.
+        assert_eq!(pace.days, Some(19));
+        // Two weeks later the pace is gone.
+        let later = chapter_pace(desk.ctx(), &open, t0() + TimeDelta::days(15)).expect("pace");
+        assert_eq!((later.left, later.days), (Some(4), None));
+        // A chapter all learned is ready now.
+        assert_eq!(
+            chapter_pace(desk.ctx(), &done, now).expect("pace").days,
+            Some(0)
+        );
     }
 
     #[test]

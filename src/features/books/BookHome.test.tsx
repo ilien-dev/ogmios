@@ -7,7 +7,12 @@ import type { Book } from "@shared/domain";
 import type { BookTab, Route } from "@/app/routes";
 import { SpeechProvider } from "@/features/speech/speech";
 import { i18n } from "@/lib/i18n/i18n";
-import { getChapterWords, listBooks, recallState } from "@/lib/ipc";
+import {
+  getChapterWords,
+  learningPace,
+  listBooks,
+  recallState,
+} from "@/lib/ipc";
 import { seedMockReadiness, seedMockStrengths } from "@/lib/ipcMockChapters";
 import { useMockBackend } from "@/test/mockBackend";
 import { BookHome } from "./BookHome";
@@ -233,6 +238,25 @@ describe("BookHome", () => {
     expect(counts.reduce((all, [, total = 0]) => all + total, 0)).toBe(
       toLearn.length,
     );
+  });
+
+  test("a card tells, at the learner's pace, how many days until the picked chapter can be read", async () => {
+    seedMockReadiness();
+    const { books } = await shelf();
+    const chapters = books.flatMap((each) => each.chapters);
+    const third = chapters.find((chapter) => chapter.id === "book-alice-2");
+    if (third === undefined) throw new Error("no third chapter");
+    render(<Place books={books} start={third.id} />);
+
+    const pace = await learningPace(third.id);
+    expect(pace.days).toBeGreaterThan(0);
+    const card = await screen.findByRole("region", { name: "At your pace" });
+    expect(within(card).getByText(`~${String(pace.days)}`)).toBeVisible();
+    expect(card).toHaveTextContent(/days? until you can read III\./u);
+    expect(
+      within(card).getByRole("img", { name: /Words learned each day/u }),
+    ).toBeVisible();
+    expect(card).toHaveTextContent(/learned a day, mean of 14 days/u);
   });
 
   test("a bar, the search and a block each pick the chapter, for the whole screen", async () => {

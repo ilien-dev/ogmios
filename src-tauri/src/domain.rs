@@ -1106,6 +1106,19 @@ pub struct RefreshAnswer {
     pub step: RefreshStep,
 }
 
+/// The learner's pace, and how long until a chapter can be read at it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LearningPace {
+    /// The words finished in each of the last 14 days, oldest first.
+    pub daily: Vec<u32>,
+    /// The chapter's words still to learn; None for one not prepared.
+    pub left: Option<u32>,
+    /// Days until it is ready at that pace: 0 when it is, None when no word
+    /// was learned to tell by.
+    pub days: Option<u32>,
+}
+
 /// How many words of a chapter are of one kind, and how many of them are
 /// learned. `kind` is None for the words nobody labelled.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
