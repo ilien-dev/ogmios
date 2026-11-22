@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.35.0](https://github.com/ilien-dev/ogmios/compare/v0.34.0...v0.35.0) (2026-11-22)
+
+
+### Features
+
+* pick the chapter from a list under its name ([#80](https://github.com/ilien-dev/ogmios/issues/80)) ([6eab37a](https://github.com/ilien-dev/ogmios/commit/6eab37ae6814b44f18e3ef1bcc3f06f6ddbe3571))
+
 ## [0.34.0](https://github.com/ilien-dev/ogmios/compare/v0.33.0...v0.34.0) (2026-11-21)
 
 
