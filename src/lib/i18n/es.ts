@@ -1060,18 +1060,20 @@ export const es: Catalog<typeof en> = {
       },
     },
     chapters: {
-      title: "Vocabulario por capítulo",
-      hint: "Toca una barra",
+      title: "Qué tan firme va lo aprendido",
+      hint: "por capítulo · elige una barra",
+      firm_one: "de {{count}} firmes",
+      firm_other: "de {{count}} firmes",
     },
     bar: {
-      ready: "{{chapter}}, {{words}} palabras de largo, listo para leer",
-      learning:
-        "{{chapter}}, {{words}} palabras de largo, {{readiness}} % listo",
-      unprepared: "{{chapter}}, {{words}} palabras de largo, sin preparar",
+      strength:
+        "{{chapter}}: {{firm}} firmes, {{settling}} asentándose, {{fresh}} nuevas",
+      unprepared: "{{chapter}}, sin preparar",
     },
     legend: {
-      ready: "Listo para leer",
-      learning: "Aprendiendo",
+      firm: "Firme",
+      settling: "Asentándose",
+      fresh: "Nueva",
       unprepared: "Sin preparar",
     },
     state: {
@@ -1086,8 +1088,6 @@ export const es: Catalog<typeof en> = {
       ready_other: "listos",
       learning_one: "aprendiendo",
       learning_other: "aprendiendo",
-      note: "de {{chapter}} listo · elige una barra",
-      noteNone: "{{chapter}} sin preparar · elige una barra",
       relief:
         "Los capítulos como bloques en 3D: cuanto más alto, más listo está para leer",
       next: "Siguiente: {{chapter}}",

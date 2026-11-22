@@ -1066,17 +1066,20 @@ export const en = {
       },
     },
     chapters: {
-      title: "Vocabulary by chapter",
-      hint: "Pick a bar",
+      title: "How firm your learning is",
+      hint: "by chapter · pick a bar",
+      firm_one: "of {{count}} firm",
+      firm_other: "of {{count}} firm",
     },
     bar: {
-      ready: "{{chapter}}, {{words}} words long, ready to read",
-      learning: "{{chapter}}, {{words}} words long, {{readiness}}% ready",
-      unprepared: "{{chapter}}, {{words}} words long, not prepared yet",
+      strength:
+        "{{chapter}}: {{firm}} firm, {{settling}} settling, {{fresh}} new",
+      unprepared: "{{chapter}}, not prepared yet",
     },
     legend: {
-      ready: "Ready to read",
-      learning: "Learning",
+      firm: "Firm",
+      settling: "Settling",
+      fresh: "New",
       unprepared: "Not prepared",
     },
     state: {
@@ -1091,8 +1094,6 @@ export const en = {
       ready_other: "ready",
       learning_one: "learning",
       learning_other: "learning",
-      note: "of {{chapter}} ready · pick a bar",
-      noteNone: "{{chapter}} is not prepared · pick a bar",
       relief:
         "The chapters as 3D blocks: the taller one stands, the readier it is to read",
       next: "Next: {{chapter}}",

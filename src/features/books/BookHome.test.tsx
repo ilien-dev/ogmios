@@ -7,7 +7,8 @@ import type { Book } from "@shared/domain";
 import type { BookTab, Route } from "@/app/routes";
 import { SpeechProvider } from "@/features/speech/speech";
 import { i18n } from "@/lib/i18n/i18n";
-import { listBooks } from "@/lib/ipc";
+import { getChapterWords, listBooks } from "@/lib/ipc";
+import { seedMockReadiness, seedMockStrengths } from "@/lib/ipcMockChapters";
 import { useMockBackend } from "@/test/mockBackend";
 import { BookHome } from "./BookHome";
 import { currentOf } from "./currentChapter";
@@ -61,11 +62,18 @@ function Place({
 }
 
 function chart(): HTMLElement {
-  return screen.getByRole("region", { name: "Vocabulary by chapter" });
+  return screen.getByRole("region", { name: "How firm your learning is" });
 }
 
 function bars(): HTMLElement[] {
-  return within(chart()).getAllByRole("button", { name: /words long/u });
+  return within(chart()).getAllByRole("button");
+}
+
+/** The bars, once the strengths of the book's words are read. */
+async function loadedBars(): Promise<HTMLElement[]> {
+  return within(
+    await screen.findByRole("region", { name: "How firm your learning is" }),
+  ).findAllByRole("button");
 }
 
 describe("BookHome", () => {
@@ -137,6 +145,40 @@ describe("BookHome", () => {
     }
   });
 
+  test("each bar stacks the chapter's learned words by how firm they are, as many as its panel counts", async () => {
+    seedMockReadiness();
+    seedMockStrengths();
+    const { books } = await shelf();
+    // "III" of "Alice", which the mock fills with words of every strength.
+    const third = books
+      .flatMap((each) => each.chapters)
+      .find((chapter) => chapter.id === "book-alice-2");
+    if (third === undefined) throw new Error("no third chapter");
+    render(<Place books={books} start={third.id} />);
+
+    const { words } = await getChapterWords(third.id);
+    const learned = words.filter((word) => word.done && !word.known);
+    expect(learned.length).toBeGreaterThan(0);
+    const bar = (await loadedBars()).find(
+      (each) => each.getAttribute("aria-pressed") === "true",
+    );
+    const label = bar?.getAttribute("aria-label") ?? "";
+    const [firm, settling, fresh] = [
+      /(\d+) firm/u,
+      /(\d+) settling/u,
+      /(\d+) new/u,
+    ].map((pattern) => Number(pattern.exec(label)?.[1]));
+    expect([firm, settling, fresh]).toEqual([1, 2, learned.length - 3]);
+    // The big number is the picked chapter's firm words, of all it learned.
+    expect(
+      within(chart()).getByText(`of ${String(learned.length)} firm`),
+    ).toBeVisible();
+    // A chapter not prepared is said to be so.
+    expect(within(chart()).getAllByRole("button").at(-1)).toHaveAccessibleName(
+      /not prepared yet/u,
+    );
+  });
+
   test("a bar, the search and a block each pick the chapter, for the whole screen", async () => {
     const user = userEvent.setup();
     const picked = mock();
@@ -147,7 +189,9 @@ describe("BookHome", () => {
     }
     render(<Place books={books} start={first.id} onPicked={picked} />);
 
-    expect(bars().length).toBe(Math.min(12, book.chapters.length));
+    expect((await loadedBars()).length).toBe(
+      Math.min(12, book.chapters.length),
+    );
     expect(bars()[0]).toHaveAttribute("aria-pressed", "true");
     // The chapters are no longer listed beside the chart.
     expect(screen.queryByRole("region", { name: "Chapters" })).toBeNull();
@@ -269,7 +313,7 @@ describe("BookHome", () => {
       await screen.findByRole("button", { name: /From English into/u }),
     ).toBeVisible();
 
-    await user.click(bars()[1] as HTMLElement);
+    await user.click((await loadedBars())[1] as HTMLElement);
 
     expect(screen.getByRole("tab", { name: /Translate/u })).toHaveAttribute(
       "aria-selected",
@@ -381,7 +425,7 @@ describe("BookHome", () => {
     render(<Place books={books} start={first.id} />);
 
     expect(
-      screen.getByRole("region", { name: "Vocabulario por capítulo" }),
+      screen.getByRole("region", { name: "Qué tan firme va lo aprendido" }),
     ).toBeVisible();
     expect(
       within(screen.getByRole("tablist")).getAllByRole("tab"),

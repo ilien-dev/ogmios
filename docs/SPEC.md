@@ -1003,7 +1003,8 @@ básico no reciben frases: no hay grabaciones abiertas que las respalden.
     todo lo que vuelve hoy, sumado.
   - **Libro:** un libro, sus capítulos y lo que se hace con cada uno. El capítulo se cambia aquí y
     en ningún otro sitio, con cualquiera de estos controles, que hacen lo mismo: una barra de
-    «Vocabulario por capítulo», un bloque del relieve, las flechas de la banda del capítulo o su
+    «Qué tan firme va lo aprendido» (las palabras aprendidas de cada capítulo, apiladas en nuevas,
+    asentándose y firmes, las mismas que cuenta su panel), un bloque del relieve, las flechas de la banda del capítulo o su
     lista, que se abre con la flecha junto a su nombre (o Ctrl+K) bajo el título: todos los
     capítulos con lo listo que está cada uno, y arriba un campo que los filtra por número o título. El
     capítulo elegido se guarda al elegirlo. Lo que se hace con él son cuatro pestañas al pie de la

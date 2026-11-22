@@ -1106,6 +1106,29 @@ pub struct RefreshAnswer {
     pub step: RefreshStep,
 }
 
+/// How strong the words learned in a chapter are, counted by strength:
+/// `fresh` ones are new.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChapterStrength {
+    pub chapter_id: String,
+    pub fresh: u32,
+    pub settling: u32,
+    pub firm: u32,
+}
+
+impl ChapterStrength {
+    /// A chapter with nothing learned.
+    pub fn empty(chapter_id: String) -> Self {
+        Self {
+            chapter_id,
+            fresh: 0,
+            settling: 0,
+            firm: 0,
+        }
+    }
+}
+
 /// Where the daily recall stands: what is due, and how strong the learned
 /// words are.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
