@@ -24,26 +24,33 @@
 !define OG_HEIGHT 330
 !define OG_LOGO 72
 
-; The logo's bitmaps are drawn on this same dark (scripts/installer-assets.ps1),
-; so only its orb shows on the page. All of it is
-; the dark theme of src/styles/global.css, in the hexadecimal NSIS wants.
-!define OG_BG 0E0F1A
-!define OG_RAISED 23263A
-!define OG_INK F1F2FA
-!define OG_SOFT A9ACC4
-!define OG_ACCENT 7FDCCB
-!define OG_ON_ACCENT 0E0F1A
-; The same teal and raised grey as Windows writes a colour: blue first.
-!define OG_ACCENT_BGR 0x00CBDC7F
-!define OG_RAISED_BGR 0x003A2623
-!define OG_INK_BGR 0x00FAF2F1
-!define OG_BG_BGR 0x001A0F0E
+; The progress page's lockup (symbol and name), 32 px high at 100 % scale.
+!define OG_LOCKUP_W 130
+!define OG_LOCKUP_H 32
+
+; The logo's bitmaps are drawn on this same graphite
+; (scripts/installer-assets.ps1), so only the symbol shows on the page. The
+; rest is the brand: paper ink and the app's mint, in the hexadecimal NSIS
+; wants. The bar's track is a step up from the page so its length shows.
+!define OG_BG 0B0C0E
+!define OG_RAISED 2E3036
+!define OG_INK F3F2EE
+!define OG_SOFT A9A9A2
+!define OG_ACCENT 4ADE9B
+!define OG_ON_ACCENT 0B0C0E
+; The same mint and raised grey as Windows writes a colour: blue first.
+!define OG_ACCENT_BGR 0x009BDE4A
+!define OG_RAISED_BGR 0x0036302E
+!define OG_INK_BGR 0x00EEF2F3
+!define OG_BG_BGR 0x000E0C0B
 
 Var OgDpi
 Var OgW
 Var OgH
 Var OgLogoSide
 Var OgLogoImage
+Var OgLockupImage
+Var OgLockupScale
 Var OgFontTitle
 Var OgFontBody
 Var OgFontButton
@@ -103,7 +110,7 @@ Var OgRun
   SendMessage $R9 ${STM_SETIMAGE} ${IMAGE_BITMAP} $OgLogoImage
 !macroend
 
-; The one teal button of a page: a label, so that it takes the page's colours
+; The one mint button of a page: a label, so that it takes the page's colours
 ; and its text is a translated string like any other, with rounded corners.
 !macro OG_BUTTON Y TEXT ONCLICK
   !insertmacro OG_RECT center ${Y} 200 42
@@ -228,34 +235,43 @@ Var OgRun
     IntOp $0 $0 / 96
     ${If} $0 >= 200
       File "/oname=$PLUGINSDIR\og-logo.bmp" "${OG_DIR}\logo-200.bmp"
+      File "/oname=$PLUGINSDIR\og-lockup.bmp" "${OG_DIR}\lockup-200.bmp"
       StrCpy $OgLogoSide 200
     ${ElseIf} $0 >= 175
       File "/oname=$PLUGINSDIR\og-logo.bmp" "${OG_DIR}\logo-175.bmp"
+      File "/oname=$PLUGINSDIR\og-lockup.bmp" "${OG_DIR}\lockup-175.bmp"
       StrCpy $OgLogoSide 175
     ${ElseIf} $0 >= 150
       File "/oname=$PLUGINSDIR\og-logo.bmp" "${OG_DIR}\logo-150.bmp"
+      File "/oname=$PLUGINSDIR\og-lockup.bmp" "${OG_DIR}\lockup-150.bmp"
       StrCpy $OgLogoSide 150
     ${ElseIf} $0 >= 125
       File "/oname=$PLUGINSDIR\og-logo.bmp" "${OG_DIR}\logo-125.bmp"
+      File "/oname=$PLUGINSDIR\og-lockup.bmp" "${OG_DIR}\lockup-125.bmp"
       StrCpy $OgLogoSide 125
     ${Else}
       File "/oname=$PLUGINSDIR\og-logo.bmp" "${OG_DIR}\logo-100.bmp"
+      File "/oname=$PLUGINSDIR\og-lockup.bmp" "${OG_DIR}\lockup-100.bmp"
       StrCpy $OgLogoSide 100
     ${EndIf}
+    StrCpy $OgLockupScale $OgLogoSide
     IntOp $OgLogoSide $OgLogoSide * ${OG_LOGO}
     IntOp $OgLogoSide $OgLogoSide / 100
     System::Call 'user32::LoadImage(p 0, w "$PLUGINSDIR\og-logo.bmp", i ${IMAGE_BITMAP}, i 0, i 0, i ${LR_LOADFROMFILE}) p .s'
     Pop $OgLogoImage
+    System::Call 'user32::LoadImage(p 0, w "$PLUGINSDIR\og-lockup.bmp", i ${IMAGE_BITMAP}, i 0, i 0, i ${LR_LOADFROMFILE}) p .s'
+    Pop $OgLockupImage
   FunctionEnd
 
-  ; The teal button does what Next did.
+  ; The mint button does what Next did.
   Function ${UN}ogNext
     Pop $0
     SendMessage $HWNDPARENT ${WM_COMMAND} 1 0
   FunctionEnd
 
   ; The progress page is NSIS's own: its log and its status line are hidden,
-  ; its bar is recoloured, and the logo and a title are added to it.
+  ; its bar is recoloured and laid along the bottom edge, and the lockup, a
+  ; title and the version are added to it, read from the left.
   Function ${UN}ogProgressShow
     FindWindow $OgDialog "#32770" "" $HWNDPARENT
     SetCtlColors $OgDialog "" 0x${OG_BG}
@@ -268,26 +284,31 @@ Var OgRun
     GetDlgItem $0 $OgDialog 1027
     ShowWindow $0 ${SW_HIDE}
 
-    !insertmacro OG_RECT 0 60 0 0
-    IntOp $R8 $OgW - $OgLogoSide
-    IntOp $R8 $R8 / 2
-    System::Call 'user32::CreateWindowEx(i 0, w "STATIC", w "", i ${DEFAULT_STYLES}|${SS_BITMAP}, i R8, i R7, i $OgLogoSide, i $OgLogoSide, p $OgDialog, p 0, p 0, p 0) p .R9'
-    SendMessage $R9 ${STM_SETIMAGE} ${IMAGE_BITMAP} $OgLogoImage
+    ; The lockup is drawn for the logo's scale, which may sit below the display's.
+    !insertmacro OG_RECT 36 34 0 0
+    IntOp $R5 ${OG_LOCKUP_W} * $OgLockupScale
+    IntOp $R5 $R5 / 100
+    IntOp $R6 ${OG_LOCKUP_H} * $OgLockupScale
+    IntOp $R6 $R6 / 100
+    System::Call 'user32::CreateWindowEx(i 0, w "STATIC", w "", i ${DEFAULT_STYLES}|${SS_BITMAP}, i R8, i R7, i R5, i R6, p $OgDialog, p 0, p 0, p 0) p .R9'
+    SendMessage $R9 ${STM_SETIMAGE} ${IMAGE_BITMAP} $OgLockupImage
 
     !if "${UN}" == ""
       ${If} $UpdateMode = 1
-        !insertmacro OG_RAW 0 144 ${OG_WIDTH} 30 ${SS_CENTER} $OgFontButton INK "$(ogUpdating)"
+        !insertmacro OG_RAW 36 142 280 34 ${SS_LEFT} $OgFontTitle INK "$(ogUpdating)"
       ${Else}
-        !insertmacro OG_RAW 0 144 ${OG_WIDTH} 30 ${SS_CENTER} $OgFontButton INK "$(ogInstalling)"
+        !insertmacro OG_RAW 36 142 280 34 ${SS_LEFT} $OgFontTitle INK "$(ogInstalling)"
       ${EndIf}
     !else
-      !insertmacro OG_RAW 0 144 ${OG_WIDTH} 30 ${SS_CENTER} $OgFontButton INK "$(ogUninstalling)"
+      !insertmacro OG_RAW 36 142 280 34 ${SS_LEFT} $OgFontTitle INK "$(ogUninstalling)"
     !endif
     StrCpy $OgTitle $R9
-    !insertmacro OG_RAW 0 204 ${OG_WIDTH} 24 ${SS_CENTER} $OgFontBody SOFT "$(ogWait)"
+    !insertmacro OG_RAW 36 180 388 22 ${SS_LEFT} $OgFontBody SOFT "$(ogWait)"
     StrCpy $OgSub $R9
+    !insertmacro OG_RAW 324 150 100 20 ${SS_RIGHT} $OgFontBody SOFT "v${VERSION}"
 
-    ; A themed bar ignores its colours: this one is plain, flat and teal.
+    ; A themed bar ignores its colours: this one is plain, flat and mint, and
+    ; runs the whole width of the window along its bottom edge.
     GetDlgItem $OgBar $OgDialog 1004
     System::Call 'uxtheme::SetWindowTheme(p $OgBar, w " ", w " ")'
     System::Call "user32::SetWindowLong(p $OgBar, i -20, i 0)"
@@ -296,8 +317,20 @@ Var OgRun
     System::Call "user32::SetWindowLong(p $OgBar, i -16, i r0)"
     SendMessage $OgBar 0x0409 0 ${OG_ACCENT_BGR}
     SendMessage $OgBar 0x2001 0 ${OG_RAISED_BGR}
-    !insertmacro OG_RECT center 186 280 6
+    !insertmacro OG_RECT 0 324 ${OG_WIDTH} 6
+    IntOp $R7 $OgH - $R6
     System::Call "user32::SetWindowPos(p $OgBar, p 0, i R8, i R7, i R5, i R6, i 0x34)"
+
+    ; An update starts from an app that has just quit, and Windows does not
+    ; hand the foreground to what it leaves behind: the installer would open
+    ; minimized or under other windows, and the learner would think the
+    ; restart had failed. It is restored, kept above every window while it
+    ; works (it closes by itself) and given the focus.
+    ${If} $UpdateMode = 1
+      System::Call "user32::ShowWindow(p $HWNDPARENT, i 9)"
+      System::Call "user32::SetWindowPos(p $HWNDPARENT, p -1, i 0, i 0, i 0, i 0, i 0x43)"
+      System::Call "user32::SetForegroundWindow(p $HWNDPARENT)"
+    ${EndIf}
 
     ; With nothing left to read on it, the page moves on by itself.
     SetAutoClose true
