@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.38.0](https://github.com/ilien-dev/ogmios/compare/v0.37.0...v0.38.0) (2026-11-22)
+
+
+### Features
+
+* show the book's reviews for today beside its chart ([#84](https://github.com/ilien-dev/ogmios/issues/84)) ([45d9212](https://github.com/ilien-dev/ogmios/commit/45d92122c14febce0daef614f2bb4ca0d12bb1ce))
+
 ## [0.37.0](https://github.com/ilien-dev/ogmios/compare/v0.36.0...v0.37.0) (2026-11-22)
 
 
