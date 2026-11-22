@@ -299,7 +299,10 @@ export function PenaltyRun({
 
   return (
     <Presence swap>
-      <Reveal key={phase.name} className="min-w-0">
+      <Reveal
+        key={phase.name}
+        className="flex min-h-full min-w-0 flex-col justify-center"
+      >
         {content}
       </Reveal>
     </Presence>
