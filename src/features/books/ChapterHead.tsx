@@ -1,6 +1,6 @@
 import { motion, useReducedMotionConfig } from "motion/react";
-import { ChevronDown, ChevronUp, Search } from "lucide-react";
-import { useEffect, useState } from "react";
+import { ChevronDown, ChevronUp } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { Book, Chapter } from "@shared/domain";
@@ -9,8 +9,9 @@ import { Reveal } from "@/components/motion/Reveal";
 import { Swap } from "@/components/motion/Swap";
 import { Button } from "@/components/ui/Button";
 import type { BookTab, Navigate } from "@/app/routes";
+import { cn } from "@/lib/cn";
 import { DURATION, EASE_OUT, animated } from "@/lib/motion";
-import { ChapterFind } from "./ChapterFind";
+import { ChapterPicker } from "./ChapterPicker";
 import { ChapterTabs } from "./ChapterTabs";
 import { chapterName } from "./chapterName";
 
@@ -76,8 +77,8 @@ interface ChapterHeadProps {
 /**
  * The top of the chapter's panel: the four tabs, and under them the chapter
  * every tab works on, in a band of the book's colour with its place in the
- * book, how ready it is, the way to the chapter before or after and the
- * search for any other (also on Ctrl+K or ⌘K). It stays
+ * book, how ready it is, the way to the chapter before or after, and beside
+ * its name the list of every other (also on Ctrl+K or ⌘K). It stays
  * while the tab changes; only what names the chapter cross-fades when
  * another is picked.
  */
@@ -93,7 +94,11 @@ export function ChapterHead({
   const before = book.chapters[at - 1];
   const after = book.chapters[at + 1];
   const number = at + 1;
-  const [finding, setFinding] = useState(false);
+  const [picking, setPicking] = useState(false);
+  const opener = useRef<HTMLButtonElement>(null);
+  const stopPicking = useCallback(() => {
+    setPicking(false);
+  }, []);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
@@ -101,13 +106,13 @@ export function ChapterHead({
         (event.ctrlKey || event.metaKey) &&
         !event.altKey &&
         event.key.toLowerCase() === "k";
-      // Over a dialog the app is inert: the search waits until it closes.
+      // Over a dialog the app is inert: the list waits until it closes.
       const covered = document.getElementById("root")?.hasAttribute("inert");
       if (!asked || event.repeat || covered === true) {
         return;
       }
       event.preventDefault();
-      setFinding(true);
+      setPicking(true);
     };
     window.addEventListener("keydown", onKey);
     return () => {
@@ -117,15 +122,6 @@ export function ChapterHead({
 
   return (
     <div className="flex flex-col gap-4">
-      <ChapterFind
-        book={book}
-        current={chapter}
-        open={finding}
-        onClose={() => {
-          setFinding(false);
-        }}
-        onPick={onPick}
-      />
       <ChapterTabs chapter={chapter} tab={tab} navigate={navigate} />
       <Reveal className="flex items-center gap-5 rounded-2xl border border-book/20 bg-book-soft py-4 pr-4 pl-6">
         <span
@@ -134,39 +130,65 @@ export function ChapterHead({
         >
           <Swap id={chapter.id}>{String(number).padStart(2, "0")}</Swap>
         </span>
-        <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <p className="flex min-w-0 items-center gap-2 font-mono text-xs font-semibold tracking-wider text-book uppercase">
-            <span className="truncate">
-              {t("bookHome.head.of", {
-                number,
-                total: book.chapters.length,
-              })}
-            </span>
-            <span aria-hidden className="opacity-50">
-              ·
-            </span>
+        <div className="relative flex min-w-0 flex-1 flex-col gap-1">
+          <p className="truncate font-mono text-xs font-semibold tracking-wider text-book uppercase">
+            {t("bookHome.head.of", {
+              number,
+              total: book.chapters.length,
+              book: book.title,
+            })}
+          </p>
+          <div className="flex min-w-0 items-center gap-2">
+            <h2 className="relative min-w-0 font-display text-title tracking-tight text-book-ink">
+              <Swap id={chapter.id} as="div">
+                {chapterName(chapter, t)}
+              </Swap>
+            </h2>
             <button
+              ref={opener}
               type="button"
+              aria-label={t("bookHome.head.choose")}
               aria-haspopup="dialog"
-              aria-expanded={finding}
+              aria-expanded={picking}
               aria-keyshortcuts="Control+K Meta+K"
               onClick={() => {
-                setFinding(true);
+                setPicking((open) => !open);
               }}
-              className="relative flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2 tracking-wider uppercase transition-control before:absolute before:inset-x-0 before:-inset-y-2 hover:bg-book/10 focus-visible:bg-book/10"
+              className={cn(
+                "relative flex size-8 shrink-0 items-center justify-center rounded-full transition-control before:absolute before:-inset-1.5",
+                picking
+                  ? "bg-book text-surface"
+                  : "text-book hover:bg-book/10 focus-visible:bg-book/10",
+              )}
             >
-              <Search aria-hidden className="size-3.5" />
-              {t("bookHome.head.find")}
-              <kbd className="rounded-sm border border-book/30 px-1 font-mono text-xs tracking-normal normal-case">
-                {t("bookHome.head.shortcut")}
-              </kbd>
+              <motion.span
+                aria-hidden
+                initial={false}
+                animate={{ rotate: picking ? 180 : 0 }}
+                transition={{ duration: DURATION.enter, ease: EASE_OUT }}
+                className="flex"
+              >
+                <ChevronDown className="size-4.5" />
+              </motion.span>
             </button>
-          </p>
-          <h2 className="relative font-display text-title tracking-tight text-book-ink">
-            <Swap id={chapter.id} as="div">
-              {chapterName(chapter, t)}
-            </Swap>
-          </h2>
+          </div>
+          <Presence>
+            {picking && (
+              <Reveal
+                key="picker"
+                kind="scale"
+                className="absolute top-full left-0 z-30 mt-3 w-full max-w-md origin-top"
+              >
+                <ChapterPicker
+                  book={book}
+                  current={chapter}
+                  opener={opener}
+                  onClose={stopPicking}
+                  onPick={onPick}
+                />
+              </Reveal>
+            )}
+          </Presence>
           <Presence>
             {after !== undefined && (
               <Reveal
