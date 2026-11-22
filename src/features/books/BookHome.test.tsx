@@ -136,8 +136,8 @@ describe("BookHome", () => {
     expect(bars()[1]).toHaveAttribute("aria-pressed", "true");
     expect(bars()[0]).toHaveAttribute("aria-pressed", "false");
 
-    // The search in the chapter's band, by number.
-    await user.click(screen.getByRole("button", { name: /^Find another/u }));
+    // The list under the chapter's name, searched by number.
+    await user.click(screen.getByRole("button", { name: "Choose a chapter" }));
     await user.keyboard("3{Enter}");
     expect(picked).toHaveBeenLastCalledWith(third.id);
     expect(bars()[2]).toHaveAttribute("aria-pressed", "true");
@@ -156,7 +156,7 @@ describe("BookHome", () => {
     expect(bars()[0]).toHaveAttribute("aria-pressed", "true");
   });
 
-  test("the search opens on Ctrl+K, on its field, with where the learner is first", async () => {
+  test("the list under the chapter's name opens on its field with every chapter, also on Ctrl+K", async () => {
     const user = userEvent.setup();
     const picked = mock();
     const { books, book } = await shelf();
@@ -166,35 +166,40 @@ describe("BookHome", () => {
     }
     render(<Place books={books} start={first.id} onPicked={picked} />);
 
+    const opener = screen.getByRole("button", { name: "Choose a chapter" });
+    expect(opener).toHaveAttribute("aria-expanded", "false");
     await user.keyboard("{Control>}k{/Control}");
-    const dialog = screen.getByRole("dialog", { name: "Find a chapter" });
-    const field = within(dialog).getByRole("searchbox");
+    expect(opener).toHaveAttribute("aria-expanded", "true");
+    const list = screen.getByRole("dialog", { name: "Find a chapter" });
+    const field = within(list).getByRole("searchbox");
     expect(field).toHaveFocus();
-    const going = within(dialog).getByRole("region", { name: "Under way" });
-    expect(within(going).getAllByRole("button")[0]).toHaveAttribute(
-      "aria-current",
-      "true",
-    );
-    // The chapter after it is offered next.
-    const next = within(dialog).getByRole("region", { name: "What follows" });
-    expect(within(next).getAllByRole("button")[0]).toHaveTextContent(
-      String(second.index + 1).padStart(2, "0"),
-    );
+    const rows = within(list).getAllByRole("button");
+    expect(rows).toHaveLength(book.chapters.length);
+    expect(rows[0]).toHaveAttribute("aria-current", "true");
+    expect(
+      within(list).getByText(`${String(book.chapters.length)} chapters`),
+    ).toBeVisible();
 
     // The arrows walk the rows and Enter picks the one with the focus.
     await user.keyboard("{ArrowDown}{ArrowDown}");
-    expect(within(next).getAllByRole("button")[0]).toHaveFocus();
+    expect(rows[1]).toHaveFocus();
     await user.keyboard("{ArrowUp}{ArrowUp}");
     expect(field).toHaveFocus();
     await user.keyboard("{ArrowDown}{ArrowDown}{Enter}");
     expect(picked).toHaveBeenLastCalledWith(second.id);
     expect(screen.queryByRole("dialog")).toBeNull();
+    expect(opener).toHaveFocus();
 
     // Escape closes it without picking, and a search that finds nothing says so.
-    await user.keyboard("{Control>}k{/Control}");
+    await user.click(opener);
     await user.keyboard("zzzz");
     expect(screen.getByText("No chapter matches.")).toBeVisible();
     await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    // A click elsewhere closes it too.
+    await user.click(opener);
+    await user.click(screen.getByText(/^Chapter 2 of/u));
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(picked).toHaveBeenCalledTimes(1);
   });
@@ -292,7 +297,9 @@ describe("BookHome", () => {
       tabs.compareDocumentPosition(head) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(
-      within(panel).getByText(`Chapter 1 of ${book.chapters.length}`),
+      within(panel).getByText(
+        `Chapter 1 of ${book.chapters.length} · ${book.title}`,
+      ),
     ).toBeVisible();
 
     // The chapter stays named over every tab.
@@ -359,9 +366,11 @@ describe("BookHome", () => {
     ).toHaveLength(4);
     expect(screen.getByRole("tab", { name: /Escribir/u })).toBeVisible();
     expect(
-      screen.getByText(`Capítulo 1 de ${book.chapters.length}`),
+      screen.getByText(`Capítulo 1 de ${book.chapters.length} · ${book.title}`),
     ).toBeVisible();
-    expect(screen.getByRole("button", { name: /^Buscar otro/u })).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Elegir capítulo" }),
+    ).toBeVisible();
     expect(
       screen.getByRole("button", { name: "Capítulo siguiente" }),
     ).toBeVisible();
