@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import type { Settings } from "@shared/domain";
 import { i18n } from "@/lib/i18n/i18n";
 import { getSettings, sttStatus, ttsStatus } from "@/lib/ipc";
+import { setMockLatency } from "@/lib/ipcMock";
 import { resetMockSpeech } from "@/lib/ipcMockSpeech";
 import { useMockBackend } from "@/test/mockBackend";
 import { ListenToggle, VoiceRows } from "./VoiceCard";
@@ -87,6 +88,9 @@ describe("the voice, once it is on disk", () => {
   });
 
   test("Speak turns off and on again without another download", async () => {
+    // Each step waits on the mock as on a slow machine, so that the waits
+    // below are held to what the switch does, not to how fast it is.
+    setMockLatency(1);
     const user = userEvent.setup();
     const onSettingsChange = mock();
     const settings = await getSettings();
@@ -95,13 +99,16 @@ describe("the voice, once it is on disk", () => {
     const speak = await screen.findByRole("switch", { name: "Speak" });
     expect(speak).toBeChecked();
 
+    // A wait asks by role and state, never with a matcher on the element:
+    // each miss of one prints the whole element, which takes long enough to
+    // hold back the steps it waits for.
     await user.click(speak);
-    await waitFor(() => {
-      expect(screen.getByRole("switch", { name: "Speak" })).not.toBeChecked();
-    });
+    await screen.findByRole("switch", { name: "Speak", checked: false });
     // It takes no press while the change is being saved.
     await waitFor(() => {
-      expect(screen.getByRole("switch", { name: "Speak" })).toBeEnabled();
+      if (speak.hasAttribute("disabled")) {
+        throw new Error("Speak is still being saved.");
+      }
     });
     expect(onSettingsChange).toHaveBeenLastCalledWith({
       ...settings,
@@ -109,10 +116,8 @@ describe("the voice, once it is on disk", () => {
     });
     expect((await getSettings()).sttModel).toBeNull();
 
-    await user.click(screen.getByRole("switch", { name: "Speak" }));
-    await waitFor(() => {
-      expect(screen.getByRole("switch", { name: "Speak" })).toBeChecked();
-    });
+    await user.click(speak);
+    await screen.findByRole("switch", { name: "Speak", checked: true });
     expect(onSettingsChange).toHaveBeenLastCalledWith({
       ...settings,
       sttModel: settings.sttModel,
