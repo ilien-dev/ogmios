@@ -1,5 +1,4 @@
 import { motion, useReducedMotionConfig } from "motion/react";
-import { CircleCheck, SquareDot } from "lucide-react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { Book, Chapter } from "@shared/domain";
@@ -8,7 +7,7 @@ import { Reveal } from "@/components/motion/Reveal";
 import { Stagger } from "@/components/motion/Stagger";
 import { Swap } from "@/components/motion/Swap";
 import { MetricCard } from "@/components/scene/MetricCard";
-import { BigNumber, StatChip, StatTile } from "@/components/scene/Stats";
+import { BigNumber, StatChip } from "@/components/scene/Stats";
 import { cn } from "@/lib/cn";
 import { EASE_OUT, animated, staggerDelay } from "@/lib/motion";
 import { barState, chapterWindow } from "./chapterChart";
@@ -189,21 +188,12 @@ export function BookBoard({
         <StatChip value={book.chapters.length}>
           {t("bookHome.board.chapters", { count: book.chapters.length })}
         </StatChip>
-        <StatChip value={ready} tone="accent">
+        <StatChip value={ready} tone="book">
           {t("bookHome.board.ready", { count: ready })}
         </StatChip>
-      </Reveal>
-      <Reveal className="grid grid-cols-2 gap-3">
-        <StatTile
-          icon={<CircleCheck aria-hidden className="size-6 text-book" />}
-          label={t("bookHome.legend.ready")}
-          value={ready}
-        />
-        <StatTile
-          icon={<SquareDot aria-hidden className="size-6 text-accent-text" />}
-          label={t("bookHome.legend.learning")}
-          value={learning}
-        />
+        <StatChip value={learning} tone="accent">
+          {t("bookHome.board.learning", { count: learning })}
+        </StatChip>
       </Reveal>
       <Reveal
         as="section"

@@ -7,8 +7,14 @@ import { cn } from "@/lib/cn";
 interface StatChipProps {
   value?: ReactNode;
   children: ReactNode;
-  tone?: "ink" | "accent";
+  tone?: keyof typeof TONES;
 }
+
+const TONES = {
+  ink: "text-ink",
+  accent: "text-accent-text",
+  book: "text-book",
+};
 
 /** A glass chip with a number in mono, as on top of the proposal columns. */
 export function StatChip({
@@ -24,10 +30,7 @@ export function StatChip({
             key="value"
             as="span"
             kind="fade"
-            className={cn(
-              "font-mono font-medium",
-              tone === "accent" ? "text-accent-text" : "text-ink",
-            )}
+            className={cn("font-mono font-medium", TONES[tone])}
           >
             {value}
           </Reveal>
