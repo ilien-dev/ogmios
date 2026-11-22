@@ -1009,7 +1009,12 @@ básico no reciben frases: no hay grabaciones abiertas que las respalden.
     capítulos con lo listo que está cada uno, y arriba un campo que los filtra por número o título. El
     capítulo elegido se guarda al elegirlo. Lo que se hace con él son cuatro pestañas al pie de la
     escena: **Palabras** (§9.5), **Escuchar** (§9.8), **Traducir** y **Escribir** (§9.7); la que
-    toca se marca con «Sigue». Cambiar de capítulo conserva la pestaña. «Cambiar libro» abre la
+    toca se marca con «Sigue». Cambiar de capítulo conserva la pestaña. Bajo el gráfico, cuántas
+    palabras de este libro pide hoy el repaso diario, de todo lo de Hoy y en unos minutos, con
+    «Repasar», que abre el repaso diario; y las palabras del capítulo elegido por tipo (sustantivos,
+    verbos, adjetivos, adverbios, expresiones y otras), cada tipo con cuántas lleva aprendidas.
+    Debajo, «A tu ritmo»: con las palabras aprendidas en los últimos 14 días, cuántos días faltan
+    para poder leer el capítulo elegido, y una línea con lo aprendido cada día. «Cambiar libro» abre la
     biblioteca: la estantería, añadir un libro y la página de cada libro, donde se renombran sus
     capítulos y se elimina.
   - **Charla:** empezar una conversación, la voz, los patrones con sus ejercicios y las charlas

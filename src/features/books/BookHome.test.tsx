@@ -7,7 +7,12 @@ import type { Book } from "@shared/domain";
 import type { BookTab, Route } from "@/app/routes";
 import { SpeechProvider } from "@/features/speech/speech";
 import { i18n } from "@/lib/i18n/i18n";
-import { getChapterWords, listBooks } from "@/lib/ipc";
+import {
+  getChapterWords,
+  learningPace,
+  listBooks,
+  recallState,
+} from "@/lib/ipc";
 import { seedMockReadiness, seedMockStrengths } from "@/lib/ipcMockChapters";
 import { useMockBackend } from "@/test/mockBackend";
 import { BookHome } from "./BookHome";
@@ -51,6 +56,7 @@ function Place({
         current={currentOf(books, on)}
         tab={route.tab ?? "words"}
         nativeLang="es"
+        todayDue={0}
         navigate={setRoute}
         onPick={(chapterId) => {
           onPicked?.(chapterId);
@@ -91,6 +97,7 @@ describe("BookHome", () => {
         current={null}
         tab="words"
         nativeLang="es"
+        todayDue={0}
         navigate={mock()}
         onPick={mock()}
       />,
@@ -111,6 +118,7 @@ describe("BookHome", () => {
         current={null}
         tab="words"
         nativeLang="es"
+        todayDue={0}
         navigate={navigate}
         onPick={mock()}
       />,
@@ -177,6 +185,78 @@ describe("BookHome", () => {
     expect(within(chart()).getAllByRole("button").at(-1)).toHaveAccessibleName(
       /not prepared yet/u,
     );
+  });
+
+  test("a card counts the book's words the daily review asks today, and leads into it", async () => {
+    const user = userEvent.setup();
+    seedMockReadiness();
+    const { books } = await shelf();
+    const alice = books.find((each) =>
+      each.chapters.some((chapter) => chapter.id === "book-alice-2"),
+    );
+    const [first] = alice?.chapters ?? [];
+    if (first === undefined) throw new Error("no Alice");
+    render(<Place books={books} start={first.id} />);
+
+    const { due } = await recallState();
+    expect(due).toBeGreaterThan(0);
+    const card = await screen.findByRole("region", {
+      name: /reviews? of this book for today/u,
+    });
+    expect(card).toHaveAccessibleName(
+      new RegExp(`^${String(due)} reviews? of this book`, "u"),
+    );
+    expect(
+      within(card).getByText(
+        new RegExp(`^of the ${String(due)} on Today`, "u"),
+      ),
+    ).toBeVisible();
+    await user.click(within(card).getByRole("button", { name: "Review" }));
+    expect(screen.getByText("Left for recall")).toBeVisible();
+  });
+
+  test("a card splits the picked chapter's words by kind, adding up to what its panel counts", async () => {
+    seedMockReadiness();
+    const { books } = await shelf();
+    const third = books
+      .flatMap((each) => each.chapters)
+      .find((chapter) => chapter.id === "book-alice-2");
+    if (third === undefined) throw new Error("no third chapter");
+    render(<Place books={books} start={third.id} />);
+
+    const card = await screen.findByRole("region", {
+      name: "By kind · chapter 3",
+    });
+    const counts = within(card)
+      .getAllByText(/^\d+ \/ \d+$/u)
+      .map((each) => (each.textContent ?? "").split(" / ").map(Number));
+    const { words } = await getChapterWords(third.id);
+    const toLearn = words.filter((word) => !word.known);
+    expect(counts.reduce((all, [learned = 0]) => all + learned, 0)).toBe(
+      toLearn.filter((word) => word.done).length,
+    );
+    expect(counts.reduce((all, [, total = 0]) => all + total, 0)).toBe(
+      toLearn.length,
+    );
+  });
+
+  test("a card tells, at the learner's pace, how many days until the picked chapter can be read", async () => {
+    seedMockReadiness();
+    const { books } = await shelf();
+    const chapters = books.flatMap((each) => each.chapters);
+    const third = chapters.find((chapter) => chapter.id === "book-alice-2");
+    if (third === undefined) throw new Error("no third chapter");
+    render(<Place books={books} start={third.id} />);
+
+    const pace = await learningPace(third.id);
+    expect(pace.days).toBeGreaterThan(0);
+    const card = await screen.findByRole("region", { name: "At your pace" });
+    expect(within(card).getByText(`~${String(pace.days)}`)).toBeVisible();
+    expect(card).toHaveTextContent(/days? until you can read III\./u);
+    expect(
+      within(card).getByRole("img", { name: /Words learned each day/u }),
+    ).toBeVisible();
+    expect(card).toHaveTextContent(/learned a day, mean of 14 days/u);
   });
 
   test("a bar, the search and a block each pick the chapter, for the whole screen", async () => {

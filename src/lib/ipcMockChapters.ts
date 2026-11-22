@@ -13,7 +13,7 @@ import type {
   KnownWord,
   PartOfSpeech,
 } from "@shared/domain";
-import type { ChapterStrength } from "@shared/board";
+import type { ChapterStrength, KindCount, LearningPace } from "@shared/board";
 import { READY } from "@shared/domain";
 import {
   allMockChapters,
@@ -208,6 +208,69 @@ function chapterStrengths(bookId: string): ChapterStrength[] {
     });
 }
 
+/** Days the pace is read over, as `commands::board::PACE_DAYS`. */
+const PACE_DAYS = 14;
+
+/**
+ * The learner's pace in the mock, which keeps no times: every word done on
+ * the shelf as done today, and at that pace the days the chapter has left.
+ */
+function learningPace(chapterId: string): LearningPace {
+  const learned = allMockChapters()
+    .flatMap(wordsOf)
+    .filter((word) => word.done).length;
+  const daily = Array.from({ length: PACE_DAYS }, (_, day) =>
+    day === PACE_DAYS - 1 ? learned : 0,
+  );
+  const chapter = findMockChapter(chapterId);
+  if (chapter === undefined || chapter.prepared === null) {
+    return { daily, left: null, days: null };
+  }
+  const left = wordsOf(chapter).filter(
+    (word) => !word.done && !word.known,
+  ).length;
+  let days: number | null = null;
+  if (left === 0) {
+    days = 0;
+  } else if (learned > 0) {
+    days = Math.ceil((left * PACE_DAYS) / learned);
+  }
+  return { daily, left, days };
+}
+
+/** A chapter's words not known, by kind, with how many are done. */
+function chapterKinds(chapterId: string): KindCount[] {
+  const chapter = findMockChapter(chapterId);
+  const counts: Map<PartOfSpeech | null, KindCount> = new Map();
+  for (const word of chapter === undefined ? [] : wordsOf(chapter)) {
+    if (word.known) {
+      continue;
+    }
+    const count = counts.get(word.partOfSpeech) ?? {
+      kind: word.partOfSpeech,
+      learned: 0,
+      total: 0,
+    };
+    count.total += 1;
+    count.learned += word.done ? 1 : 0;
+    counts.set(word.partOfSpeech, count);
+  }
+  return [...counts.values()].sort((a, b) => b.total - a.total);
+}
+
+/** The chapter each learned word was first finished in, by its lemma. */
+export function mockLearnedChapters(): Map<string, string> {
+  const of: Map<string, string> = new Map();
+  for (const chapter of allMockChapters()) {
+    for (const word of wordsOf(chapter)) {
+      if (word.done && !of.has(word.lemma)) {
+        of.set(word.lemma, chapter.id);
+      }
+    }
+  }
+  return of;
+}
+
 /** Every finished word on the shelf, once each. */
 export function mockLearnedWords(): BookWord[] {
   const learned: Map<string, BookWord> = new Map();
@@ -336,7 +399,7 @@ function checkCanPrepare(id: string): void {
 
 function arg(
   args: unknown,
-  key: "id" | "depth" | "wordId" | "key" | "bookId",
+  key: "id" | "depth" | "wordId" | "key" | "bookId" | "chapterId",
 ): string {
   return String((args as Record<string, unknown>)[key]);
 }
@@ -387,6 +450,10 @@ export function chapterCommands(
       after(60, () => {
         setMockOpened(arg(args, "id"));
       }),
+    learning_pace: (args) =>
+      after(90, () => learningPace(arg(args, "chapterId"))),
+    chapter_kind_counts: (args) =>
+      after(90, () => chapterKinds(arg(args, "chapterId"))),
     book_strengths: (args) =>
       after(90, () => chapterStrengths(arg(args, "bookId"))),
     get_chapter_words: (args) =>
