@@ -196,6 +196,18 @@ pub fn words(conn: &Connection) -> Result<Vec<RecallWord>> {
     Ok(words)
 }
 
+/// The words learned in each chapter of a book, as the chapter's panel
+/// counts them: finished, and not marked known. Each by its chapter and key.
+pub fn book_learned(conn: &Connection, book_id: &str) -> Result<Vec<(String, String)>> {
+    let mut stmt = conn.prepare(&format!(
+        "SELECT w.chapter_id, w.key FROM chapter_words w
+         JOIN book_chapters c ON c.id = w.chapter_id
+         WHERE c.book_id = ?1 AND w.done_at IS NOT NULL AND {NOT_KNOWN}"
+    ))?;
+    let rows = stmt.query_map([book_id], |row| Ok((row.get(0)?, row.get(1)?)))?;
+    Ok(rows.collect::<rusqlite::Result<_>>()?)
+}
+
 /// How strong each learned word is, by its key.
 pub fn strengths(conn: &Connection) -> Result<HashMap<String, Strength>> {
     Ok(words(conn)?

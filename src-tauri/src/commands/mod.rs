@@ -1,3 +1,4 @@
+pub mod board;
 pub mod book;
 pub mod chapter;
 pub mod dispute;

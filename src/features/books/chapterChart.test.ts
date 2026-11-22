@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { Chapter } from "@shared/domain";
-import { barState, chapterWindow, wordDots } from "./chapterChart";
+import { barState, chapterTop, chapterWindow, wordDots } from "./chapterChart";
 
 function chapters(count: number): Chapter[] {
   return Array.from({ length: count }, (_, index) => ({
@@ -40,6 +40,19 @@ describe("chapterWindow", () => {
 
   test("with no current chapter it starts at the beginning", () => {
     expect(chapterWindow(chapters(40), null, 12)[0]?.id).toBe("c0");
+  });
+});
+
+describe("chapterTop", () => {
+  test("rounds the most a bar has up to tens", () => {
+    expect(chapterTop(30)).toBe(30);
+    expect(chapterTop(31)).toBe(40);
+    expect(chapterTop(245)).toBe(250);
+  });
+
+  test("never stands for less than ten words", () => {
+    expect(chapterTop(0)).toBe(10);
+    expect(chapterTop(3)).toBe(10);
   });
 });
 

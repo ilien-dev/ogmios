@@ -24,6 +24,15 @@ export function chapterWindow(
   return chapters.slice(start, start + size);
 }
 
+/**
+ * The count the top of a chart of learned words stands for: the most any of
+ * its bars has, rounded up to tens, and never less than ten so that a few
+ * words do not look like a full chapter.
+ */
+export function chapterTop(most: number): number {
+  return Math.max(10, Math.ceil(most / 10) * 10);
+}
+
 /** Where a chapter's vocabulary stands, as its bar shows it. */
 export type BarState = "unprepared" | "learning" | "ready";
 

@@ -61,6 +61,7 @@ import type {
   UpdateDownload,
   UpdateInfo,
 } from "@shared/domain";
+import type { ChapterStrength } from "@shared/board";
 import type {
   ChapterListening,
   ChapterReading,
@@ -436,6 +437,12 @@ export const answerRefresh = (
 
 /** What is due today, and how strong the learned words are. */
 export const recallState = (): Promise<RecallState> => call("recall_state");
+/**
+ * How strong the words learned in each chapter of a book are, in reading
+ * order: the words the chapter's panel counts as learned.
+ */
+export const bookStrengths = (bookId: string): Promise<ChapterStrength[]> =>
+  call("book_strengths", { bookId });
 /**
  * Starts a run of the recall in these ways: at most ten of the learned words
  * that are due, of any book or conversation, each asked once.

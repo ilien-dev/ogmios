@@ -13,10 +13,12 @@ import type {
   KnownWord,
   PartOfSpeech,
 } from "@shared/domain";
+import type { ChapterStrength } from "@shared/board";
 import { READY } from "@shared/domain";
 import {
   allMockChapters,
   findMockChapter,
+  mockBookId,
   setMockChapterPrepared,
   setMockOpened,
 } from "./ipcMockBooks";
@@ -29,6 +31,7 @@ import {
   resetMockWords,
   setMockWordDone,
   setMockWordKnown,
+  setMockWordStep,
 } from "./ipcMockWords";
 
 type Entry = [
@@ -183,6 +186,28 @@ function chapterWords(id: string): ChapterWords {
   return { chapter: withMockReadiness(chapter), words: wordsOf(chapter) };
 }
 
+/**
+ * How strong the learned words of each chapter of a book are: the words
+ * done and not known, as the chapter's panel counts them.
+ */
+function chapterStrengths(bookId: string): ChapterStrength[] {
+  return allMockChapters()
+    .filter((chapter) => mockBookId(chapter.id) === bookId)
+    .map((chapter) => {
+      const learned = wordsOf(chapter).filter(
+        (word) => word.done && !word.known,
+      );
+      const count = (level: string): number =>
+        learned.filter((word) => word.strength === level).length;
+      return {
+        chapterId: chapter.id,
+        fresh: count("new"),
+        settling: count("settling"),
+        firm: count("firm"),
+      };
+    });
+}
+
 /** Every finished word on the shelf, once each. */
 export function mockLearnedWords(): BookWord[] {
   const learned: Map<string, BookWord> = new Map();
@@ -212,6 +237,22 @@ export function seedMockReadiness(): void {
 }
 
 /**
+ * Words learned in "III" in every strength, so that its bar of the chart has
+ * all of its layers: for `?mock=ready`.
+ */
+export function seedMockStrengths(): void {
+  const done = wordsOf(findMockChapter("book-alice-2") as Chapter).filter(
+    (word) => word.done,
+  );
+  done.slice(0, 1).forEach((word) => {
+    setMockWordStep(word.lemma, 4);
+  });
+  done.slice(1, 3).forEach((word) => {
+    setMockWordStep(word.lemma, 1);
+  });
+}
+
+/**
  * A chapter with more words to practise than the smallest session takes, so
  * that "Practice" on it offers a choice of sizes: "IV" at the widest depth,
  * twelve words. For `?mock=ready` and the tests that ask for it.
@@ -224,6 +265,7 @@ try {
   if (new URLSearchParams(globalThis.location.search).get("mock") === "ready") {
     seedMockReadiness();
     seedMockLongChapter();
+    seedMockStrengths();
   }
 } catch {
   // No location outside a browser: the chapters start as the shelf has them.
@@ -292,7 +334,10 @@ function checkCanPrepare(id: string): void {
   }
 }
 
-function arg(args: unknown, key: "id" | "depth" | "wordId" | "key"): string {
+function arg(
+  args: unknown,
+  key: "id" | "depth" | "wordId" | "key" | "bookId",
+): string {
   return String((args as Record<string, unknown>)[key]);
 }
 
@@ -342,6 +387,8 @@ export function chapterCommands(
       after(60, () => {
         setMockOpened(arg(args, "id"));
       }),
+    book_strengths: (args) =>
+      after(90, () => chapterStrengths(arg(args, "bookId"))),
     get_chapter_words: (args) =>
       after(150, () => {
         setMockOpened(arg(args, "id"));
