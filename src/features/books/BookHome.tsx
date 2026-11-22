@@ -25,6 +25,8 @@ interface LoadedProps {
   selected: Chapter;
   tab: BookTab;
   nativeLang: string;
+  /** Everything that comes back today, the count beside Today. */
+  todayDue: number;
   navigate: Navigate;
   onPick: (chapterId: string) => void;
   /** The chapter as it stands once its words changed under this screen. */
@@ -42,6 +44,7 @@ function Loaded({
   selected,
   tab,
   nativeLang,
+  todayDue,
   navigate,
   onPick,
   onChanged,
@@ -50,7 +53,13 @@ function Loaded({
   return (
     <div className="flex min-h-full flex-col gap-4 pt-2 pb-4 wide:h-full wide:flex-row">
       <div className="scrollbar-none flex w-full shrink-0 flex-col gap-3.5 wide:max-w-md wide:overflow-y-auto wide:pb-2">
-        <BookBoard book={book} selected={selected} onPick={onPick} />
+        <BookBoard
+          book={book}
+          selected={selected}
+          todayDue={todayDue}
+          navigate={navigate}
+          onPick={onPick}
+        />
       </div>
       <Stagger className="scrollbar-none flex min-w-0 flex-1 flex-col gap-4 wide:overflow-y-auto wide:pb-2 split:flex-row split:overflow-visible split:pb-0">
         <BookScene
@@ -115,6 +124,8 @@ interface BookHomeProps {
   /** What is being done with that chapter. */
   tab: BookTab;
   nativeLang: string;
+  /** Everything that comes back today, the count beside Today. */
+  todayDue: number;
   navigate: Navigate;
   /** Makes a chapter the one the learner is on. */
   onPick: (chapterId: string) => void;
@@ -132,6 +143,7 @@ export function BookHome({
   current,
   tab,
   nativeLang,
+  todayDue,
   navigate,
   onPick,
 }: BookHomeProps): ReactNode {
@@ -170,6 +182,7 @@ export function BookHome({
             selected={selected}
             tab={tab}
             nativeLang={nativeLang}
+            todayDue={todayDue}
             navigate={navigate}
             onPick={onPick}
             onChanged={(chapter) => {

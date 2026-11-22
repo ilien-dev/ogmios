@@ -143,6 +143,7 @@ macro_rules! every_command {
             commands::refresh::answer_refresh,
             commands::recall::recall_state,
             commands::board::book_strengths,
+            commands::board::book_due,
             commands::recall::start_recall,
             commands::recall::answer_recall,
             commands::label::label_words,

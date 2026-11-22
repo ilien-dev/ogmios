@@ -14,3 +14,12 @@ export interface ChapterStrength {
   settling: number;
   firm: number;
 }
+
+/**
+ * How many of the words the daily review asks today are of a book, and about
+ * how many minutes they take.
+ */
+export interface BookReviews {
+  due: number;
+  minutes: number;
+}

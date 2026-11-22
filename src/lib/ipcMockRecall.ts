@@ -17,7 +17,9 @@ import type {
   Ways,
   WordHint,
 } from "@shared/domain";
-import { mockLearnedWords } from "./ipcMockChapters";
+import type { BookReviews } from "@shared/board";
+import { mockBookId } from "./ipcMockBooks";
+import { mockLearnedChapters, mockLearnedWords } from "./ipcMockChapters";
 import {
   PLAIN,
   PracticeError,
@@ -70,6 +72,25 @@ function due(): BookWord[] {
 /** The due words a run has yet to ask. */
 function left(run: Run): BookWord[] {
   return due().filter((word) => !run.asked.has(word.lemma));
+}
+
+/** Seconds an answer of the review takes at the default pace. */
+const SECONDS_PER_ANSWER = 8;
+
+/**
+ * How many due words are of a book, each in the chapter it was first
+ * finished in, and about how many minutes they take: one answer each.
+ */
+function bookDue(bookId: string): BookReviews {
+  const of = mockLearnedChapters();
+  const count = due().filter(
+    (word) => mockBookId(of.get(word.lemma) ?? "") === bookId,
+  ).length;
+  const minutes =
+    count === 0
+      ? 0
+      : Math.max(1, Math.round((count * SECONDS_PER_ANSWER) / 60));
+  return { due: count, minutes };
 }
 
 /** How many learned words are due, for the home screen. */
@@ -198,6 +219,7 @@ export function recallCommands(
 ): Record<string, (args: unknown) => Promise<unknown>> {
   return {
     recall_state: () => after(120, state),
+    book_due: (args) => after(100, () => bookDue(arg(args, "bookId"))),
     start_recall: (args) => after(150, () => start(arg(args, "ways") as Ways)),
     answer_recall: (args) =>
       after(80, () =>

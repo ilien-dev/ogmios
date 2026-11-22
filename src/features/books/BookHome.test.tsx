@@ -7,7 +7,7 @@ import type { Book } from "@shared/domain";
 import type { BookTab, Route } from "@/app/routes";
 import { SpeechProvider } from "@/features/speech/speech";
 import { i18n } from "@/lib/i18n/i18n";
-import { getChapterWords, listBooks } from "@/lib/ipc";
+import { getChapterWords, listBooks, recallState } from "@/lib/ipc";
 import { seedMockReadiness, seedMockStrengths } from "@/lib/ipcMockChapters";
 import { useMockBackend } from "@/test/mockBackend";
 import { BookHome } from "./BookHome";
@@ -51,6 +51,7 @@ function Place({
         current={currentOf(books, on)}
         tab={route.tab ?? "words"}
         nativeLang="es"
+        todayDue={0}
         navigate={setRoute}
         onPick={(chapterId) => {
           onPicked?.(chapterId);
@@ -91,6 +92,7 @@ describe("BookHome", () => {
         current={null}
         tab="words"
         nativeLang="es"
+        todayDue={0}
         navigate={mock()}
         onPick={mock()}
       />,
@@ -111,6 +113,7 @@ describe("BookHome", () => {
         current={null}
         tab="words"
         nativeLang="es"
+        todayDue={0}
         navigate={navigate}
         onPick={mock()}
       />,
@@ -177,6 +180,34 @@ describe("BookHome", () => {
     expect(within(chart()).getAllByRole("button").at(-1)).toHaveAccessibleName(
       /not prepared yet/u,
     );
+  });
+
+  test("a card counts the book's words the daily review asks today, and leads into it", async () => {
+    const user = userEvent.setup();
+    seedMockReadiness();
+    const { books } = await shelf();
+    const alice = books.find((each) =>
+      each.chapters.some((chapter) => chapter.id === "book-alice-2"),
+    );
+    const [first] = alice?.chapters ?? [];
+    if (first === undefined) throw new Error("no Alice");
+    render(<Place books={books} start={first.id} />);
+
+    const { due } = await recallState();
+    expect(due).toBeGreaterThan(0);
+    const card = await screen.findByRole("region", {
+      name: /reviews? of this book for today/u,
+    });
+    expect(card).toHaveAccessibleName(
+      new RegExp(`^${String(due)} reviews? of this book`, "u"),
+    );
+    expect(
+      within(card).getByText(
+        new RegExp(`^of the ${String(due)} on Today`, "u"),
+      ),
+    ).toBeVisible();
+    await user.click(within(card).getByRole("button", { name: "Review" }));
+    expect(screen.getByText("Left for recall")).toBeVisible();
   });
 
   test("a bar, the search and a block each pick the chapter, for the whole screen", async () => {

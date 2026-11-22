@@ -3,13 +3,15 @@ import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { Book, Chapter } from "@shared/domain";
-import type { ChapterStrength } from "@shared/board";
+import type { ChapterStrength, BookReviews } from "@shared/board";
+import type { Navigate } from "@/app/routes";
 import { CountUp } from "@/components/motion/CountUp";
 import { Presence } from "@/components/motion/Presence";
 import { Reveal } from "@/components/motion/Reveal";
 import { Stagger } from "@/components/motion/Stagger";
+import { Swap } from "@/components/motion/Swap";
 import { StatChip } from "@/components/scene/Stats";
-import { bookStrengths } from "@/lib/ipc";
+import { bookDue, bookStrengths } from "@/lib/ipc";
 import { cn } from "@/lib/cn";
 import { EASE_OUT, animated, staggerDelay } from "@/lib/motion";
 import { barState, chapterTop, chapterWindow } from "./chapterChart";
@@ -269,25 +271,110 @@ function StrengthCard({
   );
 }
 
+/** How many of the book's words the daily review asks today; null until read. */
+function useReviews(book: Book): BookReviews | null {
+  const [reviews, setReviews] = useState<BookReviews | null>(null);
+  useEffect(() => {
+    let live = true;
+    void bookDue(book.id).then((found) => {
+      if (live) {
+        setReviews(found);
+      }
+    });
+    return () => {
+      live = false;
+    };
+  }, [book]);
+  return reviews;
+}
+
+interface ReviewsCardProps {
+  reviews: BookReviews;
+  /** Everything that comes back today. */
+  todayDue: number;
+  navigate: Navigate;
+}
+
+/**
+ * How many words of this book the daily review asks today, of all it asks,
+ * with the way into it.
+ */
+function ReviewsCard({
+  reviews,
+  todayDue,
+  navigate,
+}: ReviewsCardProps): ReactNode {
+  const { t } = useTranslation();
+  const waiting = reviews.due > 0;
+  const label = t("bookHome.reviews.count", { count: reviews.due });
+  return (
+    <section
+      aria-label={`${String(reviews.due)} ${label}`}
+      className="flex items-center gap-4 rounded-xl glass px-4.5 py-4"
+    >
+      <CountUp
+        value={reviews.due}
+        from={0}
+        className="font-display text-4xl leading-none font-light text-tally tabular-nums"
+      />
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span className="text-sm font-medium text-ink">{label}</span>
+        <span className="relative text-xs text-ink-soft">
+          <Swap id={waiting ? "of" : "none"} as="div">
+            {waiting
+              ? t("bookHome.reviews.of", {
+                  total: Math.max(todayDue, reviews.due),
+                  minutes: reviews.minutes,
+                })
+              : t("bookHome.reviews.none")}
+          </Swap>
+        </span>
+      </div>
+      <Presence>
+        {waiting && (
+          <Reveal key="start" as="span" kind="scale" className="shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                navigate({ name: "recall", running: "both" });
+              }}
+              className="h-11 rounded-full bg-tally-soft px-4.5 text-sm font-semibold text-tally transition-control hover:bg-tally-fill/50 focus-visible:bg-tally-fill/50"
+            >
+              {t("bookHome.reviews.start")}
+            </button>
+          </Reveal>
+        )}
+      </Presence>
+    </section>
+  );
+}
+
 interface BookBoardProps {
   book: Book;
   /** The chapter the learner is on. */
   selected: Chapter;
+  /** Everything that comes back today, the count beside Today. */
+  todayDue: number;
+  navigate: Navigate;
   /** Makes a chapter the one the learner is on. */
   onPick: (chapterId: string) => void;
 }
 
 /**
- * The column of glass beside the scene: the book in counts and how firm
- * what was learned in each chapter is. A bar picks a chapter, as a block of
+ * The column of glass beside the scene: the book in counts, how firm what
+ * was learned in each chapter is, and what of it the daily review asks
+ * today. A bar picks a chapter, as a block of
  * the scene and the list in the chapter's band do.
  */
 export function BookBoard({
   book,
   selected,
+  todayDue,
+  navigate,
   onPick,
 }: BookBoardProps): ReactNode {
   const { t } = useTranslation();
+  const reviews = useReviews(book);
   const states = book.chapters.map(barState);
   const ready = states.filter((state) => state === "ready").length;
   const learning = states.filter((state) => state === "learning").length;
@@ -307,6 +394,17 @@ export function BookBoard({
       <Reveal>
         <StrengthCard book={book} selected={selected} onPick={onPick} />
       </Reveal>
+      <Presence>
+        {reviews !== null && (
+          <Reveal key="reviews">
+            <ReviewsCard
+              reviews={reviews}
+              todayDue={todayDue}
+              navigate={navigate}
+            />
+          </Reveal>
+        )}
+      </Presence>
     </Stagger>
   );
 }

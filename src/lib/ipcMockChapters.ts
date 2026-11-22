@@ -208,6 +208,19 @@ function chapterStrengths(bookId: string): ChapterStrength[] {
     });
 }
 
+/** The chapter each learned word was first finished in, by its lemma. */
+export function mockLearnedChapters(): Map<string, string> {
+  const of: Map<string, string> = new Map();
+  for (const chapter of allMockChapters()) {
+    for (const word of wordsOf(chapter)) {
+      if (word.done && !of.has(word.lemma)) {
+        of.set(word.lemma, chapter.id);
+      }
+    }
+  }
+  return of;
+}
+
 /** Every finished word on the shelf, once each. */
 export function mockLearnedWords(): BookWord[] {
   const learned: Map<string, BookWord> = new Map();

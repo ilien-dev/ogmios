@@ -1106,6 +1106,15 @@ pub struct RefreshAnswer {
     pub step: RefreshStep,
 }
 
+/// How many of the words the daily review asks today are of a book, and
+/// about how many minutes they take.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BookReviews {
+    pub due: u32,
+    pub minutes: u32,
+}
+
 /// How strong the words learned in a chapter are, counted by strength:
 /// `fresh` ones are new.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

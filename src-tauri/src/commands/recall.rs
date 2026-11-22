@@ -83,7 +83,7 @@ fn way(conn: &Connection, word: &RecallWord, (ways, turn): (Ways, usize)) -> Res
 
 /// The learned words due by `now` that a run of these `ways` asks, the most
 /// overdue first.
-fn due(conn: &Connection, ways: Ways, now: DateTime<Utc>) -> Result<Vec<RecallWord>> {
+pub(crate) fn due(conn: &Connection, ways: Ways, now: DateTime<Utc>) -> Result<Vec<RecallWord>> {
     let mut due: Vec<RecallWord> = recall::words(conn)?
         .into_iter()
         .filter(|word| word.standing.due_at <= now && asks(word, ways))

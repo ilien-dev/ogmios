@@ -1070,6 +1070,13 @@ export const es: Catalog<typeof en> = {
         "{{chapter}}: {{firm}} firmes, {{settling}} asentándose, {{fresh}} nuevas",
       unprepared: "{{chapter}}, sin preparar",
     },
+    reviews: {
+      count_one: "repaso de este libro para hoy",
+      count_other: "repasos de este libro para hoy",
+      of: "de los {{total}} de Hoy · unos {{minutes}} min",
+      none: "Nada de este libro espera hoy",
+      start: "Repasar",
+    },
     legend: {
       firm: "Firme",
       settling: "Asentándose",

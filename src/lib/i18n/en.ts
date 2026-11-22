@@ -1076,6 +1076,13 @@ export const en = {
         "{{chapter}}: {{firm}} firm, {{settling}} settling, {{fresh}} new",
       unprepared: "{{chapter}}, not prepared yet",
     },
+    reviews: {
+      count_one: "review of this book for today",
+      count_other: "reviews of this book for today",
+      of: "of the {{total}} on Today · about {{minutes}} min",
+      none: "Nothing of this book waits today",
+      start: "Review",
+    },
     legend: {
       firm: "Firm",
       settling: "Settling",

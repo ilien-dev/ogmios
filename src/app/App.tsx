@@ -162,6 +162,7 @@ export function App(): ReactNode {
             current={current}
             tab={route.tab ?? "words"}
             nativeLang={profile.nativeLang}
+            todayDue={due}
             navigate={navigate}
             onPick={pick}
           />
