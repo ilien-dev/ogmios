@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.37.0](https://github.com/ilien-dev/ogmios/compare/v0.36.0...v0.37.0) (2026-11-22)
+
+
+### Features
+
+* chart how firm the words learned in each chapter are ([#83](https://github.com/ilien-dev/ogmios/issues/83)) ([fa9206e](https://github.com/ilien-dev/ogmios/commit/fa9206ed6ef923c6314269c815b292dc59e29a55))
+* show the update installer in front, in the current brand ([#74](https://github.com/ilien-dev/ogmios/issues/74)) ([d376b11](https://github.com/ilien-dev/ogmios/commit/d376b11dee8c51b15db85edf57b2c438ca52adb4))
+
 ## [0.36.0](https://github.com/ilien-dev/ogmios/compare/v0.35.0...v0.36.0) (2026-11-22)
 
 
