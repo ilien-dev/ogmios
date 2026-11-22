@@ -210,6 +210,31 @@ describe("BookHome", () => {
     expect(screen.getByText("Left for recall")).toBeVisible();
   });
 
+  test("a card splits the picked chapter's words by kind, adding up to what its panel counts", async () => {
+    seedMockReadiness();
+    const { books } = await shelf();
+    const third = books
+      .flatMap((each) => each.chapters)
+      .find((chapter) => chapter.id === "book-alice-2");
+    if (third === undefined) throw new Error("no third chapter");
+    render(<Place books={books} start={third.id} />);
+
+    const card = await screen.findByRole("region", {
+      name: "By kind · chapter 3",
+    });
+    const counts = within(card)
+      .getAllByText(/^\d+ \/ \d+$/u)
+      .map((each) => (each.textContent ?? "").split(" / ").map(Number));
+    const { words } = await getChapterWords(third.id);
+    const toLearn = words.filter((word) => !word.known);
+    expect(counts.reduce((all, [learned = 0]) => all + learned, 0)).toBe(
+      toLearn.filter((word) => word.done).length,
+    );
+    expect(counts.reduce((all, [, total = 0]) => all + total, 0)).toBe(
+      toLearn.length,
+    );
+  });
+
   test("a bar, the search and a block each pick the chapter, for the whole screen", async () => {
     const user = userEvent.setup();
     const picked = mock();

@@ -1076,6 +1076,17 @@ export const en = {
         "{{chapter}}: {{firm}} firm, {{settling}} settling, {{fresh}} new",
       unprepared: "{{chapter}}, not prepared yet",
     },
+    kinds: {
+      title: "By kind · chapter {{number}}",
+      scale: "learned / total",
+      count: "{{learned}} / {{total}}",
+      noun: "Nouns",
+      verb: "Verbs",
+      adjective: "Adjectives",
+      adverb: "Adverbs",
+      expression: "Expressions",
+      other: "Others",
+    },
     reviews: {
       count_one: "review of this book for today",
       count_other: "reviews of this book for today",

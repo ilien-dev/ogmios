@@ -1106,6 +1106,16 @@ pub struct RefreshAnswer {
     pub step: RefreshStep,
 }
 
+/// How many words of a chapter are of one kind, and how many of them are
+/// learned. `kind` is None for the words nobody labelled.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KindCount {
+    pub kind: Option<PartOfSpeech>,
+    pub learned: u32,
+    pub total: u32,
+}
+
 /// How many of the words the daily review asks today are of a book, and
 /// about how many minutes they take.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
