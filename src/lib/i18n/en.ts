@@ -1089,6 +1089,8 @@ export const en = {
       chapters_other: "chapters",
       ready_one: "ready",
       ready_other: "ready",
+      learning_one: "learning",
+      learning_other: "learning",
       note: "of {{chapter}} ready · pick a bar",
       noteNone: "{{chapter}} is not prepared · pick a bar",
       relief:

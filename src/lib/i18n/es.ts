@@ -1084,6 +1084,8 @@ export const es: Catalog<typeof en> = {
       chapters_other: "capítulos",
       ready_one: "listo",
       ready_other: "listos",
+      learning_one: "aprendiendo",
+      learning_other: "aprendiendo",
       note: "de {{chapter}} listo · elige una barra",
       noteNone: "{{chapter}} sin preparar · elige una barra",
       relief:

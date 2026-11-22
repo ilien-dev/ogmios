@@ -115,6 +115,28 @@ describe("BookHome", () => {
     expect(navigate).toHaveBeenCalledWith({ name: "books", bookId: null });
   });
 
+  test("the book is counted in three chips: chapters, ready and learning", async () => {
+    const { books, book } = await shelf();
+    const [first] = book.chapters;
+    if (first === undefined) throw new Error("no chapter");
+    render(<Place books={books} start={first.id} />);
+
+    const ready = book.chapters.filter(
+      (each) => (each.readiness ?? 0) >= 100,
+    ).length;
+    const learning = book.chapters.filter(
+      (each) => each.readiness !== null && each.readiness < 100,
+    ).length;
+    for (const [count, label] of [
+      [book.chapters.length, "chapters"],
+      [ready, "ready"],
+      [learning, "learning"],
+    ] as const) {
+      const chip = screen.getByText(label, { selector: "span.rounded-full" });
+      expect(chip).toHaveTextContent(`${String(count)}${label}`);
+    }
+  });
+
   test("a bar, the search and a block each pick the chapter, for the whole screen", async () => {
     const user = userEvent.setup();
     const picked = mock();
