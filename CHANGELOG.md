@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.38.2](https://github.com/ilien-dev/ogmios/compare/v0.38.1...v0.38.2) (2026-11-26)
+
+
+### Bug Fixes
+
+* drop the second box around the daily review card ([#95](https://github.com/ilien-dev/ogmios/issues/95)) ([ca3accd](https://github.com/ilien-dev/ogmios/commit/ca3accd444c1e7c36b40caa93d77a0a028227525))
+* hyphenate words too long for the practice card ([#96](https://github.com/ilien-dev/ogmios/issues/96)) ([9998902](https://github.com/ilien-dev/ogmios/commit/99989025d02889d092ea22a633a4198381514a36))
+
 ## [0.38.1](https://github.com/ilien-dev/ogmios/compare/v0.38.0...v0.38.1) (2026-11-26)
 
 
