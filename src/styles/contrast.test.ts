@@ -32,6 +32,15 @@ const PAIRS = [
   ["adverb", "surface"],
   ["expression", "surface"],
   ["on-kind", "verb"],
+  ["ink", "correct-wash"],
+  ["ink", "partial-wash"],
+  ["ink", "wrong-wash"],
+  ["ink-soft", "correct-wash"],
+  ["ink-soft", "partial-wash"],
+  ["ink-soft", "wrong-wash"],
+  ["on-grade", "correct"],
+  ["on-grade", "partial"],
+  ["on-grade", "wrong"],
 ] as const;
 
 /** The text between the brace that follows `start` and its closing brace. */
@@ -150,6 +159,17 @@ for (const [name, theme] of [
     const noun = hue(theme.get("noun") ?? "");
     const adjective = hue(theme.get("adjective") ?? "");
     expect(apart(noun, adjective)).toBeGreaterThanOrEqual(90);
+  });
+}
+
+for (const [name, theme] of [
+  ["light", light],
+  ["dark", dark],
+] as const) {
+  test(`a right answer is green in the ${name} theme`, () => {
+    const correct = hue(theme.get("correct") ?? "");
+    expect(correct).toBeGreaterThanOrEqual(125);
+    expect(correct).toBeLessThanOrEqual(155);
   });
 }
 

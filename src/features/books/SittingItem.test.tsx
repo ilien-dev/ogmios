@@ -1163,3 +1163,48 @@ describe("telling which word is meant", () => {
     ).toBeNull();
   });
 });
+
+describe("the card takes on its verdict", () => {
+  useMockBackend();
+
+  const BARE: PracticeItem = { ...SHOWN, context: null, sentenceId: null };
+
+  /** The verdict the card shows once `answer` is checked as `checked`. */
+  async function verdictOn(
+    answer: string,
+    checked: Partial<Checked>,
+  ): Promise<string | null> {
+    const user = userEvent.setup();
+    stage(BARE, () => ({
+      ...PLAIN,
+      sentence: null,
+      correct: false,
+      accepted: ["remover"],
+      step: "next",
+      ...checked,
+    }));
+    const card = document.querySelector("[data-card]");
+    expect(card?.getAttribute("data-verdict")).toBeNull();
+    if (answer === "") {
+      await user.click(screen.getByRole("button", { name: /know/i }));
+    } else {
+      await user.type(
+        screen.getByLabelText("Your translation"),
+        `${answer}{Enter}`,
+      );
+    }
+    await screen.findByRole("button", { name: /next/i });
+    const verdict = card?.getAttribute("data-verdict") ?? null;
+    cleanup();
+    return verdict;
+  }
+
+  test("right, partial, wrong or only shown", async () => {
+    expect(await verdictOn("remover", { correct: true })).toBe("right");
+    expect(await verdictOn("remover", { correct: true, helped: true })).toBe(
+      "partial",
+    );
+    expect(await verdictOn("mover", { correct: false })).toBe("wrong");
+    expect(await verdictOn("", { correct: false })).toBe("neutral");
+  });
+});

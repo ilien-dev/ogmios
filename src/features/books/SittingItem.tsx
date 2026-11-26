@@ -17,12 +17,16 @@ import { Presence } from "@/components/motion/Presence";
 import { Reveal } from "@/components/motion/Reveal";
 import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
-import { VerdictLine } from "@/components/ui/Verdict";
+import {
+  VERDICT_WASH,
+  VerdictLine,
+  VerdictRibbon,
+} from "@/components/ui/Verdict";
 import { SpeakButton } from "@/features/speech/SpeakButton";
 import { useReadAloud } from "@/features/speech/speech";
 import { errorMessage } from "@/lib/errors";
 import { cn } from "@/lib/cn";
-import { grade } from "@/lib/grade";
+import { chime, prime, verdictTone } from "@/lib/chime";
 import { languageName } from "@/lib/text";
 import { DisputeNote } from "./DisputeNote";
 import type { DisputeState } from "./sittingRun";
@@ -85,38 +89,38 @@ function understoodLine(tip: SenseTip, t: TFunction): string {
     : t("books.sitting.understoodWhole");
 }
 
+/** What the verdict says in its ribbon, across the top of the card. */
+function verdictWords(result: Checked, unknown: boolean, t: TFunction): string {
+  const understood = result.understood ?? null;
+  if (understood !== null) {
+    return understoodLine(understood, t);
+  }
+  if (result.correct) {
+    return t("books.sitting.right");
+  }
+  return unknown ? t("books.sitting.shown") : t("books.sitting.wrong");
+}
+
 interface VerdictProps {
   result: Checked;
-  /** The learner said "I don't know": the answer is shown, nothing judged. */
-  unknown: boolean;
   /** The English answer, where there is one to hear. */
   heard: string | null;
 }
 
-function Verdict({ result, unknown, heard }: VerdictProps): ReactNode {
+/** What comes under a verdict: what is accepted, and the form wanted. */
+function Verdict({ result, heard }: VerdictProps): ReactNode {
   const { t } = useTranslation();
-  const miss = unknown ? t("books.sitting.shown") : t("books.sitting.wrong");
-  // "I don't know" is no miss to mark: only a typed answer is right or wrong.
-  const tone = unknown
-    ? "neutral"
-    : grade(result.correct, result.helped === true);
   const exact = result.exact ?? null;
   const understood = result.understood ?? null;
   if (understood !== null) {
     return (
       <div className="flex flex-col items-center gap-2">
-        <VerdictLine tone="partial">
-          {understoodLine(understood, t)}
-        </VerdictLine>
         <SenseTipLine tip={understood} />
       </div>
     );
   }
   return (
     <div className="flex flex-col items-center gap-2">
-      <VerdictLine tone={tone}>
-        {result.correct ? t("books.sitting.right") : miss}
-      </VerdictLine>
       <Presence>
         {result.accepted.length > 0 && (
           <Reveal key="accepted" as="p" className="text-ink">
@@ -309,6 +313,8 @@ export function SittingItem<Result extends Checked>({
     }
     setChecking(true);
     setFailure(null);
+    // Woken by this key or click: the verdict's sound comes after an await.
+    prime();
     try {
       const verdict = await check(text, again, hints > 0, rung);
       if (verdict.again === true) {
@@ -351,6 +357,7 @@ export function SittingItem<Result extends Checked>({
       }
       setUnknown(text === "");
       setResult(verdict);
+      chime(verdictTone(verdict, text === ""));
       onAnswered?.(verdict);
     } catch (error) {
       setFailure(errorMessage(error));
@@ -443,15 +450,19 @@ export function SittingItem<Result extends Checked>({
   const shade = toneOf(item.partOfSpeech);
   const from = toEnglish ? native : english;
   const to = toEnglish ? english : native;
+  // "I don't know" is no miss to mark: only a typed answer is right or wrong.
+  const tone = result === null ? null : verdictTone(result, unknown);
 
   return (
     <section className="mx-auto flex min-h-full w-full max-w-2xl flex-col items-center justify-center gap-6 px-6 pt-4 pb-16 text-center nav:px-10">
       <form onSubmit={submit} className="flex w-full flex-col gap-3">
         <div
           data-card
+          data-verdict={tone ?? undefined}
           className={cn(
-            "flex flex-col overflow-hidden rounded-2xl border-2 bg-surface shadow-card transition-shadow duration-300 ease-out-expo focus-within:shadow-glow-book",
+            "flex flex-col overflow-hidden rounded-2xl border-2 bg-surface shadow-card transition-[box-shadow,background-color,border-color] duration-300 ease-out-expo focus-within:shadow-glow-book",
             FRAME[shade],
+            tone !== null && VERDICT_WASH[tone],
           )}
         >
           <PracticeBand
@@ -461,6 +472,15 @@ export function SittingItem<Result extends Checked>({
             pointed={rung > 0 && sense !== null}
             irregular={item.irregular}
           />
+          <Presence>
+            {result !== null && tone !== null && (
+              <Reveal key="ribbon" kind="fade">
+                <VerdictRibbon tone={tone}>
+                  {verdictWords(result, unknown, t)}
+                </VerdictRibbon>
+              </Reveal>
+            )}
+          </Presence>
           <Presence>
             {item.verbForm !== null && (
               <Reveal key="forms" kind="fade">
@@ -523,7 +543,12 @@ export function SittingItem<Result extends Checked>({
           <label htmlFor={fieldId} className="sr-only">
             {t("books.sitting.answer")}
           </label>
-          <div className="flex items-center gap-2 border-t border-line bg-raised py-2 pr-2 pl-6">
+          <div
+            className={cn(
+              "flex items-center gap-2 border-t border-line bg-raised py-2 pr-2 pl-6 transition-colors duration-300",
+              tone !== null && tone !== "neutral" && "bg-transparent",
+            )}
+          >
             <input
               ref={field}
               id={fieldId}
@@ -637,7 +662,7 @@ export function SittingItem<Result extends Checked>({
         <Presence>
           {result !== null && (
             <Reveal key="result" className="flex flex-col items-center gap-5">
-              <Verdict result={result} unknown={unknown} heard={heard} />
+              <Verdict result={result} heard={heard} />
               <Presence>
                 {shown !== null && (
                   <Reveal key="shown">

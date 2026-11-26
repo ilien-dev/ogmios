@@ -22,8 +22,10 @@
  * vocabulary still being learned.
  *
  * The verdict scale says how an answer went and is read before any word is:
- * `correct` is blue, so it never reads as the mint of the accent, `partial`
- * an orange (right only with help, or something to work on), `wrong` red.
+ * `correct` is green, the green of a right answer, more grass than the mint
+ * of the accent; `partial` an orange (right only with help, or something to
+ * work on), `wrong` red. A word's card takes on its verdict: `*-wash` is the
+ * card's ground and `on-grade` text on a solid grade.
  * `danger` is for destructive actions and failed requests. `known` is the
  * blue of a word the learner already knows. `noun` (blue), `verb` (orange),
  * `adjective` (green), `adverb` (magenta) and `expression` (violet) tell the
@@ -77,12 +79,16 @@
   --color-mint: #4ade9b;
   --color-danger: oklch(0.52 0.17 25);
   --color-danger-soft: oklch(0.6 0.17 25 / 0.12);
-  --color-correct: oklch(0.5 0.15 255);
-  --color-correct-soft: oklch(0.62 0.14 255 / 0.14);
+  --color-correct: oklch(0.52 0.15 142);
+  --color-correct-soft: oklch(0.62 0.16 142 / 0.16);
+  --color-correct-wash: oklch(0.965 0.035 142);
   --color-partial: oklch(0.51 0.15 48);
   --color-partial-soft: oklch(0.7 0.17 50 / 0.18);
+  --color-partial-wash: oklch(0.965 0.035 60);
   --color-wrong: oklch(0.52 0.19 27);
   --color-wrong-soft: oklch(0.6 0.19 27 / 0.12);
+  --color-wrong-wash: oklch(0.965 0.03 27);
+  --color-on-grade: #ffffff;
   --color-known: oklch(0.5 0.13 245);
   --color-known-soft: oklch(0.62 0.13 245 / 0.14);
   --color-noun: oklch(0.5 0.17 258);
@@ -176,11 +182,27 @@
   --animate-shimmer: shimmer 6s ease-in-out infinite;
   --animate-float: float 7s ease-in-out infinite;
   --animate-breathe: breathe 3.2s ease-in-out infinite;
+  --animate-shake: shake 400ms ease-in-out both;
 
   /* What arrives on a row of a long list, where a `motion` node each is too dear. */
   @keyframes appear {
     from {
       opacity: 0;
+    }
+  }
+  /* A card whose answer was wrong: it shakes its head once. */
+  @keyframes shake {
+    20% {
+      transform: translateX(-6px);
+    }
+    40% {
+      transform: translateX(5px);
+    }
+    60% {
+      transform: translateX(-3px);
+    }
+    80% {
+      transform: translateX(2px);
     }
   }
   /* What an answer should have been, pointed out: it swells once. */
@@ -388,12 +410,16 @@
     --color-logo-side-accent: #1f6e4b;
     --color-danger: oklch(0.74 0.14 25);
     --color-danger-soft: oklch(0.7 0.15 25 / 0.14);
-    --color-correct: oklch(0.78 0.12 252);
-    --color-correct-soft: oklch(0.78 0.12 252 / 0.14);
+    --color-correct: oklch(0.8 0.17 142);
+    --color-correct-soft: oklch(0.78 0.17 142 / 0.18);
+    --color-correct-wash: oklch(0.26 0.045 142);
     --color-partial: oklch(0.78 0.14 55);
     --color-partial-soft: oklch(0.76 0.15 48 / 0.2);
+    --color-partial-wash: oklch(0.27 0.045 55);
     --color-wrong: oklch(0.74 0.16 25);
     --color-wrong-soft: oklch(0.7 0.17 25 / 0.15);
+    --color-wrong-wash: oklch(0.26 0.045 25);
+    --color-on-grade: #0b0c0e;
     --color-known: oklch(0.8 0.1 242);
     --color-known-soft: oklch(0.8 0.1 242 / 0.14);
     --color-noun: oklch(0.7 0.16 258);
@@ -448,12 +474,16 @@
     --color-book-ink: #ffe0ec;
     --color-recognition: #f7a8cb;
     --color-production: #a9bdf7;
-    --color-correct: oklch(0.8 0.15 150);
-    --color-correct-soft: oklch(0.78 0.15 150 / 0.16);
+    --color-correct: oklch(0.82 0.17 142);
+    --color-correct-soft: oklch(0.78 0.17 142 / 0.18);
+    --color-correct-wash: oklch(0.29 0.05 142);
     --color-partial: oklch(0.8 0.14 55);
     --color-partial-soft: oklch(0.76 0.15 48 / 0.2);
+    --color-partial-wash: oklch(0.3 0.05 55);
     --color-wrong: oklch(0.76 0.16 25);
     --color-wrong-soft: oklch(0.7 0.17 25 / 0.16);
+    --color-wrong-wash: oklch(0.29 0.05 25);
+    --color-on-grade: #1a1226;
     --color-noun: oklch(0.7 0.16 258);
     --color-noun-soft: oklch(0.7 0.16 258 / 0.24);
     --color-verb: oklch(0.74 0.16 48);
