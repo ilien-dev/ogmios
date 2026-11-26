@@ -40,7 +40,10 @@ export function TriageCard({ word, position }: TriageCardProps): ReactNode {
             </Reveal>
           )}
         </Presence>
-        <h1 className="font-display text-5xl font-semibold tracking-tight wrap-anywhere text-ink">
+        <h1
+          lang="en"
+          className="font-display text-5xl font-semibold tracking-tight wrap-anywhere hyphens-auto text-ink"
+        >
           {word.lemma}
         </h1>
       </div>

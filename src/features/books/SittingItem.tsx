@@ -470,8 +470,12 @@ export function SittingItem<Result extends Checked>({
           </Presence>
           <div className="flex flex-col items-center gap-4 px-14 pt-10 pb-8">
             {/* The speaker hangs beside the word, out of its width: the word
-                alone is what is centred. */}
-            <h1 className="relative font-display text-6xl font-light tracking-tight text-balance text-ink nav:text-7xl">
+                alone is what is centred. A word wider than the card breaks at
+                its syllables, with a hyphen, and anywhere if none fits. */}
+            <h1
+              lang={toEnglish ? nativeLang : "en"}
+              className="relative font-display text-6xl font-light tracking-tight text-balance wrap-anywhere hyphens-auto text-ink nav:text-7xl"
+            >
               {item.prompt}
               <Presence>
                 {!toEnglish && (

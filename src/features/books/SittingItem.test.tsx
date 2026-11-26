@@ -575,6 +575,23 @@ describe("a word asked with a sentence of its bank", () => {
     expect(way(BLANKED)).toEqual(["Spanish", "Spanish → English"]);
   });
 
+  test("a word too long for the card breaks at its syllables, in its own language", () => {
+    const never = (): Checked => ({ correct: false, accepted: [], step: null });
+    const heading = (item: PracticeItem): Array<string | null> => {
+      stage(item, never);
+      const word = screen.getByRole("heading", { level: 1 });
+      const seen = [
+        word.getAttribute("lang"),
+        word.className.includes("hyphens-auto") ? "hyphens" : null,
+        word.className.includes("wrap-anywhere") ? "wraps" : null,
+      ];
+      cleanup();
+      return seen;
+    };
+    expect(heading(SHOWN)).toEqual(["en", "hyphens", "wraps"]);
+    expect(heading(BLANKED)).toEqual(["es", "hyphens", "wraps"]);
+  });
+
   test("the way and the kind of word share the band across the top of the card", () => {
     stage(SHOWN, () => ({ correct: false, accepted: [], step: null }));
     const band = document.querySelector("[data-band]");
