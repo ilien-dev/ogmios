@@ -5,8 +5,9 @@
 //!
 //! Its answers are events of the word, never answers of a chapter: a miss
 //! here does not reopen the word where it was learned. A run keeps no words
-//! of its own: it asks the most overdue ones as they stand, in an order
-//! drawn for it, until it has asked `memory::recall::SIZE` or none is due.
+//! of its own: it asks the most overdue ones as they stand, of the effort
+//! it was started for, in an order drawn for it, until it has asked the
+//! words it was started for or none is due.
 //! No request to the model is made.
 //!
 //! A word's sentences come from every chapter that has it, and each one is
@@ -19,6 +20,7 @@ use chrono::{DateTime, Utc};
 use rusqlite::Connection;
 use tauri::AppHandle;
 
+use super::board::review_minutes;
 use super::ladder::{rise, Climb, ALONE};
 use super::practice::{
     all_small, another, asked_with, climb, clue, in_place, item_tied, judged, next_sentence, plain,
@@ -27,19 +29,21 @@ use super::practice::{
 use super::profile::require_profile;
 use super::run;
 use super::sentences::{refill, refill_after};
-use crate::books::practice::{accepts_english, pass_progress, pick, seed};
+use crate::books::practice::{accepts_english, pace, pass_progress, pick, seed, SIZES};
 use crate::books::sentences::{or_other, Verdict};
 use crate::books::spelling::Spelling;
+use crate::db::practice::pace_sample;
 use crate::db::practice::WordRow;
 use crate::db::recall::{self, RecallWord, RunRow, Source};
 use crate::db::sentences::{self, Sentence};
 use crate::db::{practice, profile};
 use crate::domain::{
-    Direction, PracticeItem, Recall, RecallAnswer, RecallState, RecallStep, RecallSummary,
-    SentencePart, Strength, Ways, WordHint,
+    Direction, EffortDue, PracticeItem, Recall, RecallAnswer, RecallOptions, RecallPlan,
+    RecallState, RecallStep, RecallSummary, SentencePart, SessionSize, Strength, Ways, WordEffort,
+    WordHint,
 };
 use crate::error::{Error, Result};
-use crate::memory::recall::{direction, strength, SIZE};
+use crate::memory::recall::{direction, strength};
 use crate::Ctx;
 
 /// Whether a run of these `ways` asks the word. One asked for in a
@@ -62,12 +66,13 @@ fn turn(conn: &Connection, run: &RunRow) -> Result<usize> {
         .saturating_add(understood))
 }
 
-/// The words due that the run can still ask: not the ones it found
-/// understood only with their sentence.
+/// The words due that the run can still ask: those of its effort, and not
+/// the ones it found understood only with their sentence.
 fn due_in(conn: &Connection, run: &RunRow, now: DateTime<Utc>) -> Result<Vec<RecallWord>> {
     let understood = recall::understood_keys(conn, &run.id)?;
     Ok(due(conn, run.ways, now)?
         .into_iter()
+        .filter(|word| run.effort.is_none_or(|effort| word.effort == effort))
         .filter(|word| !understood.contains(&word.key))
         .collect())
 }
@@ -180,7 +185,12 @@ fn step(conn: &Connection, run: &RunRow, now: DateTime<Utc>) -> Result<RecallSte
     let room = if run.finished {
         0
     } else {
-        SIZE.saturating_sub(turn).min(due.len())
+        run.size
+            .map_or(usize::MAX, |size| {
+                usize::try_from(size).unwrap_or(usize::MAX)
+            })
+            .saturating_sub(turn)
+            .min(due.len())
     };
     let drawn = pick(seed(&run.id), turn, room).and_then(|at| due.get(at));
     let Some(word) = drawn else {
@@ -221,12 +231,68 @@ pub fn state(ctx: Ctx<'_>, now: DateTime<Utc>) -> Result<RecallState> {
     })
 }
 
-/// Starts a run in these `ways` and gives its first word, or its summary
-/// when nothing is due.
+/// The efforts a run can be started for, hardest first.
+const EFFORTS: [WordEffort; 3] = [WordEffort::Hard, WordEffort::Mid, WordEffort::Easy];
+
+/// What a run in these `ways` can be started with by `now`: the words due
+/// of each effort with the sizes on offer, as the chapters offer theirs,
+/// and every word due at once. Each with about how long it takes at the
+/// learner's pace, one answer a word.
+pub fn options(ctx: Ctx<'_>, ways: Ways, now: DateTime<Utc>) -> Result<RecallOptions> {
+    let conn = ctx.conn()?;
+    let due = due(&conn, ways, now)?;
+    let (answers, gaps) = pace_sample(&conn)?;
+    let pace = pace(answers, &gaps);
+    let size = |words: usize, size: Option<u32>| {
+        let words = u32::try_from(words).unwrap_or(u32::MAX);
+        let words = size.map_or(words, |size| size.min(words));
+        SessionSize {
+            size,
+            words,
+            minutes: review_minutes(words, pace),
+        }
+    };
+    let efforts = EFFORTS
+        .into_iter()
+        .map(|effort| {
+            let count = due.iter().filter(|word| word.effort == effort).count();
+            let words = u32::try_from(count).unwrap_or(u32::MAX);
+            EffortDue {
+                effort,
+                due: words,
+                sizes: SIZES
+                    .iter()
+                    .filter(|each| words > **each)
+                    .map(|each| size(count, Some(*each)))
+                    .chain([size(count, None)])
+                    .collect(),
+            }
+        })
+        .collect();
+    Ok(RecallOptions {
+        efforts,
+        all: size(due.len(), None),
+    })
+}
+
+/// Starts a run in these `ways` of ten words at most, of any effort, as
+/// every run was before the learner could choose.
+#[cfg(test)]
 pub fn start(ctx: Ctx<'_>, ways: Ways, now: DateTime<Utc>) -> Result<Recall> {
+    let plan = RecallPlan {
+        ways,
+        effort: None,
+        size: Some(u32::try_from(crate::memory::recall::SIZE).unwrap_or(u32::MAX)),
+    };
+    start_plan(ctx, plan, now)
+}
+
+/// Starts a run as `plan` says and gives its first word, or its summary
+/// when nothing is due.
+pub fn start_plan(ctx: Ctx<'_>, plan: RecallPlan, now: DateTime<Utc>) -> Result<Recall> {
     let mut conn = ctx.conn()?;
     let tx = conn.transaction()?;
-    let run = recall::run(&tx, &recall::start(&tx, ways, now)?)?;
+    let run = recall::run(&tx, &recall::start(&tx, plan, now)?)?;
     let step = step(&tx, &run, now)?;
     tx.commit()?;
     Ok(Recall { id: run.id, step })
@@ -513,8 +579,13 @@ pub async fn recall_state(app: AppHandle) -> Result<RecallState> {
 }
 
 #[tauri::command]
-pub async fn start_recall(app: AppHandle, ways: Ways) -> Result<Recall> {
-    run(app, move |_, ctx| start(ctx, ways, Utc::now())).await
+pub async fn recall_options(app: AppHandle, ways: Ways) -> Result<RecallOptions> {
+    run(app, move |_, ctx| options(ctx, ways, Utc::now())).await
+}
+
+#[tauri::command]
+pub async fn start_recall(app: AppHandle, plan: RecallPlan) -> Result<Recall> {
+    run(app, move |_, ctx| start_plan(ctx, plan, Utc::now())).await
 }
 
 /// The chapter whose sentences of the word `key` are to be written again
@@ -605,9 +676,10 @@ mod tests {
     use super::*;
     use crate::commands::practice::tests::{numbered, t0, translation, Desk};
     use crate::db::sessions;
+    use crate::db::ts;
     use crate::db::words;
     use crate::domain::{SittingProgress, VocabItem};
-    use crate::memory::recall::DAYS;
+    use crate::memory::recall::{DAYS, SIZE};
 
     fn days(n: i64) -> DateTime<Utc> {
         t0() + TimeDelta::days(n)
@@ -756,6 +828,125 @@ mod tests {
             desk.count("SELECT COUNT(*) FROM chapter_words WHERE done_at IS NULL"),
             0
         );
+    }
+
+    /// Fifty words learned at `t0`: the first twelve missed three times,
+    /// the next twenty-five once, the last thirteen never.
+    fn by_effort(desk: &Desk) {
+        learned(desk, "b", 50);
+        let ctx = desk.ctx();
+        let conn = ctx.conn().expect("conn");
+        for n in 0..37 {
+            let misses = if n < 12 { 3 } else { 1 };
+            for _ in 0..misses {
+                conn.execute(
+                    "INSERT INTO word_events (key, kind, created_at) VALUES (?1, 'miss', ?2)",
+                    rusqlite::params![format!("w{n:02}"), ts(t0())],
+                )
+                .expect("miss");
+            }
+        }
+    }
+
+    /// A run of `plan` answered right to its summary; the keys asked.
+    fn play_plan(
+        desk: &Desk,
+        plan: RecallPlan,
+        now: DateTime<Utc>,
+    ) -> (Vec<String>, RecallSummary) {
+        let run = start_plan(desk.ctx(), plan, now).expect("start");
+        let mut step = run.step.clone();
+        let mut keys = Vec::new();
+        loop {
+            if let RecallStep::Summary { summary, .. } = step {
+                return (keys, summary);
+            }
+            keys.push(shown(&step).word_id.clone());
+            step = reply(desk, &run, &step, true, now).step;
+        }
+    }
+
+    fn plan(effort: Option<WordEffort>, size: Option<u32>) -> RecallPlan {
+        RecallPlan {
+            ways: Ways::Both,
+            effort,
+            size,
+        }
+    }
+
+    /// An effort as it is offered: its words due, its sizes and their words.
+    type Offered = (WordEffort, u32, Vec<Option<u32>>, Vec<u32>);
+
+    #[test]
+    fn the_words_due_are_offered_by_effort_in_the_sizes_of_a_chapter() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let desk = Desk::new(&dir);
+        by_effort(&desk);
+        let now = options(desk.ctx(), Ways::Both, days(1)).expect("options");
+        let offered: Vec<Offered> = now
+            .efforts
+            .iter()
+            .map(|each| {
+                (
+                    each.effort,
+                    each.due,
+                    each.sizes.iter().map(|size| size.size).collect(),
+                    each.sizes.iter().map(|size| size.words).collect(),
+                )
+            })
+            .collect();
+        assert_eq!(
+            offered,
+            [
+                (WordEffort::Hard, 12, vec![Some(10), None], vec![10, 12]),
+                (
+                    WordEffort::Mid,
+                    25,
+                    vec![Some(10), Some(20), None],
+                    vec![10, 20, 25]
+                ),
+                (WordEffort::Easy, 13, vec![Some(10), None], vec![10, 13]),
+            ]
+        );
+        assert_eq!((now.all.size, now.all.words), (None, 50));
+        assert!(now.all.minutes >= now.efforts[0].sizes[0].minutes && now.all.minutes > 0);
+
+        // Nothing due yet: every effort is offered empty.
+        let early = options(desk.ctx(), Ways::Both, t0()).expect("options");
+        assert!(early.efforts.iter().all(|each| each.due == 0));
+        assert_eq!(early.all.minutes, 0);
+    }
+
+    #[test]
+    fn a_run_asks_only_the_words_of_its_effort_and_as_many_as_chosen() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let desk = Desk::new(&dir);
+        by_effort(&desk);
+        let hard: Vec<String> = (0..12).map(|n| format!("w{n:02}")).collect();
+
+        let (asked, summary) = play_plan(&desk, plan(Some(WordEffort::Hard), Some(10)), days(1));
+        assert_eq!(asked.len(), 10);
+        assert!(asked.iter().all(|key| hard.contains(key)), "{asked:?}");
+        assert_eq!(summary.left, 2, "the hard ones still due");
+
+        let (rest, summary) = play_plan(&desk, plan(Some(WordEffort::Hard), Some(10)), days(1));
+        assert_eq!(rest.len(), 2);
+        assert_eq!(summary.left, 0);
+
+        let (mid, _) = play_plan(&desk, plan(Some(WordEffort::Mid), Some(20)), days(1));
+        assert_eq!(mid.len(), 20);
+        assert!(mid.iter().all(|key| !hard.contains(key)));
+    }
+
+    #[test]
+    fn a_run_of_every_word_asks_all_that_are_due_at_once() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let desk = Desk::new(&dir);
+        by_effort(&desk);
+        let (asked, summary) = play_plan(&desk, plan(None, None), days(1));
+        assert_eq!(asked.len(), 50);
+        assert_eq!(summary.left, 0);
+        assert_eq!(due_now(&desk, days(1)), 0);
     }
 
     #[test]

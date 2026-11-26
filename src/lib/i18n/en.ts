@@ -1170,6 +1170,59 @@ export const en = {
     allRight: "Nothing slipped.",
     more: "Another round",
     back: "Done",
+    another: "Another round of {{name}}",
+    chooseAgain: "Choose something else",
+    choose: {
+      title: "What will you review today?",
+      lead_one:
+        "{{count}} word is waiting today. Take a piece; the rest will wait for you.",
+      lead_other:
+        "{{count}} words are waiting today. Take a piece; the rest will wait for you.",
+      which: "Which ones",
+      none: "None today.",
+      how: "How is it decided?",
+      rules:
+        "Each word adds up every miss it has had, in its chapter and in the daily review: three or more make it stubborn, one or two hard-won, none first try. In each, the ones waiting longest come first.",
+      howMany: "How many {{name}}",
+      everything: "Review everything due",
+    },
+    everything: {
+      title: "Review everything at once?",
+      lead_one:
+        "This takes you straight to every word you have waiting: {{count}} word, about {{minutes}} min.",
+      lead_other:
+        "This takes you straight to every word you have waiting: {{count}} words, about {{minutes}} min.",
+      ask: "Would you rather go by effort, or in parts of 10, 20 or 40?",
+      go_one: "Review the {{count}}",
+      go_other: "Review all {{count}}",
+      parts: "Choose in parts",
+    },
+    effort: {
+      hard: {
+        name: "Stubborn",
+        rule: "3 misses or more",
+        hint: "The ones that cost you most.",
+        bars: "Much effort",
+        count_one: "{{count}} stubborn",
+        count_other: "{{count}} stubborn",
+      },
+      mid: {
+        name: "Hard-won",
+        rule: "1 or 2 misses",
+        hint: "They cost you, but you got them.",
+        bars: "Some effort",
+        count_one: "{{count}} hard-won",
+        count_other: "{{count}} hard-won",
+      },
+      easy: {
+        name: "First try",
+        rule: "No misses",
+        hint: "They go fast.",
+        bars: "Little effort",
+        count_one: "{{count}} first try",
+        count_other: "{{count}} first try",
+      },
+    },
     board: {
       scene: "Your words by strength",
       due: "due today",

@@ -12,6 +12,7 @@ import { Home } from "@/features/home/Home";
 import { ListeningScreen } from "@/features/listening/ListeningScreen";
 import { Onboarding } from "@/features/onboarding/Onboarding";
 import { ProgressScreen } from "@/features/progress/ProgressScreen";
+import { RecallChoose } from "@/features/recall/RecallChoose";
 import { RecallRun } from "@/features/recall/RecallRun";
 import { ReportScreen } from "@/features/report/ReportScreen";
 import { SettingsScreen } from "@/features/settings/SettingsScreen";
@@ -213,10 +214,26 @@ export function App(): ReactNode {
           />
         );
       case "recall":
-        return (
-          <RecallRun
-            ways={route.running}
+        return route.running === null ? (
+          <RecallChoose
+            ways={route.ways ?? "both"}
             nativeLang={profile.nativeLang}
+            onStart={(plan) => {
+              navigate({ name: "recall", running: plan });
+            }}
+            onLeave={leave}
+          />
+        ) : (
+          <RecallRun
+            plan={route.running}
+            nativeLang={profile.nativeLang}
+            onChoose={() => {
+              navigate({
+                name: "recall",
+                running: null,
+                ways: route.running?.ways,
+              });
+            }}
             onDone={leave}
           />
         );

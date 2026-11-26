@@ -1,8 +1,11 @@
 /**
  * The mock's daily recall: `src-tauri/src/commands/recall.rs` in small. The
  * words finished on the shelf are due until one is answered right; a run
- * asks ten at most, each once, and a word missed in it is due again for the
- * next run: the mock has no tomorrow. A right answer takes the word a step
+ * asks the words of its effort, as many as it was started for, each once,
+ * and a word missed in it is due again for the next run: the mock has no
+ * tomorrow. Its shelf comes with a history: of the words in shelf order,
+ * every third from the first was missed three times in its chapter and
+ * every third from the second once, so each effort has words. A right answer takes the word a step
  * up and a miss one down, Nothing here reopens a word in its
  * chapter.
  */
@@ -14,10 +17,12 @@ import type {
   RecallState,
   RecallStep,
   Strength,
+  SessionSize,
   Ways,
   WordHint,
 } from "@shared/domain";
 import type { BookReviews } from "@shared/board";
+import type { RecallOptions, RecallPlan, WordEffort } from "@shared/recall";
 import { mockBookId } from "./ipcMockBooks";
 import { mockLearnedChapters, mockLearnedWords } from "./ipcMockChapters";
 import {
@@ -30,16 +35,20 @@ import {
 } from "./ipcMockPractice";
 import {
   addMockWordMiss,
+  mockWordMisses,
   mockWordStep,
   mockWordStrength,
   setMockWordStep,
 } from "./ipcMockWords";
 
-/** Words a run asks at most. */
-const SIZE = 10;
+/** The sizes a run is offered in, as a chapter's sessions are. */
+const SIZES = [10, 20, 40];
 
 interface Run {
   ways: Ways;
+  effort: WordEffort | null;
+  /** Words it asks at most; null for every one due. */
+  size: number | null;
   right: number;
   missed: number;
   /** The words it has asked: it asks none twice. */
@@ -69,9 +78,32 @@ function due(): BookWord[] {
   return learned().filter((word) => !held.has(word.lemma));
 }
 
-/** The due words a run has yet to ask. */
+/** Every miss of a word: those of its shelf's history and the recall's. */
+function misses(word: BookWord): number {
+  const at = learned().findIndex((each) => each.lemma === word.lemma);
+  const history = [3, 1, 0][at % 3] ?? 0;
+  return history + mockWordMisses(word.lemma);
+}
+
+/** How much a word cost: `memory::recall::effort`. */
+function effortOf(word: BookWord): WordEffort {
+  const count = misses(word);
+  if (count >= 3) {
+    return "hard";
+  }
+  return count > 0 ? "mid" : "easy";
+}
+
+/** Whether a run asks a word of this effort. */
+function ofEffort(word: BookWord, run: Run): boolean {
+  return run.effort === null || effortOf(word) === run.effort;
+}
+
+/** The due words a run has yet to ask: those of its effort. */
 function left(run: Run): BookWord[] {
-  return due().filter((word) => !run.asked.has(word.lemma));
+  return due().filter(
+    (word) => !run.asked.has(word.lemma) && ofEffort(word, run),
+  );
 }
 
 /** Seconds an answer of the review takes at the default pace. */
@@ -116,12 +148,19 @@ function way(word: BookWord, run: Run): Direction {
 function stepOf(run: Run): RecallStep {
   const rest = left(run);
   const answered = run.right + run.missed;
-  const room = Math.min(Math.max(SIZE - answered, 0), rest.length);
+  const room = Math.min(
+    Math.max((run.size ?? Number.POSITIVE_INFINITY) - answered, 0),
+    rest.length,
+  );
   const [word] = rest;
   if (word === undefined || room === 0) {
     return {
       type: "summary",
-      summary: { right: run.right, missed: run.missed, left: due().length },
+      summary: {
+        right: run.right,
+        missed: run.missed,
+        left: due().filter((each) => ofEffort(each, run)).length,
+      },
       progress: { value: answered, total: answered },
     };
   }
@@ -145,9 +184,38 @@ function state(): RecallState {
   };
 }
 
-function start(ways: Ways): Recall {
+/** A size of `words` words, with about how long it takes. */
+function sized(size: number | null, words: number): SessionSize {
+  const minutes =
+    words === 0
+      ? 0
+      : Math.max(1, Math.round((words * SECONDS_PER_ANSWER) / 60));
+  return { size, words, minutes };
+}
+
+function options(): RecallOptions {
+  const words = due();
+  return {
+    efforts: (["hard", "mid", "easy"] as const).map((effort) => {
+      const count = words.filter((word) => effortOf(word) === effort).length;
+      return {
+        effort,
+        due: count,
+        sizes: [
+          ...SIZES.filter((size) => count > size).map((size) =>
+            sized(size, size),
+          ),
+          sized(null, count),
+        ],
+      };
+    }),
+    all: sized(null, words.length),
+  };
+}
+
+function start(plan: RecallPlan): Recall {
   const id = `recall-${String(runs.size + 1)}`;
-  const run = { ways, right: 0, missed: 0, asked: new Set<string>() };
+  const run = { ...plan, right: 0, missed: 0, asked: new Set<string>() };
   runs.set(id, run);
   return { id, step: stepOf(run) };
 }
@@ -220,7 +288,9 @@ export function recallCommands(
   return {
     recall_state: () => after(120, state),
     book_due: (args) => after(100, () => bookDue(arg(args, "bookId"))),
-    start_recall: (args) => after(150, () => start(arg(args, "ways") as Ways)),
+    recall_options: () => after(100, options),
+    start_recall: (args) =>
+      after(150, () => start((args as { plan: RecallPlan }).plan)),
     answer_recall: (args) =>
       after(80, () =>
         answer(

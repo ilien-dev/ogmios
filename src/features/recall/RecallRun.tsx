@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import type { RecallStep, Ways } from "@shared/domain";
+import type { RecallStep } from "@shared/domain";
+import type { RecallPlan } from "@shared/recall";
 import { SittingItem } from "@/features/books/SittingItem";
 import {
   SittingEnd,
@@ -26,22 +27,31 @@ interface Run {
 }
 
 interface RoundProps {
-  ways: Ways;
+  plan: RecallPlan;
   nativeLang: string;
   /** Another run, for the words still due. */
   onMore: () => void;
+  /** Back to choosing what to review. */
+  onChoose: () => void;
   onDone: () => void;
 }
 
 /** One run, from its first word to its summary. */
-function Round({ ways, nativeLang, onMore, onDone }: RoundProps): ReactNode {
+function Round({
+  plan,
+  nativeLang,
+  onMore,
+  onChoose,
+  onDone,
+}: RoundProps): ReactNode {
   const { t } = useTranslation();
   const [run, setRun] = useState<Run | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
 
+  const { ways, effort, size } = plan;
   useEffect(() => {
     let live = true;
-    startRecall(ways)
+    startRecall({ ways, effort, size })
       .then((recall) => {
         if (live) {
           setRun({ id: recall.id, step: recall.step, turn: 0 });
@@ -55,7 +65,7 @@ function Round({ ways, nativeLang, onMore, onDone }: RoundProps): ReactNode {
     return () => {
       live = false;
     };
-  }, [ways]);
+  }, [ways, effort, size]);
 
   /** Names what is on the screen: a new word is a new step. */
   const stepNow = (): string => {
@@ -73,6 +83,14 @@ function Round({ ways, nativeLang, onMore, onDone }: RoundProps): ReactNode {
     if (step.type === "summary") {
       const { right, missed, left } = step.summary;
       const back = { label: t("recall.back"), onChoose: onDone };
+      const choose = { label: t("recall.chooseAgain"), onChoose };
+      const again = {
+        label:
+          effort === null
+            ? t("recall.more")
+            : t("recall.another", { name: t(`recall.effort.${effort}.name`) }),
+        onChoose: onMore,
+      };
       const more = left > 0;
       return (
         <SittingEnd
@@ -85,8 +103,8 @@ function Round({ ways, nativeLang, onMore, onDone }: RoundProps): ReactNode {
               : t("recall.allRight")
           }
           restGrade={missed > 0 ? "wrong" : undefined}
-          first={more ? { label: t("recall.more"), onChoose: onMore } : back}
-          other={more ? back : null}
+          first={more ? again : back}
+          other={choose}
         />
       );
     }
@@ -131,34 +149,39 @@ function Round({ ways, nativeLang, onMore, onDone }: RoundProps): ReactNode {
 }
 
 interface RecallRunProps {
-  ways: Ways;
+  plan: RecallPlan;
   nativeLang: string;
+  /** Back to choosing what to review, from the summary. */
+  onChoose: () => void;
   /** Leaving, at any moment or from the summary. */
   onDone: () => void;
 }
 
 /**
- * A run of the daily recall: up to ten learned words that are due, of any
- * book or conversation, each asked once with the form practice asks with. A
+ * A run of the daily recall: the learned words that are due, of any book or
+ * conversation, of the effort and as many as its plan says, each asked once
+ * with the form practice asks with. A
  * right answer sends the word further away, a miss brings it back tomorrow,
  * and neither touches the chapter it came from. Leaving keeps every answer:
  * the words not asked are still due. A word that keeps slipping shows the
  * learner's own note under its miss.
  */
 export function RecallRun({
-  ways,
+  plan,
   nativeLang,
+  onChoose,
   onDone,
 }: RecallRunProps): ReactNode {
   const [round, setRound] = useState(0);
   return (
     <Round
       key={round}
-      ways={ways}
+      plan={plan}
       nativeLang={nativeLang}
       onMore={() => {
         setRound((held) => held + 1);
       }}
+      onChoose={onChoose}
       onDone={onDone}
     />
   );

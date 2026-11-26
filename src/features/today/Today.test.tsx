@@ -5,6 +5,7 @@ import { chapterOn } from "@/features/books/currentChapter";
 import type { Current } from "@/features/books/currentChapter";
 import { i18n } from "@/lib/i18n/i18n";
 import { homeState, listBooks, structuresState } from "@/lib/ipc";
+import { seedMockReadiness } from "@/lib/ipcMockChapters";
 import { setMockHome } from "@/lib/ipcMockHome";
 import { useMockBackend } from "@/test/mockBackend";
 import { Today } from "./Today";
@@ -26,6 +27,19 @@ describe("Today", () => {
 
   beforeEach(() => {
     setMockHome({ dueWords: 7, dueReviews: 2 });
+  });
+
+  test("the words say how they split by effort", async () => {
+    seedMockReadiness();
+    render(<Today current={await current()} navigate={mock()} />);
+
+    const queue = within(
+      await screen.findByRole("region", { name: "Daily review" }),
+    );
+    expect(await queue.findByText(/^\d+ stubborn$/u)).toBeInTheDocument();
+    expect(queue.getByText(/^\d+ hard-won$/u)).toBeInTheDocument();
+    expect(queue.getByText(/^\d+ first try$/u)).toBeInTheDocument();
+    expect(queue.getByRole("img", { name: "Much effort" })).toBeInTheDocument();
   });
 
   test("the daily review is one queue: every kind, what comes back and where it comes from", async () => {
@@ -64,7 +78,7 @@ describe("Today", () => {
     );
     expect(navigate).toHaveBeenLastCalledWith({
       name: "recall",
-      running: "both",
+      running: null,
     });
     await user.click(
       within(review()).getByRole("button", { name: /^Drills:/u }),
@@ -134,7 +148,7 @@ describe("Today", () => {
 
     expect(navigate).toHaveBeenLastCalledWith({
       name: "recall",
-      running: "both",
+      running: null,
     });
   });
 

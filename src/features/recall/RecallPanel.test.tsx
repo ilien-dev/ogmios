@@ -5,6 +5,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { UserEvent } from "@testing-library/user-event";
 import type { Ways } from "@shared/domain";
+import type { RecallPlan } from "@shared/recall";
 import { seedMockReadiness } from "@/lib/ipcMockChapters";
 import {
   holdMockSentences,
@@ -12,6 +13,7 @@ import {
 } from "@/lib/ipcMockSentences";
 import { useMockBackend } from "@/test/mockBackend";
 import { RecallBoard, RecallScene, useRecallToday } from "./RecallPanel";
+import { RecallChoose } from "./RecallChoose";
 import { RecallRun } from "./RecallRun";
 
 /** A right answer to each word the seeded shelf has finished. */
@@ -37,21 +39,52 @@ function Panel({ onStart }: { onStart: (ways: Ways) => void }): ReactNode {
   );
 }
 
-/** The daily review as the app holds it: a run takes the whole window. */
+type Stage =
+  | { name: "panel" }
+  | { name: "choose"; ways: Ways }
+  | { name: "run"; plan: RecallPlan };
+
+/**
+ * The daily review as the app holds it: what to review is chosen first, and
+ * then a run takes the whole window.
+ */
 function Section(): ReactNode {
-  const [running, setRunning] = useState<Ways | null>(null);
-  if (running !== null) {
+  const [stage, setStage] = useState<Stage>({ name: "panel" });
+  if (stage.name === "run") {
     return (
       <RecallRun
-        ways={running}
+        plan={stage.plan}
         nativeLang="es"
+        onChoose={() => {
+          setStage({ name: "choose", ways: stage.plan.ways });
+        }}
         onDone={() => {
-          setRunning(null);
+          setStage({ name: "panel" });
         }}
       />
     );
   }
-  return <Panel onStart={setRunning} />;
+  if (stage.name === "choose") {
+    return (
+      <RecallChoose
+        ways={stage.ways}
+        nativeLang="es"
+        onStart={(plan) => {
+          setStage({ name: "run", plan });
+        }}
+        onLeave={() => {
+          setStage({ name: "panel" });
+        }}
+      />
+    );
+  }
+  return (
+    <Panel
+      onStart={(ways) => {
+        setStage({ name: "choose", ways });
+      }}
+    />
+  );
 }
 
 function prompt(): string {
@@ -70,6 +103,13 @@ async function begin(): Promise<UserEvent> {
 async function start(user: UserEvent): Promise<void> {
   await user.click(await screen.findByRole("radio", { name: /^English → / }));
   await user.click(screen.getByRole("button", { name: "Start" }));
+  // Every word due at once, after saying how many that is.
+  await user.click(
+    await screen.findByRole("button", { name: /^Review everything due/u }),
+  );
+  await user.click(
+    await screen.findByRole("button", { name: /^Review (all|the) \d+$/u }),
+  );
   await screen.findByLabelText("Your translation");
 }
 
@@ -148,6 +188,9 @@ describe("the daily recall", () => {
     const user = userEvent.setup();
     render(<Section />);
     await user.click(await screen.findByRole("radio", { name: "Both" }));
+    await user.click(screen.getByRole("button", { name: "Start" }));
+    // The hardest words, as few as are offered: chosen already.
+    await screen.findByRole("heading", { name: "What will you review today?" });
     await user.click(screen.getByRole("button", { name: "Start" }));
     await screen.findByLabelText("Your translation");
 

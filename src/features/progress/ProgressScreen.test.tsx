@@ -171,7 +171,8 @@ describe("the words", () => {
     await user.click(start);
     expect(navigate).toHaveBeenCalledWith({
       name: "recall",
-      running: "recognition",
+      running: null,
+      ways: "recognition",
     });
   });
 

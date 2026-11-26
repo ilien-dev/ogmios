@@ -60,7 +60,7 @@ pub fn chapter_strengths(ctx: Ctx<'_>, book_id: &str) -> Result<Vec<ChapterStren
 /// About how many minutes `words` words of the daily review take at `pace`
 /// milliseconds an answer: it asks each once. Rounded to the nearest minute,
 /// and never less than one while there is a word to ask.
-fn review_minutes(words: u32, pace: u64) -> u32 {
+pub(super) fn review_minutes(words: u32, pace: u64) -> u32 {
     const MINUTE_MS: u64 = 60_000;
     if words == 0 {
         return 0;

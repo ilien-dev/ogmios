@@ -398,9 +398,15 @@ como "ya la sé". Las que usó el compañero no entran: no tienen traducción co
 
 - **Calendario (código, sin modelo):** cada palabra está en un escalón. Vuelve a los
   1 → 3 → 7 → 21 → 60 días del último repaso. Un acierto la sube un escalón, un fallo la baja uno.
-- **Una ronda:** hasta 10 palabras vencidas, las más atrasadas, cada una una vez y en orden
-  aleatorio. Se elige inglés → idioma nativo, al revés, o ambos (alterna según el escalón). Las
-  pedidas en una charla solo se preguntan hacia el inglés. Hoy las cuenta en su cola.
+- **Una ronda:** antes de empezar se elige qué repasar. Primero, por esfuerzo: Rebeldes (3 fallos
+  o más entre práctica y repaso, las mismas que se resisten), Ganadas a pulso (1 o 2) o A la
+  primera (ninguno); los fallos nunca se borran, así que cuentan la historia de la palabra.
+  Después, cuántas: 10, 20 o 40 como en el capítulo, o todas las de esa categoría, cada tamaño
+  con su duración al ritmo del usuario. Por defecto, la categoría más difícil con palabras y el
+  tamaño menor. "Repasar todo lo pendiente" junta las tres después de avisar cuántas palabras y
+  minutos son. Dentro de la ronda van las más atrasadas, cada una una vez y en orden aleatorio.
+  Se elige inglés → idioma nativo, al revés, o ambos (alterna según el escalón). Las pedidas en
+  una charla solo se preguntan hacia el inglés. Hoy las cuenta en su cola, partidas por esfuerzo.
 - **Un fallo no reabre el capítulo.** Las respuestas del repaso se guardan aparte de las de la
   práctica: el capítulo sigue listo para leer.
 - **Uso en conversación:** el compañero recibe hasta 5 palabras aprendidas, las más cercanas a

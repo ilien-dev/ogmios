@@ -67,6 +67,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("spellings.sql"),
     include_str!("cues.sql"),
     include_str!("refills.sql"),
+    include_str!("efforts.sql"),
 ];
 
 pub fn open(path: &Path) -> Result<Connection> {
@@ -804,6 +805,29 @@ mod tests {
                 vec!["tendría alguna oportunidad".to_owned()]
             )]
         );
+    }
+
+    #[test]
+    fn migration_forty_three_keeps_an_earlier_run_of_the_recall_as_it_was() {
+        let conn = Connection::open_in_memory().expect("open");
+        conn.pragma_update(None, "foreign_keys", "ON").expect("fk");
+        for sql in &MIGRATIONS[..42] {
+            conn.execute_batch(sql).expect("migration");
+        }
+        conn.pragma_update(None, "user_version", 42)
+            .expect("version");
+        conn.execute_batch(
+            "INSERT INTO recall_sittings (id, ways, started_at)
+               VALUES ('r', 'recognition', '2026-01-01');",
+        )
+        .expect("rows");
+
+        migrate(&conn).expect("migrate");
+        let run = recall::run(&conn, "r").expect("run");
+        assert_eq!(run.ways, crate::domain::Ways::Recognition);
+        assert_eq!(run.effort, None, "it asked every effort");
+        assert_eq!(run.size, Some(10), "it asked ten at most");
+        assert!(!run.finished);
     }
 
     #[test]
