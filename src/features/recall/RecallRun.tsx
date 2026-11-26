@@ -9,7 +9,7 @@ import {
   SittingStage,
   SittingWait,
 } from "@/features/books/SittingParts";
-import { RunBackdrop, RunCard } from "@/features/drills/ScreenParts";
+import { RunBackdrop } from "@/features/drills/ScreenParts";
 import { errorMessage } from "@/lib/errors";
 import {
   answerRecall,
@@ -122,7 +122,7 @@ function Round({ ways, nativeLang, onMore, onDone }: RoundProps): ReactNode {
       >
         <SittingStage step={stepNow()}>
           <div className="flex min-h-full items-center px-4 pt-2 pb-16">
-            <RunCard>{asking()}</RunCard>
+            <div className="mx-auto w-full max-w-2xl">{asking()}</div>
           </div>
         </SittingStage>
       </SittingFrame>
