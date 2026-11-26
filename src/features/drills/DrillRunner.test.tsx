@@ -11,6 +11,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { UserEvent } from "@testing-library/user-event";
 import { MotionGlobalConfig } from "motion/react";
+import * as chimes from "@/lib/chime";
 import * as ipc from "@/lib/ipc";
 import { startDrill } from "@/lib/ipc";
 import { useMockBackend } from "@/test/mockBackend";
@@ -22,6 +23,7 @@ describe("DrillRunner", () => {
 
   test("a miss explains, then adds one similar item to try again", async () => {
     const user = userEvent.setup();
+    const chime = spyOn(chimes, "chime");
     const drill = await startDrill(null, "transformation");
     render(<DrillRunner drill={drill} onAgain={mock()} onClose={mock()} />);
 
@@ -57,6 +59,9 @@ describe("DrillRunner", () => {
     expect(
       screen.queryByRole("button", { name: "Try a similar one" }),
     ).toBeNull();
+    // Each verdict is heard too: a miss, then right on the second chance.
+    expect(chime.mock.calls).toEqual([["wrong"], ["partial"]]);
+    chime.mockRestore();
   });
 
   test("spot the error: pick the sentence, rewrite it, then see the summary", async () => {

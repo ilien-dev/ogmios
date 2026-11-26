@@ -13,6 +13,7 @@ import { TextArea } from "@/components/ui/TextArea";
 import { GRADE_FILL, VerdictLine } from "@/components/ui/Verdict";
 import { cn } from "@/lib/cn";
 import { errorMessage } from "@/lib/errors";
+import { chime, prime } from "@/lib/chime";
 import { grade } from "@/lib/grade";
 import type { Grade } from "@/lib/grade";
 import { answerDrill } from "@/lib/ipc";
@@ -382,7 +383,10 @@ export function DrillRunner({
   });
 
   const answer = async (asked: DrillItem, text: string): Promise<void> => {
+    // Woken by this key or click: the verdict's sound comes after an await.
+    prime();
     const result = await answerDrill(drill.id, asked.index, text);
+    chime(grade(result.correct, retries.has(asked)));
     setAnswered((held) => [...held, { item: asked, response: text, result }]);
     if (result.retry !== null) {
       const retry = result.retry;

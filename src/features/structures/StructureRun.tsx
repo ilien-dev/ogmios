@@ -10,7 +10,9 @@ import { Spinner } from "@/components/ui/Spinner";
 import { RunFrame } from "@/features/books/RunFrame";
 import { SittingStage } from "@/features/books/SittingParts";
 import { RunBackdrop, RunCard } from "@/features/drills/ScreenParts";
+import { chime, prime } from "@/lib/chime";
 import { errorMessage } from "@/lib/errors";
+import { VERDICT_GRADE } from "@/lib/grade";
 import {
   answerStructure,
   closeStructureSitting,
@@ -130,6 +132,8 @@ export function StructureRun({
         return;
       }
       const written = text.trim();
+      // Woken by this key or click: the verdict's sound comes after an await.
+      prime();
       void run(async () => {
         const judged = await answerStructure(
           sittingId,
@@ -137,6 +141,7 @@ export function StructureRun({
           written,
           peeked,
         );
+        chime(VERDICT_GRADE[judged.verdict]);
         setSent(written);
         setResult(judged);
       });

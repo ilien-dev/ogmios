@@ -1,11 +1,9 @@
 import type { ReactNode } from "react";
 import { CircleAlert, CircleCheck, CircleDot, CircleX } from "lucide-react";
 import { Reveal } from "@/components/motion/Reveal";
+import type { Tone } from "@/lib/chime";
 import type { Grade } from "@/lib/grade";
 import { cn } from "@/lib/cn";
-
-/** A grade, or nothing judged: the answer was only shown. */
-type Tone = Grade | "neutral";
 
 /** The colour of a grade as text. */
 export const GRADE_TEXT: Record<Grade, string> = {
@@ -14,7 +12,8 @@ export const GRADE_TEXT: Record<Grade, string> = {
   wrong: "text-wrong",
 };
 
-const ICON = {
+/** The icon of a grade: its shape says it before its colour does. */
+export const ICON = {
   right: CircleCheck,
   partial: CircleAlert,
   wrong: CircleX,
@@ -62,5 +61,49 @@ export function VerdictLine({
       />
       {children}
     </Reveal>
+  );
+}
+
+/**
+ * The card once its answer is checked: its frame, its ground and a halo in
+ * the colour of the verdict. The band keeps the colour of the kind of word.
+ */
+export const VERDICT_WASH: Record<Tone, string> = {
+  right: "border-correct bg-correct-wash ring-6 ring-correct-soft",
+  partial: "border-partial bg-partial-wash ring-6 ring-partial-soft",
+  wrong:
+    "border-wrong bg-wrong-wash ring-6 ring-wrong-soft motion-safe:animate-shake",
+  neutral: "border-line-strong",
+};
+
+const RIBBON: Record<Tone, string> = {
+  right: "bg-correct text-on-grade",
+  partial: "bg-partial text-on-grade",
+  wrong: "bg-wrong text-on-grade",
+  neutral: "bg-raised text-ink-soft",
+};
+
+interface VerdictRibbonProps {
+  tone: Tone;
+  children: ReactNode;
+}
+
+/** The verdict across the top of its card, in its colour, with its icon. */
+export function VerdictRibbon({
+  tone,
+  children,
+}: VerdictRibbonProps): ReactNode {
+  const Icon = ICON[tone];
+  return (
+    <p
+      data-ribbon
+      className={cn(
+        "flex items-center justify-center gap-2 px-4 py-2.5 font-semibold",
+        RIBBON[tone],
+      )}
+    >
+      <Icon aria-hidden className="size-5 shrink-0" />
+      {children}
+    </p>
   );
 }
