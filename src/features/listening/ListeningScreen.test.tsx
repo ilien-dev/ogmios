@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, test } from "bun:test";
+import { beforeEach, describe, expect, spyOn, test } from "bun:test";
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { render, screen, waitFor } from "@testing-library/react";
@@ -7,6 +7,7 @@ import type { UserEvent } from "@testing-library/user-event";
 import type { Route } from "@/app/routes";
 import { showsNav } from "@/app/routes";
 import { SpeechProvider } from "@/features/speech/speech";
+import * as chimes from "@/lib/chime";
 import { listeningState } from "@/lib/ipc";
 import { mockSpoken, resetMockSpeech } from "@/lib/ipcMockSpeech";
 import { useMockBackend } from "@/test/mockBackend";
@@ -131,8 +132,12 @@ describe("listening", () => {
     await listen(user, 1);
     expect(mockSpoken()).toEqual([FIRST]);
 
+    const chime = spyOn(chimes, "chime");
     await write(user, "the boy woke before the sirens did");
     expect(screen.getByText("All of it")).toBeInTheDocument();
+    // The verdict is heard too.
+    expect(chime.mock.calls).toEqual([["right"]]);
+    chime.mockRestore();
     await next(user);
     expect(screen.getByText("2 of 8")).toBeInTheDocument();
     await listen(user, 1);

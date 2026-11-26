@@ -1,10 +1,11 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, spyOn, test } from "bun:test";
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { UserEvent } from "@testing-library/user-event";
 import type { Navigate, Route } from "@/app/routes";
+import * as chimes from "@/lib/chime";
 import { useMockBackend } from "@/test/mockBackend";
 import { CatalogueBoard, CatalogueScene, useCatalogue } from "./StructureMenu";
 import { StructureRun } from "./StructureRun";
@@ -244,6 +245,7 @@ describe("a session of structures", () => {
   });
 
   test("says what a sentence was worth and shows a right one", async () => {
+    const chime = spyOn(chimes, "chime");
     const user = await begin();
     await write(user, "I can peep through it.");
     expect(screen.getByText("Right")).toBeDefined();
@@ -258,6 +260,9 @@ describe("a session of structures", () => {
     expect(
       screen.getByText("“tumble”, the word asked for, is missing."),
     ).toBeDefined();
+    // Each verdict is heard too.
+    expect(chime.mock.calls).toEqual([["right"], ["partial"]]);
+    chime.mockRestore();
   });
 
   test("a sentence not known is wrong and comes back at the end", async () => {
