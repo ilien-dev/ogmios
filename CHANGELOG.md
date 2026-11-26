@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.39.0](https://github.com/ilien-dev/ogmios/compare/v0.38.2...v0.39.0) (2026-11-26)
+
+
+### Features
+
+* show a word's verdict on its whole card, with a sound ([#98](https://github.com/ilien-dev/ogmios/issues/98)) ([03c1ed1](https://github.com/ilien-dev/ogmios/commit/03c1ed1389daab3ba9f9ab48c444bc71022acd90))
+
 ## [0.38.2](https://github.com/ilien-dev/ogmios/compare/v0.38.1...v0.38.2) (2026-11-26)
 
 
