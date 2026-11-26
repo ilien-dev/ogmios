@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.38.1](https://github.com/ilien-dev/ogmios/compare/v0.38.0...v0.38.1) (2026-11-26)
+
+
+### Bug Fixes
+
+* stop buttons flickering under a resting pointer ([#93](https://github.com/ilien-dev/ogmios/issues/93)) ([e3af093](https://github.com/ilien-dev/ogmios/commit/e3af093d5ce4463c863ecb1a4b23b94d10c8ec05))
+
 ## [0.38.0](https://github.com/ilien-dev/ogmios/compare/v0.37.0...v0.38.0) (2026-11-22)
 
 
