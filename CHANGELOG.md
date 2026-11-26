@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.39.1](https://github.com/ilien-dev/ogmios/compare/v0.39.0...v0.39.1) (2026-11-26)
+
+
+### Bug Fixes
+
+* start every test in English ([#100](https://github.com/ilien-dev/ogmios/issues/100)) ([263af88](https://github.com/ilien-dev/ogmios/commit/263af8824fd8632c36f3c2346749e891788b18a2))
+
 ## [0.39.0](https://github.com/ilien-dev/ogmios/compare/v0.38.2...v0.39.0) (2026-11-26)
 
 
