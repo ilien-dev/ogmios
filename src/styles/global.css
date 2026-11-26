@@ -538,6 +538,27 @@
     ):hover {
       translate: 0 -2px;
     }
+
+    /*
+     * Risen, a button would leave a pointer resting on its lower edge outside
+     * it: it drops back under the pointer, rises again, and flickers for as
+     * long as the pointer stays. What takes the pointer reaches down as far
+     * as it rose. A link in running text keeps its place, so only buttons.
+     */
+    :is(
+        button:not(:disabled),
+        [role="button"]:not([aria-disabled="true"])
+      ):hover::after {
+      content: "";
+      position: absolute;
+      inset: 0 0 -2px 0;
+    }
+  }
+
+  /* What a risen button reaches down with is placed from the button. */
+  button,
+  [role="button"] {
+    position: relative;
   }
 
   @media (prefers-reduced-motion: no-preference) {
