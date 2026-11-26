@@ -83,6 +83,15 @@ describe("the daily recall", () => {
     expect(screen.queryByRole("heading", { name: "Review" })).toBeNull();
   });
 
+  test("shows the word's card on its own, with no box around it", async () => {
+    await begin();
+
+    // The card is the only box: as in a sitting, nothing frames it again.
+    expect(
+      screen.getByLabelText("Your translation").closest(".glass"),
+    ).toBeNull();
+  });
+
   test("with nothing learned it says where its words come from", async () => {
     render(<Section />);
     expect(
