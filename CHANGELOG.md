@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.40.3](https://github.com/ilien-dev/ogmios/compare/v0.40.2...v0.40.3) (2026-11-27)
+
+
+### Bug Fixes
+
+* play a sound when a word gets one more try ([#108](https://github.com/ilien-dev/ogmios/issues/108)) ([d0fbf57](https://github.com/ilien-dev/ogmios/commit/d0fbf5755116402ecbb46b74d566ec187df3baa3))
+
 ## [0.40.2](https://github.com/ilien-dev/ogmios/compare/v0.40.1...v0.40.2) (2026-11-27)
 
 
