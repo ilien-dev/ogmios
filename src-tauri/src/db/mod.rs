@@ -2,6 +2,7 @@
 
 pub mod books;
 pub mod drills;
+pub mod known;
 pub mod listening;
 pub mod patterns;
 pub mod penalty;
@@ -70,6 +71,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("refills.sql"),
     include_str!("efforts.sql"),
     include_str!("meanings.sql"),
+    include_str!("known.sql"),
 ];
 
 pub fn open(path: &Path) -> Result<Connection> {
@@ -91,6 +93,8 @@ fn prepare(conn: &Connection) -> Result<()> {
     migrate(conn)?;
     // The words kept before a word had a sense are given theirs.
     senses::fill(conn)?;
+    // What was known by its key is known by the senses that key has.
+    known::bind(conn)?;
     Ok(())
 }
 
@@ -1321,6 +1325,10 @@ mod tests {
         );
         assert_eq!(keys("word_events"), ["sworn"]);
         assert_eq!(keys("known_words"), ["recede", "receded"]);
+        // Opening the database gives each mark the senses its key has
+        // (migration 45).
+        senses::fill(&conn).expect("senses");
+        known::bind(&conn).expect("known");
         assert!(words::list(&conn, "c")
             .expect("list")
             .iter()

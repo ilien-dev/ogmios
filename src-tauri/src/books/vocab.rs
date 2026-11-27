@@ -362,17 +362,18 @@ impl Draft {
 
 /// The chapter's words from what the model said about each piece: one word
 /// per key with every translation given for it, each form of a verb a word
-/// of its own ([`own_form`]), without names, numbers,
-/// words that came without a translation and the `excluded` keys (words the
-/// learner already knows or has finished elsewhere). Most frequent in the
-/// chapter first; equally frequent words in alphabetical order.
-pub fn merge(pieces: &[Vec<VocabItem>], text: &str, excluded: &HashSet<String>) -> Vec<Word> {
+/// of its own ([`own_form`]), without names, numbers and words that came
+/// without a translation. What the learner knows or has finished elsewhere
+/// is left out when the words are stored, by its sense (`db::words::finish`).
+/// Most frequent in the chapter first; equally frequent words in
+/// alphabetical order.
+pub fn merge(pieces: &[Vec<VocabItem>], text: &str) -> Vec<Word> {
     let mut order: Vec<String> = Vec::new();
     let mut drafts: HashMap<String, Draft> = HashMap::new();
     for item in pieces.iter().flatten() {
         let named = own_form(item);
         let key = key(named.as_deref().unwrap_or(&item.lemma));
-        if item.proper_noun || key.is_empty() || is_number(&key) || excluded.contains(&key) {
+        if item.proper_noun || key.is_empty() || is_number(&key) {
             continue;
         }
         drafts
@@ -504,7 +505,7 @@ mod tests {
             item("be fond of", "was not fond of", &["ser aficionado a"]),
             item("be fond of", "was very fond of", &["gustarle mucho"]),
         ]];
-        let words = merge(&pieces, "He was not fond of it.", &HashSet::new());
+        let words = merge(&pieces, "He was not fond of it.");
         assert_eq!(words[0].forms, ["be fond of", "was very fond of"]);
         assert_eq!(
             words[0].translations,
@@ -587,7 +588,7 @@ mod tests {
             ],
         ];
 
-        let words = merge(&pieces, text, &HashSet::new());
+        let words = merge(&pieces, text);
         assert_eq!(keys(&words), [("give up", 2), ("peep", 2)]);
         let [give_up, peep] = words.as_slice() else {
             panic!("two words");
@@ -630,7 +631,7 @@ mod tests {
             verb("swear", "swear", VerbForm::Present, &["jurar"]),
             split,
         ]];
-        let words = merge(&pieces, text, &HashSet::new());
+        let words = merge(&pieces, text);
         assert_eq!(
             keys(&words),
             [("sworn", 2), ("give up", 1), ("swear", 1), ("swore", 1)]
@@ -659,25 +660,6 @@ mod tests {
         assert_eq!(phrasal.lemma, "give up");
         assert_eq!(phrasal.forms, ["give up", "gave it up"]);
         assert_eq!(phrasal.base, None);
-
-        // Knowing one form leaves the others to learn.
-        let known: HashSet<String> = ["sworn".to_owned()].into();
-        assert_eq!(
-            keys(&merge(&pieces, text, &known)),
-            [("give up", 1), ("swear", 1), ("swore", 1)]
-        );
-    }
-
-    #[test]
-    fn words_known_or_done_elsewhere_are_removed() {
-        let pieces = vec![vec![
-            item("peep", "peeped", &["asomarse"]),
-            item("to give up", "gave up", &["rendirse"]),
-            item("bank", "bank", &["orilla"]),
-        ]];
-        let excluded: HashSet<String> = ["give up", "peep"].map(str::to_owned).into();
-        let words = merge(&pieces, "She peeped at the bank and gave up.", &excluded);
-        assert_eq!(keys(&words), [("bank", 1)]);
     }
 
     #[test]
@@ -692,7 +674,7 @@ mod tests {
             item("take out", "took out", &["sacar"]),
             item("run", "runs", &["correr"]),
         ]];
-        let words = merge(&pieces, text, &HashSet::new());
+        let words = merge(&pieces, text);
         assert_eq!(
             keys(&words),
             [

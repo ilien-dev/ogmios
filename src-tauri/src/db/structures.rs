@@ -352,7 +352,7 @@ pub fn store_scan(
 // A word of no kind worth naming is no word to build a sentence on; one
 // nobody labelled yet is.
 const WORDS: &str = "(part_of_speech IS NULL OR part_of_speech <> 'other')
-     AND key NOT IN (SELECT key FROM known_words)";
+     AND NOT EXISTS (SELECT 1 FROM known_words k WHERE k.sense_id = chapter_words.sense_id)";
 
 /// The words of a chapter the learner has not said they know, of any kind:
 /// the ones still open first, then the most used.
@@ -589,7 +589,9 @@ mod tests {
                ('w4', 'orilla'), ('w4', 'ribera'), ('w8', 'ladear');
              INSERT INTO word_translations (word_id, text, source)
                VALUES ('w4', 'banco', 'dispute');
-             INSERT INTO known_words VALUES ('peep', 'peep', '2026-01-01');
+             UPDATE chapter_words SET sense_id = id;
+             INSERT INTO known_words (sense_id, key, lemma, glosses, created_at)
+               VALUES ('w5', 'peep', 'peep', '[]', '2026-01-01');
              UPDATE chapter_words SET transitive = 1 WHERE id = 'w8';",
         )
         .expect("rows");
