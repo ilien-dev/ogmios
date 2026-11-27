@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.40.1](https://github.com/ilien-dev/ogmios/compare/v0.40.0...v0.40.1) (2026-11-27)
+
+
+### Bug Fixes
+
+* drop the outer panel around the daily review ([#104](https://github.com/ilien-dev/ogmios/issues/104)) ([504ef09](https://github.com/ilien-dev/ogmios/commit/504ef091925bad6df53c7f117e65b401519b6934))
+
 ## [0.40.0](https://github.com/ilien-dev/ogmios/compare/v0.39.1...v0.40.0) (2026-11-27)
 
 
