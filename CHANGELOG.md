@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.40.0](https://github.com/ilien-dev/ogmios/compare/v0.39.1...v0.40.0) (2026-11-27)
+
+
+### Features
+
+* let the daily review be split by effort and size ([#102](https://github.com/ilien-dev/ogmios/issues/102)) ([2c81b75](https://github.com/ilien-dev/ogmios/commit/2c81b752f7bc22bcfa6b5ddc61357ff286184af1))
+
 ## [0.39.1](https://github.com/ilien-dev/ogmios/compare/v0.39.0...v0.39.1) (2026-11-26)
 
 
