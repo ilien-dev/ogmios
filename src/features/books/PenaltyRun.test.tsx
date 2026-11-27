@@ -1,10 +1,11 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, spyOn, test } from "bun:test";
 import type { ReactNode } from "react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { UserEvent } from "@testing-library/user-event";
 import { BookSection } from "@/test/BookSection";
 import { useMockBackend } from "@/test/mockBackend";
+import * as chimes from "@/lib/chime";
 
 /** A right answer to each prompt of the mock chapter, whichever way. */
 const RIGHT: Record<string, string> = {
@@ -133,5 +134,22 @@ describe("PenaltyRun", () => {
     await screen.findByRole("progressbar", { name: "Session progress" });
     expect(inPenalty()).toBe(false);
     expect(screen.getByLabelText("Your translation")).toBeInTheDocument();
+  });
+
+  test("each answer in a penalty sounds its verdict", async () => {
+    const user = userEvent.setup();
+    await untilPenalty(user);
+    const chime = spyOn(chimes, "chime");
+    await user.keyboard("{Enter}");
+    await screen.findByLabelText("Your translation");
+
+    await answer(user, RIGHT[prompt()] ?? "", "Right.");
+    await answer(user, "no", "Not quite.");
+    await screen.findByText("Back to the first: you were on 2.");
+    await user.click(screen.getByRole("button", { name: /I don't know/u }));
+    expect(await screen.findByText("Here it is.")).toBeInTheDocument();
+
+    expect(chime.mock.calls).toEqual([["right"], ["wrong"], ["neutral"]]);
+    chime.mockRestore();
   });
 });
