@@ -330,7 +330,7 @@ pub fn forget(conn: &Connection, key: &str) -> Result<()> {
 /// what its sense means, whatever chapter said it (`db::senses`).
 pub const OF_SENSE: &str = "FROM word_translations t JOIN chapter_words w ON w.id = t.word_id
          WHERE (w.id = ?1 OR w.sense_id = (SELECT sense_id FROM chapter_words WHERE id = ?1))";
-pub const SENSE_ORDER: &str = "ORDER BY w.id != ?1, w.created_at, w.id, t.rowid";
+pub const SENSE_ORDER: &str = "ORDER BY w.id != ?1, w.created_at, w.rowid, t.rowid";
 /// Whether the word of a row (`w`) is called by the form the word asked
 /// about is: only then is what its translation is in that form the same.
 /// "partió" is "partir" for "set off" in the past, never in its base form.

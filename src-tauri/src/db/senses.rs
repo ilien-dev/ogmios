@@ -55,7 +55,7 @@ pub fn of(conn: &Connection, word_id: &str) -> Result<Option<String>> {
 pub fn glosses(conn: &Connection, sense_id: &str) -> Result<Vec<String>> {
     let mut stmt = conn.prepare_cached(
         "SELECT t.text FROM word_translations t JOIN chapter_words w ON w.id = t.word_id
-         WHERE w.sense_id = ?1 ORDER BY w.created_at, w.id, t.rowid",
+         WHERE w.sense_id = ?1 ORDER BY w.created_at, w.rowid, t.rowid",
     )?;
     let mut all: Vec<String> = stmt
         .query_map([sense_id], |row| row.get(0))?
@@ -123,7 +123,7 @@ pub fn siblings(conn: &Connection, word_id: &str) -> Result<Vec<(String, Vec<Str
     let mut stmt = conn.prepare(
         "SELECT sense_id, part_of_speech FROM chapter_words
          WHERE key = ?1 AND id != ?2 AND sense_id IS NOT NULL
-         ORDER BY created_at, id",
+         ORDER BY created_at, rowid",
     )?;
     let rows = stmt
         .query_map(params![word.key, word_id], |row| {
@@ -212,8 +212,9 @@ pub fn assign(conn: &Connection, word_id: &str) -> Result<()> {
 /// Gives every word that has none its sense, the oldest first; how many
 /// those were. The words kept before senses were are given theirs here.
 pub fn fill(conn: &Connection) -> Result<usize> {
-    let mut stmt = conn
-        .prepare("SELECT id FROM chapter_words WHERE sense_id IS NULL ORDER BY created_at, id")?;
+    let mut stmt = conn.prepare(
+        "SELECT id FROM chapter_words WHERE sense_id IS NULL ORDER BY created_at, rowid",
+    )?;
     let missing = stmt
         .query_map([], |row| row.get::<_, String>(0))?
         .collect::<rusqlite::Result<Vec<_>>>()?;
@@ -331,8 +332,10 @@ mod tests {
             &["similar al liquen", "parecido al liquen"],
             adjective,
         )];
-        finish(&conn, &chapters[0], Depth::Most, &first, Utc::now()).expect("finish");
-        finish(&conn, &chapters[1], Depth::Most, &second, Utc::now()).expect("finish");
+        // Stored at the same instant: the order they were stored in settles it.
+        let now = Utc::now();
+        finish(&conn, &chapters[0], Depth::Most, &first, now).expect("finish");
+        finish(&conn, &chapters[1], Depth::Most, &second, now).expect("finish");
         // As a database kept before this has them.
         conn.execute("UPDATE chapter_words SET sense_id = NULL", [])
             .expect("old rows");

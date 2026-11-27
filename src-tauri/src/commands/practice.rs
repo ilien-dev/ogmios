@@ -503,7 +503,7 @@ pub(super) fn verdict(
             let native = (native_lang, inflects(word.part_of_speech));
             (
                 accepts_native(answer, &right, native, spelling),
-                word.listed().to_vec(),
+                word.accepted(),
             )
         }
         Direction::Production => {

@@ -86,9 +86,13 @@ pub struct WordRow {
     /// the forms of the book. They are not forms: nothing marks or blanks
     /// them in the sentence.
     pub english: Vec<String>,
+    /// The synonyms the sentences of its sense added to what it means
+    /// (`db::senses::added`), in their base form: right, and listed as
+    /// accepted with the rest.
+    pub added: Vec<String>,
 }
 
-/// Translations a card lists at most (`WordRow::listed`).
+/// Translations a card asks with at most (`WordRow::listed`).
 pub const LISTED: usize = 4;
 
 /// One answer as it was given, and whether it has been disputed.
@@ -375,6 +379,10 @@ pub fn word(conn: &Connection, id: &str) -> Result<WordRow> {
         in_form,
         also,
         english,
+        added: match super::senses::of(conn, id)? {
+            Some(sense) => super::senses::added(conn, &sense)?,
+            None => Vec::new(),
+        },
     })
 }
 
@@ -400,11 +408,29 @@ impl WordRow {
     }
 
     /// The first of what it is shown as, at most [`LISTED`]: what a card
-    /// asks with and lists as accepted. A sense many chapters added to
-    /// means more than is worth reading; all of it is still right.
+    /// asks with, native → English. A sense many chapters added to means
+    /// more than is worth reading before answering; all of it is right,
+    /// and all of it is listed once the word is answered ([`Self::accepted`]).
     pub fn listed(&self) -> &[String] {
         let all = self.shown_as();
         &all[..all.len().min(LISTED)]
+    }
+
+    /// Everything a card lists as accepted once it is answered: what the
+    /// word is shown as, all of it, and then the synonyms the sentences of
+    /// its sense added. What is taken for right is shown as right. A verb
+    /// shown in the form it is called by lists no synonym nobody said in
+    /// that form: it would read as another form of the word.
+    pub fn accepted(&self) -> Vec<String> {
+        let mut all = self.shown_as().to_vec();
+        if self.in_form.is_none() {
+            for each in &self.added {
+                if !all.iter().any(|held| key(held) == key(each)) {
+                    all.push(each.clone());
+                }
+            }
+        }
+        all
     }
 
     /// What the word is shown as in the learner's language: in the form it

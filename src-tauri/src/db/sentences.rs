@@ -684,8 +684,10 @@ mod tests {
                 row.translations,
                 ["parecido al liquen", "similar al liquen"]
             );
-            // Never shown: what the chapters were prepared with is.
-            assert_eq!(row.shown, ["parecido al liquen"]);
+            // It is asked with what the chapters were prepared with, and
+            // the synonym is listed as accepted once it is answered.
+            assert_eq!(row.listed(), ["parecido al liquen"]);
+            assert_eq!(row.accepted(), ["parecido al liquen", "similar al liquen"]);
         }
     }
 

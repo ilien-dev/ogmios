@@ -222,4 +222,9 @@ dice y la tarjeta no funcionan por separado.
 - Un sentido es un significado, sea cual sea la forma del verbo: «entered» en pasado y en
   participio son un sentido, y cada tarjeta pide la forma de su palabra.
 - «Escrita igual» es llamarse igual. Compartir una forma no cuenta: «feet» no es rival de «foot».
-- «Se acepta» lista hasta 4 significados; todos los del sentido valen.
+- Nativo → inglés pregunta con hasta 4 significados; todos los del sentido valen.
+
+## Decidida por la persona dueña (28-nov)
+
+- Un sinónimo que se acepta se muestra: «Se acepta» lista todos los significados del sentido,
+  también los que las frases sumaron.

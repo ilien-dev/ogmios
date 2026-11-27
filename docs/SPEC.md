@@ -452,7 +452,7 @@ repaso rápido antes de leer no cambia.
   todos. Dos listas sin nada en común son dos sentidos hasta que la mirada a la palabra dice que
   son el mismo (recibe los otros sentidos de esa palabra y responde cuál es, o ninguno); se le
   pregunta una vez. Lo que una frase dice de la palabra y es un significado suyo en cualquier
-  parte se suma al sentido (lo dice la segunda mirada a la frase); lo que solo vale dentro de la
+  parte se suma al sentido (lo dice la segunda mirada a la frase) y se lista con los demás en «Se acepta»; lo que solo vale dentro de la
   frase se queda en ella. Una respuesta que «Tenía razón» da por buena se suma a la palabra. Las
   palabras guardadas antes reciben su sentido al abrir la app, sin pedir nada, y sus frases pasan
   una vez más por la segunda mirada.
@@ -550,8 +550,7 @@ repaso rápido antes de leer no cambia.
   «can't help but»). No se guarda al preparar un capítulo, y las guardadas antes se retiraron con
   sus frases.
 - **Inglés → nativo:** la palabra como se llama. Vale cualquiera de los significados de su
-  sentido, en la forma que dice la palabra. «Se acepta» lista hasta 4, siempre los mismos para
-  esa tarjeta. Al mostrarse la frase, la palabra va resaltada y, si lo que la frase dice por ella
+  sentido, en la forma que dice la palabra. «Se acepta» los lista todos, siempre los mismos para esa tarjeta, también los sinónimos que las frases sumaron al sentido: lo que se acepta se muestra. Al mostrarse la frase, la palabra va resaltada y, si lo que la frase dice por ella
   no es ninguno de los listados, se señala como nota («En esta frase: similares al liquen»):
   cómo quedó ahí, nunca lo que se pedía.
 - **Nativo → inglés:** se muestran hasta 4 significados del sentido, en la forma de la palabra
