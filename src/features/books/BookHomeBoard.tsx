@@ -348,7 +348,7 @@ function ReviewsCard({
             <button
               type="button"
               onClick={() => {
-                navigate({ name: "recall", running: "both" });
+                navigate({ name: "recall", running: null });
               }}
               className="h-11 rounded-full bg-tally-soft px-4.5 text-sm font-semibold text-tally transition-control hover:bg-tally-fill/50 focus-visible:bg-tally-fill/50"
             >

@@ -1165,6 +1165,59 @@ export const es: Catalog<typeof en> = {
     allRight: "No se te escapó ninguna.",
     more: "Otra ronda",
     back: "Listo",
+    another: "Otra ronda de {{name}}",
+    chooseAgain: "Elegir otra cosa",
+    choose: {
+      title: "¿Qué repasas hoy?",
+      lead_one:
+        "Hoy te toca {{count}} palabra. Elige un trozo; las demás te esperan.",
+      lead_other:
+        "Hoy te tocan {{count}} palabras. Elige un trozo; las demás te esperan.",
+      which: "Cuáles",
+      none: "Ninguna por hoy.",
+      how: "¿Cómo se decide?",
+      rules:
+        "Cada palabra suma todos los fallos que ha tenido, en su capítulo y en el repaso diario: con tres o más es rebelde, con uno o dos, ganada a pulso, y sin ninguno, a la primera. En cada una van primero las que llevan más días esperando.",
+      howMany: "Cuántas de {{name}}",
+      everything: "Repasar todo lo pendiente",
+    },
+    everything: {
+      title: "¿Repasar todo de una vez?",
+      lead_one:
+        "Te mandará directamente a repasar todo el vocabulario que tienes pendiente: {{count}} palabra, unos {{minutes}} min.",
+      lead_other:
+        "Te mandará directamente a repasar todo el vocabulario que tienes pendiente: {{count}} palabras, unos {{minutes}} min.",
+      ask: "¿Prefieres ir por categorías o en partes de 10, 20 o 40?",
+      go_one: "Repasar la {{count}}",
+      go_other: "Repasar las {{count}}",
+      parts: "Elegir por partes",
+    },
+    effort: {
+      hard: {
+        name: "Rebeldes",
+        rule: "3 fallos o más",
+        hint: "Las que más te han costado.",
+        bars: "Mucho esfuerzo",
+        count_one: "{{count}} rebelde",
+        count_other: "{{count}} rebeldes",
+      },
+      mid: {
+        name: "Ganadas a pulso",
+        rule: "1 o 2 fallos",
+        hint: "Te costaron, pero las sacaste.",
+        bars: "Algo de esfuerzo",
+        count_one: "{{count}} a pulso",
+        count_other: "{{count}} a pulso",
+      },
+      easy: {
+        name: "A la primera",
+        rule: "Sin fallos",
+        hint: "Van rápido.",
+        bars: "Poco esfuerzo",
+        count_one: "{{count}} a la primera",
+        count_other: "{{count}} a la primera",
+      },
+    },
     board: {
       scene: "Tus palabras por fuerza",
       due: "para hoy",

@@ -5,6 +5,7 @@ import type {
   Translation,
   Ways,
 } from "@shared/domain";
+import type { RecallPlan } from "@shared/recall";
 
 /** What is done with a chapter: each is a tab of the book's screen. */
 export type BookTab = "words" | "listen" | "translate" | "write";
@@ -63,8 +64,11 @@ export type Route =
       /** That chapter is being translated: the attempt on the screen. */
       translating?: Translation;
     }
-  /** A run of the daily review's words, in these ways. */
-  | { name: "recall"; running: Ways }
+  /**
+   * The daily review's words: choosing what to review, in these ways first,
+   * or a run of them as its plan says.
+   */
+  | { name: "recall"; running: RecallPlan | null; ways?: Ways }
   /** A session of written structures, by its id. */
   | { name: "structures"; running: string }
   | {

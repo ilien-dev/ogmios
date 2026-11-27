@@ -81,6 +81,7 @@ import type {
   StructureSitting,
   StructuresState,
 } from "@shared/structures";
+import type { RecallOptions, RecallPlan } from "@shared/recall";
 import type { InvokeArgs } from "@tauri-apps/api/core";
 import { mock, mockListen } from "./ipcMock";
 
@@ -467,11 +468,18 @@ export const chapterKindCounts = (chapterId: string): Promise<KindCount[]> =>
 export const learningPace = (chapterId: string): Promise<LearningPace> =>
   call("learning_pace", { chapterId });
 /**
- * Starts a run of the recall in these ways: at most ten of the learned words
- * that are due, of any book or conversation, each asked once.
+ * What a run of the recall in these ways can be started with: the words due
+ * of each effort with the sizes on offer, and every word due at once.
  */
-export const startRecall = (ways: Ways): Promise<Recall> =>
-  call("start_recall", { ways });
+export const recallOptions = (ways: Ways): Promise<RecallOptions> =>
+  call("recall_options", { ways });
+/**
+ * Starts a run of the recall as `plan` says: of the learned words that are
+ * due, of any book or conversation, those of its effort, at most its size,
+ * each asked once.
+ */
+export const startRecall = (plan: RecallPlan): Promise<Recall> =>
+  call("start_recall", { plan });
 /**
  * Checks one answer of a run. A right one sends the word further away; a
  * miss, or an empty answer ("I don't know"), brings it back sooner. It never

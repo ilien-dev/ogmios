@@ -11,9 +11,11 @@ use rusqlite::{params, Connection, OptionalExtension};
 use super::practice::NOT_KNOWN;
 use super::{found, new_id, parse_ts, ts};
 use crate::books::vocab;
-use crate::domain::{Direction, Strength, Ways};
+use crate::domain::{Direction, RecallPlan, Strength, Ways, WordEffort};
 use crate::error::Result;
-use crate::memory::recall::{is_stubborn, standing, strength, Event, Mark, Standing};
+use crate::memory::recall::{
+    effort, misses, standing, strength, Event, Mark, Standing, STUBBORN_MISSES,
+};
 
 /// Where a learned word came from: what asking it needs.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -36,8 +38,10 @@ pub struct RecallWord {
     pub forms: Vec<String>,
     pub learned_at: DateTime<Utc>,
     pub source: Source,
-    /// It keeps slipping (`memory::recall::is_stubborn`).
+    /// It keeps slipping: missed `memory::recall::STUBBORN_MISSES` times.
     pub stubborn: bool,
+    /// How much it cost the learner (`memory::recall::effort`).
+    pub effort: WordEffort,
     pub standing: Standing,
 }
 
@@ -172,7 +176,7 @@ fn known_keys(conn: &Connection) -> Result<HashSet<String>> {
 /// stands: the words finished in the books, then the ones asked for in
 /// conversations that no book has taught. In no order that matters.
 pub fn words(conn: &Connection) -> Result<Vec<RecallWord>> {
-    let misses = practice_misses(conn)?;
+    let practice = practice_misses(conn)?;
     let mut events = events(conn)?;
     let known = known_keys(conn)?;
     let mut seen = HashSet::new();
@@ -182,10 +186,12 @@ pub fn words(conn: &Connection) -> Result<Vec<RecallWord>> {
             continue;
         }
         let events = events.remove(&word.key).unwrap_or_default();
-        let stubborn = is_stubborn(misses.get(&word.key).copied().unwrap_or(0), &events);
+        let missed = misses(practice.get(&word.key).copied().unwrap_or(0), &events);
+        let stubborn = missed >= STUBBORN_MISSES;
         words.push(RecallWord {
             standing: standing(word.learned_at, &events, stubborn),
             stubborn,
+            effort: effort(missed),
             key: word.key,
             english: word.english,
             forms: word.forms,
@@ -221,32 +227,40 @@ pub fn strengths(conn: &Connection) -> Result<HashMap<String, Strength>> {
 pub struct RunRow {
     pub id: String,
     pub ways: Ways,
+    /// The effort of the words it asks; none for every effort.
+    pub effort: Option<WordEffort>,
+    /// The words it asks at most; none for every one that is due.
+    pub size: Option<u32>,
     /// It asked all it had to ask: it is over.
     pub finished: bool,
 }
 
-/// Starts a run that asks its words in `ways`; its id.
-pub fn start(conn: &Connection, ways: Ways, now: DateTime<Utc>) -> Result<String> {
+/// Starts a run that asks as `plan` says; its id.
+pub fn start(conn: &Connection, plan: RecallPlan, now: DateTime<Utc>) -> Result<String> {
     let id = new_id();
     conn.execute(
-        "INSERT INTO recall_sittings (id, ways, started_at) VALUES (?1, ?2, ?3)",
-        params![id, ways, ts(now)],
+        "INSERT INTO recall_sittings (id, ways, effort, size, started_at)
+         VALUES (?1, ?2, ?3, ?4, ?5)",
+        params![id, plan.ways, plan.effort, plan.size, ts(now)],
     )?;
     Ok(id)
 }
 
 pub fn run(conn: &Connection, id: &str) -> Result<RunRow> {
-    let (ways, finished) = found(
+    let (ways, effort, size, finished) = found(
         conn.query_row(
-            "SELECT ways, finished_at IS NOT NULL FROM recall_sittings WHERE id = ?1",
+            "SELECT ways, effort, size, finished_at IS NOT NULL
+             FROM recall_sittings WHERE id = ?1",
             [id],
-            |row| Ok((row.get(0)?, row.get(1)?)),
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
         ),
         "recall",
     )?;
     Ok(RunRow {
         id: id.to_owned(),
         ways,
+        effort,
+        size,
         finished,
     })
 }

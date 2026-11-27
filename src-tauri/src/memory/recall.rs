@@ -11,12 +11,12 @@
 use chrono::{DateTime, Duration, Utc};
 
 use crate::books::vocab::tokens;
-use crate::domain::{Direction, Strength, Ways};
+use crate::domain::{Direction, Strength, Ways, WordEffort};
 
 /// Days until a word comes back, by its step; the last one from then on.
 pub const DAYS: [i64; 5] = [1, 3, 7, 21, 60];
-/// The same for a word that keeps slipping ([`is_stubborn`]): it is seen
-/// more often.
+/// The same for a word that keeps slipping, missed [`STUBBORN_MISSES`]
+/// times or more ([`WordEffort::Hard`]): it is seen more often.
 pub const STUBBORN_DAYS: [i64; 5] = [1, 2, 4, 10, 30];
 /// Misses, in practice and in the recall together, that make a word one
 /// that keeps slipping.
@@ -27,7 +27,10 @@ pub const USE_STEPS: u32 = 2;
 pub const SETTLING_STEP: u32 = 1;
 /// The step a word is firm from: it held after three weeks away.
 pub const FIRM_STEP: u32 = 4;
-/// Words a run of the recall asks at most.
+/// Words a run asked at most before the learner chose how many: what a run
+/// stored before then reads as (`recall_sittings.size`), and what the tests
+/// start their runs with.
+#[cfg(test)]
 pub const SIZE: usize = 10;
 /// Learned words the partner is given to use in a conversation.
 pub const CHAT_WORDS: usize = 5;
@@ -76,15 +79,27 @@ pub struct Standing {
     pub due_at: DateTime<Utc>,
 }
 
-/// Whether a word keeps slipping: missed [`STUBBORN_MISSES`] times, the
-/// misses of practice and those among `events` together.
-pub fn is_stubborn(practice_misses: u32, events: &[Event]) -> bool {
+/// Every miss of a word: those of practice and those among `events`.
+pub fn misses(practice_misses: u32, events: &[Event]) -> u32 {
     let recalled = events
         .iter()
         .filter(|event| event.mark == Mark::Miss)
         .count();
-    let recalled = u32::try_from(recalled).unwrap_or(u32::MAX);
-    practice_misses.saturating_add(recalled) >= STUBBORN_MISSES
+    practice_misses.saturating_add(u32::try_from(recalled).unwrap_or(u32::MAX))
+}
+
+/// How much a word with these `misses` cost: hard from the misses that
+/// make it one that keeps slipping, so a hard word is a stubborn one; easy
+/// when it was never missed; in between otherwise. Misses are never taken
+/// back: the effort is the word's history, not how it stands today.
+pub fn effort(misses: u32) -> WordEffort {
+    if misses >= STUBBORN_MISSES {
+        WordEffort::Hard
+    } else if misses > 0 {
+        WordEffort::Mid
+    } else {
+        WordEffort::Easy
+    }
 }
 
 /// Where a word learned at `learned_at` stands after `events`, oldest
@@ -228,12 +243,33 @@ mod tests {
     }
 
     #[test]
-    fn three_misses_in_all_make_a_word_one_that_keeps_slipping() {
-        assert!(!is_stubborn(2, &[ev(Right, 1)]));
-        assert!(is_stubborn(3, &[]));
-        assert!(is_stubborn(1, &[ev(Miss, 1), ev(Right, 2), ev(Miss, 5)]));
-        // Using it is no miss.
-        assert!(!is_stubborn(2, &[ev(Used, 1)]));
+    fn effort_is_read_off_every_miss_and_hard_is_stubborn() {
+        assert_eq!(
+            effort(misses(0, &[ev(Right, 1), ev(Used, 2)])),
+            WordEffort::Easy
+        );
+        assert_eq!(effort(misses(1, &[])), WordEffort::Mid);
+        assert_eq!(
+            effort(misses(1, &[ev(Miss, 1), ev(Right, 2)])),
+            WordEffort::Mid
+        );
+        assert_eq!(effort(misses(2, &[ev(Miss, 1)])), WordEffort::Hard);
+        // A right answer takes no miss back: the effort is its history.
+        let slipped = [
+            ev(Miss, 1),
+            ev(Miss, 2),
+            ev(Miss, 3),
+            ev(Right, 4),
+            ev(Right, 5),
+        ];
+        assert_eq!(effort(misses(0, &slipped)), WordEffort::Hard);
+        // Three misses in all make a word one that keeps slipping; a use is
+        // no miss.
+        assert_eq!(misses(2, &[ev(Right, 1), ev(Used, 2)]), 2);
+        assert_eq!(
+            misses(1, &[ev(Miss, 1), ev(Right, 2), ev(Miss, 5)]),
+            STUBBORN_MISSES
+        );
     }
 
     #[test]

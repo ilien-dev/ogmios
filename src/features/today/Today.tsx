@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { HomeState } from "@shared/domain";
+import type { EffortDue } from "@shared/recall";
 import type { ListeningState } from "@shared/listening";
 import type { StructuresState } from "@shared/structures";
 import { Magnetic } from "@/components/motion/Magnetic";
@@ -34,9 +35,11 @@ import { errorMessage } from "@/lib/errors";
 import {
   homeState,
   listeningState,
+  recallOptions,
   startStructureSitting,
   structuresState,
 } from "@/lib/ipc";
+import { EffortBars } from "@/features/recall/EffortBars";
 import { TodayRelief } from "./TodayRelief";
 import type { TodayPiece } from "./TodayRelief";
 import { todayQueue } from "./todayQueue";
@@ -48,12 +51,25 @@ const ICON: Record<TodayKind, LucideIcon> = {
   structures: Layers,
 };
 
+/** How many of the words due cost this much, with their bars. */
+function EffortCount({ due }: { due: EffortDue }): ReactNode {
+  const { t } = useTranslation();
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <EffortBars effort={due.effort} size="sm" />
+      {t(`recall.effort.${due.effort}.count`, { count: due.due })}
+    </span>
+  );
+}
+
 /** What the day is read from. */
 interface Day {
   home: HomeState;
   structures: StructuresState;
   /** Null when the listening could not be read: only its pauses are missing. */
   listening: ListeningState | null;
+  /** The words due by effort; null when they could not be read. */
+  efforts: EffortDue[] | null;
 }
 
 interface LoadedProps {
@@ -68,7 +84,9 @@ interface LoadedProps {
  */
 function Loaded({ day, current, navigate }: LoadedProps): ReactNode {
   const { t } = useTranslation();
-  const { home, structures, listening } = day;
+  const { home, structures, listening, efforts } = day;
+  /** The words due by effort, the ones with any. */
+  const split = (efforts ?? []).filter((each) => each.due > 0);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
   /** The piece a row of the queue points at: it rises in the scene. */
@@ -85,7 +103,7 @@ function Loaded({ day, current, navigate }: LoadedProps): ReactNode {
 
   const start = (kind: TodayKind): void => {
     if (kind === "words") {
-      navigate({ name: "recall", running: "both" });
+      navigate({ name: "recall", running: null });
       return;
     }
     if (kind === "drills") {
@@ -285,6 +303,19 @@ function Loaded({ day, current, navigate }: LoadedProps): ReactNode {
                       <span className="text-sm text-ink-faint">
                         {t(`today.kind.${kind}.from`)}
                       </span>
+                      <Presence>
+                        {kind === "words" && count > 0 && split.length > 0 && (
+                          <Reveal
+                            key="efforts"
+                            as="span"
+                            className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-xs text-ink-soft"
+                          >
+                            {split.map((each) => (
+                              <EffortCount key={each.effort} due={each} />
+                            ))}
+                          </Reveal>
+                        )}
+                      </Presence>
                     </span>
                     <ChevronRight
                       aria-hidden
@@ -464,10 +495,14 @@ export function Today({ current, navigate }: TodayProps): ReactNode {
       structuresState(),
       // The pauses of the listening are an extra: the day stands without.
       listeningState(chapterId).catch(() => null),
+      // So is how the words split by effort.
+      recallOptions("both")
+        .then((options) => options.efforts)
+        .catch(() => null),
     ])
-      .then(([home, structures, listening]) => {
+      .then(([home, structures, listening, efforts]) => {
         if (live) {
-          setDay({ home, structures, listening });
+          setDay({ home, structures, listening, efforts });
         }
       })
       .catch((error: unknown) => {

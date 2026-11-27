@@ -494,7 +494,7 @@ function Stage({
           nativeLang={nativeLang}
           words={wordsByStrength(progress.vocabulary, TOWER_SHOWN)}
           onStart={(ways) => {
-            navigate({ name: "recall", running: ways });
+            navigate({ name: "recall", running: null, ways });
           }}
           className="flex-1"
         />

@@ -9,6 +9,10 @@ export interface Choice<T extends string> {
   label: string;
   description?: string;
   badge?: string;
+  /** A small mark after the badge, such as a word's effort. */
+  mark?: ReactNode;
+  /** Nothing to choose there now: shown, but it takes no click. */
+  disabled?: boolean;
 }
 
 interface ChoiceGroupProps<T extends string> {
@@ -58,11 +62,15 @@ export function ChoiceGroup<T extends string>({
           <label
             key={choice.value}
             className={cn(
-              "relative flex cursor-pointer items-start gap-3 rounded-md transition-control has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-accent-strong",
+              "relative flex items-start gap-3 rounded-md transition-control has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-accent-strong",
               size === "sm" ? "px-3 py-2.5" : "px-4 py-3.5",
-              choice.value === value
-                ? "bg-accent-soft"
-                : "bg-surface shadow-card hover:bg-raised",
+              choice.disabled === true
+                ? "cursor-not-allowed bg-sunken opacity-60"
+                : "cursor-pointer",
+              choice.disabled !== true &&
+                (choice.value === value
+                  ? "bg-accent-soft"
+                  : "bg-surface shadow-card hover:bg-raised"),
             )}
           >
             {/* `relative` on the label keeps this visually hidden radio inside
@@ -72,6 +80,7 @@ export function ChoiceGroup<T extends string>({
               name={name}
               value={choice.value}
               checked={choice.value === value}
+              disabled={choice.disabled === true}
               onChange={() => {
                 onChange(choice.value);
               }}
@@ -112,6 +121,7 @@ export function ChoiceGroup<T extends string>({
                     </Reveal>
                   )}
                 </Presence>
+                {choice.mark}
               </span>
               <Presence>
                 {choice.description !== undefined && (

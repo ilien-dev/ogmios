@@ -25,7 +25,7 @@ import { Rail } from "./Rail";
 
 const TODAY: Route = { name: "today" };
 const BOOK: Route = { name: "book" };
-const RUN: Route = { name: "recall", running: "both" };
+const RUN: Route = { name: "recall", running: null };
 
 interface BarProps {
   route: Route;

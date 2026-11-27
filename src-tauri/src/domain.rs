@@ -68,6 +68,8 @@ wire_enum!(Direction { Recognition => "recognition", Production => "production" 
 wire_enum!(Ways { Both => "both", Recognition => "recognition", Production => "production" });
 // How strong a learned word is, by how long it has held (`memory::recall`).
 wire_enum!(Strength { New => "new", Settling => "settling", Firm => "firm" });
+// How much a learned word cost the learner, by its misses (`memory::recall`).
+wire_enum!(WordEffort { Hard => "hard", Mid => "mid", Easy => "easy" });
 // Which way a chapter is translated: into the learner's language, or back.
 wire_enum!(TranslationDirection { ToNative => "toNative", ToEnglish => "toEnglish" });
 // How much a mistake weighs: a wrong translation, or a slip of the pen.
@@ -1184,6 +1186,36 @@ pub struct RecallSummary {
     pub missed: u32,
     /// Words still due today, for another run.
     pub left: u32,
+}
+
+/// What a run of the recall asks: in these ways, the words of one effort
+/// (none for every effort), and at most `size` of them (none for every one
+/// that is due).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RecallPlan {
+    pub ways: Ways,
+    pub effort: Option<WordEffort>,
+    pub size: Option<u32>,
+}
+
+/// The words of one effort that are due today, and the sizes a run of them
+/// is offered in: those it has more words than, then all of them.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EffortDue {
+    pub effort: WordEffort,
+    pub due: u32,
+    pub sizes: Vec<SessionSize>,
+}
+
+/// What a run of the recall in some ways can be started with: the words of
+/// each effort, hard first, and every word due at once.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RecallOptions {
+    pub efforts: Vec<EffortDue>,
+    pub all: SessionSize,
 }
 
 /// What a run of the recall shows next: a learned word, or its summary. In

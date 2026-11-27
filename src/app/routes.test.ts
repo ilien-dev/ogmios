@@ -49,8 +49,11 @@ describe("screenKey", () => {
       [PRACTICE, { ...PRACTICE, patternId: "p" }],
       [PRACTICE, { ...PRACTICE, format: "spotError" }],
       [
-        { name: "recall", running: "both" },
-        { name: "recall", running: "recognition" },
+        { name: "recall", running: null },
+        {
+          name: "recall",
+          running: { ways: "both", effort: "hard", size: 10 },
+        },
       ],
       [
         { name: "structures", running: "s" },
@@ -112,7 +115,11 @@ describe("showsNav", () => {
     PRACTICE,
     SITTING,
     { name: "books", bookId: "b", chapterId: "c", translating: ATTEMPT },
-    { name: "recall", running: "both" },
+    { name: "recall", running: null },
+    {
+      name: "recall",
+      running: { ways: "both", effort: null, size: null },
+    },
     { name: "structures", running: "s" },
     { name: "listening", running: "s" },
     { name: "listening", reading: "c" },
@@ -130,7 +137,7 @@ describe("showsNav", () => {
 describe("places", () => {
   const PLACED: Array<[Route, Place | "settings"]> = [
     [{ name: "today" }, "today"],
-    [{ name: "recall", running: "both" }, "today"],
+    [{ name: "recall", running: null }, "today"],
     [{ name: "book" }, "book"],
     [{ name: "books", bookId: null }, "book"],
     [SITTING, "book"],
