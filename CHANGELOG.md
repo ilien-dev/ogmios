@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.40.4](https://github.com/ilien-dev/ogmios/compare/v0.40.3...v0.40.4) (2026-11-27)
+
+
+### Bug Fixes
+
+* ask each word by its sense, never by the sentence drawn ([#110](https://github.com/ilien-dev/ogmios/issues/110)) ([f3f8b6a](https://github.com/ilien-dev/ogmios/commit/f3f8b6a78db6c7525f42ebc50b41643652895483))
+
 ## [0.40.3](https://github.com/ilien-dev/ogmios/compare/v0.40.2...v0.40.3) (2026-11-27)
 
 
