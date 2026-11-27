@@ -10,7 +10,6 @@ import {
   SittingStage,
   SittingWait,
 } from "@/features/books/SittingParts";
-import { RunBackdrop } from "@/features/drills/ScreenParts";
 import { errorMessage } from "@/lib/errors";
 import {
   answerRecall,
@@ -132,19 +131,17 @@ function Round({
   };
 
   return (
-    <RunBackdrop>
-      <SittingFrame
-        leave={t("recall.leave")}
-        progress={run?.step.progress ?? null}
-        onClose={onDone}
-      >
-        <SittingStage step={stepNow()}>
-          <div className="flex min-h-full items-center px-4 pt-2 pb-16">
-            <div className="mx-auto w-full max-w-2xl">{asking()}</div>
-          </div>
-        </SittingStage>
-      </SittingFrame>
-    </RunBackdrop>
+    <SittingFrame
+      leave={t("recall.leave")}
+      progress={run?.step.progress ?? null}
+      onClose={onDone}
+    >
+      <SittingStage step={stepNow()}>
+        <div className="flex min-h-full items-center px-4 pt-2 pb-16">
+          <div className="mx-auto w-full max-w-2xl">{asking()}</div>
+        </div>
+      </SittingStage>
+    </SittingFrame>
   );
 }
 
