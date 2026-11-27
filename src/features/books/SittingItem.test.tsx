@@ -13,6 +13,7 @@ import type { UserEvent } from "@testing-library/user-event";
 import { MotionGlobalConfig } from "motion/react";
 import type { PracticeItem, ShownSentence, WordHint } from "@shared/domain";
 import { SpeechProvider } from "@/features/speech/speech";
+import * as chimes from "@/lib/chime";
 import * as ipc from "@/lib/ipc";
 import { seedMockReadiness } from "@/lib/ipcMockChapters";
 import { mockSpoken, resetMockSpeech } from "@/lib/ipcMockSpeech";
@@ -360,6 +361,41 @@ describe("a word asked with a sentence of its bank", () => {
 
     await user.keyboard("{Enter}");
     expect(held.went).toEqual(["next"]);
+  });
+
+  test("a try that is no answer yet sounds as partial, and the next its own verdict", async () => {
+    const user = userEvent.setup();
+    const chime = spyOn(chimes, "chime");
+    stage(BLANKED, (answer, second) =>
+      answer === "stirred"
+        ? {
+            ...PLAIN,
+            correct: true,
+            accepted: ["stirred"],
+            step: "next",
+            helped: second,
+          }
+        : {
+            ...PLAIN,
+            correct: false,
+            accepted: [],
+            step: "same",
+            again: true,
+            sentence: null,
+          },
+    );
+    const field = screen.getByLabelText("Your translation");
+    await user.type(field, "stir{Enter}");
+    await screen.findByText(
+      "That's the word, but not the form this sentence needs. Try once more.",
+    );
+    expect(chime.mock.calls).toEqual([["partial"]]);
+
+    await user.clear(field);
+    await user.type(field, "stirred{Enter}");
+    await screen.findByText("Right.");
+    expect(chime.mock.calls).toEqual([["partial"], ["partial"]]);
+    chime.mockRestore();
   });
 
   test("another word for what was shown gets one more try, with what tells them apart", async () => {

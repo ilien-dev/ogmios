@@ -318,6 +318,8 @@ export function SittingItem<Result extends Checked>({
     try {
       const verdict = await check(text, again, hints > 0, rung);
       if (verdict.again === true) {
+        // Neither right nor a miss yet: one more try, heard as the middle.
+        chime("partial");
         setAgain(true);
         const ladder = verdict.ladder ?? null;
         if (ladder !== null) {
