@@ -512,6 +512,10 @@ pub struct CheckWord {
     pub part_of_speech: Option<crate::domain::PartOfSpeech>,
     /// The translations it was taken with.
     pub translations: Vec<String>,
+    /// What the same word, of the same kind, means in other chapters where
+    /// it shares no translation with this one, by the id of each of those
+    /// senses (`db::senses::siblings`).
+    pub senses: std::collections::BTreeMap<String, Vec<String>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -557,6 +561,10 @@ pub struct WordCheck {
     pub context_back: bool,
     /// Words from the root of its translations, in another kind.
     pub related: Vec<RelatedWord>,
+    /// The sense given with the word that it is in its sentence; none when
+    /// it is none of them.
+    #[serde(default)]
+    pub same_as: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -681,6 +689,10 @@ pub struct SentenceVerdict {
     /// there; empty when none does.
     #[serde(default)]
     pub cue: Vec<String>,
+    /// What the hint says that the word means anywhere, in its base form,
+    /// beside the meanings it was given with.
+    #[serde(default)]
+    pub general: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

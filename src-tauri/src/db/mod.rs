@@ -9,6 +9,7 @@ pub mod practice;
 pub mod profile;
 pub mod recall;
 pub mod refresh;
+pub mod senses;
 pub mod sentences;
 pub mod sessions;
 pub mod spellings;
@@ -68,6 +69,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("cues.sql"),
     include_str!("refills.sql"),
     include_str!("efforts.sql"),
+    include_str!("meanings.sql"),
 ];
 
 pub fn open(path: &Path) -> Result<Connection> {
@@ -86,7 +88,10 @@ pub fn open_in_memory() -> Result<Connection> {
 fn prepare(conn: &Connection) -> Result<()> {
     conn.pragma_update(None, "foreign_keys", "ON")?;
     conn.pragma_update(None, "journal_mode", "WAL")?;
-    migrate(conn)
+    migrate(conn)?;
+    // The words kept before a word had a sense are given theirs.
+    senses::fill(conn)?;
+    Ok(())
 }
 
 fn migrate(conn: &Connection) -> Result<()> {
@@ -634,6 +639,7 @@ mod tests {
             hints: vec!["se retiró".to_owned(), "se alejó".to_owned()],
             verb_form: Some(crate::domain::VerbForm::Past),
             cue: Vec::new(),
+            general: Vec::new(),
         };
         sentences::label(&conn, "used", &labels).expect("label");
         let bank = sentences::bank(&conn, "recede", None).expect("bank");
@@ -909,8 +915,22 @@ mod tests {
             .into_iter()
             .map(|each| (each.id, each.cue))
             .collect();
-        // Only a word written alike is looked at again, for its cue alone;
-        // until then it has none, and is asked with its whole sentence.
+        // Every sentence kept before a look said what its hint means
+        // anywhere is put to it once more (migration 44).
+        assert_eq!(waiting.len(), 2);
+        // Opening the database gives each word its sense: the two "fair"
+        // share no translation, and are two.
+        senses::fill(&conn).expect("senses");
+        conn.execute("UPDATE word_sentences SET general = '[]'", [])
+            .expect("said");
+        let waiting: Vec<(String, Option<Vec<String>>)> = sentences::unlabelled(&conn)
+            .expect("unlabelled")
+            .into_iter()
+            .map(|each| (each.id, each.cue))
+            .collect();
+        // Of those, only a word written alike is looked at again, for its
+        // cue alone; until then it has none, and is asked with its whole
+        // sentence.
         assert_eq!(waiting, [("s1".to_owned(), None)]);
     }
 

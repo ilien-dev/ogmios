@@ -117,7 +117,7 @@ pub fn prepare(
     {
         let mut conn = ctx.conn()?;
         let tx = conn.transaction()?;
-        let excluded = words::excluded(&tx, chapter_id)?;
+        let excluded = words::excluded(&tx)?;
         let answers: Vec<_> = answers.into_values().collect();
         let merged = merge(&answers, &text, &excluded);
         words::finish(&tx, chapter_id, depth, &merged, Utc::now())?;

@@ -27,10 +27,7 @@ use crate::books::practice::{
     is_base, is_extra, mark, next, off_base, pace, progress, progress_over, seed,
     session_questions, sizes, SIZES,
 };
-use crate::books::sentences::{
-    asked_alone, choose, fixes, in_form, inflected, or_other, production, recognition, Banked,
-    Verdict,
-};
+use crate::books::sentences::{bare, choose, fixes, inflected, or_other, Banked, Verdict};
 use crate::books::spelling::Spelling;
 use crate::db::practice::{self, SittingRow, WordRow};
 use crate::db::sentences::{self, Sentence};
@@ -91,11 +88,16 @@ pub(super) fn step(
 /// is answered, however often the step is read.
 pub(super) fn next_sentence(
     conn: &Connection,
-    (key, own): (&str, &str),
+    (key, own, called): (&str, &str, &str),
     chapter: Option<&str>,
     (drawn_for, tied): (&str, bool),
 ) -> Result<Option<Sentence>> {
     let mut held = sentences::bank(conn, key, chapter)?;
+    // The word is asked as it is `called`: a sentence that writes it so
+    // is the one to show with it, while there is one.
+    if held.iter().any(|each| !inflected(&each.form, called)) {
+        held.retain(|each| !inflected(&each.form, called));
+    }
     // A word its tag cannot tell apart is asked with a short sentence: only
     // the ones whose few words fix its sense, while it has any.
     if tied && held.iter().any(fixed) {
@@ -142,45 +144,51 @@ pub(super) fn in_native(sentence: &Sentence) -> Option<Vec<SentencePart>> {
     parts.iter().any(|part| part.marked).then_some(parts)
 }
 
-/// A word asked with a sentence of its bank. English → native shows the
-/// word as the sentence writes it. Native → English shows what that form is
-/// in the learner's language. The sentence itself is kept back for the
-/// first hint ([`hinted`]): only a word whose look said it `shows` it that
-/// way, to be told from another sense, shows it from the start: English →
+/// A word asked with a sentence of its bank beside it. The sentence asks
+/// nothing: the word is shown as it is called, English → native, and as
+/// what its sense means, native → English ([`item`]), whatever sentence was
+/// drawn, so that the same card always takes the same answer. The sentence
+/// is kept back for the first hint ([`hinted`]) and shown once the word is
+/// answered. Only a word whose look said it shows its sentence that way,
+/// to be told from another sense, shows it from the start: English →
 /// native in English ([`in_place`]), native → English in the learner's
 /// language with the translation marked ([`in_native`]), or with the
-/// English word taken out when it is not found there. A verb comes
-/// with the form it has in the sentence ([`verb_form`]). Native → English,
-/// a verb is shown as it is taken `alone`, not in the mood, tense or
-/// agreement its sentence gives it: "se congela", never "se congele", for
-/// "freezes" in "before she freezes" (`db::practice::WordRow::alone`).
+/// English word taken out. A sentence that writes the word in another form
+/// than it is called by cannot be blanked for it: its chapter's is.
 pub(super) fn asked_with(
-    (word_id, part_of_speech): (String, Option<PartOfSpeech>),
+    (word_id, word): (String, &WordRow),
     sentence: &Sentence,
     direction: Direction,
-    (shows, alone): (bool, Option<&[String]>),
 ) -> PracticeItem {
-    let prompt = match (direction, alone) {
-        (Direction::Recognition, _) => small(&sentence.form),
-        (Direction::Production, Some(alone)) => small(&alone.join(", ")),
-        (Direction::Production, None) => small(&sentence.hint),
+    let shows = word.shows_context(direction);
+    let fits = !inflected(&sentence.form, &word.lemma);
+    let prompt = match direction {
+        Direction::Recognition => small(&word.lemma),
+        Direction::Production => small(&word.listed().join(", ")),
     };
-    let native_context = (shows && direction == Direction::Production)
+    let native_context = (shows && fits && direction == Direction::Production)
         .then(|| in_native(sentence))
         .flatten();
     let context = (shows && native_context.is_none())
-        .then(|| in_place(sentence, direction))
+        .then(|| match direction {
+            Direction::Production if !fits => blank(&word.sentence, &english(word)),
+            _ => in_place(sentence, direction),
+        })
         .flatten();
     PracticeItem {
         word_id,
         direction,
         prompt,
-        part_of_speech,
+        part_of_speech: word.part_of_speech,
         context,
         native_context,
         sentence_id: Some(sentence.id.clone()),
-        verb_form: verb_form(part_of_speech, sentence),
-        irregular: regularity(part_of_speech, &sentence.key, sentence.verb_form),
+        verb_form: word.verb_form,
+        irregular: regularity(
+            word.part_of_speech,
+            word.base.as_ref().unwrap_or(&word.key),
+            word.verb_form,
+        ),
     }
 }
 
@@ -226,17 +234,6 @@ pub(super) fn all_small(texts: &[String]) -> Vec<String> {
     texts.iter().map(|text| small(text)).collect()
 }
 
-/// The form a verb has in the sentence it is asked with, as the second
-/// look labelled it. Only a word its chapter calls a verb has one, whatever
-/// the label says.
-fn verb_form(part_of_speech: Option<PartOfSpeech>, sentence: &Sentence) -> Option<VerbForm> {
-    let verb = matches!(
-        part_of_speech,
-        Some(PartOfSpeech::Verb | PartOfSpeech::PhrasalVerb)
-    );
-    sentence.verb_form.filter(|_| verb)
-}
-
 /// The word as a session of practice asks it: with a sentence of its
 /// chapter's bank, a different one each time, or, until it has a bank, as
 /// its chapter has it ([`item`]). A word written alike to another one in
@@ -249,26 +246,18 @@ fn in_sentence(
     direction: Direction,
     drawn_for: &str,
 ) -> Result<PracticeItem> {
-    let likely = ladder::tied(conn, &word, None)?;
+    let tied = ladder::tied(conn, &word, None)?;
     Ok(
         match next_sentence(
             conn,
-            (&word.key, &word.sentence),
+            (&word.key, &word.sentence, &word.lemma),
             Some(&word.chapter_id),
-            (drawn_for, likely),
+            (drawn_for, tied),
         )? {
             Some(sentence) => {
-                let alone = word.alone_in(&sentence.form).map(<[String]>::to_vec);
-                let shows = word.shows_context(direction);
-                let tied = ladder::tied(conn, &word, sentence.verb_form)?;
                 let whole = mark(&word.sentence, &word.forms);
                 let few = ladder::short_of(&word, Some(&sentence));
-                let asked = asked_with(
-                    (word.id, word.part_of_speech),
-                    &sentence,
-                    direction,
-                    (shows, alone.as_deref()),
-                );
+                let asked = asked_with((word.id.clone(), &word), &sentence, direction);
                 tie(asked, few, whole, tied)
             }
             None => item_tied(conn, word, direction)?,
@@ -334,75 +323,6 @@ pub(super) fn shown_sentence(
         .ok_or_else(|| Error::Invalid("this sentence is not being asked".into()))
 }
 
-/// What a word means and how it is written, for checking an answer given
-/// to one of its sentences.
-pub(super) struct Meaning<'a> {
-    /// The English base form: what the form of a sentence is another form
-    /// of.
-    pub lemma: &'a str,
-    /// What the word is called: its base form, or the form of a verb that
-    /// is a word of its own.
-    pub called: &'a str,
-    /// The word taken alone in the learner's language, in the form it is
-    /// called by (`db::practice::WordRow::alone`).
-    pub alone: Option<&'a [String]>,
-    /// Every accepted translation, in its base form.
-    pub translations: &'a [String],
-    /// The ones it is shown as.
-    pub shown: &'a [String],
-    /// Every way the word is known to be written, its base form included.
-    pub forms: Vec<String>,
-    /// English answers a dispute upheld.
-    pub upheld: &'a [String],
-    /// The other words the learner has that are shown the same way
-    /// (`db::sentences::rivals`).
-    pub rivals: Vec<String>,
-    /// Whether its translations are taken in any form
-    /// (`books::practice::inflects`).
-    pub inflects: bool,
-    /// Whether its chapter calls it a verb: its translation is held to the
-    /// form of the sentence (`books::sentences::in_form`).
-    pub verb: bool,
-    /// The other forms its translations say the same in, beside the ones it
-    /// is called by; none until a model was asked (`WordRow::also`).
-    pub also: Option<&'a [String]>,
-    /// Whether its chapter has it as a past participle: right in any gender
-    /// and number (`books::practice::in_forms`).
-    pub participle: bool,
-    /// A past asked without its sentence, in every other person of its
-    /// tense: English says none, so any is right (`WordRow::unseen_persons`).
-    pub persons: &'a [String],
-    /// The kind it is, and the words of another kind from the root of its
-    /// translations, when its chapter says its kind.
-    pub kind: Option<(PartOfSpeech, &'a [RelatedWord])>,
-}
-
-impl<'a> Meaning<'a> {
-    pub(super) fn of(conn: &Connection, word: &'a WordRow) -> Result<Self> {
-        Ok(Self {
-            lemma: word.base.as_deref().unwrap_or(&word.lemma),
-            called: &word.lemma,
-            alone: word.alone(),
-            translations: &word.translations,
-            shown: &word.shown,
-            forms: english(word),
-            upheld: &word.english,
-            rivals: sentences::rivals(conn, &word.key, &word.shown)?,
-            inflects: inflects(word.part_of_speech),
-            verb: matches!(
-                word.part_of_speech,
-                Some(PartOfSpeech::Verb | PartOfSpeech::PhrasalVerb)
-            ),
-            also: word.also.as_deref(),
-            participle: word.verb_form == Some(VerbForm::PastParticiple),
-            persons: word.unseen_persons(),
-            kind: word
-                .part_of_speech
-                .map(|kind| (kind, word.related.as_slice())),
-        })
-    }
-}
-
 /// An answer given to a sentence, judged.
 pub(super) struct Judged {
     pub verdict: Verdict,
@@ -417,7 +337,7 @@ pub(super) struct Judged {
 
 impl Judged {
     pub(super) fn is_right(&self) -> bool {
-        matches!(self.verdict, Verdict::Right | Verdict::RightBase)
+        self.verdict == Verdict::Right
     }
 
     /// Neither right nor a miss the first time it is given: the word in
@@ -430,129 +350,31 @@ impl Judged {
     }
 }
 
-/// Judges an answer given to a word in a sentence of its bank
-/// (`books::sentences`). English → native, what is asked for is the word's
-/// translations in the form the sentence has it in, never its base forms,
-/// and a verb is held to a gerund or an infinitive (`in_form`). A verb is
-/// asked for as it is taken alone, and the form its sentence gives it is
-/// pointed out beside it (`books::sentences::asked_alone`).
-/// Native → English, the forms of every sentence of
-/// the bank are forms of the word too: any of them is the word, and only
-/// the one of this sentence fills its blank. An answer that is neither, and
-/// is another English word for the hint, as the second look listed them or
-/// as the learner's own words have it, is no miss
-/// (`books::sentences::or_other`).
-pub(super) fn judged(
+/// Judges an answer to a word, with the sentence of its bank it was asked
+/// beside, if any. The sentence takes no part in it: what is right is what
+/// the word means in the form it is called by ([`plain`]), the same
+/// whatever sentence was drawn. English → native, what that sentence says
+/// for the word is pointed out when it is none of what is listed: how it
+/// came out there, never what was asked for.
+pub(super) fn by_word(
     conn: &Connection,
-    meaning: &Meaning<'_>,
-    sentence: &Sentence,
+    word: &WordRow,
+    sentence: Option<&Sentence>,
     (direction, answer): (Direction, &str),
-    (native_lang, spelling): (&str, Spelling),
+    how: (&str, Spelling),
 ) -> Result<Judged> {
-    Ok(match direction {
-        Direction::Recognition => {
-            let said = [std::slice::from_ref(&sentence.hint), &sentence.hints].concat();
-            let alone = meaning
-                .alone
-                .filter(|_| !inflected(&sentence.form, meaning.called));
-            // A verb called by its base form keeps the sentence's form first:
-            // its infinitive asks for no form of its own.
-            let lead = meaning.called != meaning.lemma;
-            let asked = asked_alone(alone, &said, lead);
-            let mut hints = beside(asked.judged, alone, meaning, native_lang);
-            // Asked alone, a past is right in any person: English says none.
-            if alone.is_some() {
-                hints.extend(meaning.persons.iter().cloned());
-            }
-            let verdict = recognition(
-                answer,
-                (meaning.translations, meaning.shown),
-                (&hints, inflected(&sentence.form, meaning.lemma)),
-                ((native_lang, meaning.inflects), spelling),
-            );
-            let verdict = if meaning.verb {
-                in_form(verdict, answer, &hints, (native_lang, spelling))
-            } else {
-                verdict
-            };
-            // A verb asked as it is alone is right only in a form it is
-            // asked for in, or in the one its sentence gives it.
-            let right = matches!(verdict, Verdict::Right | Verdict::RightBase);
-            let gated = alone.is_some() && meaning.verb && right && meaning.also.is_some();
-            let upheld = (meaning.translations, meaning.shown);
-            let how = (native_lang, spelling, meaning.participle);
-            let verdict = if gated && off_form(answer, &hints, upheld, how) {
-                Verdict::WrongForm
-            } else {
-                verdict
-            };
-            let exact = if alone.is_some() {
-                asked.note
-            } else {
-                (verdict == Verdict::RightBase).then(|| sentence.hint.clone())
-            };
-            // Its stem may be the word's ("patada", "patear"): a word of
-            // another kind is told so, unless it is itself one asked for.
-            let listed = [hints.as_slice(), meaning.translations].concat();
-            let kind = (!accepts(answer, &listed, articles(native_lang), spelling))
-                .then(|| other_kind(meaning.kind, answer, (native_lang, spelling)))
-                .flatten();
-            Judged {
-                exact,
-                verdict: if kind.is_some() {
-                    Verdict::OtherKind
-                } else {
-                    verdict
-                },
-                accepted: asked.accepted,
-                kind,
-            }
-        }
-        Direction::Production => {
-            let mut other = meaning.forms.clone();
-            other.extend(
-                sentences::bank(conn, &sentence.key, sentence.chapter_id.as_deref())?
-                    .into_iter()
-                    .map(|each| each.form),
-            );
-            let verdict = production(answer, &sentence.form, (&other, meaning.upheld), spelling);
-            let rivals = [meaning.rivals.as_slice(), sentence.also.as_slice()].concat();
-            Judged {
-                verdict: or_other(verdict, answer, &rivals, spelling),
-                accepted: vec![sentence.form.clone()],
-                exact: None,
-                kind: None,
-            }
-        }
-    })
-}
-
-/// The `hints` a verb asked as it is `alone` is right with: those its
-/// sentence's translation has that are a form of its own translations.
-/// One that takes in a word beside it is not: "bajó correteando" for
-/// "scampered" in "she scampered down the tree" says "down" too. It is
-/// still pointed out as how the sentence has it. A word not asked alone
-/// keeps them all.
-fn beside(
-    hints: Vec<String>,
-    alone: Option<&[String]>,
-    meaning: &Meaning<'_>,
-    lang: &str,
-) -> Vec<String> {
-    let Some(alone) = alone else {
-        return hints;
-    };
-    let own = [meaning.translations, alone].concat();
-    let mut kept: Vec<String> = hints
-        .into_iter()
-        .filter(|hint| accepts_native(hint, &own, (lang, meaning.inflects), Spelling::Lenient))
-        .collect();
-    for each in meaning.also.unwrap_or_default() {
-        if !kept.contains(each) {
-            kept.push(each.clone());
+    let mut judged = plain(conn, word, (direction, answer), how)?;
+    if let (Some(sentence), Direction::Recognition) = (sentence, direction) {
+        if !accepts(
+            &sentence.hint,
+            &judged.accepted,
+            articles(how.0),
+            Spelling::Lenient,
+        ) {
+            judged.exact = Some(sentence.hint.clone());
         }
     }
-    kept
+    Ok(judged)
 }
 
 /// Whether a right answer English → native to a verb asked in a form of its
@@ -596,7 +418,7 @@ pub(super) fn item(word: WordRow, direction: Direction) -> PracticeItem {
                 .then(|| mark(&word.sentence, &word.forms)),
         ),
         Direction::Production => (
-            word.shown_as().join(", "),
+            word.listed().join(", "),
             word.shows_context(direction)
                 .then(|| blank(&word.sentence, &english(&word)))
                 .flatten(),
@@ -681,7 +503,7 @@ pub(super) fn verdict(
             let native = (native_lang, inflects(word.part_of_speech));
             (
                 accepts_native(answer, &right, native, spelling),
-                word.shown_as().to_vec(),
+                word.listed().to_vec(),
             )
         }
         Direction::Production => {
@@ -690,7 +512,10 @@ pub(super) fn verdict(
             let written = if blanks.is_empty() { &any } else { &blanks };
             let forms = [written.as_slice(), word.english.as_slice()].concat();
             let base = blanks.first().unwrap_or(&word.lemma);
-            let correct = accepts_english(answer, base, &forms, spelling);
+            // A reflexive pronoun counts for nothing either way: what was
+            // shown does not say which one the word is written with.
+            let forms: Vec<String> = forms.iter().map(|each| bare(each)).collect();
+            let correct = accepts_english(&bare(answer), &bare(base), &forms, spelling);
             let accepted = if blanks.is_empty() {
                 vec![word.lemma.clone()]
             } else {
@@ -764,7 +589,13 @@ pub(super) fn plain(
         {
             verdict = Verdict::WrongForm;
         }
-        let rivals = sentences::rivals(conn, &word.key, &word.shown)?;
+        // The other words the learner has for what was shown, and the
+        // ones the second look listed for any sentence of its bank: of all
+        // of them, so that the sentence drawn changes nothing.
+        let mut rivals = sentences::rivals(conn, &word.key, &word.shown)?;
+        for each in sentences::bank(conn, &word.key, Some(&word.chapter_id))? {
+            rivals.extend(each.also);
+        }
         verdict = or_other(verdict, answer, &rivals, how.1);
     }
     Ok(Judged {
@@ -837,28 +668,27 @@ pub(super) fn clue(
     sentence: Option<&Sentence>,
     direction: Direction,
 ) -> (String, Option<Vec<SentencePart>>) {
-    let (answer, context) = match (sentence, direction) {
-        (Some(sentence), Direction::Recognition) => {
-            let alone = word.alone_in(&sentence.form).and_then(<[String]>::first);
-            (
-                alone.unwrap_or(&sentence.hint).clone(),
-                in_place(sentence, direction),
-            )
-        }
-        (Some(sentence), Direction::Production) => {
-            (sentence.form.clone(), in_place(sentence, direction))
-        }
-        (None, Direction::Recognition) => (
+    let (answer, context) = match direction {
+        Direction::Recognition => (
             word.shown_as().first().cloned().unwrap_or_default(),
-            Some(mark(&word.sentence, &word.forms)),
+            sentence
+                .and_then(|each| in_place(each, direction))
+                .or_else(|| Some(mark(&word.sentence, &word.forms))),
         ),
-        (None, Direction::Production) => {
+        Direction::Production => {
             let forms = english(word);
-            let answer = fills(&word.sentence, &forms)
-                .into_iter()
-                .next()
-                .unwrap_or_else(|| word.lemma.clone());
-            (answer, blank(&word.sentence, &forms))
+            // Only a sentence that writes the word as it is called can be
+            // blanked for it.
+            match sentence.filter(|each| !inflected(&each.form, &word.lemma)) {
+                Some(each) => (each.form.clone(), in_place(each, direction)),
+                None => (
+                    fills(&word.sentence, &forms)
+                        .into_iter()
+                        .next()
+                        .unwrap_or_else(|| word.lemma.clone()),
+                    blank(&word.sentence, &forms),
+                ),
+            }
         }
     };
     (answer, context.filter(|_| !word.shows_context(direction)))
@@ -1098,17 +928,13 @@ pub fn answer_shown(
     }
     penalty::refuse_while_due(&tx, &sitting.chapter_id)?;
     let sentence = shown_sentence(&tx, &word.key, shown)?;
-    let judged = if let Some(sentence) = &sentence {
-        judged(
-            &tx,
-            &Meaning::of(&tx, &word)?,
-            sentence,
-            (direction, answer),
-            (&native_lang, spelling),
-        )?
-    } else {
-        plain(&tx, &word, (direction, answer), (&native_lang, spelling))?
-    };
+    let judged = by_word(
+        &tx,
+        &word,
+        sentence.as_ref(),
+        (direction, answer),
+        (&native_lang, spelling),
+    )?;
     let climbed = rise(
         &tx,
         (&word, sentence.as_ref()),
@@ -1988,14 +1814,13 @@ pub mod tests {
             chapter_id: None,
             cue: None,
         };
-        let asked = |direction, shows| {
-            asked_with(
-                ("w".into(), Some(PartOfSpeech::Noun)),
-                &sentence,
-                direction,
-                (shows, None),
-            )
+        let looked = |shows: bool| WordRow {
+            context_there: Some(shows),
+            context_back: Some(shows),
+            ..row("toe")
         };
+        let asked =
+            |direction, shows| asked_with(("w".into(), &looked(shows)), &sentence, direction);
         // Native → English, in the learner's language: the English word is
         // nowhere, and "punta" says which sense is meant.
         let shown = asked(back, true);
@@ -2019,87 +1844,8 @@ pub mod tests {
             translation: "Con el extremo del zapato.".into(),
             ..sentence.clone()
         };
-        let shown = asked_with(
-            ("w".into(), Some(PartOfSpeech::Noun)),
-            &odd,
-            back,
-            (true, None),
-        );
+        let shown = asked_with(("w".into(), &looked(true)), &odd, back);
         assert!(shown.native_context.is_none() && shown.context.is_some());
-    }
-
-    #[test]
-    fn a_word_shown_as_it_is_called_asks_for_no_tense_its_sentence_gives_it() {
-        let dir = tempfile::tempdir().expect("tempdir");
-        let desk = Desk::new(&dir);
-        let text = "And poor, stupid Donut wouldn’t stand a chance out here in the cold.";
-        let chance = Word {
-            part_of_speech: Some(PartOfSpeech::Expression),
-            sentence: text.into(),
-            ..word(
-                "stand a chance",
-                &["tener ninguna oportunidad", "tener posibilidades"],
-                1,
-            )
-        };
-        let chapter = desk.chapter("b", &[chance]);
-        let conn = desk.db.lock().expect("db");
-        words::affirm(&conn, "es").expect("affirm");
-        let id = words::id_by_key(&conn, &chapter, "stand a chance")
-            .expect("id")
-            .expect("word");
-        let row = practice::word(&conn, &id).expect("word");
-        // Without the "no" outside it, "a chance" is "una oportunidad".
-        assert_eq!(
-            row.translations,
-            ["tener una oportunidad", "tener posibilidades"]
-        );
-        // "wouldn't" is outside "stand a chance": its "tendría" is the
-        // sentence's, and the word shown asks for none.
-        let sentence = Sentence {
-            id: "s".into(),
-            key: "stand a chance".into(),
-            book: true,
-            text: text.into(),
-            form: "stand a chance".into(),
-            hint: "tendría una oportunidad".into(),
-            translation: "Y la pobre Donut no tendría ninguna oportunidad aquí fuera.".into(),
-            shows: 0,
-            also: Vec::new(),
-            hints: vec!["tendría posibilidades".into()],
-            verb_form: None,
-            chapter_id: None,
-            cue: None,
-        };
-        let spelling = profile::spelling(&conn).expect("spelling");
-        let meaning = Meaning::of(&conn, &row).expect("meaning");
-        let say = |answer: &str| {
-            judged(
-                &conn,
-                &meaning,
-                &sentence,
-                (Direction::Recognition, answer),
-                ("es", spelling),
-            )
-            .expect("judged")
-        };
-        let own = say("tener oportunidad");
-        assert!(own.is_right(), "{:?} {:?}", own.verdict, own.accepted);
-        assert_eq!(
-            own.accepted,
-            ["tener una oportunidad", "tener posibilidades"]
-        );
-        assert_eq!(own.exact.as_deref(), Some("tendría una oportunidad"));
-        assert!(say("tener posibilidades").is_right());
-        // Native → English it is shown as it is called, not as conditional.
-        let alone = row.alone_in(&sentence.form).map(<[String]>::to_vec);
-        let item = asked_with(
-            (id.clone(), row.part_of_speech),
-            &sentence,
-            Direction::Production,
-            (false, alone.as_deref()),
-        );
-        assert_eq!(item.prompt, "tener una oportunidad, tener posibilidades");
     }
 
     /// A sitting on "swore", its translation said in its form: "juró".

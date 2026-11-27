@@ -23,8 +23,8 @@ use tauri::AppHandle;
 use super::board::review_minutes;
 use super::ladder::{rise, Climb, ALONE};
 use super::practice::{
-    all_small, another, asked_with, climb, clue, in_place, item_tied, judged, next_sentence, plain,
-    shown_sentence, small, tie, whole, Judged, Meaning, Shown, Tries,
+    all_small, another, asked_with, by_word, climb, clue, in_place, item_tied, next_sentence,
+    shown_sentence, small, tie, whole, Judged, Shown, Tries,
 };
 use super::profile::require_profile;
 use super::run;
@@ -97,15 +97,6 @@ pub(crate) fn due(conn: &Connection, ways: Ways, now: DateTime<Utc>) -> Result<V
     Ok(due)
 }
 
-/// What fixes the sense of a word: the sentence its chapter has it in, or
-/// what the learner asked for in a conversation.
-fn sense(conn: &Connection, word: &RecallWord) -> Result<String> {
-    Ok(match &word.source {
-        Source::Book { word_id } => practice::word(conn, word_id)?.sentence,
-        Source::Chat { asked } => asked.clone(),
-    })
-}
-
 /// The word as the chapter of `sentence` has it: what the sentence means
 /// by it. The one it was learned as when that chapter has it no more.
 fn as_in(conn: &Connection, word_id: &str, sentence: &Sentence) -> Result<WordRow> {
@@ -127,33 +118,19 @@ fn asked(
     direction: Direction,
     run_id: &str,
 ) -> Result<PracticeItem> {
-    let own = sense(conn, word)?;
-    let likely = match &word.source {
-        Source::Book { word_id } => {
-            super::ladder::tied(conn, &practice::word(conn, word_id)?, None)?
+    // A word of a conversation is of no book: it has no sentence.
+    if let Source::Book { word_id } = &word.source {
+        let learned = practice::word(conn, word_id)?;
+        let likely = super::ladder::tied(conn, &learned, None)?;
+        let asked_as = (&*word.key, &*learned.sentence, &*learned.lemma);
+        if let Some(sentence) = next_sentence(conn, asked_as, None, (run_id, likely))? {
+            let row = as_in(conn, word_id, &sentence)?;
+            let tied = super::ladder::tied(conn, &row, None)?;
+            let few = super::ladder::short_of(&row, Some(&sentence));
+            let asked = asked_with((word.key.clone(), &row), &sentence, direction);
+            let whole = in_place(&sentence, Direction::Recognition).unwrap_or_default();
+            return Ok(tie(asked, few, whole, tied));
         }
-        Source::Chat { .. } => false,
-    };
-    if let Some(sentence) = next_sentence(conn, (&word.key, &own), None, (run_id, likely))? {
-        let (part_of_speech, needs_context, alone, tied, few) = match &word.source {
-            Source::Book { word_id } => {
-                let row = as_in(conn, word_id, &sentence)?;
-                let alone = row.alone_in(&sentence.form).map(<[String]>::to_vec);
-                let shows = row.shows_context(direction);
-                let tied = super::ladder::tied(conn, &row, sentence.verb_form)?;
-                let few = super::ladder::short_of(&row, Some(&sentence));
-                (row.part_of_speech, shows, alone, tied, few)
-            }
-            Source::Chat { .. } => (None, false, None, false, None),
-        };
-        let asked = asked_with(
-            (word.key.clone(), part_of_speech),
-            &sentence,
-            direction,
-            (needs_context, alone.as_deref()),
-        );
-        let whole = in_place(&sentence, Direction::Recognition).unwrap_or_default();
-        return Ok(tie(asked, few, whole, tied));
     }
     Ok(match &word.source {
         Source::Book { word_id } => PracticeItem {
@@ -298,8 +275,8 @@ pub fn start_plan(ctx: Ctx<'_>, plan: RecallPlan, now: DateTime<Utc>) -> Result<
     Ok(Recall { id: run.id, step })
 }
 
-/// Judges an answer to the word asked in a direction: against the sentence
-/// it was asked with, when there is one, and otherwise as it was learned.
+/// Judges an answer to the word asked in a direction: by what the word
+/// means, whatever sentence it was asked beside (`commands::practice::by_word`).
 /// Towards English, another word the learner has for what was shown is no
 /// miss, whatever the word is from (`books::sentences::or_other`).
 fn check(
@@ -310,37 +287,15 @@ fn check(
     (native_lang, spelling): (&str, Spelling),
 ) -> Result<Judged> {
     let how = (native_lang, spelling);
-    match (&word.source, sentence) {
-        (Source::Book { word_id }, Some(sentence)) => {
-            let row = as_in(conn, word_id, sentence)?;
-            let meaning = Meaning::of(conn, &row)?;
-            judged(conn, &meaning, sentence, (direction, answer), how)
-        }
-        (Source::Book { word_id }, None) => {
-            let row = practice::word(conn, word_id)?;
-            plain(conn, &row, (direction, answer), how)
-        }
-        (Source::Chat { asked }, Some(sentence)) => {
-            let shown = std::slice::from_ref(asked);
-            let meaning = Meaning {
-                lemma: &word.english,
-                called: &word.english,
-                alone: None,
-                translations: shown,
-                shown,
-                forms: word.forms.clone(),
-                upheld: &[],
-                rivals: sentences::rivals(conn, &word.key, shown)?,
-                inflects: false,
-                verb: false,
-                also: None,
-                participle: false,
-                persons: &[],
-                kind: None,
+    match &word.source {
+        Source::Book { word_id } => {
+            let row = match sentence {
+                Some(sentence) => as_in(conn, word_id, sentence)?,
+                None => practice::word(conn, word_id)?,
             };
-            judged(conn, &meaning, sentence, (direction, answer), how)
+            by_word(conn, &row, sentence, (direction, answer), how)
         }
-        (Source::Chat { asked }, None) => {
+        Source::Chat { asked } => {
             let verdict = if accepts_english(answer, &word.english, &[], spelling) {
                 Verdict::Right
             } else {

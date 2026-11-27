@@ -43,7 +43,6 @@ export const requestSchema = z.object({
   method: z.string(),
   params: z.unknown(),
 });
-export type Request = z.infer<typeof requestSchema>;
 
 export type AgentErrorKind = "provider" | "invalid" | "internal";
 
@@ -177,7 +176,6 @@ export const helpResultSchema = z.object({
     .min(1)
     .max(3),
 });
-export type HelpResult = z.infer<typeof helpResultSchema>;
 
 // ── analyze ───────────────────────────────────────────────────────────────
 
@@ -338,7 +336,6 @@ export const selfCheckSchema = z.object({
   correct: z.boolean(),
   hint: z.string().nullable(),
 });
-export type SelfCheckResult = z.infer<typeof selfCheckSchema>;
 
 // ── drills ────────────────────────────────────────────────────────────────
 
@@ -374,7 +371,6 @@ export const drillItemSchema = z.object({
   /** A model answer, never shown before grading. */
   answer: z.string(),
 });
-export type GeneratedDrillItem = z.infer<typeof drillItemSchema>;
 
 export const drillSetSchema = z.object({ items: z.array(drillItemSchema) });
 export type DrillSet = z.infer<typeof drillSetSchema>;
@@ -391,7 +387,6 @@ export const drillGradeSchema = z.object({
   explanation: z.string(),
   expected: z.string(),
 });
-export type DrillGrade = z.infer<typeof drillGradeSchema>;
 
 // ── book vocabulary ───────────────────────────────────────────────────────
 
@@ -558,6 +553,12 @@ const checkWordSchema = z.object({
   partOfSpeech: partOfSpeechSchema.nullable(),
   /** The translations it was taken with. */
   translations: z.array(z.string()),
+  /**
+   * What the same word, of the same kind, means in other chapters where it
+   * shares no translation with this one: the senses it may be one of, each
+   * by the id Rust gives it.
+   */
+  senses: z.record(z.string(), z.array(z.string())),
 });
 
 /** Words of the learner's books, each looked at once against its sentence. */
@@ -606,6 +607,11 @@ const wordCheckSchema = z.object({
   contextBack: z.boolean(),
   /** Words from the root of its translations, in another kind. */
   related: z.array(relatedWordSchema),
+  /**
+   * The id of the sense given with the word that it is in its sentence: the
+   * same meaning, said with other words. Null when it is none of them.
+   */
+  sameAs: z.string().nullable(),
 });
 
 /** The model's looks; a word without one is looked at again. */
@@ -722,6 +728,12 @@ const sentenceVerdictSchema = z.object({
    * meaning it has there; empty when none does.
    */
   cue: z.array(z.string()),
+  /**
+   * What the hint says that the word means anywhere, in its base form, and
+   * is none of the meanings given: a synonym of them. Empty for a hint that
+   * is right only in its sentence.
+   */
+  general: z.array(z.string()),
 });
 
 /** The model's labels; a sentence without a good one is not used. */

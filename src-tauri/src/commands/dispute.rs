@@ -8,7 +8,7 @@ use chrono::{DateTime, Utc};
 use rusqlite::Connection;
 use tauri::AppHandle;
 
-use super::practice::{asked_off, blanked, english, judged, other_kind, step, Meaning};
+use super::practice::{asked_off, blanked, by_word, english, other_kind, step};
 use super::profile::{agent, require_profile};
 use super::run;
 use crate::agent::protocol::{VocabJudgeParams, VocabVerdict};
@@ -112,10 +112,10 @@ fn disputable(conn: &Connection, answer_id: i64) -> Result<AnswerRow> {
         }
         let id = answer.sentence_id.as_deref().unwrap_or_default();
         if let Some(sentence) = sentences::usable(conn, id)? {
-            let judged = judged(
+            let judged = by_word(
                 conn,
-                &Meaning::of(conn, &word)?,
-                &sentence,
+                &word,
+                Some(&sentence),
                 (answer.direction, &answer.answer),
                 (&native_lang, spelling),
             )?;
@@ -213,24 +213,16 @@ pub fn dispute(
             .map(|id| sentences::text(&conn, id))
             .transpose()?
             .flatten();
-        let asked_in = shown.as_ref().map(|(_, form)| form.as_str());
-        let translations = judged_against(&word, answer.direction, asked_in);
-        let (sentence, form) = match shown {
-            Some((sentence, form)) => (sentence, Some(form)),
-            None => (word.sentence, None),
-        };
-        // English → native the learner saw the form of the sentence, and
-        // native → English only that form fills its blank.
-        let (lemma, blank) = match (answer.direction, form) {
-            (Direction::Recognition, Some(form)) => (form, None),
-            (_, form) => (word.lemma, form),
-        };
+        // The sentence asked nothing: the learner saw the word as it is
+        // called, and was asked for what it means in that form.
+        let translations = judged_against(&word, answer.direction, None);
+        let sentence = shown.map_or(word.sentence, |(sentence, _)| sentence);
         VocabJudgeParams {
             native_lang: require_profile(&conn)?.native_lang,
             direction: answer.direction,
-            lemma,
+            lemma: word.lemma,
             sentence,
-            blank,
+            blank: None,
             translations,
             answer: answer.answer,
             strict_spelling: profile::spelling(&conn)?.is_strict(),

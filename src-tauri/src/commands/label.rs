@@ -221,6 +221,7 @@ mod tests {
                             context_there: false,
                             context_back: false,
                             related: Vec::new(),
+                            same_as: None,
                         };
                     }
                     if word.lemma == "kicked" || word.lemma == "hedge" {
@@ -239,6 +240,7 @@ mod tests {
                             context_there: false,
                             context_back: false,
                             related: Vec::new(),
+                            same_as: None,
                         };
                     }
                     WordCheck {
@@ -260,6 +262,12 @@ mod tests {
                         context_there: false,
                         context_back: false,
                         related: Vec::new(),
+                        same_as: word
+                            .senses
+                            .keys()
+                            .next()
+                            .filter(|_| word.translations == ["indicio"])
+                            .cloned(),
                     }
                 })
                 .collect();
@@ -473,13 +481,8 @@ mod tests {
         let row = |key: &str| practice::word(&conn, &id(key)).expect("word");
         let (set_off, kicked, wipe) = (row("set off"), row("kicked"), row("wipe away"));
         assert_eq!(set_off.shown_as(), ["partirdo", "salirdo"]);
-        assert_eq!(
-            set_off.alone(),
-            Some(&["partirdo".to_owned(), "salirdo".to_owned()][..])
-        );
         assert_eq!(kicked.shown_as(), ["pateardo", "dar una patadado"]);
         assert_eq!(wipe.shown_as(), ["limpiar"]);
-        assert_eq!(wipe.alone(), Some(&["limpiar".to_owned()][..]));
         let listed = words::list(&conn, &chapter).expect("list");
         let shown = |lemma: &str| {
             let word = listed
@@ -556,6 +559,68 @@ mod tests {
         assert_eq!(label_all(desk.ctx(), &mut again).expect("label"), 1);
         assert_eq!(again.asked, [["moped"]]);
         assert_eq!(row("moped").shown_as(), ["andar deprimidodo"]);
+    }
+
+    #[test]
+    fn a_look_says_two_lists_with_nothing_in_common_are_one_meaning() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let desk = Desk::new(&dir);
+        let noun = |lemma: &str, said: &[&str]| Word {
+            part_of_speech: Some(PartOfSpeech::Noun),
+            ..word(lemma, said, 1)
+        };
+        let first = desk.chapter(
+            "b",
+            &[
+                noun("sign", &["letrero", "cartel"]),
+                noun("bug", &["bicho"]),
+            ],
+        );
+        let second = desk.chapter("c", &[noun("sign", &["indicio"]), noun("bug", &["error"])]);
+        let sense = |chapter: &str, key: &str| {
+            let conn = desk.db.lock().expect("db");
+            let id = words::id_by_key(&conn, chapter, key)
+                .expect("id")
+                .expect("word");
+            crate::db::senses::of(&conn, &id).expect("sense")
+        };
+        // Nothing in common: two senses each, until a look says otherwise.
+        assert_ne!(sense(&first, "sign"), sense(&second, "sign"));
+        // As a database kept before senses has them: looked at already.
+        desk.db
+            .lock()
+            .expect("db")
+            .execute("UPDATE chapter_words SET checked = 1, sensed = 0", [])
+            .expect("old rows");
+
+        let mut stub = Stub::default();
+        assert_eq!(check_all(desk.ctx(), &mut stub).expect("check"), 1);
+        assert_eq!(stub.looked.concat().len(), 4, "each once, for its sense");
+        // "letrero" and "indicio" are one meaning; "bicho" and "error" are not.
+        assert_eq!(sense(&first, "sign"), sense(&second, "sign"));
+        assert_ne!(sense(&first, "bug"), sense(&second, "bug"));
+        {
+            let conn = desk.db.lock().expect("db");
+            let id = words::id_by_key(&conn, &second, "sign")
+                .expect("id")
+                .expect("word");
+            // What either chapter said is right in both from now on.
+            let row = practice::word(&conn, &id).expect("word");
+            assert_eq!(row.translations, ["indicio", "letrero", "cartel"]);
+            // A look for the sense alone changes nothing else of the word.
+            let own: i64 = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM word_translations WHERE word_id = ?1",
+                    [&id],
+                    |row| row.get(0),
+                )
+                .expect("count");
+            assert_eq!(own, 1);
+        }
+        // Once: a word is asked which sense it is one time.
+        let mut stub = Stub::default();
+        assert_eq!(check_all(desk.ctx(), &mut stub).expect("check"), 0);
+        assert_eq!(stub.looked, Vec::<Vec<String>>::new());
     }
 
     #[test]

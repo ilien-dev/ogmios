@@ -7,9 +7,7 @@
 
 use crate::domain::SentencePart;
 
-use super::practice::{
-    accepts, accepts_native, articles, auxiliary, clitic, is_base, mark, shape, Auxiliary,
-};
+use super::practice::{accepts, auxiliary, clitic, mark, Auxiliary};
 use super::spelling::Spelling;
 use super::vocab::{tokens, LEADING};
 
@@ -409,48 +407,6 @@ pub fn shown_in(hint: &str, translation: &str, lang: &str) -> bool {
     in_translation(hint, &plain_words(&words, lang, |_| false).join(" "))
 }
 
-/// What English → native asks of a word in a sentence.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AskedAlone {
-    /// What an answer is judged against, the form asked for first.
-    pub judged: Vec<String>,
-    /// What is shown as accepted.
-    pub accepted: Vec<String>,
-    /// The form the sentence gives the word, when it is none of those.
-    pub note: Option<String>,
-}
-
-/// What English → native asks of a word whose sentence `said` it in these
-/// translations, the hint first. A verb taken `alone` is asked for in that
-/// form: "freezes" is "se congela", whatever its sentence makes of it. The
-/// form the sentence gives it ("se congele" in "before she freezes") is
-/// right too, and pointed out when it is not one of them. Without that,
-/// what the sentence says is asked for, as it is. Unless `lead`, the
-/// sentence's form stays first in what is judged: a verb called by its base
-/// form is taken alone as an infinitive, which asks for no form of its own.
-pub fn asked_alone(alone: Option<&[String]>, said: &[String], lead: bool) -> AskedAlone {
-    let Some(alone) = alone else {
-        return AskedAlone {
-            judged: said.to_vec(),
-            accepted: said.to_vec(),
-            note: None,
-        };
-    };
-    let held = |list: &[String], text: &str| list.iter().any(|each| tokens(each) == tokens(text));
-    let (first, then) = if lead { (alone, said) } else { (said, alone) };
-    let mut judged = first.to_vec();
-    for each in then {
-        if !held(&judged, each) {
-            judged.push(each.clone());
-        }
-    }
-    AskedAlone {
-        judged,
-        accepted: alone.to_vec(),
-        note: said.first().filter(|hint| !held(alone, hint)).cloned(),
-    }
-}
-
 /// Whether a sentence has the word in another form than its base form:
 /// "receded" for "recede".
 pub fn inflected(form: &str, lemma: &str) -> bool {
@@ -461,9 +417,6 @@ pub fn inflected(form: &str, lemma: &str) -> bool {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Verdict {
     Right,
-    /// Right, with the word's base translation where the sentence has it in
-    /// another form: it counts, and the form it has there is pointed out.
-    RightBase,
     /// The word, in a form that does not fill the blank, or its base
     /// translation where the sentence has the word in another form: no
     /// answer yet.
@@ -476,69 +429,6 @@ pub enum Verdict {
     /// learner is reminded of the kind asked for.
     OtherKind,
     Miss,
-}
-
-/// An answer in the learner's language to a word shown in its sentence.
-/// The `hints` are its translations as the translation of the sentence has
-/// the word, the one it uses first: any of them is right. That form is the
-/// one the learner's language has there, not always the one of the English
-/// word: an infinitive, with or without its pronoun on it, is the form a
-/// base translation has (`is_base`). So is any
-/// `base` translation, or any hint, in another form, for a word that
-/// inflects (`accepts_native`): the first hint is then pointed out. But a
-/// base translation the word is `shown` as, written as it is, is the word
-/// in the wrong form when the sentence has it `inflected`: "retroceder" for
-/// "receded" is no answer yet.
-pub fn recognition(
-    answer: &str,
-    (base, shown): (&[String], &[String]),
-    (hints, inflected): (&[String], bool),
-    (native, spelling): ((&str, bool), Spelling),
-) -> Verdict {
-    let articles = articles(native.0);
-    if accepts(answer, hints, articles, spelling) {
-        return Verdict::Right;
-    }
-    let either = [base, hints].concat();
-    if !accepts_native(answer, &either, native, spelling) {
-        return Verdict::Miss;
-    }
-    // A hint that is one of the base translations is no other form.
-    let other_form = hints
-        .first()
-        .is_some_and(|exact| !is_base(exact, base, native, spelling));
-    if !other_form {
-        Verdict::Right
-    } else if inflected && accepts(answer, shown, articles, spelling) {
-        Verdict::WrongForm
-    } else {
-        Verdict::RightBase
-    }
-}
-
-/// [`recognition`] of a verb, held to the form of the sentence where the
-/// learner's language has one form for it: an answer that is right, and is
-/// none of the `hints` as they are written, is no answer yet when the first
-/// hint is a gerund or an infinitive (`books::practice::shape`) and the
-/// answer is not. "predicaba" for "predicando" is the word in another form.
-/// A past is not one form in Spanish: any form is right for it, as before.
-pub fn in_form(
-    verdict: Verdict,
-    answer: &str,
-    hints: &[String],
-    (lang, spelling): (&str, Spelling),
-) -> Verdict {
-    let right = matches!(verdict, Verdict::Right | Verdict::RightBase);
-    let asked = hints.first().and_then(|hint| shape(hint, lang));
-    if right
-        && asked.is_some()
-        && shape(answer, lang) != asked
-        && !accepts(answer, hints, articles(lang), spelling)
-    {
-        Verdict::WrongForm
-    } else {
-        verdict
-    }
 }
 
 /// The reflexive pronouns a verb is written with: which one is up to the
@@ -557,7 +447,7 @@ const REFLEXIVE: [&str; 9] = [
 
 /// `text` without its reflexive pronouns: "distancing herself" is
 /// "distancing". One that is all there is stays.
-fn bare(text: &str) -> String {
+pub fn bare(text: &str) -> String {
     let kept: Vec<&str> = text
         .split_whitespace()
         .filter(|word| {
@@ -571,31 +461,6 @@ fn bare(text: &str) -> String {
         text.to_owned()
     } else {
         kept.join(" ")
-    }
-}
-
-/// An answer in English to the blank of a sentence. Only `form` fills it,
-/// or an answer `upheld` before; any of the word's `other` forms is the
-/// word in the wrong form. A reflexive pronoun counts for nothing either
-/// way: the translation shown does not say which one the sentence has.
-pub fn production(
-    answer: &str,
-    form: &str,
-    (other, upheld): (&[String], &[String]),
-    spelling: Spelling,
-) -> Verdict {
-    let answer = bare(answer);
-    let answer = answer.as_str();
-    let mut fills: Vec<String> = upheld.iter().map(|each| bare(each)).collect();
-    fills.push(bare(form));
-    let other: Vec<String> = other.iter().map(|each| bare(each)).collect();
-    let other = other.as_slice();
-    if accepts(answer, &fills, &LEADING, spelling) {
-        Verdict::Right
-    } else if accepts(answer, other, &LEADING, spelling) {
-        Verdict::WrongForm
-    } else {
-        Verdict::Miss
     }
 }
 
@@ -1138,224 +1003,6 @@ mod tests {
     }
 
     #[test]
-    fn a_past_is_right_for_a_word_whose_sentence_has_had_outside_it() {
-        // "So after our fight, I'd made a point of smoking": the learner is
-        // shown "made a point of" alone.
-        let base = list(&["empeñarse en", "hacer hincapié en"]);
-        let spelling = Spelling::of(false);
-        let judged = |answer: &str, hints: &[&str]| {
-            let hints = list(hints);
-            let verdict = recognition(
-                answer,
-                (&base, &base),
-                (&hints, true),
-                (("es", true), spelling),
-            );
-            in_form(verdict, answer, &hints, ("es", spelling))
-        };
-        let hints = ["empeñado en", "asegurado de"];
-        assert_eq!(judged("empeñado en", &hints), Verdict::Right);
-        for answer in ["me aseguré de", "me asegure de", "me había asegurado de"] {
-            assert_eq!(judged(answer, &hints), Verdict::RightBase, "{answer}");
-        }
-        // As a hint kept before this was asked for has it.
-        let kept = ["me había empeñado en", "me había asegurado de"];
-        assert_eq!(judged("me aseguré de", &kept), Verdict::RightBase);
-        assert_eq!(judged("me olvidé de", &hints), Verdict::Miss);
-    }
-
-    #[test]
-    fn a_verb_is_asked_as_it_is_alone_and_its_sentence_form_is_pointed_out() {
-        let said = list(&["se congele", "se hiele"]);
-        let alone = list(&["se congela", "se hiela"]);
-        let asked = asked_alone(Some(&alone), &said, true);
-        assert_eq!(asked.accepted, alone);
-        assert_eq!(asked.judged[..2], alone[..]);
-        assert_eq!(asked.note.as_deref(), Some("se congele"));
-        // "freezes" in "before she freezes": any of the two is right.
-        let base = list(&["congelarse", "helarse"]);
-        let spelling = Spelling::of(false);
-        let judged = |answer: &str| {
-            let verdict = recognition(
-                answer,
-                (&base, &base),
-                (&asked.judged, true),
-                (("es", true), spelling),
-            );
-            in_form(verdict, answer, &asked.judged, ("es", spelling))
-        };
-        assert_eq!(judged("se congela"), Verdict::Right);
-        assert_eq!(judged("Se hiela."), Verdict::Right);
-        assert_eq!(judged("se congele"), Verdict::Right);
-        assert_eq!(judged("congelarse"), Verdict::WrongForm);
-        // The sentence has it as it is alone: nothing to point out.
-        let same = asked_alone(Some(&alone), &list(&["se congela"]), true);
-        assert_eq!((same.note, same.judged), (None, alone.clone()));
-        // Not taken alone: what the sentence says, as before.
-        let before = asked_alone(None, &said, true);
-        assert_eq!((before.accepted, before.note), (said, None));
-    }
-
-    #[test]
-    fn a_verb_called_by_its_base_form_keeps_any_form_its_sentence_allows() {
-        // "freeze" in "they freeze at night": taken alone, "congelarse".
-        let base = list(&["congelarse", "helarse"]);
-        let asked = asked_alone(Some(&base), &list(&["se congelan"]), false);
-        assert_eq!(asked.accepted, base);
-        assert_eq!(asked.note.as_deref(), Some("se congelan"));
-        let spelling = Spelling::of(false);
-        let judged = |answer: &str| {
-            let verdict = recognition(
-                answer,
-                (&base, &base),
-                (&asked.judged, false),
-                (("es", true), spelling),
-            );
-            in_form(verdict, answer, &asked.judged, ("es", spelling))
-        };
-        // Right in any form, as before: the base form asks for none.
-        for answer in [
-            "congelarse",
-            "se congelan",
-            "se congela",
-            "congelan",
-            "helarse",
-        ] {
-            let verdict = judged(answer);
-            assert!(
-                matches!(verdict, Verdict::Right | Verdict::RightBase),
-                "{answer}: {verdict:?}"
-            );
-        }
-    }
-
-    #[test]
-    fn a_verb_is_held_to_the_gerund_or_the_infinitive_its_sentence_has() {
-        let base = list(&["predicar", "adoctrinar"]);
-        let spelling = Spelling::of(false);
-        let judged = |answer: &str, hints: &[&str], inflected: bool| {
-            let hints = list(hints);
-            let verdict = recognition(
-                answer,
-                (&base, &base),
-                (&hints, inflected),
-                (("es", true), spelling),
-            );
-            in_form(verdict, answer, &hints, ("es", spelling))
-        };
-        // "proselytizing": one form in Spanish, and it is asked for.
-        let ing = |answer: &str| judged(answer, &["predicando", "adoctrinando"], true);
-        assert_eq!(ing("predicando"), Verdict::Right);
-        assert_eq!(ing("Adoctrinando."), Verdict::Right);
-        assert_eq!(ing("estaba predicando"), Verdict::RightBase);
-        assert_eq!(ing("predicaba"), Verdict::WrongForm);
-        assert_eq!(ing("predicó"), Verdict::WrongForm);
-        assert_eq!(ing("predicar"), Verdict::WrongForm);
-        assert_eq!(ing("cantando"), Verdict::Miss);
-        // "to proselytize": the infinitive, and no other form.
-        let to = |answer: &str| judged(answer, &["predicar"], false);
-        assert_eq!(to("predicar"), Verdict::Right);
-        assert_eq!(to("adoctrinar"), Verdict::Right);
-        assert_eq!(to("predicaba"), Verdict::WrongForm);
-        assert_eq!(to("predicando"), Verdict::WrongForm);
-        // "proselytized": a past is not one form in Spanish.
-        let past = |answer: &str| judged(answer, &["predicó"], true);
-        assert_eq!(past("predicaba"), Verdict::RightBase);
-        assert_eq!(past("predicando"), Verdict::RightBase);
-        // A hint listed as it is written is right, whatever its form.
-        assert_eq!(
-            judged("que predicaba", &["predicando", "que predicaba"], true),
-            Verdict::Right
-        );
-    }
-
-    #[test]
-    fn a_translation_is_right_in_the_form_of_the_sentence_and_its_base_form_is_no_answer() {
-        let base = list(&["remover", "agitar"]);
-        let how = (("es", true), Spelling::of(false));
-        // "stirred": the sentence has the word in another form.
-        let judged = |answer: &str, hints: &[&str]| {
-            recognition(answer, (&base, &base), (&list(hints), true), how)
-        };
-        assert_eq!(judged("removió", &["removió"]), Verdict::Right);
-        // Any of the translations in that form, once they are listed.
-        assert_eq!(judged("Agitó.", &["removió", "agitó"]), Verdict::Right);
-        // The base form says nothing of the form: one more try.
-        assert_eq!(judged("Remover", &["removió"]), Verdict::WrongForm);
-        assert_eq!(judged("agitar", &["removió", "agitó"]), Verdict::WrongForm);
-        assert_eq!(judged("mezclar", &["removió"]), Verdict::Miss);
-        assert_eq!(judged("", &["removió"]), Verdict::Miss);
-        // Any other form is right, listed or not, and the form of the
-        // sentence is pointed out: a past is not one form in Spanish.
-        assert_eq!(judged("removía", &["removió"]), Verdict::RightBase);
-        assert_eq!(judged("removido", &["removió"]), Verdict::RightBase);
-        assert_eq!(judged("agitó", &["removió"]), Verdict::RightBase);
-        // A hint that is a base translation is no other form: any is right.
-        assert_eq!(judged("remover", &["remover"]), Verdict::Right);
-        assert_eq!(judged("agitar", &["remover"]), Verdict::Right);
-
-        // "stir": the sentence has the base form, and so may the answer.
-        let plain = |answer: &str, hints: &[&str]| {
-            recognition(answer, (&base, &base), (&list(hints), false), how)
-        };
-        assert_eq!(plain("remover", &["remueve"]), Verdict::RightBase);
-        assert_eq!(plain("agitar", &["remover"]), Verdict::Right);
-        assert_eq!(plain("agitados", &[]), Verdict::Right);
-
-        // The translation of the sentence has the word in a form of its
-        // own, an infinitive for "bridged": no base form is the wrong one.
-        let bridge = list(&["salvar", "cerrar"]);
-        let judged = |answer: &str| {
-            let hints = list(&["salvarse", "cerrarse"]);
-            recognition(answer, (&bridge, &bridge), (&hints, true), how)
-        };
-        assert_eq!(judged("salvarse"), Verdict::Right);
-        assert_eq!(judged("salvar"), Verdict::Right);
-        assert_eq!(judged("cerrar"), Verdict::Right);
-        assert_eq!(judged("salvada"), Verdict::Right);
-        assert_eq!(judged("guardada"), Verdict::Miss);
-        // Nor when the verb the translation chose is not one of them.
-        let judged = |answer: &str| {
-            let hints = list(&["cruzarse"]);
-            recognition(answer, (&bridge, &bridge), (&hints, true), how)
-        };
-        assert_eq!(judged("salvar"), Verdict::Right);
-        assert_eq!(judged("cruzarse"), Verdict::Right);
-
-        // A translation a dispute upheld is accepted, not one it is shown
-        // as: written as it is, it is right.
-        let upheld = list(&["remover", "agitar", "menear"]);
-        let judged =
-            |answer: &str| recognition(answer, (&upheld, &base), (&list(&["removió"]), true), how);
-        assert_eq!(judged("menear"), Verdict::RightBase);
-        assert_eq!(judged("remover"), Verdict::WrongForm);
-
-        let rested = list(&["descansar", "reposar", "estar apoyado"]);
-        let judged = |answer: &str| {
-            recognition(
-                answer,
-                (&rested, &rested),
-                (&list(&["reposaba"]), true),
-                how,
-            )
-        };
-        assert_eq!(judged("reposaba"), Verdict::Right);
-        assert_eq!(judged("apoyado"), Verdict::RightBase);
-        assert_eq!(judged("estaba apoyado"), Verdict::RightBase);
-        assert_eq!(judged("estar apoyado"), Verdict::WrongForm);
-        assert_eq!(judged("colgado"), Verdict::Miss);
-        // A noun too: its base form where the sentence has the plural.
-        let hedge = list(&["seto"]);
-        let judged = |answer: &str| {
-            let how = (("es", false), how.1);
-            recognition(answer, (&hedge, &hedge), (&list(&["setos"]), true), how)
-        };
-        assert_eq!(judged("setos"), Verdict::Right);
-        assert_eq!(judged("el seto"), Verdict::WrongForm);
-        assert_eq!(judged("seta"), Verdict::Miss);
-    }
-
-    #[test]
     fn the_other_hints_kept_are_those_that_say_something_new_and_not_the_word() {
         let listed = list(&[
             " se retiró ",
@@ -1382,70 +1029,5 @@ mod tests {
         assert!(inflected("gave up", "give up"));
         assert!(!inflected("Recede", "recede"));
         assert!(!inflected("give up", "give up"));
-    }
-
-    #[test]
-    fn only_the_form_of_the_sentence_fills_its_blank() {
-        let other = list(&["stir", "stirs", "stirred"]);
-        let judged = |answer: &str, upheld: &[String]| {
-            production(answer, "stirred", (&other, upheld), Spelling::of(false))
-        };
-        assert_eq!(judged("Stirred", &[]), Verdict::Right);
-        assert_eq!(judged("stir", &[]), Verdict::WrongForm);
-        assert_eq!(judged("to stir", &[]), Verdict::WrongForm);
-        // A form neither the book nor the bank has is not known to be one.
-        assert_eq!(judged("stirring", &[]), Verdict::Miss);
-        assert_eq!(judged("mixed", &[]), Verdict::Miss);
-        assert_eq!(judged("mixed", &list(&["mixed"])), Verdict::Right);
-        assert_eq!(judged("", &[]), Verdict::Miss);
-    }
-
-    #[test]
-    fn another_word_for_what_was_shown_is_no_miss_and_no_answer() {
-        let other = list(&["notion", "notions"]);
-        let rivals = list(&["ideas", "thoughts", "to think"]);
-        let judged = |answer: &str| {
-            let spelling = Spelling::of(false);
-            let verdict = production(answer, "notions", (&other, &[]), spelling);
-            or_other(verdict, answer, &rivals, spelling)
-        };
-        assert_eq!(judged("Ideas"), Verdict::OtherWord);
-        assert_eq!(judged("the thoughts."), Verdict::OtherWord);
-        assert_eq!(judged("think"), Verdict::OtherWord);
-        // The word itself is judged as before, whatever the rivals say.
-        assert_eq!(judged("notions"), Verdict::Right);
-        assert_eq!(judged("notion"), Verdict::WrongForm);
-        assert_eq!(judged("images"), Verdict::Miss);
-        assert_eq!(judged(""), Verdict::Miss);
-        let right = or_other(Verdict::Right, "ideas", &rivals, Spelling::of(false));
-        assert_eq!(right, Verdict::Right);
-    }
-
-    #[test]
-    fn the_reflexive_pronoun_of_a_form_is_the_sentences_not_the_words() {
-        let other = list(&["distance", "distanced himself", "distance yourself"]);
-        let judged = |answer: &str| {
-            production(
-                answer,
-                "distancing herself",
-                (&other, &[]),
-                Spelling::of(false),
-            )
-        };
-        assert_eq!(judged("distancing herself"), Verdict::Right);
-        // "distanciándose" does not say whose: any of them, or none.
-        assert_eq!(judged("distancing himself"), Verdict::Right);
-        assert_eq!(judged("Distancing oneself"), Verdict::Right);
-        assert_eq!(judged("distancing"), Verdict::Right);
-        // Another form is still another form, with or without one.
-        assert_eq!(judged("distance"), Verdict::WrongForm);
-        assert_eq!(judged("distanced"), Verdict::WrongForm);
-        assert_eq!(judged("distance herself"), Verdict::WrongForm);
-        assert_eq!(judged("herself"), Verdict::Miss);
-        assert_eq!(judged("moving herself"), Verdict::Miss);
-        // A pronoun that is the word itself stays.
-        let alone = |answer: &str| production(answer, "himself", (&[], &[]), Spelling::of(false));
-        assert_eq!(alone("himself"), Verdict::Right);
-        assert_eq!(alone("herself"), Verdict::Miss);
     }
 }

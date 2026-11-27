@@ -43,6 +43,20 @@ export const MARK = {
   none: "bg-book-soft text-ink",
 } as const satisfies Record<Tone, string>;
 
+/**
+ * The word where its sentence is what the card asks with: filled in the
+ * colour of its kind, so that it is the first thing read in the sentence.
+ */
+export const SOLID = {
+  noun: "bg-noun text-on-kind",
+  verb: "bg-verb text-on-kind",
+  phrasalVerb: "bg-verb text-on-kind",
+  adjective: "bg-adjective text-on-kind",
+  adverb: "bg-adverb text-on-kind",
+  expression: "bg-expression text-on-kind",
+  none: "bg-ink text-surface",
+} as const satisfies Record<Tone, string>;
+
 /** The band across the top of the card, in that colour, and its letters. */
 const BAND = {
   noun: "bg-noun-soft text-noun",

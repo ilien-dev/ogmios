@@ -31,6 +31,11 @@ interface ContextProps {
   native?: boolean;
   /** The colour the word stands out in; the book's, unless said. */
   mark?: string;
+  /**
+   * The sentence is what the card asks with: it is read large, where the
+   * word alone would be, and the word is the largest thing in it.
+   */
+  lead?: boolean;
 }
 
 /**
@@ -43,6 +48,7 @@ export function Context({
   blanked,
   native = false,
   mark = "bg-book-soft text-ink",
+  lead = false,
 }: ContextProps): ReactNode {
   const { t } = useTranslation();
   const word = (key: string, part: SentencePart): ReactNode =>
@@ -58,13 +64,30 @@ export function Context({
       <mark
         key={key}
         data-mark
-        className={cn("rounded-sm px-1 font-medium", mark)}
+        className={[
+          // Beside `mark`, not merged with it: both start with "text-".
+          lead ? "text-display" : "",
+          cn(
+            lead
+              ? "rounded-lg box-decoration-clone px-3 font-bold"
+              : "rounded-sm px-1 font-medium",
+            mark,
+          ),
+        ].join(" ")}
       >
         {part.text}
       </mark>
     );
   return (
-    <p className="text-lead text-ink-soft">
+    <p
+      data-lead={lead ? "" : undefined}
+      lang={lead ? "en" : undefined}
+      className={
+        lead
+          ? "font-display text-title leading-relaxed font-light tracking-tight text-balance wrap-anywhere hyphens-auto text-ink"
+          : "text-lead text-ink-soft"
+      }
+    >
       {placed(parts).map(({ key, part }) =>
         part.marked ? word(key, part) : <span key={key}>{part.text}</span>,
       )}

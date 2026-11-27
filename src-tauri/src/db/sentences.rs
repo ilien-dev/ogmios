@@ -346,6 +346,8 @@ pub struct Labels {
     pub verb_form: Option<VerbForm>,
     /// The words of it that fix the sense its word has there.
     pub cue: Vec<String>,
+    /// What its hint says that its word means anywhere, in its base form.
+    pub general: Vec<String>,
 }
 
 /// A sentence was looked at: a good one can be asked with from now on.
@@ -359,17 +361,17 @@ pub fn review(conn: &Connection, id: &str, good: bool, labels: &Labels) -> Resul
 
 /// The sentences asked with that were looked at before one of its labels
 /// was asked for, the oldest first: the other English words for their hint,
-/// or the word's other translations in the form of the hint; and, for a
-/// word some other word is written alike to, the words that fix its sense.
+/// the word's other translations in the form of the hint, or what the hint
+/// says the word means anywhere; and, for a word some other word is written
+/// alike to, the words that fix its sense.
 pub fn unlabelled(conn: &Connection) -> Result<Vec<Sentence>> {
     let mut stmt = conn.prepare(&format!(
         "{SENTENCE} WHERE s.reviewed AND NOT s.discarded
-           AND (s.also IS NULL OR s.hints IS NULL
+           AND (s.also IS NULL OR s.hints IS NULL OR s.general IS NULL
                 OR (s.cue IS NULL AND EXISTS (
                       SELECT 1 FROM chapter_words w
-                      JOIN word_spellings a ON a.word_id = w.id
-                      JOIN word_spellings b ON b.text = a.text AND b.word_id != a.word_id
-                      WHERE w.key = s.key AND (a.whole OR b.whole))))
+                      JOIN chapter_words o ON o.key = w.key
+                      WHERE w.key = s.key AND o.sense_id IS NOT w.sense_id)))
          ORDER BY s.created_at, s.rowid"
     ))?;
     let rows = stmt.query_map([], sentence)?;
@@ -381,16 +383,34 @@ pub fn unlabelled(conn: &Connection) -> Result<Vec<Sentence>> {
 /// else does not lose them to a look that says nothing of it.
 pub fn label(conn: &Connection, id: &str, labels: &Labels) -> Result<()> {
     conn.execute(
-        "UPDATE word_sentences SET also = COALESCE(also, ?2), hints = ?3, verb_form = ?4, cue = ?5
+        "UPDATE word_sentences
+         SET also = COALESCE(also, ?2), hints = ?3, verb_form = ?4, cue = ?5, general = ?6
          WHERE id = ?1",
         params![
             id,
             serde_json::to_string(&labels.also)?,
             serde_json::to_string(&labels.hints)?,
             labels.verb_form,
-            serde_json::to_string(&labels.cue)?
+            serde_json::to_string(&labels.cue)?,
+            serde_json::to_string(&labels.general)?
         ],
     )?;
+    // What a sentence says its word means anywhere, its sense means: right
+    // beside every sentence, and with none (`db::senses`).
+    let of: Option<(String, Option<String>)> = conn
+        .query_row(
+            "SELECT key, chapter_id FROM word_sentences WHERE id = ?1",
+            [id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .optional()?;
+    if let Some((key, Some(chapter))) = of {
+        if let Some(word) = word_in(conn, &key, &chapter)? {
+            for text in &labels.general {
+                super::senses::add(conn, &word, text)?;
+            }
+        }
+    }
     Ok(())
 }
 
@@ -577,13 +597,6 @@ pub fn word_in(conn: &Connection, key: &str, chapter: &str) -> Result<Option<Str
         .optional()?)
 }
 
-/// Whether a chapter, this one or another of any book, has a word written
-/// alike to `word_id` that does not mean exactly the same
-/// (`db::spellings::rivals`).
-pub fn senses_differ(conn: &Connection, word_id: &str) -> Result<bool> {
-    Ok(!super::spellings::rivals(conn, word_id)?.is_empty())
-}
-
 /// What a word is called and what it means, by its key: as `chapter` says
 /// when it has the word, otherwise as the first chapter that has it says,
 /// the translation the learner answers with most first; or, for a word of a
@@ -627,6 +640,54 @@ pub fn meaning(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn what_a_sentence_says_its_word_means_anywhere_is_right_in_every_chapter() {
+        use crate::db::words::tests::{book, word};
+        use crate::domain::Depth;
+
+        let conn = crate::db::open_in_memory().expect("db");
+        crate::db::profile::save_profile(&conn, &crate::db::profile::tests::profile())
+            .expect("profile");
+        let chapters = book(&conn, "b", &["one", "two"]);
+        let now = chrono::Utc::now();
+        for chapter in &chapters {
+            let lichen = [word("lichen-like", &["parecido al liquen"], 1)];
+            crate::db::words::finish(&conn, chapter, Depth::Most, &lichen, now).expect("finish");
+        }
+        let new = NewSentence {
+            key: "lichen like",
+            chapter: Some(&chapters[0]),
+            book: false,
+            sentence: "The cave floor had lichen-like patches.",
+            form: "lichen-like",
+            hint: "similares al liquen",
+            translation: "El suelo tenía manchas similares al liquen.",
+        };
+        add(&conn, &new, now).expect("add");
+        let waiting = unreviewed(&conn).expect("waiting").remove(0);
+        let labels = Labels {
+            general: vec!["similar al liquen".into(), "Parecidos al liquen".into()],
+            ..Labels::default()
+        };
+        review(&conn, &waiting.id, true, &labels).expect("review");
+        // Looked at for it: not put to the look again.
+        assert_eq!(unlabelled(&conn).expect("unlabelled").len(), 0);
+
+        for chapter in &chapters {
+            let id = word_in(&conn, "lichen like", chapter)
+                .expect("id")
+                .expect("word");
+            let row = crate::db::practice::word(&conn, &id).expect("word");
+            // Right from now on, in both chapters; one it had is not twice.
+            assert_eq!(
+                row.translations,
+                ["parecido al liquen", "similar al liquen"]
+            );
+            // Never shown: what the chapters were prepared with is.
+            assert_eq!(row.shown, ["parecido al liquen"]);
+        }
+    }
 
     #[test]
     fn the_sentences_shown_in_a_run_and_the_last_one_are_known() {

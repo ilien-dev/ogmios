@@ -200,6 +200,14 @@ pub(super) fn banked(sentence: &Sentence, own: &str, recent: &[String]) -> Banke
     }
 }
 
+/// Whether the word has another sense of its kind (`commands::ladder::tied`):
+/// its card alone has no one answer, so it is asked with a sentence in
+/// view, and those are the only words sentences are written for. A rival
+/// of another kind is told by the tag of the card, and needs none.
+fn tied(conn: &Connection, word_id: &str) -> Result<bool> {
+    super::ladder::tied(conn, &practice::word(conn, word_id)?, None)
+}
+
 /// How many sentences the model is to write for a word in `chapter`'s
 /// sense: [`WRITTEN`] for a word written alike to another one the first
 /// time, and again when it runs low ([`refill_due`]); none otherwise.
@@ -207,7 +215,7 @@ fn to_write(conn: &Connection, word: &Wanted, chapter: &str) -> Result<u32> {
     let Some(id) = word.word_id.as_deref() else {
         return Ok(0);
     };
-    let first = bank::senses_differ(conn, id)? && !bank::written(conn, &word.key, chapter)?;
+    let first = tied(conn, id)? && !bank::written(conn, &word.key, chapter)?;
     let again = refill_due(conn, (id, &word.key, chapter), Utc::now())?;
     if !first && !again {
         return Ok(0);
@@ -268,15 +276,14 @@ pub fn refill_due(
     (word_id, key, chapter): (&str, &str, &str),
     now: DateTime<Utc>,
 ) -> Result<bool> {
-    if !bank::senses_differ(conn, word_id)? || !bank::written(conn, key, chapter)? {
+    if !tied(conn, word_id)? || !bank::written(conn, key, chapter)? {
         return Ok(false);
     }
-    // A word its tag cannot tell apart counts only the sentences whose few
-    // words fix its sense: the others are no use to it.
-    let tied = super::ladder::tied(conn, &practice::word(conn, word_id)?, None)?;
+    // Only the sentences whose few words fix its sense count: the others
+    // are no use to a word its tag cannot tell apart.
     let held: Vec<Banked> = bank::bank(conn, key, Some(chapter))?
         .iter()
-        .filter(|each| !tied || super::practice::fixed(each))
+        .filter(|each| super::practice::fixed(each))
         .map(|each| banked(each, "", &[]))
         .collect();
     if left(&held) > LOW || bank::written_count(conn, key, chapter)? >= MOST_WRITTEN {
@@ -553,6 +560,12 @@ fn kept(
         hints: other_hints(&label.hints, (&sentence.hint, &sentence.form, lang), base),
         verb_form: label.verb_form,
         cue: cue_in(&label.cue, (&sentence.text, &sentence.form)),
+        general: label
+            .general
+            .iter()
+            .map(|each| each.trim().to_owned())
+            .filter(|each| !each.is_empty())
+            .collect(),
     }
 }
 
@@ -701,8 +714,6 @@ pub fn top_up(
     // Hints kept before they had to leave out a tense their form does not
     // show lose it here, with no request to the model.
     bank::unaid(&*ctx.conn()?, &profile.native_lang)?;
-    // Words kept before their spelling was written down are found by it.
-    spellings::fill(&*ctx.conn()?)?;
     look(ctx, model, &profile.native_lang)?;
 
     let mut asked: Vec<Asked> = Vec::new();
@@ -973,6 +984,7 @@ pub mod tests {
                             // A base form is no form of the sentence.
                             each.meaning.first().cloned().unwrap_or_default(),
                         ],
+                        general: Vec::new(),
                         verb_form: Some(VerbForm::Past),
                         // The word after it, as the fake sidecar says.
                         cue: each
@@ -1262,6 +1274,7 @@ pub mod tests {
             hints: vec!["mirada".into()],
             verb_form: Some(VerbForm::PastParticiple),
             cue: Vec::new(),
+            general: Vec::new(),
         };
         bank::review(&conn, &waiting.id, true, &labels).expect("review");
         waiting
@@ -1407,6 +1420,7 @@ pub mod tests {
                 hints: vec!["me había asegurado de".into()],
                 verb_form: Some(VerbForm::PastParticiple),
                 cue: Vec::new(),
+                general: Vec::new(),
             };
             bank::review(&conn, &waiting.id, true, &labels).expect("review");
         }
@@ -1464,6 +1478,7 @@ pub mod tests {
                 hints: vec!["tendría posibilidades".into()],
                 verb_form: Some(VerbForm::Base),
                 cue: Vec::new(),
+                general: Vec::new(),
             };
             bank::review(&conn, &waiting.id, true, &labels).expect("review");
         }
@@ -1508,6 +1523,7 @@ pub mod tests {
             hints: vec!["no lo había notado".into()],
             verb_form: Some(VerbForm::PastParticiple),
             cue: Vec::new(),
+            general: Vec::new(),
         };
         bank::review(&conn, &waiting.id, true, &labels).expect("review");
         assert_eq!(bank::unaid(&conn, "es").expect("unaid"), 1);
@@ -1695,13 +1711,18 @@ pub mod tests {
             .expect("usable")
     }
 
-    /// The form of the word that does not fill the blank of a sentence.
-    fn other_form(sentence: &Sentence) -> &'static str {
-        if sentence.form == "peep" {
-            "peeped"
-        } else {
-            "peep"
-        }
+    /// The text of a sentence, whether it can still be asked with or not.
+    fn sentence_of_any(desk: &Desk, id: Option<&str>) -> String {
+        let id = id.expect("asked with a sentence");
+        desk.db
+            .lock()
+            .expect("db")
+            .query_row(
+                "SELECT sentence FROM word_sentences WHERE id = ?1",
+                [id],
+                |row| row.get(0),
+            )
+            .expect("sentence")
     }
 
     fn say(
@@ -1756,272 +1777,67 @@ pub mod tests {
         .expect("hint")
     }
 
-    /// A chapter with a verb called by its form, put in that form, and the
-    /// one sentence of its bank, as the second look kept it; a session on it.
-    fn alone_in(desk: &Desk, verb: (&str, &[&str], &[&str]), kept: (&str, &str, &str)) -> Sitting {
-        let (form, base, said) = verb;
-        let (text, hint, translation) = kept;
-        let list = [Word {
-            part_of_speech: Some(PartOfSpeech::Verb),
-            base: Some("base".into()),
-            verb_form: Some(VerbForm::Present),
-            forms: vec![form.into()],
-            sentence: text.into(),
-            ..word(form, base, 1)
-        }];
-        let chapter = chapter_of(desk, text, &list);
-        let conn = desk.db.lock().expect("db");
-        let id = words::id_by_key(&conn, &chapter, form)
-            .expect("id")
-            .expect("word");
-        let asked: Vec<String> = base.iter().map(|each| (*each).to_owned()).collect();
-        let said: Vec<String> = said.iter().map(|each| (*each).to_owned()).collect();
-        assert!(words::put_in_form(&conn, &id, &asked, &said).expect("put"));
-        let none: Vec<Vec<String>> = asked.iter().map(|_| Vec::new()).collect();
-        assert!(words::put_also(&conn, &id, &asked, &none).expect("also"));
-        let new = NewSentence {
-            key: form,
-            chapter: Some(&chapter),
-            book: true,
-            sentence: text,
-            form,
-            hint,
-            translation,
-        };
-        bank::add(&conn, &new, Utc::now()).expect("add");
-        // Written for before: what is asked here is something else.
-        if let Some(chapter) = new.chapter {
-            bank::wrote(&conn, new.key, chapter, Utc::now()).expect("wrote");
-        }
-        let waiting = bank::unreviewed(&conn).expect("waiting").remove(0);
-        bank::review(&conn, &waiting.id, true, &Labels::default()).expect("review");
-        drop(conn);
-        desk.start(&chapter, t0())
-    }
-
-    /// The sentence an item is asked with, the database at hand.
-    fn sentence_of_locked(conn: &Connection, item: &PracticeItem) -> Sentence {
-        let id = item.sentence_id.as_deref().expect("asked with a sentence");
-        bank::usable(conn, id).expect("bank").expect("usable")
-    }
-
-    /// The next question of a session, from `step` on, that asks in this
-    /// direction; each one before it is answered right with `form`, or
-    /// `native`.
-    fn next_in(
-        desk: &Desk,
-        (sitting, step): (&Sitting, &PracticeStep),
-        direction: Direction,
-        (form, native): (&str, &str),
-    ) -> PracticeItem {
-        let mut step = step.clone();
-        loop {
-            let asked = item(&step).clone();
-            if asked.direction == direction {
-                return asked;
-            }
-            let answer = match asked.direction {
-                Direction::Recognition => native,
-                Direction::Production => form,
-            };
-            step = say(desk, sitting, &asked, (answer, false)).step;
-        }
-    }
-
     #[test]
-    fn a_verb_in_a_sentence_is_asked_as_it_is_alone_and_not_as_the_sentence_puts_it() {
-        let dir = tempfile::tempdir().expect("tempdir");
-        let desk = Desk::new(&dir);
-        // "before she freezes": the sentence puts it in the subjunctive.
-        let sitting = alone_in(
-            &desk,
-            (
-                "freezes",
-                &["congelarse", "helarse"],
-                &["se congela", "se hiela"],
-            ),
-            (
-                "I'm trying to get her in before she freezes to death.",
-                "se congele",
-                "Intento meterla antes de que se congele.",
-            ),
-        );
-        let answers = ("freezes", "se congela");
-        let there = Direction::Recognition;
-        let asked = next_in(&desk, (&sitting, &sitting.step), there, answers);
-        assert_eq!(asked.prompt, "freezes");
-        // Its hints spell what it is alone.
-        {
-            let conn = desk.db.lock().expect("db");
-            let row = crate::db::practice::word(&conn, &asked.word_id).expect("word");
-            let kept = sentence_of_locked(&conn, &asked);
-            let (answer, _) = crate::commands::practice::clue(&row, Some(&kept), there);
-            assert_eq!(answer, "se congela");
-        }
-        let result = say(&desk, &sitting, &asked, ("se congela", false));
-        assert!(result.correct);
-        assert_eq!(result.accepted, ["se congela", "se hiela"]);
-        assert_eq!(result.exact.as_deref(), Some("se congele"));
-        // The form its sentence gives it is a form of the word: it counts.
-        let row = {
-            let conn = desk.db.lock().expect("db");
-            crate::db::practice::word(&conn, &asked.word_id).expect("word")
-        };
-        let own = [
-            row.translations.as_slice(),
-            row.in_form.as_deref().unwrap_or_default(),
-        ]
-        .concat();
-        let native = ("es", true);
-        let lenient = crate::books::spelling::Spelling::Lenient;
-        assert!(crate::books::practice::accepts_native(
-            "se congele",
-            &own,
-            native,
-            lenient
-        ));
-        assert!(!crate::books::practice::accepts_native(
-            "bajó correteando",
-            &["corretear".to_owned(), "correteó".to_owned()],
-            native,
-            lenient
-        ));
-        // Native → English shows it alone too, and the book's form fills
-        // the blank.
-        let back = next_in(
-            &desk,
-            (&sitting, &result.step),
-            Direction::Production,
-            answers,
-        );
-        assert_eq!(back.prompt, "se congela, se hiela");
-        assert!(say(&desk, &sitting, &back, ("freezes", false)).correct);
-    }
-
-    #[test]
-    fn a_verb_in_a_sentence_is_not_answered_with_the_words_its_translation_takes_from_beside_it() {
-        let dir = tempfile::tempdir().expect("tempdir");
-        let desk = Desk::new(&dir);
-        // "bajó" is the "down" beside the word, not the word.
-        let sitting = alone_in(
-            &desk,
-            ("scampered", &["corretear"], &["correteó"]),
-            (
-                "She scampered down the tree and sniffed the sidewalk.",
-                "bajó correteando",
-                "Bajó correteando por el árbol y olfateó la acera.",
-            ),
-        );
-        let answers = ("scampered", "correteó");
-        let there = Direction::Recognition;
-        let asked = next_in(&desk, (&sitting, &sitting.step), there, answers);
-        // Another tense of the word itself gets a second try.
-        assert!(say(&desk, &sitting, &asked, ("corretea", false)).again);
-        let result = say(&desk, &sitting, &asked, ("bajó correteando", false));
-        assert!(!result.correct);
-        assert_eq!(result.accepted, ["correteó"]);
-        // How the sentence has it is still pointed out.
-        assert_eq!(result.exact.as_deref(), Some("bajó correteando"));
-    }
-
-    #[test]
-    fn a_participle_is_asked_without_the_tense_and_the_agreement_its_sentence_gives_it() {
-        let dir = tempfile::tempdir().expect("tempdir");
-        let desk = Desk::new(&dir);
-        let sitting = alone_in(
-            &desk,
-            ("marked", &["señalar", "marcar"], &["señalado", "marcado"]),
-            (
-                "These entrances will be marked and easy to spot.",
-                "estarán señaladas",
-                "Estas entradas estarán señaladas y serán fáciles de localizar.",
-            ),
-        );
-        let answers = ("marked", "marcado");
-        let asked = next_in(
-            &desk,
-            (&sitting, &sitting.step),
-            Direction::Recognition,
-            answers,
-        );
-        let result = say(&desk, &sitting, &asked, ("marcado", false));
-        assert!(result.correct);
-        assert_eq!(result.exact.as_deref(), Some("estarán señaladas"));
-        // The one answered most comes first.
-        let mut accepted = result.accepted.clone();
-        accepted.sort();
-        assert_eq!(accepted, ["marcado", "señalado"]);
-        let back = next_in(
-            &desk,
-            (&sitting, &result.step),
-            Direction::Production,
-            answers,
-        );
-        let mut shown: Vec<&str> = back.prompt.split(", ").collect();
-        shown.sort_unstable();
-        assert_eq!(shown, ["marcado", "señalado"]);
-        assert!(say(&desk, &sitting, &back, ("marked", false)).correct);
-    }
-
-    #[test]
-    fn a_word_is_practised_in_its_sentences_the_one_of_its_chapter_first() {
+    fn a_word_is_asked_as_it_is_called_beside_a_sentence_that_asks_nothing() {
         let dir = tempfile::tempdir().expect("tempdir");
         let desk = Desk::new(&dir);
         let sitting = peeping(&desk);
 
-        // English → native: the word as its chapter writes it, on its own.
-        // Its sentence is the first hint, the word marked in it.
+        // English → native: the word as it is called, on its own, whatever
+        // sentence was drawn. One that writes it so is the one beside it,
+        // and it is the first hint, the word marked in it.
         let first = item(&sitting.step).clone();
-        let own = sentence_of(&desk, &first);
-        assert_eq!(own.text, "She peeped in.");
+        let beside = sentence_of(&desk, &first);
+        assert_eq!(beside.form, "peep");
         assert_eq!(
             (first.direction, first.prompt.as_str()),
-            (Direction::Recognition, "peeped")
+            (Direction::Recognition, "peep")
         );
         let clue = first_hint(&desk, &sitting, &first);
         assert_eq!((&first.context, &clue.mask), (&None, &None));
-        let marked: Vec<(&str, bool)> = clue
+        let marked: Vec<&str> = clue
             .context
             .as_deref()
             .expect("in its sentence")
             .iter()
-            .map(|part| (part.text.as_str(), part.marked))
+            .filter(|part| part.marked)
+            .map(|part| part.text.as_str())
             .collect();
-        assert_eq!(marked, [("She ", false), ("peeped", true), (" in.", false)]);
+        assert_eq!(marked, ["peep"]);
 
-        // The base translation says nothing of the form the sentence has
-        // the word in: nothing kept, one more try.
-        let before = answers(&desk);
-        let again = say(&desk, &sitting, &first, ("asomarse", false));
-        assert!(again.again && !again.correct);
-        assert_eq!(answers(&desk), before);
-        assert_eq!(item(&again.step), &first, "the same question");
-
-        // In the form of the sentence it is right, on the second try; the
-        // sentence comes back whole, with where it is from.
-        let result = say(&desk, &sitting, &first, ("peepó", true));
-        assert!(result.correct && result.helped);
-        assert_eq!(result.exact, None);
+        // What the word means is right at once. What its sentence says for
+        // it is pointed out, never asked for; the sentence comes back whole,
+        // with where it is from.
+        let result = say(&desk, &sitting, &first, ("asomarse", false));
+        assert!(result.correct && !result.helped && !result.again);
+        assert_eq!(result.accepted, ["asomarse"]);
+        assert_eq!(result.exact.as_deref(), Some("peepó"));
         let whole = result.sentence.expect("shown whole");
         assert_eq!(
-            (whole.text.as_str(), whole.translation.as_str(), whole.book),
-            ("She peeped in.", "peepó libro 0", true)
+            (whole.text.as_str(), whole.book),
+            (beside.text.as_str(), true)
         );
 
-        // At once, there is nothing to point out and no help in it.
+        // Beside another sentence it is the same question, with the same
+        // answer; what that sentence says for the word is no answer to it.
         let second = item(&result.step).clone();
-        let result = say(&desk, &sitting, &second, ("peepó", false));
+        assert_ne!(second.sentence_id, first.sentence_id);
+        assert_eq!(
+            (second.direction, second.prompt.as_str()),
+            (Direction::Recognition, "peep")
+        );
+        let result = say(&desk, &sitting, &second, ("Asomarse", false));
         assert!(result.correct && !result.helped);
-        assert_eq!(result.exact, None);
+        assert_eq!(result.accepted, ["asomarse"]);
 
-        // Native → English: the hint, and the sentence with a blank once
-        // it is asked for.
+        // Native → English: what the word means, and the sentence with a
+        // blank once it is asked for. Any form its book writes is the word.
         let mut step = result.step;
-        let mut helped = 0;
-        while let PracticeStep::Item { item: asked, .. } = step.clone() {
+        let mut right = 0;
+        for form in ["peeped", "peep"] {
+            let asked = item(&step).clone();
             assert_eq!(asked.direction, Direction::Production);
-            let sentence = sentence_of(&desk, &asked);
-            assert_eq!(asked.prompt, sentence.hint);
+            assert_eq!(asked.prompt, "asomarse");
             assert_eq!(asked.context, None);
             let clue = first_hint(&desk, &sitting, &asked);
             let blanks = clue.context.as_deref().expect("blanked");
@@ -2029,22 +1845,17 @@ pub mod tests {
                 .iter()
                 .any(|part| part.marked && part.text.is_empty()));
             assert!(!blanks.iter().any(|part| part.text.contains("peep")));
-            let before = answers(&desk);
 
-            // The word in another form: nothing kept, one more try.
-            let again = say(&desk, &sitting, &asked, (other_form(&sentence), false));
-            assert!(again.again && !again.correct);
-            assert_eq!(answers(&desk), before);
-            assert_eq!(item(&again.step), &asked, "the same question");
-
-            let result = say(&desk, &sitting, &asked, (&sentence.form, true));
-            assert!(result.correct && result.helped && !result.again);
-            assert_eq!(result.accepted, [sentence.form]);
-            helped += 1;
+            let result = say(&desk, &sitting, &asked, (form, false));
+            assert!(result.correct && !result.helped && !result.again);
+            assert_eq!(result.accepted, ["peep"]);
+            assert_eq!(result.exact, None);
+            right += 1;
             step = result.step;
         }
-        assert_eq!(helped, 2);
-        // Every answer says which sentence it was given to.
+        assert_eq!(right, 2);
+        assert!(matches!(step, PracticeStep::Summary { .. }));
+        // Every answer says which sentence it was given beside.
         assert_eq!(
             desk.count("SELECT COUNT(*) FROM word_answers WHERE sentence_id IS NULL"),
             0
@@ -2055,19 +1866,19 @@ pub mod tests {
     fn the_wrong_form_twice_is_a_miss_and_a_form_nobody_knows_is_one_at_once() {
         let dir = tempfile::tempdir().expect("tempdir");
         let desk = Desk::new(&dir);
-        let sitting = peeping(&desk);
-        let mut step = sitting.step.clone();
-        for _ in 0..2 {
-            let asked = item(&step).clone();
-            step = say(&desk, &sitting, &asked, ("peepó", false)).step;
-        }
-        let asked = item(&step).clone();
-        let sentence = sentence_of(&desk, &asked);
-        let other = other_form(&sentence);
-        assert!(say(&desk, &sitting, &asked, (other, false)).again);
-        let missed = say(&desk, &sitting, &asked, (other, true));
+        // "peeped", a word of its own, shown as "forzó": its base form is
+        // the word in a form it is not asked for.
+        let chapter = forced(&desk);
+        let sitting = desk.start(&chapter, t0());
+        let asked = asked_back(&desk, &sitting, sitting.step.clone(), &|_| {
+            "forzó".to_owned()
+        });
+        assert_eq!(asked.prompt, "forzó");
+        assert!(asked.sentence_id.is_some());
+        assert!(say(&desk, &sitting, &asked, ("peep", false)).again);
+        let missed = say(&desk, &sitting, &asked, ("peep", true));
         assert!(!missed.correct && !missed.again && !missed.helped);
-        assert_eq!(missed.accepted, [sentence.form]);
+        assert_eq!(missed.accepted, ["peeped"]);
 
         let asked = item(&missed.step).clone();
         let unknown = say(&desk, &sitting, &asked, ("peeping", false));
@@ -2083,7 +1894,7 @@ pub mod tests {
             desk.ctx(),
             &sitting.id,
             (&asked.word_id, asked.direction),
-            ("peep", stray),
+            ("peeped", stray),
             t0(),
         );
         assert!(matches!(refused, Err(Error::Invalid(_))));
@@ -2095,6 +1906,7 @@ pub mod tests {
         let desk = Desk::new(&dir);
         let verb = Word {
             part_of_speech: Some(PartOfSpeech::Verb),
+            verb_form: Some(VerbForm::Present),
             ..peep()
         };
         let chapter = desk.chapter("b", &[verb]);
@@ -2103,16 +1915,17 @@ pub mod tests {
         let plain = item(&desk.start(&chapter, t0()).step).clone();
         assert_eq!(plain.sentence_id, None);
         assert_eq!(plain.part_of_speech, Some(PartOfSpeech::Verb));
+        assert_eq!(plain.verb_form, Some(VerbForm::Present));
 
-        assert_eq!(plain.verb_form, None);
-
-        // With a sentence of its bank it is the same kind of word, in the
-        // form the second look says it has there.
+        // Beside a sentence of its bank it is the same kind of word in the
+        // same form, its own: the form the second look says the sentence
+        // has it in (a past, says the stub) is not the form it is asked in.
         stock(&desk, &chapter);
         let banked = item(&desk.start(&chapter, t0()).step).clone();
         assert!(banked.sentence_id.is_some());
         assert_eq!(banked.part_of_speech, Some(PartOfSpeech::Verb));
-        assert_eq!(banked.verb_form, Some(VerbForm::Past));
+        assert_eq!(banked.verb_form, Some(VerbForm::Present));
+        assert_eq!(banked.prompt, plain.prompt);
     }
 
     /// "peeped", a word of its own: the form its chapter has "peep" in.
@@ -2126,6 +1939,18 @@ pub mod tests {
             translations: vec!["forzar".into()],
             ..peep()
         }
+    }
+
+    /// A chapter with "peeped", given the sentence of its book, its
+    /// translation said in its form: "forzó".
+    fn forced(desk: &Desk) -> String {
+        let chapter = chapter_of(desk, "She peeped in.", &[peeped()]);
+        stock(desk, &chapter);
+        let conn = desk.db.lock().expect("db");
+        let id = words::id_by_key(&conn, &chapter, "peeped").expect("id");
+        let (asked, said) = (["forzar".to_owned()], ["forzó".to_owned()]);
+        assert!(words::put_in_form(&conn, &id.expect("word"), &asked, &said).expect("put"));
+        chapter
     }
 
     /// The word as it is asked native → English, once `right` was given
@@ -2160,12 +1985,14 @@ pub mod tests {
         assert_eq!(asked.verb_form, Some(VerbForm::Past));
         let right = say(&desk, &sitting, &asked, ("forzado", false));
         assert!(right.correct && !right.again);
-        // Asked for in English on its own, its base form is the word too.
+        let alone = right.accepted.clone();
+        // Asked for in English while nobody said its translation in its
+        // form, it is shown as its base form: that is the word too.
         let back = asked_back(&desk, &sitting, right.step, &|_| "forzado".to_owned());
         assert_eq!(back.verb_form, Some(VerbForm::Past));
         assert!(say(&desk, &sitting, &back, ("peep", false)).correct);
 
-        // With one, its base translation is still not the form it has there.
+        // Beside a sentence it is the same question with the same answer.
         let dir = tempfile::tempdir().expect("tempdir");
         let desk = Desk::new(&dir);
         let chapter = chapter_of(&desk, "She peeped in.", &[peeped()]);
@@ -2174,11 +2001,21 @@ pub mod tests {
         let asked = item(&sitting.step).clone();
         assert_eq!(asked.prompt, "peeped");
         assert!(asked.sentence_id.is_some());
-        assert!(say(&desk, &sitting, &asked, ("forzar", false)).again);
-        // And its base form is the word, in a form that does not fill the
-        // blank: no other word, and no miss.
-        let hint = |asked: &PracticeItem| sentence_of(&desk, asked).hint;
-        let back = asked_back(&desk, &sitting, sitting.step.clone(), &hint);
+        assert_eq!(asked.verb_form, Some(VerbForm::Past));
+        let right = say(&desk, &sitting, &asked, ("forzado", false));
+        assert!(right.correct && !right.again);
+        assert_eq!(right.accepted, alone);
+
+        // Shown in its form, its base form is the word in a form it is not
+        // asked for: no other word, and no miss.
+        let dir = tempfile::tempdir().expect("tempdir");
+        let desk = Desk::new(&dir);
+        let chapter = forced(&desk);
+        let sitting = desk.start(&chapter, t0());
+        let back = asked_back(&desk, &sitting, sitting.step.clone(), &|_| {
+            "forzó".to_owned()
+        });
+        assert_eq!(back.prompt, "forzó");
         let before = answers(&desk);
         let told = say(&desk, &sitting, &back, ("peep", false));
         assert!(told.again && told.another.is_none());
@@ -2196,15 +2033,19 @@ pub mod tests {
     }
 
     #[test]
-    fn a_base_translation_missed_for_its_form_is_never_upheld() {
+    fn a_base_translation_missed_for_the_form_the_word_is_called_by_is_never_upheld() {
         let dir = tempfile::tempdir().expect("tempdir");
         let desk = Desk::new(&dir);
-        let sitting = peeping(&desk);
+        let chapter = forced(&desk);
+        let sitting = desk.start(&chapter, t0());
         let asked = item(&sitting.step).clone();
-        assert!(say(&desk, &sitting, &asked, ("asomarse", false)).again);
-        let missed = say(&desk, &sitting, &asked, ("Asomarse", true));
+        assert_eq!(asked.prompt, "peeped");
+        assert!(asked.sentence_id.is_some());
+        // "peeped" is "forzó": its infinitive is the word in another form.
+        assert!(say(&desk, &sitting, &asked, ("forzar", false)).again);
+        let missed = say(&desk, &sitting, &asked, ("Forzar", true));
         assert!(!missed.correct && !missed.again);
-        assert_eq!(missed.accepted, ["peepó", "se peepó"]);
+        assert_eq!(missed.accepted, ["forzó"]);
         // The model would take the base form for right: it is not asked.
         let refused = dispute(
             desk.ctx(),
@@ -2216,7 +2057,7 @@ pub mod tests {
     }
 
     #[test]
-    fn a_verb_in_another_form_than_the_gerund_of_its_sentence_is_no_answer_and_never_upheld() {
+    fn a_verb_is_held_to_the_form_it_is_called_by_whatever_form_its_sentence_gives_it() {
         let dir = tempfile::tempdir().expect("tempdir");
         let desk = Desk::new(&dir);
         let verb = Word {
@@ -2229,19 +2070,26 @@ pub mod tests {
             .lock()
             .expect("db")
             .execute(
-                "UPDATE word_sentences SET hint = 'peepando', hints = NULL",
+                "UPDATE word_sentences SET hint = 'asomándose', hints = NULL",
                 [],
             )
             .expect("a gerund");
         let sitting = desk.start(&chapter, t0());
         let asked = item(&sitting.step).clone();
-        assert_eq!(asked.direction, Direction::Recognition);
+        assert_eq!(
+            (asked.direction, asked.prompt.as_str()),
+            (Direction::Recognition, "peep")
+        );
 
-        assert!(say(&desk, &sitting, &asked, ("peepaba", false)).again);
+        // "peep" is "asomarse": the gerund its sentence has is the word in
+        // another form, as any other form of it is. No answer yet, then a
+        // miss that is not to stand by.
+        assert!(say(&desk, &sitting, &asked, ("asomándose", false)).again);
         assert_eq!(answers(&desk), 0);
-        let missed = say(&desk, &sitting, &asked, ("peepaba", true));
+        let missed = say(&desk, &sitting, &asked, ("asomándose", true));
         assert!(!missed.correct && !missed.again);
-        assert_eq!(missed.accepted, ["peepando"]);
+        assert_eq!(missed.accepted, ["asomarse"]);
+        assert_eq!(missed.exact.as_deref(), Some("asomándose"));
         let refused = dispute(
             desk.ctx(),
             missed.answer_id,
@@ -2249,7 +2097,7 @@ pub mod tests {
             t0(),
         );
         assert!(matches!(refused, Err(Error::Invalid(_))));
-        assert!(say(&desk, &sitting, &asked, ("Peepando", true)).correct);
+        assert!(say(&desk, &sitting, &asked, ("Asomarse", true)).correct);
     }
 
     #[test]
@@ -2264,20 +2112,141 @@ pub mod tests {
         assert_eq!(banked.verb_form, None);
     }
 
+    /// "lichen-like", with the three sentences a learner met it beside:
+    /// each says it another way in the learner's language.
+    fn lichen(desk: &Desk) -> (String, Vec<Sentence>) {
+        let own = "Green, lichen-like growths glowed on the brick walls.";
+        let adjective = Word {
+            part_of_speech: Some(PartOfSpeech::Adjective),
+            sentence: own.into(),
+            ..word("lichen-like", &["parecido al liquen", "como de liquen"], 1)
+        };
+        let chapter = chapter_of(desk, own, &[adjective]);
+        let conn = desk.db.lock().expect("db");
+        let said = [
+            (
+                own,
+                "parecidas al liquen",
+                "Unas formaciones verdes parecidas al liquen brillaban en las paredes.",
+            ),
+            (
+                "The cave floor had lichen-like patches that glowed faintly.",
+                "similares al liquen",
+                "El suelo de la cueva tenía manchas similares al liquen.",
+            ),
+            (
+                "The lichen-like growth spread across the window.",
+                "parecida al liquen",
+                "La formación parecida al liquen se extendió por la ventana.",
+            ),
+        ];
+        for (sentence, hint, translation) in said {
+            let new = NewSentence {
+                key: "lichen like",
+                chapter: Some(&chapter),
+                book: sentence == own,
+                sentence,
+                form: "lichen-like",
+                hint,
+                translation,
+            };
+            bank::add(&conn, &new, Utc::now()).expect("add");
+        }
+        for waiting in bank::unreviewed(&conn).expect("waiting") {
+            bank::review(&conn, &waiting.id, true, &Labels::default()).expect("review");
+        }
+        let id = words::id_by_key(&conn, &chapter, "lichen like")
+            .expect("id")
+            .expect("word");
+        let held = bank::bank(&conn, "lichen like", Some(&chapter)).expect("bank");
+        assert_eq!(held.len(), 3);
+        (id, held)
+    }
+
     #[test]
-    fn what_is_asked_for_is_the_translations_in_the_form_of_the_sentence_and_no_base_form() {
+    fn a_card_takes_the_same_answer_whatever_sentence_it_was_drawn_with() {
+        use crate::books::sentences::Verdict;
+        use crate::books::spelling::Spelling;
+        use crate::commands::practice::{asked_with, by_word};
         let dir = tempfile::tempdir().expect("tempdir");
         let desk = Desk::new(&dir);
-        let sitting = peeping(&desk);
-        let asked = item(&sitting.step).clone();
-        let sentence = sentence_of(&desk, &asked);
-        // What the stub listed, without the hint itself or the word.
-        assert_eq!(sentence.hints, ["se peepó"]);
-        // Any of them is right, with nothing to point out.
-        let right = say(&desk, &sitting, &asked, ("Se peepó.", false));
-        assert!(right.correct && !right.again);
-        assert_eq!(right.exact, None);
-        assert_eq!(right.accepted, ["peepó", "se peepó"]);
+        let (id, held) = lichen(&desk);
+        let conn = desk.db.lock().expect("db");
+        let there = Direction::Recognition;
+        let judged = |answer: &str| -> Vec<Verdict> {
+            let row = practice::word(&conn, &id).expect("word");
+            held.iter()
+                .map(|each| {
+                    let how = ("es", Spelling::Lenient);
+                    by_word(&conn, &row, Some(each), (there, answer), how)
+                        .expect("judged")
+                        .verdict
+                })
+                .collect()
+        };
+        let row = practice::word(&conn, &id).expect("word");
+        for each in &held {
+            // What the learner sees says nothing of the sentence drawn.
+            let asked = asked_with(("w".into(), &row), each, there);
+            assert_eq!(asked.prompt, "lichen-like");
+            assert_eq!((&asked.context, &asked.native_context), (&None, &None));
+            // What is asked for is what the word means, the same each time;
+            // how the sentence says it is only pointed out.
+            let how = ("es", Spelling::Lenient);
+            let said = by_word(&conn, &row, Some(each), (there, ""), how).expect("judged");
+            assert_eq!(said.accepted, ["parecido al liquen", "como de liquen"]);
+            assert_eq!(said.exact.as_deref(), Some(each.hint.as_str()));
+        }
+        // English says no gender and no number: either is the word.
+        assert_eq!(judged("parecida al liquen"), [Verdict::Right; 3]);
+        assert_eq!(judged("parecidos al liquen"), [Verdict::Right; 3]);
+        // What only one sentence says is right beside none of them, not
+        // beside that one alone.
+        assert_eq!(judged("similares al liquen"), [Verdict::Miss; 3]);
+        // Once it is what the word means, it is right beside all of them.
+        assert!(crate::db::senses::add(&conn, &id, "similar al liquen").expect("add"));
+        assert_eq!(judged("similares al liquen"), [Verdict::Right; 3]);
+        let row = practice::word(&conn, &id).expect("word");
+        assert_eq!(row.listed(), ["parecido al liquen", "como de liquen"]);
+    }
+
+    #[test]
+    fn a_reflexive_pronoun_counts_for_nothing_towards_english() {
+        use crate::books::spelling::Spelling;
+        use crate::commands::practice::plain;
+        let dir = tempfile::tempdir().expect("tempdir");
+        let desk = Desk::new(&dir);
+        let own = Word {
+            forms: vec!["distanced himself".into()],
+            sentence: "He distanced himself from them.".into(),
+            ..word("distance oneself", &["distanciarse"], 1)
+        };
+        let bare = Word {
+            forms: vec!["withdrew".into()],
+            sentence: "She withdrew from them.".into(),
+            ..word("withdraw", &["retirarse"], 1)
+        };
+        let chapter = desk.chapter("b", &[own, bare]);
+        let conn = desk.db.lock().expect("db");
+        let right = |key: &str, answer: &str| {
+            let id = words::id_by_key(&conn, &chapter, key)
+                .expect("id")
+                .expect("word");
+            let row = practice::word(&conn, &id).expect("word");
+            let how = ("es", Spelling::Lenient);
+            plain(&conn, &row, (Direction::Production, answer), how)
+                .expect("judged")
+                .is_right()
+        };
+        // What was shown does not say which pronoun the word is written
+        // with, nor whether it has one.
+        assert!(right("distance oneself", "distanced himself"));
+        assert!(right("distance oneself", "distanced herself"));
+        assert!(right("distance oneself", "distanced"));
+        assert!(right("withdraw", "withdrew herself"));
+        assert!(right("withdraw", "withdraw"));
+        assert!(!right("withdraw", "distanced herself"));
+        assert!(!right("distance oneself", "himself"));
     }
 
     #[test]
@@ -2362,13 +2331,14 @@ pub mod tests {
     }
 
     #[test]
-    fn a_hint_to_a_word_in_a_sentence_is_to_the_form_that_sentence_has() {
+    fn a_hint_to_a_word_beside_a_sentence_is_to_the_word_as_it_is_asked() {
         use crate::commands::practice::hint;
         let dir = tempfile::tempdir().expect("tempdir");
         let desk = Desk::new(&dir);
         let sitting = peeping(&desk);
         let mut step = sitting.step.clone();
-        // English -> native: the translation in the form of the sentence.
+        // English -> native: what the word means, not what its sentence
+        // says for it ("peepó").
         let asked = item(&step).clone();
         let given = hint(
             desk.ctx(),
@@ -2377,14 +2347,17 @@ pub mod tests {
             (asked.sentence_id.as_deref(), 2),
         )
         .expect("hint");
-        assert_eq!(given.mask.as_deref(), Some("p____"));
+        assert_eq!(given.mask.as_deref(), Some("a_______"));
         for _ in 0..2 {
             let asked = item(&step).clone();
-            step = say(&desk, &sitting, &asked, ("peepó", false)).step;
+            step = say(&desk, &sitting, &asked, ("asomarse", false)).step;
         }
-        // Native -> English: the form that fills the blank.
+        // Native -> English: the word as it is called, which is what the
+        // sentence beside it has.
         let asked = item(&step).clone();
+        assert_eq!(asked.direction, Direction::Production);
         let sentence = sentence_of(&desk, &asked);
+        assert_eq!(sentence.form, "peep");
         let given = hint(
             desk.ctx(),
             &sitting.id,
@@ -2392,7 +2365,7 @@ pub mod tests {
             (asked.sentence_id.as_deref(), 1),
         )
         .expect("hint");
-        assert_eq!(given.mask, Some("_".repeat(sentence.form.len())));
+        assert_eq!(given.mask.as_deref(), Some("____"));
     }
 
     #[test]
@@ -2401,7 +2374,13 @@ pub mod tests {
         let dir = tempfile::tempdir().expect("tempdir");
         let desk = Desk::new(&dir);
         let text = "Peeped in, she had.";
-        let chapter = chapter_of(&desk, text, &[peep()]);
+        // As the model wrote them: with a capital.
+        let capital = Word {
+            lemma: "Peep".into(),
+            translations: vec!["Asomarse".into()],
+            ..peep()
+        };
+        let chapter = chapter_of(&desk, text, &[capital]);
         {
             let conn = desk.db.lock().expect("db");
             let there = chapter_having(&conn, "peep");
@@ -2435,25 +2414,28 @@ pub mod tests {
             .mask
         };
 
-        // English → native: the form that opens its sentence, and its hint.
+        // English → native: the word, what it means, and what its sentence
+        // says for it.
         let mut asked = item(&sitting.step).clone();
         assert_eq!(
             (asked.direction, asked.prompt.as_str()),
-            (Direction::Recognition, "peeped")
+            (Direction::Recognition, "peep")
         );
-        assert_eq!(letter(&asked).as_deref(), Some("a____"));
+        assert!(asked.sentence_id.is_some());
+        assert_eq!(letter(&asked).as_deref(), Some("a_______"));
         while asked.direction == Direction::Recognition {
-            let told = say(&desk, &sitting, &asked, ("Asomó", false));
+            let told = say(&desk, &sitting, &asked, ("ASOMARSE", false));
             assert!(told.correct);
-            assert_eq!(told.accepted, ["asomó"]);
+            assert_eq!(told.accepted, ["asomarse"]);
+            assert_eq!(told.exact.as_deref(), Some("asomó"));
             asked = item(&told.step).clone();
         }
 
         // Native → English: what it means, and the word a miss shows.
-        assert_eq!(asked.prompt, "asomó");
+        assert_eq!(asked.prompt, "asomarse");
         assert_eq!(letter(&asked).as_deref(), Some("p_____"));
         let missed = say(&desk, &sitting, &asked, ("nope", false));
-        assert_eq!(missed.accepted, ["peeped"]);
+        assert_eq!(missed.accepted, ["peep"]);
     }
 
     #[test]
@@ -2481,7 +2463,10 @@ pub mod tests {
         assert_eq!(marked, ["peeped"]);
         // Nothing to add to it: the first hint is how long the answer is.
         let clue = first_hint(&desk, &sitting, &asked);
-        assert_eq!((clue.mask.as_deref(), clue.context), (Some("_____"), None));
+        assert_eq!(
+            (clue.mask.as_deref(), clue.context),
+            (Some("________"), None)
+        );
     }
 
     #[test]
@@ -2499,13 +2484,14 @@ pub mod tests {
         let next = item(&step).clone();
         assert_eq!(next.direction, Direction::Recognition);
         assert_ne!(next.sentence_id, asked.sentence_id);
-        assert!(!texts(&desk, "peep").contains(&"She peeped in.".to_owned()));
+        let gone = sentence_of_any(&desk, asked.sentence_id.as_deref());
+        assert!(!texts(&desk, "peep").contains(&gone));
         // Taken back once: there is no such answer any more.
         assert!(discard(desk.ctx(), missed.answer_id, t0()).is_err());
 
         // Only the last answer of a session can be taken back.
-        let one = say(&desk, &sitting, &next, ("peepó", false));
-        let two = say(&desk, &sitting, item(&one.step), ("peepó", false));
+        let one = say(&desk, &sitting, &next, ("asomarse", false));
+        let two = say(&desk, &sitting, item(&one.step), ("asomarse", false));
         assert!(matches!(
             discard(desk.ctx(), one.answer_id, t0()),
             Err(Error::Invalid(_))
@@ -2553,10 +2539,10 @@ pub mod tests {
         let mut step = sitting.step.clone();
         while let PracticeStep::Item { item: asked, .. } = step.clone() {
             let right = match asked.direction {
-                Direction::Recognition => "peepó".to_owned(),
-                Direction::Production => sentence_of(&desk, &asked).form,
+                Direction::Recognition => "asomarse",
+                Direction::Production => "peep",
             };
-            step = say(&desk, &sitting, &asked, (&right, false)).step;
+            step = say(&desk, &sitting, &asked, (right, false)).step;
         }
         let later = t0() + TimeDelta::days(1);
         let run = recall::start(desk.ctx(), Ways::Production, later).expect("start");
@@ -2564,13 +2550,14 @@ pub mod tests {
             panic!("a word is due")
         };
         let sentence = sentence_of(&desk, &asked);
+        // What the word means, not what the sentence drawn says for it.
         assert_eq!(
             (asked.word_id.as_str(), asked.prompt.as_str()),
-            ("peep", sentence.hint.as_str())
+            ("peep", "asomarse")
         );
-        // A hint is to the form that fills the blank, and keeps nothing.
-        // Its sentence first, the word taken out; then the form that fills
-        // the blank.
+        assert_eq!(sentence.form, "peep");
+        // A hint is to the word, and keeps nothing. Its sentence first,
+        // the word taken out; then the word.
         assert_eq!(asked.context, None);
         let ask = |before| {
             let shown = (asked.sentence_id.as_deref(), before);
@@ -2592,8 +2579,6 @@ pub mod tests {
             };
             recall::answer_shown(desk.ctx(), &run.id, "peep", (text, shown), later).expect("answer")
         };
-        assert!(say(other_form(&sentence), false).again);
-        assert_eq!(desk.count("SELECT COUNT(*) FROM word_events"), 0);
         let missed = say("nope", true);
         assert!(!missed.correct);
         assert_eq!(
@@ -2613,35 +2598,24 @@ pub mod tests {
     }
 
     #[test]
-    fn another_form_is_never_upheld_and_a_synonym_fills_its_own_blank_alone() {
+    fn a_synonym_upheld_beside_a_sentence_is_right_for_the_word_from_then_on() {
         let dir = tempfile::tempdir().expect("tempdir");
         let desk = Desk::new(&dir);
         let sitting = peeping(&desk);
         let mut step = sitting.step.clone();
         for _ in 0..2 {
             let asked = item(&step).clone();
-            step = say(&desk, &sitting, &asked, ("peepó", false)).step;
+            step = say(&desk, &sitting, &asked, ("asomarse", false)).step;
         }
 
-        // The word in the wrong form, twice: a miss that is not to stand by,
-        // whether the form is the chapter's or one only the bank has.
+        // A synonym, upheld: the judge was told of no blank, the sentence
+        // asked nothing.
         let asked = item(&step).clone();
-        let sentence = sentence_of(&desk, &asked);
-        let other = other_form(&sentence);
-        say(&desk, &sitting, &asked, (other, false));
-        let missed = say(&desk, &sitting, &asked, (other, true));
-        assert!(!missed.correct);
-        let unasked =
-            &mut |_: &crate::agent::protocol::VocabJudgeParams| panic!("the model is not asked");
-        let refused = dispute(desk.ctx(), missed.answer_id, unasked, t0());
-        assert!(matches!(refused, Err(Error::Invalid(_))));
-
-        // A synonym, upheld: the judge was told what fills the blank.
-        let asked = item(&missed.step).clone();
-        let sentence = sentence_of(&desk, &asked);
+        assert_eq!(asked.direction, Direction::Production);
+        assert!(asked.sentence_id.is_some());
         let missed = say(&desk, &sitting, &asked, ("looked", false));
         assert!(!missed.correct);
-        let mut blank = None;
+        let mut blank = Some("unset".to_owned());
         let upheld = dispute(
             desk.ctx(),
             missed.answer_id,
@@ -2656,13 +2630,13 @@ pub mod tests {
         )
         .expect("dispute");
         assert!(upheld.upheld);
-        assert_eq!(blank, Some(sentence.form));
+        assert_eq!(blank, None);
 
-        // It filled that blank; it fills no other from now on.
-        assert_eq!(desk.count("SELECT COUNT(*) FROM word_english"), 0);
+        // The same card takes it from now on, whatever sentence is drawn.
+        assert_eq!(desk.count("SELECT COUNT(*) FROM word_english"), 1);
         let asked = item(&upheld.step).clone();
         assert_eq!(asked.direction, Direction::Production);
-        assert!(!say(&desk, &sitting, &asked, ("looked", false)).correct);
+        assert!(say(&desk, &sitting, &asked, ("looked", false)).correct);
     }
 
     /// A chapter whose one word, "peep", has the one sentence of its book,
@@ -2689,13 +2663,14 @@ pub mod tests {
         let mut step = sitting.step.clone();
         for _ in 0..2 {
             let asked = item(&step).clone();
-            step = say(&desk, &sitting, &asked, ("peepó", false)).step;
+            step = say(&desk, &sitting, &asked, ("asomarse", false)).step;
         }
         let asked = item(&step).clone();
         assert_eq!(
             (asked.direction, &asked.context),
             (Direction::Production, &None)
         );
+        assert_eq!(asked.prompt, "asomarse");
         let other = rival(&sentence_of(&desk, &asked).form);
         let before = answers(&desk);
 
@@ -2717,11 +2692,6 @@ pub mod tests {
         )
         .expect("hint");
         assert_eq!(next.mask.as_deref(), Some("pe____"));
-
-        // The word in another form is the word: nothing tells it apart.
-        let form = say(&desk, &sitting, &asked, ("peep", false));
-        assert!(form.again);
-        assert_eq!(form.another, None);
 
         // Told once, the same word again is a miss, and not one to stand
         // by: the model would take a word that means the same for right.
@@ -2808,10 +2778,10 @@ pub mod tests {
         let mut step = sitting.step.clone();
         while let PracticeStep::Item { item: asked, .. } = step.clone() {
             let right = match asked.direction {
-                Direction::Recognition => "peepó".to_owned(),
-                Direction::Production => sentence_of(&desk, &asked).form,
+                Direction::Recognition => "asomarse",
+                Direction::Production => "peep",
             };
-            step = say(&desk, &sitting, &asked, (&right, false)).step;
+            step = say(&desk, &sitting, &asked, (right, false)).step;
         }
         let later = t0() + TimeDelta::days(1);
         let run = recall::start(desk.ctx(), Ways::Production, later).expect("start");
@@ -3033,9 +3003,8 @@ pub mod tests {
     fn a_word_written_alike_is_written_for_again_once_its_sentences_run_low() {
         let dir = tempfile::tempdir().expect("tempdir");
         let desk = Desk::new(&dir);
-        // Told apart by their tags: every sentence counts.
-        let [cat, ..] = two_books(&desk, &blurring());
-        furry_is_an_adjective(&desk);
+        // Two senses of one kind: the only words sentences are written for.
+        let [cat, ..] = two_books(&desk, &blurred());
         let mut first = pen();
         top_up(desk.ctx(), Scope::Chapter(&cat), &mut first, &|_, _| {}).expect("top up");
         let word: String = desk
@@ -3128,7 +3097,7 @@ pub mod tests {
     }
 
     #[test]
-    fn a_word_written_alike_heads_an_expression_of_another_chapter() {
+    fn a_word_that_only_starts_as_another_is_no_rival_and_one_written_the_same_is() {
         let dir = tempfile::tempdir().expect("tempdir");
         let desk = Desk::new(&dir);
         let conn = desk.db.lock().expect("db");
@@ -3136,43 +3105,68 @@ pub mod tests {
             &conn,
             "dcc",
             &[
-                "I kept spinning in circles.",
-                "A spinning wheel came at me.",
+                "I kept spinning in circles. They found a boss fight.",
+                "A spinning wheel came at me. The boss found a city.",
             ],
         );
         let depth = crate::domain::Depth::Most;
+        let verb = Some(PartOfSpeech::Verb);
         let circles = Word {
             forms: vec!["spinning in circles".into()],
             sentence: "I kept spinning in circles.".into(),
             ..word("spin in circles", &["dar vueltas"], 1)
+        };
+        let fight = word("boss fight", &["pelea contra el jefe"], 1);
+        let find = Word {
+            part_of_speech: verb,
+            ..word("found", &["encontrar", "hallar"], 1)
         };
         let wheel = Word {
             sentence: "A spinning wheel came at me.".into(),
             part_of_speech: Some(PartOfSpeech::Adjective),
             ..word("spinning", &["giratorio"], 1)
         };
-        let unrelated = Word {
-            sentence: "I kept spinning in circles.".into(),
-            ..word("circle", &["círculo"], 1)
+        let boss = word("boss", &["jefe"], 1);
+        let city = Word {
+            part_of_speech: verb,
+            ..word("found", &["fundar"], 1)
         };
-        words::finish(&conn, &chapters[0], depth, &[circles, unrelated], t0()).expect("words");
-        words::finish(&conn, &chapters[1], depth, &[wheel], t0()).expect("words");
-        let id = |key: &str| -> String {
+        let again = Word {
+            part_of_speech: verb,
+            ..word("found", &["hallar", "dar con"], 1)
+        };
+        words::finish(&conn, &chapters[0], depth, &[circles, fight, find], t0()).expect("words");
+        words::finish(&conn, &chapters[1], depth, &[wheel, boss, city], t0()).expect("words");
+        let id = |key: &str, chapter: usize| -> String {
             conn.query_row(
-                "SELECT id FROM chapter_words WHERE key = ?1",
-                [key],
+                "SELECT id FROM chapter_words WHERE key = ?1 AND chapter_id = ?2",
+                [key, chapters[chapter].as_str()],
                 |row| row.get(0),
             )
             .expect("id")
         };
-        let rivals = spellings::rivals(&conn, &id("spinning")).expect("rivals");
+        // Asked by all it is written with, each is told from the other.
+        for (key, chapter) in [("spinning", 1), ("boss", 1), ("boss fight", 0)] {
+            let none = spellings::rivals(&conn, &id(key, chapter)).expect("rivals");
+            assert_eq!(none.len(), 0, "{key}");
+        }
+        // Written the same, with nothing in common in what it means.
+        let rivals = spellings::rivals(&conn, &id("found", 1)).expect("rivals");
         assert_eq!(rivals.len(), 1);
-        assert_eq!(rivals[0].translations, ["dar vueltas"]);
+        assert_eq!(rivals[0].translations, ["encontrar", "hallar"]);
         assert!(rivals[0].same_book);
         assert_eq!(rivals[0].chapter_index, 0);
-        // "circles" only comes later in the expression: no rival.
-        let none = spellings::rivals(&conn, &id("circle")).expect("rivals");
-        assert_eq!(none.len(), 0);
+        // A third chapter with a synonym more is the same meaning: one rival
+        // still, with all that sense means.
+        let third = words::tests::book(&conn, "other", &["He found it again."]);
+        let later = t0() + TimeDelta::seconds(1);
+        words::finish(&conn, &third[0], depth, &[again], later).expect("words");
+        let rivals = spellings::rivals(&conn, &id("found", 1)).expect("rivals");
+        assert_eq!(rivals.len(), 1);
+        assert_eq!(rivals[0].translations, ["encontrar", "hallar", "dar con"]);
+        let of_find = spellings::rivals(&conn, &id("found", 0)).expect("rivals");
+        assert_eq!(of_find.len(), 1);
+        assert_eq!(of_find[0].translations, ["fundar"]);
     }
 
     #[test]
@@ -3233,8 +3227,7 @@ pub mod tests {
             "no miss yet"
         );
         // Right with the sentence: understood, neither right nor a miss.
-        let sentence = sentence_of(&desk, &asked);
-        let understood = say(&sentence.hint, 2);
+        let understood = say("peludo", 2);
         assert!(!understood.again && !understood.correct);
         assert!(understood.understood.is_some());
         assert_eq!(desk.count("SELECT COUNT(*) FROM word_answers"), 0);
@@ -3273,10 +3266,10 @@ pub mod tests {
             .expect("answer")
         };
         let sentence = sentence_of(&desk, &asked);
-        let other = if sentence.chapter_id.as_deref() == Some(cat.as_str()) {
-            "difuso"
+        let (mine, other) = if sentence.chapter_id.as_deref() == Some(cat.as_str()) {
+            ("peludo", "difuso")
         } else {
-            "peludo"
+            ("difuso", "peludo")
         };
         // The other book's meaning: straight to the whole sentence, with no
         // word of what it is not.
@@ -3288,7 +3281,7 @@ pub mod tests {
         );
         assert!(shown.context.is_some());
         // Right with it: understood, and the word comes back.
-        let understood = say(&sentence.hint, 2);
+        let understood = say(mine, 2);
         assert_eq!(
             understood
                 .understood
@@ -3407,10 +3400,10 @@ pub mod tests {
         };
         assert_eq!(asked.context, None, "alone first");
         let sentence = sentence_of(&desk, &asked);
-        let other = if sentence.chapter_id.as_deref() == Some(cat.as_str()) {
-            "difuso"
+        let (mine, other) = if sentence.chapter_id.as_deref() == Some(cat.as_str()) {
+            ("peludo", "difuso")
         } else {
-            "peludo"
+            ("difuso", "peludo")
         };
         let say = |text: &str, rung: u8| {
             let shown = Shown {
@@ -3422,7 +3415,7 @@ pub mod tests {
                 .expect("answer")
         };
         assert_eq!(say(other, 0).ladder.map(|each| each.rung), Some(1));
-        let right = say(&sentence.hint, 1);
+        let right = say(mine, 1);
         assert!(right.correct && right.helped);
         let spent: Option<String> = desk
             .db
@@ -3449,10 +3442,10 @@ pub mod tests {
             panic!("a word is due")
         };
         let sentence = sentence_of(&desk, &asked);
-        let other = if sentence.chapter_id.as_deref() == Some(cat.as_str()) {
-            "difuso"
+        let (mine, other) = if sentence.chapter_id.as_deref() == Some(cat.as_str()) {
+            ("peludo", "difuso")
         } else {
-            "peludo"
+            ("difuso", "peludo")
         };
         let say = |text: &str, rung: u8| {
             let shown = Shown {
@@ -3465,7 +3458,7 @@ pub mod tests {
         };
         say(other, 0);
         say("nope", 1);
-        let understood = say(&sentence.hint, 2);
+        let understood = say(mine, 2);
         assert!(understood.understood.is_some());
         assert!(matches!(understood.step, RecallStep::Summary { .. }));
         assert_eq!(desk.count("SELECT COUNT(*) FROM word_events"), 0);

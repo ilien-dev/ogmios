@@ -514,8 +514,11 @@ mod tests {
         assert_eq!(review, [true, false]);
         let learned = words::learned(&conn).expect("learned");
         assert_eq!(learned[0].translation.as_deref(), Some("asomarse"));
-        let excluded = words::excluded(&conn, &kept[0]).expect("excluded");
-        assert!(excluded.contains("peep"));
+        // Learned in the deleted book, it is not stored for another one.
+        let next = words::tests::book(&conn, "next", &["one"]);
+        let peep = [words::tests::word("peep", &["asomarse"], 1)];
+        words::finish(&conn, &next[0], Depth::Most, &peep, Utc::now()).expect("finish");
+        assert_eq!(words::list(&conn, &next[0]).expect("list").len(), 0);
 
         // What was left half way in it is nowhere: its chapter is not the
         // one being read, its sitting is of no chapter, and no model is

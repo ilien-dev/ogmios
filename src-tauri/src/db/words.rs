@@ -110,21 +110,34 @@ pub fn store_chunk(
     Ok(())
 }
 
-/// The keys never extracted for this chapter: words the learner knows, and
-/// words finished in any other chapter of any book.
-pub fn excluded(conn: &Connection, chapter_id: &str) -> Result<HashSet<String>> {
-    let mut stmt = conn.prepare(
-        "SELECT key FROM known_words
-         UNION
-         SELECT key FROM chapter_words WHERE done_at IS NOT NULL AND chapter_id != ?1",
-    )?;
-    let keys = stmt.query_map([chapter_id], |row| row.get(0))?;
+/// The keys never extracted for any chapter: the words the learner said
+/// they know. A word finished in another chapter is left out later, by its
+/// sense ([`finish`]): written the same, it may mean something else here.
+pub fn excluded(conn: &Connection) -> Result<HashSet<String>> {
+    let mut stmt = conn.prepare("SELECT key FROM known_words")?;
+    let keys = stmt.query_map([], |row| row.get(0))?;
     Ok(keys.collect::<rusqlite::Result<_>>()?)
+}
+
+/// Whether a word just stored means what a word finished in another chapter
+/// means: of the same sense (`db::senses`). It is learned already.
+fn learned_elsewhere(conn: &Connection, id: &str) -> Result<bool> {
+    Ok(conn.query_row(
+        "SELECT EXISTS (
+           SELECT 1 FROM chapter_words w JOIN chapter_words o ON o.sense_id = w.sense_id
+           WHERE w.id = ?1 AND o.id != w.id AND o.chapter_id != w.chapter_id
+             AND o.done_at IS NOT NULL)",
+        [id],
+        |row| row.get(0),
+    )?)
 }
 
 /// Stores the chapter's words at this depth and forgets the pieces they came
 /// from; run it inside a transaction. A word the chapter already has is left
-/// exactly as it is: a deeper depth only adds.
+/// exactly as it is: a deeper depth only adds. A word that means what one
+/// finished in another chapter means is not stored: it is learned. Written
+/// the same in another sense ("bug", the insect, learned; "bug", the error,
+/// here) it is a word to learn.
 pub fn finish(
     conn: &Connection,
     chapter_id: &str,
@@ -161,6 +174,10 @@ pub fn finish(
         if added == 1 {
             for translation in &word.translations {
                 translate.execute(params![id, translation])?;
+            }
+            super::senses::assign(conn, &id)?;
+            if learned_elsewhere(conn, &id)? {
+                conn.execute("DELETE FROM chapter_words WHERE id = ?1", [&id])?;
             }
         }
     }
@@ -237,6 +254,7 @@ pub fn add(conn: &Connection, chapter_id: &str, word: &Word, now: DateTime<Utc>)
                 params![id, translation],
             )?;
         }
+        super::senses::assign(conn, &id)?;
     }
     Ok(())
 }
@@ -307,25 +325,48 @@ pub fn forget(conn: &Connection, key: &str) -> Result<()> {
     Ok(())
 }
 
-/// The translations a chapter's word was prepared with, in that order: an
-/// answer a dispute upheld is accepted in practice and listed nowhere.
+/// The rows of `word_translations` (`t`) of a word and of every word of
+/// its sense (`w`), its own first and then the oldest word's: a word means
+/// what its sense means, whatever chapter said it (`db::senses`).
+pub const OF_SENSE: &str = "FROM word_translations t JOIN chapter_words w ON w.id = t.word_id
+         WHERE (w.id = ?1 OR w.sense_id = (SELECT sense_id FROM chapter_words WHERE id = ?1))";
+pub const SENSE_ORDER: &str = "ORDER BY w.id != ?1, w.created_at, w.id, t.rowid";
+/// Whether the word of a row (`w`) is called by the form the word asked
+/// about is: only then is what its translation is in that form the same.
+/// "partió" is "partir" for "set off" in the past, never in its base form.
+pub const SAME_FORM: &str =
+    "(w.id = ?1 OR w.verb_form IS (SELECT verb_form FROM chapter_words WHERE id = ?1))";
+
+/// The translations the words of a word's sense were prepared with, its
+/// own first, each once: an answer a dispute upheld is accepted in practice
+/// and listed nowhere.
 pub fn extracted(conn: &Connection, word_id: &str) -> Result<Vec<String>> {
-    let mut stmt = conn.prepare_cached(
-        "SELECT text FROM word_translations
-         WHERE word_id = ?1 AND source = 'extraction' ORDER BY rowid",
-    )?;
-    let rows = stmt.query_map([word_id], |row| row.get(0))?;
-    Ok(rows.collect::<rusqlite::Result<_>>()?)
+    let mut stmt = conn.prepare_cached(&format!(
+        "SELECT t.text {OF_SENSE} AND t.source = 'extraction' {SENSE_ORDER}"
+    ))?;
+    let rows = stmt
+        .query_map([word_id], |row| row.get(0))?
+        .collect::<rusqlite::Result<Vec<String>>>()?;
+    let mut seen: Vec<String> = Vec::new();
+    Ok(rows
+        .into_iter()
+        .filter(|each| {
+            let same = key(each);
+            let new = !seen.contains(&same);
+            seen.push(same);
+            new
+        })
+        .collect())
 }
 
 /// Every form each translation a chapter's word was prepared with was said
 /// in for the form the word is called by: "chorreó" and "chorreaba" for
 /// "chorrear", of "trickled". An answer in one of them is that translation.
 fn in_forms(conn: &Connection, word_id: &str) -> Result<HashMap<String, Vec<String>>> {
-    let mut stmt = conn.prepare_cached(
-        "SELECT text, in_form, in_form_also FROM word_translations
-         WHERE word_id = ?1 AND source = 'extraction' AND in_form IS NOT NULL",
-    )?;
+    let mut stmt = conn.prepare_cached(&format!(
+        "SELECT t.text, t.in_form, t.in_form_also {OF_SENSE} AND {SAME_FORM}
+           AND t.source = 'extraction' AND t.in_form IS NOT NULL {SENSE_ORDER}"
+    ))?;
     let rows = stmt
         .query_map([word_id], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))?
         .collect::<rusqlite::Result<Vec<(String, String, Option<String>)>>>()?;
@@ -335,7 +376,7 @@ fn in_forms(conn: &Connection, word_id: &str) -> Result<HashMap<String, Vec<Stri
         if let Some(also) = also {
             all.extend(serde_json::from_str::<Vec<String>>(&also)?);
         }
-        forms.insert(text, all);
+        forms.entry(text).or_insert(all);
     }
     Ok(forms)
 }
@@ -343,12 +384,18 @@ fn in_forms(conn: &Connection, word_id: &str) -> Result<HashMap<String, Vec<Stri
 /// What each translation a chapter's word was prepared with is in the form
 /// the word is called by, of those a model has said it of.
 pub fn said_in_form(conn: &Connection, word_id: &str) -> Result<HashMap<String, String>> {
-    let mut stmt = conn.prepare_cached(
-        "SELECT text, in_form FROM word_translations
-         WHERE word_id = ?1 AND source = 'extraction' AND in_form IS NOT NULL",
-    )?;
-    let rows = stmt.query_map([word_id], |row| Ok((row.get(0)?, row.get(1)?)))?;
-    Ok(rows.collect::<rusqlite::Result<_>>()?)
+    let mut stmt = conn.prepare_cached(&format!(
+        "SELECT t.text, t.in_form {OF_SENSE} AND {SAME_FORM}
+           AND t.source = 'extraction' AND t.in_form IS NOT NULL {SENSE_ORDER}"
+    ))?;
+    let rows = stmt
+        .query_map([word_id], |row| Ok((row.get(0)?, row.get(1)?)))?
+        .collect::<rusqlite::Result<Vec<(String, String)>>>()?;
+    let mut said = HashMap::new();
+    for (text, in_form) in rows {
+        said.entry(text).or_insert(in_form);
+    }
+    Ok(said)
 }
 
 /// The `shown` translations of a word called by another form than its base
@@ -540,6 +587,23 @@ pub fn unlabelled(conn: &Connection) -> Result<Vec<LabelWord>> {
         let forms: Vec<String> = serde_json::from_str(&forms)?;
         let called = (word.lemma.as_str(), base.as_deref());
         if called_in_form(called, (&forms, &word.sentence), part_of_speech, verb_form) {
+            // What another chapter says the word means is asked of it too,
+            // and is said in its form with its own: it is kept as its own.
+            let own: Vec<String> = {
+                let mut own = conn.prepare(
+                    "SELECT text FROM word_translations WHERE word_id = ?1 ORDER BY rowid",
+                )?;
+                let rows = own.query_map([&word.id], |row| row.get::<_, String>(0))?;
+                rows.collect::<rusqlite::Result<_>>()?
+            };
+            for text in extracted(conn, &word.id)? {
+                if !own.iter().any(|each| key(each) == key(&text)) {
+                    conn.execute(
+                        "INSERT OR IGNORE INTO word_translations (word_id, text) VALUES (?1, ?2)",
+                        params![word.id, text],
+                    )?;
+                }
+            }
             let rows = stmt.query_map([&word.id], |row| row.get(0))?;
             word.translations = rows.collect::<rusqlite::Result<_>>()?;
         }
@@ -552,11 +616,17 @@ pub fn unlabelled(conn: &Connection) -> Result<Vec<LabelWord>> {
 
 /// Every word not looked at yet against its sentence, of any book: what it
 /// is called, the sentence it was taken from, the kind it was taken for and
-/// the translations it was taken with (`check`).
+/// the translations it was taken with (`check`). And every word looked at
+/// before a look said which sense it is, whose key has another sense of its
+/// kind (`db::senses::siblings`): it is looked at once more, for that
+/// alone. Each comes with those other senses.
 pub fn unchecked(conn: &Connection) -> Result<Vec<CheckWord>> {
     let mut stmt = conn.prepare(
-        "SELECT id, lemma, sentence, part_of_speech FROM chapter_words
+        "SELECT id, lemma, sentence, part_of_speech, checked FROM chapter_words w
          WHERE checked = 0
+            OR (sensed = 0 AND EXISTS (
+                  SELECT 1 FROM chapter_words o
+                  WHERE o.key = w.key AND o.sense_id IS NOT w.sense_id))
          ORDER BY chapter_id, occurrences DESC, key",
     )?;
     let mut words = stmt
@@ -567,6 +637,7 @@ pub fn unchecked(conn: &Connection) -> Result<Vec<CheckWord>> {
                 sentence: row.get(2)?,
                 part_of_speech: row.get(3)?,
                 translations: Vec::new(),
+                senses: std::collections::BTreeMap::new(),
             })
         })?
         .collect::<rusqlite::Result<Vec<_>>>()?;
@@ -577,7 +648,16 @@ pub fn unchecked(conn: &Connection) -> Result<Vec<CheckWord>> {
     for word in &mut words {
         let rows = stmt.query_map([&word.id], |row| row.get(0))?;
         word.translations = rows.collect::<rusqlite::Result<_>>()?;
+        word.senses = super::senses::siblings(conn, &word.id)?
+            .into_iter()
+            .collect();
     }
+    // One looked at already, with no sense left to be one of, is not asked.
+    let looked: std::collections::HashSet<String> = conn
+        .prepare("SELECT id FROM chapter_words WHERE checked = 1")?
+        .query_map([], |row| row.get(0))?
+        .collect::<rusqlite::Result<_>>()?;
+    words.retain(|word| !looked.contains(&word.id) || !word.senses.is_empty());
     Ok(words)
 }
 
@@ -718,8 +798,27 @@ pub fn check(conn: &Connection, id: &str, look: &WordCheck) -> Result<bool> {
         [id],
     )?;
     if marked == 0 {
-        return Ok(false);
+        // Looked at before: this look only says which sense it is.
+        return sense(conn, id, look);
     }
+    let changed = looked(conn, id, look)?;
+    Ok(sense(conn, id, look)? || changed)
+}
+
+/// Keeps which of the senses its key had a look says a word is
+/// (`db::senses::same_as`): the two are one meaning from then on, and so is
+/// what is taken for right. Whether they were made one. A word is asked it
+/// once.
+fn sense(conn: &Connection, id: &str, look: &WordCheck) -> Result<bool> {
+    conn.execute("UPDATE chapter_words SET sensed = 1 WHERE id = ?1", [id])?;
+    match look.same_as.as_deref() {
+        Some(sense) => super::senses::same_as(conn, id, sense),
+        None => Ok(false),
+    }
+}
+
+/// What a first look at a word puts right ([`check`]).
+fn looked(conn: &Connection, id: &str, look: &WordCheck) -> Result<bool> {
     let (word_key, lemma, sentence, taken, base): (
         String,
         String,
@@ -777,6 +876,7 @@ pub fn check(conn: &Connection, id: &str, look: &WordCheck) -> Result<bool> {
         Look::Fits => Ok(false),
         Look::Translations => {
             replace_translations(conn, id, &look.translations)?;
+            super::senses::assign(conn, id)?;
             Ok(true)
         }
         Look::Base => {
@@ -801,6 +901,7 @@ pub fn check(conn: &Connection, id: &str, look: &WordCheck) -> Result<bool> {
                 ],
             )?;
             replace_translations(conn, id, &look.translations)?;
+            super::senses::assign(conn, id)?;
             conn.execute("DELETE FROM word_sentences WHERE key = ?1", [word_key])?;
             Ok(true)
         }
@@ -1092,6 +1193,7 @@ pub mod tests {
             context_there: false,
             context_back: false,
             related: Vec::new(),
+            same_as: None,
         };
         let had = ["ciclomotor".to_owned(), "moto pequeña".to_owned()];
         let moped = ("moped", "He moped around.");
@@ -1399,28 +1501,50 @@ pub mod tests {
     }
 
     #[test]
-    fn known_words_and_words_done_in_another_chapter_are_excluded() {
+    fn a_known_word_is_never_taken_and_one_done_elsewhere_only_in_another_sense() {
         let conn = open_in_memory().expect("db");
         let first = book(&conn, "b", &["one", "two"]);
         let other = book(&conn, "c", &["three"]);
-        let words = [word("peep", &["asomarse"], 1), word("bank", &["orilla"], 1)];
+        let noun = |lemma: &str, said: &[&str]| Word {
+            part_of_speech: Some(PartOfSpeech::Noun),
+            ..word(lemma, said, 1)
+        };
+        let words = [
+            noun("bug", &["bicho", "insecto"]),
+            noun("bank", &["orilla"]),
+        ];
         finish(&conn, &first[0], Depth::Most, &words, Utc::now()).expect("finish");
-        mark_done(&conn, &first[0], "peep");
+        mark_done(&conn, &first[0], "bug");
         mark_known(&conn, "To Give Up");
 
-        let keys = |chapter: &str| {
-            let mut keys: Vec<String> = excluded(&conn, chapter)
-                .expect("excluded")
-                .into_iter()
-                .collect();
-            keys.sort();
-            keys
-        };
-        // An open word ("bank") is excluded nowhere.
-        assert_eq!(keys(&first[1]), ["give up", "peep"]);
-        assert_eq!(keys(&other[0]), ["give up", "peep"]);
-        // In its own chapter a done word is kept by the row it already has.
-        assert_eq!(keys(&first[0]), ["give up"]);
+        // Only what the learner said they know is never taken, by its key.
+        let keys: Vec<String> = excluded(&conn).expect("excluded").into_iter().collect();
+        assert_eq!(keys, ["give up"]);
+
+        // Learned in a chapter, the word is not stored for another in that
+        // meaning, said with a synonym or not; an open word is.
+        let again = [
+            noun("bug", &["insecto", "bichito"]),
+            noun("bank", &["orilla"]),
+        ];
+        finish(&conn, &first[1], Depth::Most, &again, Utc::now()).expect("finish");
+        assert_eq!(
+            lemmas(&list(&conn, &first[1]).expect("list")),
+            [("bank", 1)]
+        );
+        // Written the same in another sense, or as another kind of word, it
+        // is a word to learn.
+        let error = [
+            noun("bug", &["error", "falla"]),
+            Word {
+                part_of_speech: Some(PartOfSpeech::Verb),
+                ..word("bug", &["molestar"], 1)
+            },
+        ];
+        finish(&conn, &other[0], Depth::Most, &error, Utc::now()).expect("finish");
+        assert_eq!(lemmas(&list(&conn, &other[0]).expect("list")), [("bug", 1)]);
+        let said = &list(&conn, &other[0]).expect("list")[0].translations;
+        assert_eq!(said, &["error", "falla"]);
     }
 
     #[test]
@@ -1500,8 +1624,7 @@ pub mod tests {
         forget(&conn, "peep").expect("forget");
         forget(&conn, "peep").expect("twice changes nothing");
         assert_eq!(shown(&conn), [bank]);
-        let other = book(&conn, "c", &["three"]);
-        let excluded = excluded(&conn, &other[0]).expect("excluded");
+        let excluded = excluded(&conn).expect("excluded");
         assert_eq!(excluded, HashSet::from(["bank".to_owned()]));
     }
 

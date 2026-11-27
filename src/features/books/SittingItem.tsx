@@ -31,7 +31,14 @@ import { languageName } from "@/lib/text";
 import { DisputeNote } from "./DisputeNote";
 import type { DisputeState } from "./sittingRun";
 import { Key } from "./TriageRun";
-import { FRAME, MARK, PracticeBand, VerbForms, toneOf } from "./PracticeBand";
+import {
+  FRAME,
+  MARK,
+  PracticeBand,
+  SOLID,
+  VerbForms,
+  toneOf,
+} from "./PracticeBand";
 import { kindLine, retryKey } from "./retryLine";
 import { SenseHintCard, SenseTipLine } from "./SenseHelp";
 import { NextArrow } from "./SittingParts";
@@ -318,6 +325,8 @@ export function SittingItem<Result extends Checked>({
     try {
       const verdict = await check(text, again, hints > 0, rung);
       if (verdict.again === true) {
+        // Neither right nor a miss yet: one more try, heard as the middle.
+        chime("partial");
         setAgain(true);
         const ladder = verdict.ladder ?? null;
         if (ladder !== null) {
@@ -452,6 +461,9 @@ export function SittingItem<Result extends Checked>({
   const to = toEnglish ? english : native;
   // "I don't know" is no miss to mark: only a typed answer is right or wrong.
   const tone = result === null ? null : verdictTone(result, unknown);
+  // A word that comes with its sentence is read in it: the sentence is the
+  // heading, and the word stands out inside it, never above it.
+  const led = !toEnglish && item.context !== null;
 
   return (
     <section className="mx-auto flex min-h-full w-full max-w-2xl flex-col items-center justify-center gap-6 px-6 pt-4 pb-16 text-center nav:px-10">
@@ -494,7 +506,11 @@ export function SittingItem<Result extends Checked>({
                 its syllables, with a hyphen, and anywhere if none fits. */}
             <h1
               lang={toEnglish ? nativeLang : "en"}
-              className="relative font-display text-6xl font-light tracking-tight text-balance wrap-anywhere hyphens-auto text-ink nav:text-7xl"
+              className={cn(
+                led
+                  ? "sr-only"
+                  : "relative font-display text-6xl font-light tracking-tight text-balance wrap-anywhere hyphens-auto text-ink nav:text-7xl",
+              )}
             >
               {item.prompt}
               <Presence>
@@ -516,7 +532,8 @@ export function SittingItem<Result extends Checked>({
                   <Context
                     parts={item.context}
                     blanked={toEnglish}
-                    mark={MARK[shade]}
+                    mark={led ? SOLID[shade] : MARK[shade]}
+                    lead={led}
                   />
                 </Reveal>
               )}

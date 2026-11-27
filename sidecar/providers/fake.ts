@@ -240,6 +240,7 @@ function fakeChecks(params: VocabCheckParams): VocabChecks {
           contextThere: false,
           contextBack: false,
           related: [],
+          sameAs: null,
         };
       }
       const base = word.lemma.slice(0, -1);
@@ -254,6 +255,7 @@ function fakeChecks(params: VocabCheckParams): VocabChecks {
         contextThere: true,
         contextBack: true,
         related: [{ text: `${base}o`, partOfSpeech: "noun" }],
+        sameAs: null,
       };
     }),
   };
@@ -302,6 +304,7 @@ function fakeSentenceReview(params: SentenceReviewParams): SentenceVerdicts {
       hints: [],
       verbForm: null,
       cue: nextWord(each.sentence, each.form),
+      general: [],
     })),
   };
 }

@@ -266,6 +266,7 @@ describe("sentences through the dispatcher", () => {
         hints: [],
         verbForm: null,
         cue: ["over"],
+        general: [],
       },
       {
         id: "s2",
@@ -274,6 +275,7 @@ describe("sentences through the dispatcher", () => {
         hints: [],
         verbForm: null,
         cue: ["in"],
+        general: [],
       },
     ]);
   });

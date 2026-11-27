@@ -247,8 +247,11 @@ mod tests {
             word("bank", &["orilla"], 1),
             word("hedge", &["seto"], 1),
         ];
+        // Both chapters were prepared before the word was finished in any.
         for chapter in &chapters {
             words::finish(&conn, chapter, Depth::Most, &list, Utc::now()).expect("words");
+        }
+        for chapter in &chapters {
             mark_done(&conn, chapter, "peep");
         }
         // Known is not learned here, and an open word is not learned yet.
