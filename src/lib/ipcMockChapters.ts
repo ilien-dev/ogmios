@@ -369,10 +369,11 @@ function restartSorting(id: string): ChapterWords {
   return chapterWords(id);
 }
 
-/** Every word marked as known, the latest first; its base form is its key. */
+/** Every word marked as known, the latest first; its base form is its id. */
 function knownWords(): KnownWord[] {
   const found = Object.values(FOUND).flat();
   return mockKnownLemmas().map((lemma) => ({
+    id: lemma,
     key: lemma,
     lemma,
     translations: [...(found.find(([each]) => each === lemma)?.[1] ?? [])],
@@ -487,7 +488,7 @@ export function chapterCommands(
     list_known_words: () => after(80, knownWords),
     forget_known_word: (args) =>
       after(80, () => {
-        setMockWordKnown(arg(args, "key"), false);
+        setMockWordKnown(arg(args, "id"), false);
         return knownWords();
       }),
   };

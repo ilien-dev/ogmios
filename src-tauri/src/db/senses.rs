@@ -138,6 +138,13 @@ pub fn siblings(conn: &Connection, word_id: &str) -> Result<Vec<(String, Vec<Str
             found.push((sense, means));
         }
     }
+    // A sense the learner knows may have no word left: its book is gone.
+    for (sense, kind, means) in super::known::senses_of(conn, &word.key)? {
+        let other = Some(&sense) != own.as_ref() && !found.iter().any(|(held, _)| *held == sense);
+        if other && agree(word.kind, kind) {
+            found.push((sense, means));
+        }
+    }
     Ok(found)
 }
 
@@ -157,7 +164,7 @@ pub fn merge(conn: &Connection, into: &str, from: &str) -> Result<()> {
         params![into, from],
     )?;
     conn.execute("DELETE FROM sense_glosses WHERE sense_id = ?1", [from])?;
-    Ok(())
+    super::known::moved(conn, into, from)
 }
 
 /// Says that a word is of the sense `sense`, as a look at it found: its

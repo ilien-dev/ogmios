@@ -509,6 +509,16 @@ repaso rápido antes de leer no cambia.
   suyas; Repaso usa frases de cualquier capítulo. Una palabra terminada en un capítulo no se
   guarda al preparar otro si es del mismo sentido; escrita igual con otro sentido («bug», bicho,
   aprendida; «bug», error) sí es una palabra por aprender.
+- **«Ya la sé» es de un sentido:** marcar una palabra la da por sabida en el sentido que tiene
+  ahí, en todos los capítulos y libros que la tienen con ese sentido, y ningún capítulo
+  preparado después la guarda. Escrita igual con otro sentido, o como otro tipo de palabra,
+  se sigue pidiendo. La marca guarda el tipo de palabra y lo que significa: sobrevive a su
+  libro y reconoce la palabra en uno nuevo. La lista de palabras sabidas muestra lo que
+  significa cada una y se deshace por sentido. Una marca anterior a esto vale para los sentidos
+  que la palabra tenía entonces; si ningún capítulo la tenía, para el primero que llegue.
+- **Dos sentidos que resultan ser uno:** cuando la mirada une dos sentidos y uno estaba
+  terminado o sabido, las palabras del otro que nadie ha respondido salen de sus capítulos, como
+  si la mirada hubiera llegado antes. Una palabra ya empezada se queda.
 - **Banco por palabra y capítulo:** frases reales de su capítulo que tienen la palabra una sola
   vez (las busca el código), y, solo para las palabras con un rival que su etiqueta no
   distingue, 5 que Claude escribe con el significado de ese capítulo, cada una con la palabra una

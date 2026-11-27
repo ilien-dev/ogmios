@@ -57,7 +57,7 @@ export function KnownWords({ sheet, onCount }: KnownWordsProps): ReactNode {
   const undo = async (word: KnownWord): Promise<void> => {
     setFailure(null);
     try {
-      setWords(await forgetKnownWord(word.key));
+      setWords(await forgetKnownWord(word.id));
     } catch (error) {
       setFailure(errorMessage(error));
     }
@@ -116,7 +116,7 @@ export function KnownWords({ sheet, onCount }: KnownWordsProps): ReactNode {
                 <Presence>
                   {words.map((word, index) => (
                     <Reveal
-                      key={word.key}
+                      key={word.id}
                       as="li"
                       kind="fade"
                       index={index}

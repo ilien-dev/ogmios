@@ -74,7 +74,7 @@ pub fn id_by_hash(conn: &Connection, hash: &str) -> Result<Option<String>> {
 const CHAPTER: &str = "SELECT id, idx, title, words, prepared,
        (SELECT COUNT(*) FROM chapter_words w WHERE w.chapter_id = book_chapters.id),
        (SELECT COUNT(*) FROM chapter_words w WHERE w.chapter_id = book_chapters.id
-          AND (w.done_at IS NOT NULL OR w.key IN (SELECT key FROM known_words)))
+          AND (w.done_at IS NOT NULL OR EXISTS (SELECT 1 FROM known_words k WHERE k.sense_id = w.sense_id)))
      FROM book_chapters";
 
 fn chapter(row: &rusqlite::Row<'_>) -> rusqlite::Result<Chapter> {
@@ -189,7 +189,7 @@ const UNANSWERED: &str = "w.learned_at IS NULL
 /// the learner does not know it (a known word keeps its translations).
 const DISCARDED: &str = "w.learned_at IS NULL
      AND NOT EXISTS (SELECT 1 FROM word_answers a WHERE a.word_id = w.id)
-     AND w.key NOT IN (SELECT key FROM known_words)";
+     AND NOT EXISTS (SELECT 1 FROM known_words k WHERE k.sense_id = w.sense_id)";
 
 /// What deleting the book would do to its words ([`BookDeletion`]).
 pub fn deletion(conn: &Connection, id: &str) -> Result<BookDeletion> {
@@ -207,7 +207,7 @@ pub fn deletion(conn: &Connection, id: &str) -> Result<BookDeletion> {
             "WITH mine AS (
                SELECT DISTINCT w.key FROM chapter_words w
                JOIN book_chapters c ON c.id = w.chapter_id
-               WHERE c.book_id = ?1 AND w.key NOT IN (SELECT key FROM known_words)
+               WHERE c.book_id = ?1 AND NOT EXISTS (SELECT 1 FROM known_words k WHERE k.sense_id = w.sense_id)
              ),
              elsewhere AS (
                SELECT w.key FROM chapter_words w
@@ -251,7 +251,7 @@ pub fn deletion(conn: &Connection, id: &str) -> Result<BookDeletion> {
 /// The keys of a book's words, once each, leaving out the known ones.
 const MINE: &str = "SELECT DISTINCT w.key FROM chapter_words w
      JOIN book_chapters c ON c.id = w.chapter_id
-     WHERE c.book_id = ?1 AND w.key NOT IN (SELECT key FROM known_words)";
+     WHERE c.book_id = ?1 AND NOT EXISTS (SELECT 1 FROM known_words k WHERE k.sense_id = w.sense_id)";
 
 /// The keys of every other book's words, archived or not.
 const OTHERS: &str = "SELECT w.key FROM chapter_words w

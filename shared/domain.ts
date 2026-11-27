@@ -576,11 +576,13 @@ export interface ChapterWords {
 
 /** A word the learner said they know already, whatever chapter it came from. */
 export interface KnownWord {
-  /** What the word is known by, in every chapter of every book. */
+  /** The sense the word is known in: what it is taken back by. */
+  id: string;
+  /** What the word is written as, in every chapter of every book. */
   key: string;
   /** What the word is called: its base form, or a form of a verb. */
   lemma: string;
-  /** Its translations in a chapter that has it; none once its books are gone. */
+  /** What it means in the sense it is known in. */
   translations: string[];
 }
 

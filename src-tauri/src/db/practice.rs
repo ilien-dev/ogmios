@@ -509,14 +509,16 @@ fn answers(conn: &Connection, word_id: &str) -> Result<Vec<Answer>> {
     Ok(rows.collect::<rusqlite::Result<_>>()?)
 }
 
-/// A word the learner has not said they know (`db::words::set_known`).
-pub(crate) const NOT_KNOWN: &str = "w.key NOT IN (SELECT key FROM known_words)";
+/// A word `w` the learner has not said they know, in its sense
+/// (`db::known`).
+pub(crate) const NOT_KNOWN: &str =
+    "NOT EXISTS (SELECT 1 FROM known_words k WHERE k.sense_id = w.sense_id)";
 
 /// A chapter's words neither finished nor known, most frequent first; the
 /// chapter is `?1`.
 const OPEN_WORDS: &str = "SELECT w.id FROM chapter_words w
      WHERE w.chapter_id = ?1 AND w.done_at IS NULL
-       AND w.key NOT IN (SELECT key FROM known_words)
+       AND NOT EXISTS (SELECT 1 FROM known_words k WHERE k.sense_id = w.sense_id)
      ORDER BY w.occurrences DESC, w.key";
 
 /// The words `ids` selects for `key`, in its order, each with every answer
@@ -582,14 +584,14 @@ fn is_review(conn: &Connection, word_id: &str) -> Result<bool> {
 /// A chapter's open words in no order: a new one every time it is read.
 const SHUFFLED_WORDS: &str = "SELECT w.id FROM chapter_words w
      WHERE w.chapter_id = ?1 AND w.done_at IS NULL
-       AND w.key NOT IN (SELECT key FROM known_words)
+       AND NOT EXISTS (SELECT 1 FROM known_words k WHERE k.sense_id = w.sense_id)
      ORDER BY RANDOM()";
 
 /// Every word of a chapter the learner has not said they know, done or
 /// not, in no order: what an extra review draws from. The chapter is `?1`.
 const SHUFFLED_ALL: &str = "SELECT w.id FROM chapter_words w
      WHERE w.chapter_id = ?1
-       AND w.key NOT IN (SELECT key FROM known_words)
+       AND NOT EXISTS (SELECT 1 FROM known_words k WHERE k.sense_id = w.sense_id)
      ORDER BY RANDOM()";
 
 /// Fixes the words of a session just started: `size` of the chapter's open

@@ -694,11 +694,13 @@ pub struct ChapterWords {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct KnownWord {
-    /// What the word is known by, in every chapter of every book.
+    /// The sense the word is known in: what it is taken back by.
+    pub id: String,
+    /// What the word is written as, in every chapter of every book.
     pub key: String,
     /// What the word is called: its base form, or a form of a verb.
     pub lemma: String,
-    /// Its translations in a chapter that has it; none once its books are gone.
+    /// What it means in the sense it is known in.
     pub translations: Vec<String>,
 }
 

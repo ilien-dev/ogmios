@@ -117,9 +117,8 @@ pub fn prepare(
     {
         let mut conn = ctx.conn()?;
         let tx = conn.transaction()?;
-        let excluded = words::excluded(&tx)?;
         let answers: Vec<_> = answers.into_values().collect();
-        let merged = merge(&answers, &text, &excluded);
+        let merged = merge(&answers, &text);
         words::finish(&tx, chapter_id, depth, &merged, Utc::now())?;
         // What a negation beside a word gave its translations is not the word's.
         words::affirm(&tx, &profile.native_lang)?;
@@ -196,12 +195,13 @@ pub async fn list_known_words(app: AppHandle) -> Result<Vec<KnownWord>> {
     run(app, |_, ctx| words::known(&*ctx.conn()?)).await
 }
 
-/// Takes a known word back by its key; the words still known after it.
+/// Takes a known word back by the id it is listed with; the words still
+/// known after it.
 #[tauri::command]
-pub async fn forget_known_word(app: AppHandle, key: String) -> Result<Vec<KnownWord>> {
+pub async fn forget_known_word(app: AppHandle, id: String) -> Result<Vec<KnownWord>> {
     run(app, move |_, ctx| {
         let conn = ctx.conn()?;
-        words::forget(&conn, &key)?;
+        crate::db::known::forget(&conn, &id)?;
         words::known(&conn)
     })
     .await

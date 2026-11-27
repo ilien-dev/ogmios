@@ -110,15 +110,6 @@ pub fn store_chunk(
     Ok(())
 }
 
-/// The keys never extracted for any chapter: the words the learner said
-/// they know. A word finished in another chapter is left out later, by its
-/// sense ([`finish`]): written the same, it may mean something else here.
-pub fn excluded(conn: &Connection) -> Result<HashSet<String>> {
-    let mut stmt = conn.prepare("SELECT key FROM known_words")?;
-    let keys = stmt.query_map([], |row| row.get(0))?;
-    Ok(keys.collect::<rusqlite::Result<_>>()?)
-}
-
 /// Whether a word just stored means what a word finished in another chapter
 /// means: of the same sense (`db::senses`). It is learned already.
 fn learned_elsewhere(conn: &Connection, id: &str) -> Result<bool> {
@@ -135,9 +126,10 @@ fn learned_elsewhere(conn: &Connection, id: &str) -> Result<bool> {
 /// Stores the chapter's words at this depth and forgets the pieces they came
 /// from; run it inside a transaction. A word the chapter already has is left
 /// exactly as it is: a deeper depth only adds. A word that means what one
-/// finished in another chapter means is not stored: it is learned. Written
-/// the same in another sense ("bug", the insect, learned; "bug", the error,
-/// here) it is a word to learn.
+/// finished in another chapter means, or what the learner said they know
+/// (`db::known`), is not stored: it is learned. Written the same in another
+/// sense ("bug", the insect, learned or known; "bug", the error, here) it is
+/// a word to learn.
 pub fn finish(
     conn: &Connection,
     chapter_id: &str,
@@ -176,7 +168,7 @@ pub fn finish(
                 translate.execute(params![id, translation])?;
             }
             super::senses::assign(conn, &id)?;
-            if learned_elsewhere(conn, &id)? {
+            if learned_elsewhere(conn, &id)? || super::known::claim(conn, &id)? {
                 conn.execute("DELETE FROM chapter_words WHERE id = ?1", [&id])?;
             }
         }
@@ -197,7 +189,7 @@ pub fn finish(
 pub fn asked(conn: &Connection, chapter_id: &str) -> Result<HashSet<String>> {
     let mut stmt = conn.prepare(
         "SELECT key FROM chapter_words
-         WHERE chapter_id = ?1 AND key NOT IN (SELECT key FROM known_words)",
+         WHERE chapter_id = ?1 AND NOT EXISTS (SELECT 1 FROM known_words k WHERE k.sense_id = chapter_words.sense_id)",
     )?;
     let keys = stmt.query_map([chapter_id], |row| row.get(0))?;
     Ok(keys.collect::<rusqlite::Result<_>>()?)
@@ -260,31 +252,30 @@ pub fn add(conn: &Connection, chapter_id: &str, word: &Word, now: DateTime<Utc>)
 }
 
 /// Marks the word as one the learner knows, or takes that back. It is known
-/// by its key, so it is in every chapter of every book at once: it leaves
-/// their queues and counts towards their readiness, and no later chapter
-/// extracts it. Its rows and their answers are left alone, so taking it back
-/// puts it where it was. Returns the chapter the word was marked in.
+/// in its sense (`db::known`), so it is in every chapter of every book that
+/// has it in that sense at once: it leaves their queues and counts towards
+/// their readiness, and no later chapter keeps it. Written the same in
+/// another sense, it is still a word to learn. Its rows and their answers
+/// are left alone, so taking it back puts it where it was. Returns the
+/// chapter the word was marked in.
 pub fn set_known(
     conn: &Connection,
     word_id: &str,
     known: bool,
     now: DateTime<Utc>,
 ) -> Result<String> {
-    let (chapter_id, key, lemma): (String, String, String) = found(
+    let chapter_id: String = found(
         conn.query_row(
-            "SELECT chapter_id, key, lemma FROM chapter_words WHERE id = ?1",
+            "SELECT chapter_id FROM chapter_words WHERE id = ?1",
             [word_id],
-            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            |row| row.get(0),
         ),
         "word",
     )?;
     if known {
-        conn.execute(
-            "INSERT OR IGNORE INTO known_words (key, lemma, created_at) VALUES (?1, ?2, ?3)",
-            params![key, lemma, ts(now)],
-        )?;
+        super::known::mark(conn, word_id, now)?;
     } else {
-        forget(conn, &key)?;
+        super::known::unmark(conn, word_id)?;
     }
     Ok(chapter_id)
 }
@@ -315,13 +306,6 @@ pub fn unsort(conn: &Connection, chapter_id: &str) -> Result<()> {
         "UPDATE chapter_words SET sorted_at = NULL WHERE chapter_id = ?1",
         [chapter_id],
     )?;
-    Ok(())
-}
-
-/// Takes back that the learner knows the word with this key: it is asked
-/// again wherever a chapter has it. A key that is not known changes nothing.
-pub fn forget(conn: &Connection, key: &str) -> Result<()> {
-    conn.execute("DELETE FROM known_words WHERE key = ?1", [key])?;
     Ok(())
 }
 
@@ -413,34 +397,37 @@ pub fn as_called(
     shown.iter().map(|text| said.get(text).cloned()).collect()
 }
 
-/// Every word the learner said they know, the latest first. Its translations
-/// are the ones the first chapter that has it was prepared with, the one the
-/// learner answers with most first, of a deleted book too; a word no chapter
-/// has has none.
+/// Every word the learner said they know, in the sense they said it of,
+/// the latest first. Its translations are the ones the first chapter that
+/// has it in that sense was prepared with, the one the learner answers with
+/// most first; with no chapter left, what it meant when it was marked.
 pub fn known(conn: &Connection) -> Result<Vec<KnownWord>> {
-    let mut stmt =
-        conn.prepare("SELECT key, lemma FROM known_words ORDER BY created_at DESC, key")?;
+    let mut stmt = conn.prepare(
+        "SELECT sense_id, key, lemma FROM known_words ORDER BY created_at DESC, key, sense_id",
+    )?;
     let mut words = stmt
         .query_map([], |row| {
             Ok(KnownWord {
-                key: row.get(0)?,
-                lemma: row.get(1)?,
+                id: row.get(0)?,
+                key: row.get(1)?,
+                lemma: row.get(2)?,
                 translations: Vec::new(),
             })
         })?
         .collect::<rusqlite::Result<Vec<_>>>()?;
     let mut stmt = conn.prepare(
         "SELECT id, part_of_speech FROM chapter_words
-         WHERE key = ?1 ORDER BY created_at, id LIMIT 1",
+         WHERE sense_id = ?1 ORDER BY created_at, id LIMIT 1",
     )?;
     let used = Used::load(conn, None)?;
     for word in &mut words {
         let first: Option<(String, Option<PartOfSpeech>)> = stmt
-            .query_row([&word.key], |row| Ok((row.get(0)?, row.get(1)?)))
+            .query_row([&word.id], |row| Ok((row.get(0)?, row.get(1)?)))
             .optional()?;
-        if let Some((id, part)) = first {
-            word.translations = used.order(conn, (&word.key, &id), part)?;
-        }
+        word.translations = match first {
+            Some((id, part)) => used.order(conn, (&word.key, &id), part)?,
+            None => super::known::meant(conn, &word.id)?,
+        };
     }
     Ok(words)
 }
@@ -494,7 +481,7 @@ pub fn learned(conn: &Connection) -> Result<Vec<Learned>> {
 pub fn list(conn: &Connection, chapter_id: &str) -> Result<Vec<BookWord>> {
     let mut stmt = conn.prepare(
         "SELECT id, lemma, occurrences, done_at IS NOT NULL,
-                key IN (SELECT key FROM known_words), part_of_speech, key,
+                EXISTS (SELECT 1 FROM known_words k WHERE k.sense_id = chapter_words.sense_id), part_of_speech, key,
                 sorted_at IS NOT NULL, verb_form, sentence, base, forms
          FROM chapter_words
          WHERE chapter_id = ?1 ORDER BY occurrences DESC, key",
@@ -809,12 +796,52 @@ pub fn check(conn: &Connection, id: &str, look: &WordCheck) -> Result<bool> {
 /// (`db::senses::same_as`): the two are one meaning from then on, and so is
 /// what is taken for right. Whether they were made one. A word is asked it
 /// once.
+///
+/// One of the two may have been learned, or known, before they were one:
+/// the words of the other nobody answered yet are learned then, and leave
+/// their chapters as they would have had the look come first ([`finish`]).
 fn sense(conn: &Connection, id: &str, look: &WordCheck) -> Result<bool> {
     conn.execute("UPDATE chapter_words SET sensed = 1 WHERE id = ?1", [id])?;
-    match look.same_as.as_deref() {
-        Some(sense) => super::senses::same_as(conn, id, sense),
-        None => Ok(false),
+    let (Some(named), Some(own)) = (look.same_as.as_deref(), super::senses::of(conn, id)?) else {
+        return Ok(false);
+    };
+    let mut leaving = Vec::new();
+    for (learned, other) in [(named, own.as_str()), (own.as_str(), named)] {
+        if settled(conn, learned)? {
+            leaving.extend(untouched(conn, other)?);
+        }
     }
+    if !super::senses::same_as(conn, id, named)? {
+        return Ok(false);
+    }
+    for word in &leaving {
+        conn.execute("DELETE FROM chapter_words WHERE id = ?1", [word])?;
+    }
+    Ok(true)
+}
+
+/// Whether a sense is learned: a chapter finished a word of it, or the
+/// learner said they know it.
+fn settled(conn: &Connection, sense: &str) -> Result<bool> {
+    let done: bool = conn.query_row(
+        "SELECT EXISTS (
+           SELECT 1 FROM chapter_words WHERE sense_id = ?1 AND done_at IS NOT NULL)",
+        [sense],
+        |row| row.get(0),
+    )?;
+    Ok(done || super::known::has(conn, sense)?)
+}
+
+/// The words of a sense nobody answered or finished: the ones that leave
+/// when their sense turns out to be learned.
+fn untouched(conn: &Connection, sense: &str) -> Result<Vec<String>> {
+    let mut stmt = conn.prepare(
+        "SELECT w.id FROM chapter_words w
+         WHERE w.sense_id = ?1 AND w.done_at IS NULL AND w.learned_at IS NULL
+           AND NOT EXISTS (SELECT 1 FROM word_answers a WHERE a.word_id = w.id)",
+    )?;
+    let rows = stmt.query_map([sense], |row| row.get(0))?;
+    Ok(rows.collect::<rusqlite::Result<_>>()?)
 }
 
 /// What a first look at a word puts right ([`check`]).
@@ -1168,12 +1195,29 @@ pub mod tests {
         assert_eq!(changed, 1);
     }
 
+    /// The learner knows every word written like this one, in the sense
+    /// each has; with no such word, a mark as one made before senses were.
     pub fn mark_known(conn: &Connection, lemma: &str) {
-        conn.execute(
-            "INSERT INTO known_words (key, lemma, created_at) VALUES (?1, ?2, ?3)",
-            params![crate::books::vocab::key(lemma), lemma, ts(Utc::now())],
-        )
-        .expect("known");
+        let key = crate::books::vocab::key(lemma);
+        let mut stmt = conn
+            .prepare("SELECT id FROM chapter_words WHERE key = ?1")
+            .expect("words");
+        let ids: Vec<String> = stmt
+            .query_map([&key], |row| row.get(0))
+            .expect("ids")
+            .collect::<rusqlite::Result<_>>()
+            .expect("id");
+        for id in &ids {
+            crate::db::known::mark(conn, id, Utc::now()).expect("known");
+        }
+        if ids.is_empty() {
+            conn.execute(
+                "INSERT INTO known_words (sense_id, key, lemma, created_at)
+                 VALUES ('key:' || ?1, ?1, ?2, ?3)",
+                params![key, lemma, ts(Utc::now())],
+            )
+            .expect("known");
+        }
     }
 
     fn lemmas(words: &[BookWord]) -> Vec<(&str, u32)> {
@@ -1515,11 +1559,6 @@ pub mod tests {
         ];
         finish(&conn, &first[0], Depth::Most, &words, Utc::now()).expect("finish");
         mark_done(&conn, &first[0], "bug");
-        mark_known(&conn, "To Give Up");
-
-        // Only what the learner said they know is never taken, by its key.
-        let keys: Vec<String> = excluded(&conn).expect("excluded").into_iter().collect();
-        assert_eq!(keys, ["give up"]);
 
         // Learned in a chapter, the word is not stored for another in that
         // meaning, said with a synonym or not; an open word is.
@@ -1620,12 +1659,261 @@ pub mod tests {
         books::archive_book(&conn, "b", Utc::now()).expect("delete");
         assert_eq!(shown(&conn), [peep, bank.clone()]);
 
-        // Forgotten by its key, with no chapter on the shelf to find it through.
-        forget(&conn, "peep").expect("forget");
-        forget(&conn, "peep").expect("twice changes nothing");
+        // Forgotten by its id, with no chapter on the shelf to find it through.
+        let id = known(&conn).expect("known")[0].id.clone();
+        crate::db::known::forget(&conn, &id).expect("forget");
+        crate::db::known::forget(&conn, &id).expect("twice changes nothing");
         assert_eq!(shown(&conn), [bank]);
-        let excluded = excluded(&conn).expect("excluded");
-        assert_eq!(excluded, HashSet::from(["bank".to_owned()]));
+    }
+
+    fn noun(lemma: &str, said: &[&str]) -> Word {
+        Word {
+            part_of_speech: Some(PartOfSpeech::Noun),
+            ..word(lemma, said, 1)
+        }
+    }
+
+    fn id_of(conn: &Connection, chapter: &str, lemma: &str) -> String {
+        let listed = list(conn, chapter).expect("list");
+        listed
+            .into_iter()
+            .find(|w| w.lemma == lemma)
+            .expect("word")
+            .id
+    }
+
+    /// The words a chapter has, each with whether the learner knows it.
+    fn standing(conn: &Connection, chapter: &str) -> Vec<(String, Vec<String>, bool)> {
+        list(conn, chapter)
+            .expect("list")
+            .into_iter()
+            .map(|w| (w.lemma, w.translations, w.known))
+            .collect()
+    }
+
+    #[test]
+    fn a_word_is_known_in_one_sense_and_written_the_same_in_another_is_to_learn() {
+        let conn = open_in_memory().expect("db");
+        let first = book(&conn, "b", &["one", "two", "three"]);
+        let other = book(&conn, "c", &["four"]);
+        let bug = |said: &[&str]| vec![(String::from("bug"), owned(said), false)];
+        let words = [noun("bug", &["bicho", "insecto"])];
+        finish(&conn, &first[0], Depth::Most, &words, Utc::now()).expect("finish");
+        // The same word in another sense, and as another kind of word, are
+        // in a chapter already when the learner says they know the insect.
+        let error = [noun("bug", &["error", "falla"])];
+        finish(&conn, &first[1], Depth::Most, &error, Utc::now()).expect("finish");
+        let insect = id_of(&conn, &first[0], "bug");
+        set_known(&conn, &insect, true, Utc::now()).expect("known");
+
+        assert_eq!(asked(&conn, &first[0]).expect("asked"), HashSet::new());
+        assert_eq!(standing(&conn, &first[1]), bug(&["error", "falla"]));
+        assert_eq!(
+            asked(&conn, &first[1]).expect("asked"),
+            HashSet::from(["bug".to_owned()])
+        );
+
+        // A later chapter does not take the insect, said with a synonym or
+        // not, and takes the verb.
+        let later = [
+            noun("bug", &["insecto", "bichito"]),
+            noun("bank", &["orilla"]),
+        ];
+        finish(&conn, &first[2], Depth::Most, &later, Utc::now()).expect("finish");
+        assert_eq!(
+            lemmas(&list(&conn, &first[2]).expect("list")),
+            [("bank", 1)]
+        );
+        let verb = [Word {
+            part_of_speech: Some(PartOfSpeech::Verb),
+            ..word("bug", &["molestar"], 1)
+        }];
+        finish(&conn, &other[0], Depth::Most, &verb, Utc::now()).expect("finish");
+        assert_eq!(standing(&conn, &other[0]), bug(&["molestar"]));
+
+        // Only the sense marked is listed, and taking it back by its id
+        // has the insect asked again.
+        let listed = known(&conn).expect("known");
+        assert_eq!(listed.len(), 1);
+        assert_eq!(listed[0].translations, ["bicho", "insecto"]);
+        crate::db::known::forget(&conn, &listed[0].id).expect("forget");
+        assert_eq!(
+            asked(&conn, &first[0]).expect("asked"),
+            HashSet::from(["bug".to_owned()])
+        );
+    }
+
+    fn owned(said: &[&str]) -> Vec<String> {
+        said.iter().map(|each| (*each).to_owned()).collect()
+    }
+
+    #[test]
+    fn a_known_sense_outlives_its_book_and_is_found_by_a_word_of_another() {
+        let conn = open_in_memory().expect("db");
+        let gone = book(&conn, "b", &["one"]);
+        let other = book(&conn, "c", &["two"]);
+        let words = [noun("bug", &["bicho", "insecto"])];
+        finish(&conn, &gone[0], Depth::Most, &words, Utc::now()).expect("finish");
+        set_known(&conn, &id_of(&conn, &gone[0], "bug"), true, Utc::now()).expect("known");
+        conn.execute("DELETE FROM chapter_words", []).expect("gone");
+
+        // No chapter has the word: it is listed with what it meant.
+        let listed = known(&conn).expect("known");
+        assert_eq!(listed[0].translations, ["bicho", "insecto"]);
+
+        let later = [noun("bug", &["insecto"]), noun("bank", &["orilla"])];
+        finish(&conn, &other[0], Depth::Most, &later, Utc::now()).expect("finish");
+        assert_eq!(
+            lemmas(&list(&conn, &other[0]).expect("list")),
+            [("bank", 1)]
+        );
+        // In another sense it is a word to learn.
+        let error = [noun("bug", &["error"])];
+        let third = book(&conn, "d", &["three"]);
+        finish(&conn, &third[0], Depth::Most, &error, Utc::now()).expect("finish");
+        assert_eq!(
+            standing(&conn, &third[0]),
+            [("bug".to_owned(), owned(&["error"]), false)]
+        );
+    }
+
+    #[test]
+    fn a_mark_made_by_key_becomes_the_senses_its_key_has_or_the_first_that_comes() {
+        let conn = open_in_memory().expect("db");
+        let first = book(&conn, "b", &["one", "two", "three"]);
+        finish(
+            &conn,
+            &first[0],
+            Depth::Most,
+            &[noun("bug", &["bicho"])],
+            Utc::now(),
+        )
+        .expect("finish");
+        finish(
+            &conn,
+            &first[1],
+            Depth::Most,
+            &[noun("bug", &["error"])],
+            Utc::now(),
+        )
+        .expect("finish");
+        // Two marks as they were kept before senses: by key alone.
+        conn.execute_batch(
+            "INSERT INTO known_words (sense_id, key, lemma, created_at) VALUES
+               ('key:bug', 'bug', 'bug', '2026-01-01T00:00:00.000Z'),
+               ('key:bank', 'bank', 'bank', '2026-01-02T00:00:00.000Z');",
+        )
+        .expect("old marks");
+
+        // The learner said they knew the word: every sense it has so far.
+        assert_eq!(crate::db::known::bind(&conn).expect("bind"), 1);
+        assert_eq!(crate::db::known::bind(&conn).expect("again"), 0);
+        let mut said: Vec<(String, Vec<String>)> = known(&conn)
+            .expect("known")
+            .into_iter()
+            .map(|w| (w.key, w.translations))
+            .collect();
+        said.sort();
+        assert_eq!(
+            said,
+            [
+                ("bank".to_owned(), vec![]),
+                ("bug".to_owned(), owned(&["bicho"])),
+                ("bug".to_owned(), owned(&["error"])),
+            ]
+        );
+        assert!(standing(&conn, &first[0])[0].2);
+        assert!(standing(&conn, &first[1])[0].2);
+
+        // The word no chapter had is known in the first sense that comes,
+        // and in that one alone.
+        let words = [noun("bank", &["orilla"]), noun("bug", &["micrófono"])];
+        finish(&conn, &first[2], Depth::Most, &words, Utc::now()).expect("finish");
+        assert_eq!(
+            standing(&conn, &first[2]),
+            [("bug".to_owned(), owned(&["micrófono"]), false)]
+        );
+        let other = book(&conn, "c", &["four"]);
+        let bench = [noun("bank", &["banco"])];
+        finish(&conn, &other[0], Depth::Most, &bench, Utc::now()).expect("finish");
+        assert_eq!(
+            standing(&conn, &other[0]),
+            [("bank".to_owned(), owned(&["banco"]), false)]
+        );
+    }
+
+    #[test]
+    fn senses_a_look_makes_one_take_the_words_nobody_answered_out_of_the_learned_one() {
+        let conn = open_in_memory().expect("db");
+        let first = book(&conn, "b", &["one", "two", "three", "four"]);
+        let store = |at: usize, said: &[&str]| {
+            finish(
+                &conn,
+                &first[at],
+                Depth::Most,
+                &[noun("sign", said), noun("bank", &["orilla"])],
+                Utc::now(),
+            )
+            .expect("finish");
+            id_of(&conn, &first[at], "sign")
+        };
+        let learned = store(0, &["letrero"]);
+        let open = store(1, &["cartel"]);
+        let begun = store(2, &["aviso"]);
+        store(3, &["señal"]);
+        mark_done(&conn, &first[0], "sign");
+        conn.execute(
+            "UPDATE chapter_words SET learned_at = ?2 WHERE id = ?1",
+            params![begun, ts(Utc::now())],
+        )
+        .expect("begun");
+        let same = |id: &str, sense: &str| WordCheck {
+            id: id.to_owned(),
+            fits: true,
+            part_of_speech: PartOfSpeech::Noun,
+            transitive: false,
+            verb_form: None,
+            base: None,
+            translations: Vec::new(),
+            context_there: false,
+            context_back: false,
+            related: Vec::new(),
+            same_as: Some(sense.to_owned()),
+        };
+        let sense = |id: &str| {
+            crate::db::senses::of(&conn, id)
+                .expect("of")
+                .expect("sense")
+        };
+
+        // A word nobody answered turns out to mean what a learned one
+        // means: it leaves its chapter.
+        assert!(check(&conn, &open, &same(&open, &sense(&learned))).expect("check"));
+        assert_eq!(
+            lemmas(&list(&conn, &first[1]).expect("list")),
+            [("bank", 1)]
+        );
+        // One the learner began stays, in the sense they are one.
+        assert!(check(&conn, &begun, &same(&begun, &sense(&learned))).expect("check"));
+        assert_eq!(sense(&begun), sense(&learned));
+        assert_eq!(list(&conn, &first[2]).expect("list").len(), 2);
+
+        // Known in the sense named, it is known in the one they become.
+        let fifth = book(&conn, "c", &["five"]);
+        finish(
+            &conn,
+            &fifth[0],
+            Depth::Most,
+            &[noun("bank", &["ribera"])],
+            Utc::now(),
+        )
+        .expect("finish");
+        let river = id_of(&conn, &first[3], "bank");
+        set_known(&conn, &river, true, Utc::now()).expect("known");
+        let bank = id_of(&conn, &fifth[0], "bank");
+        assert!(check(&conn, &bank, &same(&bank, &sense(&river))).expect("check"));
+        assert_eq!(list(&conn, &fifth[0]).expect("list"), []);
+        assert_eq!(known(&conn).expect("known").len(), 1);
     }
 
     #[test]

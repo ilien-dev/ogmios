@@ -280,11 +280,11 @@ export const restartSorting = (id: string): Promise<ChapterWords> =>
 export const listKnownWords = (): Promise<KnownWord[]> =>
   call("list_known_words");
 /**
- * Takes a known word back by its key: it is asked again wherever a chapter
- * has it. Resolves to the words still known.
+ * Takes a known word back by its id: it is asked again wherever a chapter
+ * has it in that sense. Resolves to the words still known.
  */
-export const forgetKnownWord = (key: string): Promise<KnownWord[]> =>
-  call("forget_known_word", { key });
+export const forgetKnownWord = (id: string): Promise<KnownWord[]> =>
+  call("forget_known_word", { id });
 export const onChapterProgress = (
   h: (p: ChapterProgress) => void,
 ): Promise<Unlisten> => on("chapter-progress", h);

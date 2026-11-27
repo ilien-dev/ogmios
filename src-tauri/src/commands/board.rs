@@ -264,14 +264,7 @@ mod tests {
         right(&desk, "w00", 4);
         right(&desk, "w01", 1);
         // A word marked known is not learned: the panel leaves it out too.
-        desk.db
-            .lock()
-            .expect("db")
-            .execute(
-                "INSERT INTO known_words (key, lemma, created_at) VALUES ('w03', 'w03', ?1)",
-                [ts(t0())],
-            )
-            .expect("known");
+        crate::db::words::tests::mark_known(&desk.db.lock().expect("db"), "w03");
         assert_eq!(
             of("b"),
             [ChapterStrength {
@@ -341,12 +334,7 @@ mod tests {
             ]
         );
         // A word marked known leaves the count, as it leaves the panel's.
-        conn()
-            .execute(
-                "INSERT INTO known_words (key, lemma, created_at) VALUES ('w01', 'w01', ?1)",
-                [ts(t0())],
-            )
-            .expect("known");
+        crate::db::words::tests::mark_known(&conn(), "w01");
         assert!(chapter_kinds(desk.ctx(), &chapter)
             .expect("kinds")
             .contains(&kind(Some(PartOfSpeech::Verb), 1, 1)));
