@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.40.2](https://github.com/ilien-dev/ogmios/compare/v0.40.1...v0.40.2) (2026-11-27)
+
+
+### Bug Fixes
+
+* keep tooltips from hiding under the box that holds them ([#105](https://github.com/ilien-dev/ogmios/issues/105)) ([5cb6b2d](https://github.com/ilien-dev/ogmios/commit/5cb6b2de32767f7c6a77e44e0f7d996ba9aa1302))
+
 ## [0.40.1](https://github.com/ilien-dev/ogmios/compare/v0.40.0...v0.40.1) (2026-11-27)
 
 
