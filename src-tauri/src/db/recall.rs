@@ -166,6 +166,9 @@ fn chat_words(conn: &Connection) -> Result<Vec<Found>> {
         .collect()
 }
 
+/// The keys the learner knows a sense of. A word of a book is left out by
+/// its own sense ([`book_words`]); one asked for in a conversation has none,
+/// and is left out by how it is written.
 fn known_keys(conn: &Connection) -> Result<HashSet<String>> {
     let mut stmt = conn.prepare("SELECT key FROM known_words")?;
     let keys = stmt.query_map([], |row| row.get(0))?;
@@ -182,7 +185,8 @@ pub fn words(conn: &Connection) -> Result<Vec<RecallWord>> {
     let mut seen = HashSet::new();
     let mut words = Vec::new();
     for word in book_words(conn)?.into_iter().chain(chat_words(conn)?) {
-        if word.key.is_empty() || known.contains(&word.key) || !seen.insert(word.key.clone()) {
+        let said = matches!(word.source, Source::Chat { .. }) && known.contains(&word.key);
+        if word.key.is_empty() || said || !seen.insert(word.key.clone()) {
             continue;
         }
         let events = events.remove(&word.key).unwrap_or_default();

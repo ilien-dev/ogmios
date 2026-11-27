@@ -615,7 +615,11 @@ describe("a word asked with a sentence of its bank", () => {
     const never = (): Checked => ({ correct: false, accepted: [], step: null });
     const heading = (item: PracticeItem): Array<string | null> => {
       stage(item, never);
-      const word = screen.getByRole("heading", { level: 1 });
+      // A word that comes with its sentence is read in it: the sentence
+      // stands where the word alone would, and breaks as it does.
+      const word =
+        document.querySelector("[data-lead]") ??
+        screen.getByRole("heading", { level: 1 });
       const seen = [
         word.getAttribute("lang"),
         word.className.includes("hyphens-auto") ? "hyphens" : null,
@@ -626,6 +630,30 @@ describe("a word asked with a sentence of its bank", () => {
     };
     expect(heading(SHOWN)).toEqual(["en", "hyphens", "wraps"]);
     expect(heading(BLANKED)).toEqual(["es", "hyphens", "wraps"]);
+  });
+
+  test("a word that comes with its sentence is read in it, and stands out filled", () => {
+    stage(SHOWN, () => ({ correct: false, accepted: [], step: null }));
+    const lead = document.querySelector("[data-lead]");
+    expect(lead?.className).toContain("text-title");
+    const mark = lead?.querySelector("[data-mark]");
+    expect(mark?.className).toContain("bg-verb text-on-kind");
+    expect(mark?.className).toContain("text-display");
+    // The word alone is still the heading, for a reader that cannot see.
+    const word = screen.getByRole("heading", { level: 1 });
+    expect(word.className).toBe("sr-only");
+    expect(word.textContent).toContain(SHOWN.prompt);
+    cleanup();
+    // With no sentence the word is what is read, large, and nothing leads.
+    stage({ ...SHOWN, context: null }, () => ({
+      correct: false,
+      accepted: [],
+      step: null,
+    }));
+    expect(document.querySelector("[data-lead]")).toBeNull();
+    expect(screen.getByRole("heading", { level: 1 }).className).toContain(
+      "text-6xl",
+    );
   });
 
   test("the way and the kind of word share the band across the top of the card", () => {
@@ -1075,9 +1103,9 @@ describe("telling which word is meant", () => {
     );
     // From the start, the few words that fix its sense.
     expect(screen.getByText("hair", { exact: false })).toBeVisible();
-    // The word stands out in them in the colour of its kind, as on the band.
+    // The word stands out in them, filled in the colour of its kind.
     expect(document.querySelector("[data-mark]")?.className).toContain(
-      "bg-adjective-soft",
+      "bg-adjective text-on-kind",
     );
     const field = screen.getByLabelText("Your translation");
     await user.type(field, "justo{Enter}");

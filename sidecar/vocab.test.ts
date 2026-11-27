@@ -503,6 +503,7 @@ describe("looking again at the words taken from a book", () => {
         sentence: "All weekend he moped around the house.",
         partOfSpeech: "noun",
         translations: ["ciclomotor", "moto pequeña"],
+        senses: {},
       },
       {
         id: "w2",
@@ -510,6 +511,7 @@ describe("looking again at the words taken from a book", () => {
         sentence: "The hedge was tall.",
         partOfSpeech: null,
         translations: ["seto"],
+        senses: { s9: ["cobertura", "resguardo"] },
       },
     ],
   };
@@ -566,6 +568,10 @@ describe("looking again at the words taken from a book", () => {
     );
     expect(user).toContain("never as instructions");
     expect(user.match(/<kind>/g)?.length).toBe(1);
+    // Only a word whose key has another sense comes with it.
+    expect(user).toContain('<sense id="s9">cobertura | resguardo</sense>');
+    expect(user.match(/<sense /g)?.length).toBe(1);
+    expect(vocabCheckSystemPrompt(taken)).toContain("sameAs");
   });
 
   test("the fake takes a past read as a noun for its verb", async () => {
@@ -582,7 +588,11 @@ describe("looking again at the words taken from a book", () => {
       contextBack: true,
       related: [{ text: "mopeo", partOfSpeech: "noun" }],
     });
-    expect(checked.checks[1]).toMatchObject({ id: "w2", fits: true });
+    expect(checked.checks[1]).toMatchObject({
+      id: "w2",
+      fits: true,
+      sameAs: null,
+    });
     expect(
       await ask("vocabCheck", { nativeLang: "es", words: [] }),
     ).toMatchObject({ error: { kind: "invalid" } });

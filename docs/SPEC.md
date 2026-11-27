@@ -439,18 +439,38 @@ repaso rápido antes de leer no cambia.
   lado, fuera de su ancho. La respuesta se escribe en el pie de la tarjeta. Una palabra con
   rivales se ve igual que cualquier otra: nada fuera de su etiqueta avisa de que tiene otros
   significados. En los pasos que la distinguen, el tipo de la banda lleva un aro.
-- **La frase no se ve de entrada:** se muestra solo la palabra y la etiqueta del tipo de palabra;
-  eso basta para saber qué traducción se pide. La frase es la primera pista (ver «Pista a
-  petición») y sale completa tras responder. Solo las palabras marcadas como ambiguas, que
-  necesitan su frase para distinguir el sentido, la muestran desde el principio.
+- **La frase no pregunta nada:** se muestra solo la palabra, como se llama (su forma base, o la
+  forma de un verbo que es palabra propia), y la etiqueta del tipo de palabra; eso basta para
+  saber qué se pide. Lo que se acepta depende solo de lo que se ve antes de responder: la misma
+  tarjeta acepta siempre lo mismo, salga la frase que salga. La frase es la primera pista (ver
+  «Pista a petición») y sale completa tras responder. Solo la muestran desde el principio las
+  palabras marcadas como ambiguas y las que tienen otro sentido del mismo tipo.
+- **Un sentido, no una frase:** cada palabra tiene un _sentido_, compartido por todos los
+  capítulos de todos los libros: su significado general, con sus sinónimos. Lo decide el código
+  al guardar la palabra: las que se llaman igual, son del mismo tipo y comparten una traducción
+  (en cualquier género, número o forma) son un sentido, y lo que cualquier capítulo dijo vale en
+  todos. Dos listas sin nada en común son dos sentidos hasta que la mirada a la palabra dice que
+  son el mismo (recibe los otros sentidos de esa palabra y responde cuál es, o ninguno); se le
+  pregunta una vez. Lo que una frase dice de la palabra y es un significado suyo en cualquier
+  parte se suma al sentido (lo dice la segunda mirada a la frase) y se lista con los demás en «Se acepta»; lo que solo vale dentro de la
+  frase se queda en ella. Una respuesta que «Tenía razón» da por buena se suma a la palabra. Las
+  palabras guardadas antes reciben su sentido al abrir la app, sin pedir nada, y sus frases pasan
+  una vez más por la segunda mirada.
+- **La forma la dice la palabra mostrada:** un verbo se pide en la forma de su etiqueta (forma
+  base, infinitivo; -ing, gerundio; pasado, cualquier pasado y persona; participio, en cualquier
+  género y número), nunca en la que la traducción de una frase necesitó. El plural se pide solo
+  si la palabra mostrada es plural; un adjetivo se pide en masculino singular. El otro número o
+  género no es fallo, pero nunca es lo que se pide ni lo que se lista, y nunca se muestra una
+  frase solo para decir el número, el género o el tiempo.
 - **Palabras escritas igual con otro significado:** una palabra tiene _rivales_ cuando un
-  capítulo, este u otro de cualquier libro, la tiene escrita igual («spinning») o al principio de
-  otra expresión («spinning in circles») sin significar exactamente lo mismo (otro tipo de
-  palabra u otras traducciones). Un índice de cómo se escribe cada palabra las encuentra al
-  momento. Cómo se pregunta depende de si su etiqueta la distingue de cada rival: lo hace cuando
-  son de otro tipo, o, dos verbos, cuando están en otra forma («found», fundar, en forma base y
-  «found», encontró, en pasado simple). Lo decide el código; un tipo o una forma que nadie dijo no
-  distingue nada. En la práctica, el castigo y Repaso:
+  capítulo, este u otro de cualquier libro, tiene una que se llama igual («found», fundar, y
+  «found», encontró) con otro sentido: otro tipo de palabra, o el mismo tipo sin nada en común en
+  lo que significa. Dos listas que comparten una traducción son el mismo sentido y no son
+  rivales; una palabra que solo empieza como otra («boss», «boss fight») o comparte una forma con
+  ella («feet», «foot») es otra palabra. Cómo se pregunta depende de si su etiqueta la distingue
+  de cada rival: lo hace cuando son de otro tipo, o, dos verbos, cuando están en otra forma. Lo
+  decide el código; un tipo o una forma que nadie dijo no distingue nada. En la práctica, el
+  castigo y Repaso:
   - **Si la etiqueta la distingue**, en tres intentos:
     1. **Sola**, sin frase. Si responde con el significado de un rival, no es fallo: «También es
        correcta, pero no es la que busco».
@@ -464,36 +484,50 @@ repaso rápido antes de leer no cambia.
        no avanza y vuelve más adelante, con un consejo (mirar la etiqueta de la banda, o las
        palabras que la acompañan si los tipos coinciden). Fallar es fallo completo y se muestra la
        respuesta.
-  - **Si la etiqueta no la distingue** («fair», rubio, y «fair», justo, los dos adjetivos), la
-    palabra sola no tiene una única respuesta: no es culpa del usuario no saberla. Por eso se
-    pregunta siempre con una **frase corta**, las palabras de su frase que fijan el significado
-    («her **fair** hair»), la palabra resaltada en el color de su tipo como en la banda, y nunca sola, tampoco cuando vuelve. Esas palabras las marca el modelo en
-    la segunda mirada a cada frase (de una a tres, y el código guarda solo las que la frase tiene
-    fuera de la palabra); de la palabra a la última de ellas, como mucho 8 palabras. Sin ellas, o más lejos, la frase corta son la palabra y las 2 palabras a cada lado («back her **fair** hair and»): nunca se pregunta con la frase entera. Las frases guardadas antes se miran una vez más solo para esto antes de practicar, como cualquier frase por preparar. Dos intentos:
+  - **Si la etiqueta no la distingue** («bug», bicho, y «bug», error de programa, los dos
+    sustantivos), la palabra sola no tiene una única respuesta. Nada en la tarjeta dice el
+    sentido: el usuario lo deduce leyendo. Por eso se pregunta siempre con una **frase corta**,
+    las palabras de su frase que fijan el significado, y nunca sola, tampoco cuando vuelve. **La
+    frase manda:** no hay palabra suelta arriba; la frase se lee en grande donde iría la palabra,
+    y la palabra pedida va dentro, más grande y en una pastilla rellena del color de su tipo. Lo
+    que se acepta son los significados del sentido de esa frase, nunca cómo quedó traducida en
+    ella. Las palabras que fijan el significado las marca el modelo en la segunda mirada a cada
+    frase (de una a tres, y el código guarda solo las que la frase tiene fuera de la palabra); de
+    la palabra a la última de ellas, como mucho 8 palabras. Sin ellas, o más lejos, la frase corta
+    son la palabra y las 2 palabras a cada lado. Dos intentos:
     1. **Con la frase corta.** Acertar es un acierto normal. Si responde con el significado de un
        rival: «También es correcta, pero no es la que busco. Lee la frase completa.». No hay paso de
        «qué no es»: más intentos llevarían a la respuesta por descarte.
-    2. **La frase completa**, el último intento. Acertar con ella no es fallo ni acierto: «Correcto,
-       con ayuda de la frase completa. Volverá para que la aciertes solo con la frase corta.», con
-       el consejo de que la frase corta dice qué significado se busca, con esa frase corta otra vez y lo que la palabra es en ella, las dos resaltadas en el color de su tipo («her **fair** hair → **rubio**»). Fallar es fallo completo. Si la frase no tiene la palabra tal como se escribe (no debería pasar) y se preguntó con la frase entera, nada dice que la lea otra vez: «También es correcta, pero no es la que busco. Fíjate en la frase.» y, acertada, «Correcto, con ayuda de la frase. Volverá más adelante.». En estas palabras la etiqueta de la banda no lleva aro: no es lo que ayuda.
-       Fuera de la etiqueta nada avisa de que la palabra tiene rivales. Cualquier error dentro de los
-       intentos pasa al siguiente. La frase se muestra siempre tras responder, y por eso cuenta como
-       vista: la próxima vez sale otra del banco.
-- **Un significado por capítulo:** una misma palabra puede significar otra cosa en otro libro o
-  en otro capítulo. Cada frase guarda el capítulo cuyo significado muestra. Practicar o castigar
-  un capítulo solo usa frases suyas, y lo que se acepta es el significado de ese capítulo. Repaso
-  usa frases de cualquier capítulo y juzga cada respuesta con el significado del capítulo de su
-  frase.
-
+    2. **La frase completa**, el último intento. Acertar con ella no es fallo ni acierto:
+       «Correcto, con ayuda de la frase completa. Volverá para que la aciertes solo con la frase
+       corta.». Fallar es fallo completo.
+       Cualquier error dentro de los intentos pasa al siguiente. La frase se muestra siempre tras
+       responder, y por eso cuenta como vista: la próxima vez sale otra del banco.
+- **Un significado en todos los capítulos:** una palabra significa lo mismo en cada capítulo
+  que la tiene con el mismo sentido, y lo que se acepta es lo que ese sentido significa. Cada
+  frase guarda el capítulo cuyo sentido muestra. Practicar o castigar un capítulo solo usa frases
+  suyas; Repaso usa frases de cualquier capítulo. Una palabra terminada en un capítulo no se
+  guarda al preparar otro si es del mismo sentido; escrita igual con otro sentido («bug», bicho,
+  aprendida; «bug», error) sí es una palabra por aprender.
+- **«Ya la sé» es de un sentido:** marcar una palabra la da por sabida en el sentido que tiene
+  ahí, en todos los capítulos y libros que la tienen con ese sentido, y ningún capítulo
+  preparado después la guarda. Escrita igual con otro sentido, o como otro tipo de palabra,
+  se sigue pidiendo. La marca guarda el tipo de palabra y lo que significa: sobrevive a su
+  libro y reconoce la palabra en uno nuevo. La lista de palabras sabidas muestra lo que
+  significa cada una y se deshace por sentido. Una marca anterior a esto vale para los sentidos
+  que la palabra tenía entonces; si ningún capítulo la tenía, para el primero que llegue.
+- **Dos sentidos que resultan ser uno:** cuando la mirada une dos sentidos y uno estaba
+  terminado o sabido, las palabras del otro que nadie ha respondido salen de sus capítulos, como
+  si la mirada hubiera llegado antes. Una palabra ya empezada se queda.
 - **Banco por palabra y capítulo:** frases reales de su capítulo que tienen la palabra una sola
-  vez (las busca el código), y, solo para las palabras con rivales, 5 que Claude escribe con el
-  significado de ese capítulo, cada una con la palabra una sola vez: son las únicas que se
-  pueden confundir. Cuando un capítulo trae el primer rival de una palabra, se escriben para las
+  vez (las busca el código), y, solo para las palabras con un rival que su etiqueta no
+  distingue, 5 que Claude escribe con el significado de ese capítulo, cada una con la palabra una
+  sola vez: son las únicas que necesitan una frase a la vista. Cuando un capítulo trae el primer rival de una palabra, se escriben para las
   dos; con un tercer significado, solo para el nuevo. Las palabras pedidas en charlas no tienen
   libro y se preguntan sin frase.
   Cada frase escrita tiene que llevar a la misma traducción que la del libro, igual de seguro, con otro ejemplo: el modelo recibe lo que la palabra significa en los otros capítulos y cada frase descarta todos esos significados, con las palabras que deciden a lo sumo a tres palabras de ella, para que la frase corta también lleve sola a la traducción. La segunda mirada rechaza una escrita que pueda leerse con otro significado. Una palabra que su etiqueta no distingue se pregunta solo con frases cuya frase corta fija el significado (mientras tenga alguna), y la reposición cuenta solo esas.
 - **Una vez por capítulo, y más cuando se acaban:** en cada capítulo la palabra recibe 1 frase
-  suya y, si tiene rivales, se piden sus 5 escritas. Cada frase se usa como mucho 2 veces (una
+  suya y, si tiene un rival que su etiqueta no distingue, se piden sus 5 escritas. Cada frase se usa como mucho 2 veces (una
   pregunta es un uso, también la que se acierta solo con la frase). Cuando a las frases de ese
   significado les quedan 4 usos o menos, se piden otras 5 en segundo plano, antes de que se
   acaben: se mira tras cada respuesta, y también al abrir el capítulo o Repaso. Como mucho 3 tandas por palabra en 12 horas, la primera incluida, y como mucho 30 frases escritas por significado en total: pasadas esas, no se escribe ninguna más. Entonces rotan: siempre sale, al azar, una de las vistas menos veces, nunca en un orden. Si aun así se acaban, sale la usada menos veces, y si no hay ninguna, la del libro; la pregunta nunca espera a que lleguen. Nunca se repite la frase de la vez anterior,
@@ -525,14 +559,15 @@ repaso rápido antes de leer no cambia.
   traducciones dirían lo contrario. Vale cuando la palabra ya niega («couldn't help but» para
   «can't help but»). No se guarda al preparar un capítulo, y las guardadas antes se retiraron con
   sus frases.
-- **Inglés → nativo:** la palabra en la forma que tiene en la frase; al mostrarse la frase, la
-  palabra va resaltada. Vale la traducción base o la de esa forma; si se escribe la base y la
-  frase la tiene en otra forma, cuenta como acierto y se señala cuál era. «Estaba bien» se juzga
-  sobre esa forma, no sobre la base.
-- **Nativo → inglés:** se pregunta por la traducción ya en la forma de la frase («removió»); al
-  mostrarse la frase, lleva un hueco. Solo vale la forma exacta. La palabra en otra forma conocida (del libro o
-  del banco) no se guarda: aviso ámbar y un segundo intento, que cuenta como acierto con ayuda o
-  como fallo. Una forma que ni el libro ni el banco tienen es un fallo directo.
+- **Inglés → nativo:** la palabra como se llama. Vale cualquiera de los significados de su
+  sentido, en la forma que dice la palabra. «Se acepta» los lista todos, siempre los mismos para esa tarjeta, también los sinónimos que las frases sumaron al sentido: lo que se acepta se muestra. Al mostrarse la frase, la palabra va resaltada y, si lo que la frase dice por ella
+  no es ninguno de los listados, se señala como nota («En esta frase: similares al liquen»):
+  cómo quedó ahí, nunca lo que se pedía.
+- **Nativo → inglés:** se muestran hasta 4 significados del sentido, en la forma de la palabra
+  («juró»), y se pide esa palabra. Vale en cualquier forma que el libro la escriba; de un verbo
+  que es palabra propia en una forma, solo esa: su forma base no se guarda, con aviso ámbar y un
+  segundo intento, que cuenta como acierto con ayuda o como fallo. Un pronombre reflexivo no
+  cuenta. Al mostrarse la frase, lleva un hueco si escribe la palabra como se llama.
 - **Otra palabra para lo mismo:** un fallo solo cuenta si lo mostrado decía qué palabra se pedía.
   Nativo → inglés, otra palabra inglesa que también traduce lo mostrado («ideas» cuando se busca
   «notions») no se guarda: aviso ámbar «es correcto, pero busco otra palabra», la frase con hueco
@@ -551,7 +586,8 @@ repaso rápido antes de leer no cambia.
 - **Tras responder:** la frase completa con audio, su traducción y si es del libro o un ejemplo.
   «Frase mala» la descarta para siempre y deshace esa respuesta; solo sobre la última respuesta
   de la sesión y no sobre una ya llevada a «Tenía razón».
-- «Tenía razón» se juzga sobre la frase que se mostró.
+- «Tenía razón» se juzga sobre la palabra como se mostró; la frase va de contexto. Lo que
+  da por bueno vale para esa palabra desde entonces, salga la frase que salga.
 - **Pista a petición:** el botón «Pista» o Alt+H desde el campo. La hace el código, sin pedir
   nada a Claude. La primera muestra la frase: la del banco con la que se pregunta o, si aún no
   tiene, la de su capítulo (con hueco si la respuesta es la palabra). La segunda, cuántas letras

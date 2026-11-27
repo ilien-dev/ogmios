@@ -156,7 +156,7 @@ pub fn due(conn: &Connection, chapter_id: &str) -> Result<Option<Due>> {
         "SELECT w.id FROM chapter_words w
          LEFT JOIN word_penalties p ON p.word_id = w.id
          WHERE w.chapter_id = ?1
-           AND w.key NOT IN (SELECT key FROM known_words)
+           AND NOT EXISTS (SELECT 1 FROM known_words k WHERE k.sense_id = w.sense_id)
            AND EXISTS (
              SELECT 1 FROM word_answers a JOIN practice_sittings s ON s.id = a.sitting_id
              WHERE a.word_id = w.id AND s.kind = 'practice' AND NOT a.correct

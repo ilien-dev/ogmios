@@ -7,12 +7,11 @@ use std::collections::HashMap;
 use chrono::{DateTime, Utc};
 use rusqlite::{params, Connection};
 
-use super::words::{as_called, Used};
+use super::words::{as_called, Used, OF_SENSE, SAME_FORM, SENSE_ORDER};
 use super::{found, new_id, parse_ts, ts};
 use crate::agent::protocol::RelatedWord;
 use crate::books::practice::{Answer, Asked, SessionWord};
-use crate::books::sentences::inflected;
-use crate::books::vocab::called_in_form;
+use crate::books::vocab::{called_in_form, key};
 use crate::domain::{Direction, PartOfSpeech, SittingSummary, VerbForm, Ways};
 use crate::error::Result;
 
@@ -87,7 +86,14 @@ pub struct WordRow {
     /// the forms of the book. They are not forms: nothing marks or blanks
     /// them in the sentence.
     pub english: Vec<String>,
+    /// The synonyms the sentences of its sense added to what it means
+    /// (`db::senses::added`), in their base form: right, and listed as
+    /// accepted with the rest.
+    pub added: Vec<String>,
 }
+
+/// Translations a card asks with at most (`WordRow::listed`).
+pub const LISTED: usize = 4;
 
 /// One answer as it was given, and whether it has been disputed.
 #[derive(Debug, Clone, PartialEq)]
@@ -248,6 +254,50 @@ fn said_also(
     Ok(also)
 }
 
+/// A translation as a word has it: its text, whether a chapter was
+/// prepared with it, and what it is in the form the word is called by.
+type Said = (String, bool, Option<String>, Option<String>);
+
+/// What a word means, its own chapter's translations first: every
+/// translation of every word of its sense, each once, and then what the
+/// sentences of that sense added (`db::senses`). One a chapter said in the
+/// form the word is called by is in that form in every chapter that calls
+/// it by that form.
+fn meant(conn: &Connection, id: &str) -> Result<Vec<Said>> {
+    let mut stmt = conn.prepare(&format!(
+        "SELECT t.text, t.source = 'extraction',
+                CASE WHEN {SAME_FORM} THEN t.in_form END,
+                CASE WHEN {SAME_FORM} THEN t.in_form_also END
+         {OF_SENSE} {SENSE_ORDER}"
+    ))?;
+    let said = stmt
+        .query_map([id], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+        })?
+        .collect::<rusqlite::Result<Vec<Said>>>()?;
+    let mut rows: Vec<Said> = Vec::new();
+    for each in said {
+        let same = key(&each.0);
+        match rows.iter_mut().find(|held| key(&held.0) == same) {
+            Some(held) if held.2.is_none() && held.1 == each.1 => {
+                held.2 = each.2;
+                held.3 = each.3;
+            }
+            Some(_) => {}
+            None => rows.push(each),
+        }
+    }
+    if let Some(sense) = super::senses::of(conn, id)? {
+        for text in super::senses::added(conn, &sense)? {
+            let same = key(&text);
+            if !rows.iter().any(|held| key(&held.0) == same) {
+                rows.push((text, false, None, None));
+            }
+        }
+    }
+    Ok(rows)
+}
+
 pub fn word(conn: &Connection, id: &str) -> Result<WordRow> {
     let (chapter_id, lemma, forms, sentence, needs_context, (key, part_of_speech)): (
         String,
@@ -280,15 +330,7 @@ pub fn word(conn: &Connection, id: &str) -> Result<WordRow> {
         |row| Ok((row.get(0)?, row.get(1)?)),
     )?;
     let looked = Looked::load(conn, id)?;
-    let mut stmt = conn.prepare(
-        "SELECT text, source = 'extraction', in_form, in_form_also FROM word_translations
-         WHERE word_id = ?1 ORDER BY rowid",
-    )?;
-    let rows = stmt
-        .query_map([id], |row| {
-            Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
-        })?
-        .collect::<rusqlite::Result<Vec<(String, bool, Option<String>, Option<String>)>>>()?;
+    let rows = meant(conn, id)?;
     let also = said_also(&rows)?;
     let accepted: Vec<(String, bool, Option<String>)> = rows
         .into_iter()
@@ -337,6 +379,10 @@ pub fn word(conn: &Connection, id: &str) -> Result<WordRow> {
         in_form,
         also,
         english,
+        added: match super::senses::of(conn, id)? {
+            Some(sense) => super::senses::added(conn, &sense)?,
+            None => Vec::new(),
+        },
     })
 }
 
@@ -361,34 +407,36 @@ impl WordRow {
         said.unwrap_or(self.needs_context)
     }
 
+    /// The first of what it is shown as, at most [`LISTED`]: what a card
+    /// asks with, native → English. A sense many chapters added to means
+    /// more than is worth reading before answering; all of it is right,
+    /// and all of it is listed once the word is answered ([`Self::accepted`]).
+    pub fn listed(&self) -> &[String] {
+        let all = self.shown_as();
+        &all[..all.len().min(LISTED)]
+    }
+
+    /// Everything a card lists as accepted once it is answered: what the
+    /// word is shown as, all of it, and then the synonyms the sentences of
+    /// its sense added. What is taken for right is shown as right. A verb
+    /// shown in the form it is called by lists no synonym nobody said in
+    /// that form: it would read as another form of the word.
+    pub fn accepted(&self) -> Vec<String> {
+        let mut all = self.shown_as().to_vec();
+        if self.in_form.is_none() {
+            for each in &self.added {
+                if !all.iter().any(|held| key(held) == key(each)) {
+                    all.push(each.clone());
+                }
+            }
+        }
+        all
+    }
+
     /// What the word is shown as in the learner's language: in the form it
     /// is called by, once that was said, and in its base form until then.
     pub fn shown_as(&self) -> &[String] {
         self.in_form.as_deref().unwrap_or(&self.shown)
-    }
-
-    /// What a word is in the learner's language taken alone, in the form it
-    /// is called by: its base translations for a word called by its base
-    /// form, and those put in its form for a verb called by another ("se
-    /// congela" for "freezes"). What English → native asks for when its
-    /// sentence puts it in a mood, a tense or an agreement the word does
-    /// not show: "se congele" in "before she freezes", "tendría una
-    /// oportunidad" for "stand a chance" in "wouldn't stand a chance", a
-    /// "would" that is not the word's. None until a verb's translations
-    /// were put in its form, and for a noun, an adjective or any other word.
-    pub fn alone(&self) -> Option<&[String]> {
-        // A noun or an adjective takes the agreement its sentence gives it:
-        // that is what its English says too.
-        let said = matches!(
-            self.part_of_speech,
-            Some(PartOfSpeech::Verb | PartOfSpeech::PhrasalVerb | PartOfSpeech::Expression)
-        );
-        let alone = if self.called_in_form() {
-            self.in_form.as_deref()
-        } else {
-            Some(self.shown.as_slice())
-        };
-        alone.filter(|each| said && !each.is_empty())
     }
 
     /// Whether it is called by another form than its base form
@@ -400,12 +448,6 @@ impl WordRow {
             self.part_of_speech,
             self.verb_form,
         )
-    }
-
-    /// [`Self::alone`], for a sentence that has the word in this `form`:
-    /// none when it has it in another form than the one it is called by.
-    pub fn alone_in(&self, form: &str) -> Option<&[String]> {
-        self.alone().filter(|_| !inflected(form, &self.lemma))
     }
 }
 
@@ -458,21 +500,18 @@ pub fn settle(
         "UPDATE word_answers SET correct = 1 WHERE seq = ?1",
         [answer.seq],
     )?;
+    // Upheld beside a sentence or without one, it is right for the word:
+    // the sentence asked nothing, so the same card takes it from now on.
     let store = match answer.direction {
-        Direction::Recognition => Some(
+        Direction::Recognition => {
             "INSERT OR IGNORE INTO word_translations (word_id, text, source)
-             VALUES (?1, ?2, 'dispute')",
-        ),
-        // Upheld in a sentence of the bank, it fills that blank: another
-        // sentence has the word in another form, and it would not fit there.
-        Direction::Production if answer.sentence_id.is_some() => None,
+             VALUES (?1, ?2, 'dispute')"
+        }
         Direction::Production => {
-            Some("INSERT OR IGNORE INTO word_english (word_id, text) VALUES (?1, ?2)")
+            "INSERT OR IGNORE INTO word_english (word_id, text) VALUES (?1, ?2)"
         }
     };
-    if let Some(store) = store {
-        conn.execute(store, params![answer.word_id, answer.answer])?;
-    }
+    conn.execute(store, params![answer.word_id, answer.answer])?;
     sync_done(conn, &answer.word_id, now)
 }
 
@@ -496,14 +535,16 @@ fn answers(conn: &Connection, word_id: &str) -> Result<Vec<Answer>> {
     Ok(rows.collect::<rusqlite::Result<_>>()?)
 }
 
-/// A word the learner has not said they know (`db::words::set_known`).
-pub(crate) const NOT_KNOWN: &str = "w.key NOT IN (SELECT key FROM known_words)";
+/// A word `w` the learner has not said they know, in its sense
+/// (`db::known`).
+pub(crate) const NOT_KNOWN: &str =
+    "NOT EXISTS (SELECT 1 FROM known_words k WHERE k.sense_id = w.sense_id)";
 
 /// A chapter's words neither finished nor known, most frequent first; the
 /// chapter is `?1`.
 const OPEN_WORDS: &str = "SELECT w.id FROM chapter_words w
      WHERE w.chapter_id = ?1 AND w.done_at IS NULL
-       AND w.key NOT IN (SELECT key FROM known_words)
+       AND NOT EXISTS (SELECT 1 FROM known_words k WHERE k.sense_id = w.sense_id)
      ORDER BY w.occurrences DESC, w.key";
 
 /// The words `ids` selects for `key`, in its order, each with every answer
@@ -569,14 +610,14 @@ fn is_review(conn: &Connection, word_id: &str) -> Result<bool> {
 /// A chapter's open words in no order: a new one every time it is read.
 const SHUFFLED_WORDS: &str = "SELECT w.id FROM chapter_words w
      WHERE w.chapter_id = ?1 AND w.done_at IS NULL
-       AND w.key NOT IN (SELECT key FROM known_words)
+       AND NOT EXISTS (SELECT 1 FROM known_words k WHERE k.sense_id = w.sense_id)
      ORDER BY RANDOM()";
 
 /// Every word of a chapter the learner has not said they know, done or
 /// not, in no order: what an extra review draws from. The chapter is `?1`.
 const SHUFFLED_ALL: &str = "SELECT w.id FROM chapter_words w
      WHERE w.chapter_id = ?1
-       AND w.key NOT IN (SELECT key FROM known_words)
+       AND NOT EXISTS (SELECT 1 FROM known_words k WHERE k.sense_id = w.sense_id)
      ORDER BY RANDOM()";
 
 /// Fixes the words of a session just started: `size` of the chapter's open

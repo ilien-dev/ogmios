@@ -604,15 +604,13 @@ pub fn practise(
         .and_then(|mark| mark.word.as_ref())
         .ok_or_else(|| Error::Invalid("this mark has no word to practise".into()))?;
     let key = vocab::key(&word.english);
-    if let Some(id) = words::id_by_key(&tx, &attempt.chapter_id, &key)? {
-        words::set_known(&tx, &id, false, now)?;
-    } else {
+    if words::id_by_key(&tx, &attempt.chapter_id, &key)?.is_none() {
         let text = books::chapter_text(&tx, &attempt.chapter_id)?;
         words::add(
             &tx,
             &attempt.chapter_id,
             &Word {
-                key,
+                key: key.clone(),
                 lemma: word.english.clone(),
                 base: None,
                 verb_form: None,
@@ -626,6 +624,11 @@ pub fn practise(
             },
             now,
         )?;
+    }
+    // Asked for, it is a word to learn: in a sense the learner said they
+    // know, it is known no more.
+    if let Some(id) = words::id_by_key(&tx, &attempt.chapter_id, &key)? {
+        words::set_known(&tx, &id, false, now)?;
     }
     let after = translation(&tx, &attempt, &chapter)?;
     tx.commit()?;

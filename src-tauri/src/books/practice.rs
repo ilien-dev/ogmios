@@ -589,9 +589,9 @@ fn roots(text: &str, (lang, inflects): (&str, bool), spelling: Spelling) -> Vec<
 /// the learner's language: one of them as [`accepts`] reads it, with or
 /// without a leading form of "to be" ("apoyado" for "estar apoyado"), or,
 /// for a word that `inflects`, in another form of its words ("apoyado" for
-/// "apoyar"), or, for one that does not, in the other number ("rodamientos"
-/// for "rodamiento"). English → native asks what a word means, not which
-/// form its translation takes.
+/// "apoyar"), or in the other number ("rodamientos" for "rodamiento",
+/// "similares" for "similar", whose stem is not its plural's). English →
+/// native asks what a word means, not which form its translation takes.
 pub fn accepts_native(
     answer: &str,
     accepted: &[String],
@@ -609,8 +609,12 @@ pub fn accepts_native(
     !given.is_empty()
         && accepted.iter().any(|translation| {
             let said = roots(translation, native, spelling);
-            (said == given && normal(translation, articles(lang), Spelling::Lenient) != written)
+            let as_written = normal(translation, articles(lang), Spelling::Lenient);
+            (said == given && as_written != written)
                 || (!native.1 && apart_in_number(&given, &said, lang))
+                // A stem does not always meet its plural ("similar",
+                // "similares"): the other number is the same word still.
+                || (native.1 && apart_in_number(&written, &as_written, lang))
         })
 }
 
@@ -657,45 +661,6 @@ pub fn is_base(text: &str, base: &[String], native: (&str, bool), spelling: Spel
 /// accent a pronoun written onto it gives it or without.
 const GERUNDS: [(&str, &[&str]); 1] =
     [("es", &["ando", "iendo", "yendo", "ándo", "iéndo", "yéndo"])];
-
-/// A form of a verb that its ending tells in the learner's language.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Shape {
-    Infinitive,
-    Gerund,
-}
-
-/// Whether a word has one of these endings, with or without a reflexive
-/// pronoun written onto it.
-fn ends_with(word: &str, endings: &[&str], pronouns: &[&str]) -> bool {
-    let ends = |text: &str| endings.iter().any(|ending| text.ends_with(ending));
-    pronouns
-        .iter()
-        .filter_map(|pronoun| word.strip_suffix(pronoun))
-        .any(ends)
-        || ends(word)
-}
-
-/// The form of a verb an answer in the learner's language is in, when its
-/// ending tells: that of its first word, past a leading form of "to be".
-/// "predicando" and "estaba predicando" are a gerund, "predicar" an
-/// infinitive; "predicaba" is neither, and nothing is in a language without
-/// a table.
-pub fn shape(text: &str, lang: &str) -> Option<Shape> {
-    let words = normal(text, articles(lang), Spelling::Strict);
-    let lang = primary(lang);
-    let copulas = listed(&COPULAS, &lang);
-    let led = words.len() > 1 && copulas.contains(&plain(&words[0]).as_str());
-    let word = words.get(usize::from(led))?;
-    let pronouns = listed(&REFLEXIVES, &lang);
-    [
-        (Shape::Gerund, &GERUNDS[..]),
-        (Shape::Infinitive, &INFINITIVES[..]),
-    ]
-    .into_iter()
-    .find(|(_, table)| ends_with(word, listed(table, &lang), pronouns))
-    .map(|(shape, _)| shape)
-}
 
 /// Whether an answer to a verb asked on its own is in another form than the
 /// one asked for: the word is shown in its base form, and so is its
@@ -1756,26 +1721,6 @@ mod tests {
         // Only a word that inflects, in a language with a table.
         assert!(!is_base("salvarse", &base, ("es", false), lenient));
         assert!(!is_base("salvarse", &base, ("fr", true), lenient));
-    }
-
-    #[test]
-    fn the_ending_of_a_verb_tells_its_infinitive_and_its_gerund() {
-        let of = |text: &str| shape(text, "es-MX");
-        assert_eq!(of("Predicando"), Some(Shape::Gerund));
-        assert_eq!(of("haciendo proselitismo"), Some(Shape::Gerund));
-        assert_eq!(of("estaba predicando"), Some(Shape::Gerund));
-        assert_eq!(of("asomándose"), Some(Shape::Gerund));
-        assert_eq!(of("cayendo"), Some(Shape::Gerund));
-        assert_eq!(of("predicar"), Some(Shape::Infinitive));
-        assert_eq!(of("asomarse"), Some(Shape::Infinitive));
-        assert_eq!(of("reír"), Some(Shape::Infinitive));
-        // A form of "to be" alone is the whole answer.
-        assert_eq!(of("estar"), Some(Shape::Infinitive));
-        assert_eq!(of("estar apoyado"), None);
-        assert_eq!(of("predicaba"), None);
-        assert_eq!(of("predicó"), None);
-        assert_eq!(of(""), None);
-        assert_eq!(shape("prêchant", "fr"), None);
     }
 
     #[test]

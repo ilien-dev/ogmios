@@ -1,75 +1,27 @@
-//! How each word of a chapter is written, kept so that the words written
-//! alike are found with one look-up, in any chapter of any book: "spinning"
-//! in one chapter and "spinning in circles" in another are the same word to
-//! the learner: one heads the other. A word's *rivals* are those written alike that do not mean
-//! exactly the same: another kind of word, or other translations. A word
-//! with rivals is asked so that the learner can tell which one is meant,
-//! and it is the only kind of word the model writes sentences for.
+//! The words written alike, in any chapter of any book: those called the
+//! same, whose cards read the same. A word's *rivals* are those written
+//! alike that are of another sense (`db::senses`): another kind of word, or
+//! the same kind with nothing in common in what it means. A word with
+//! rivals is asked so that the learner can tell which one is meant, and
+//! one its tag cannot tell from a rival is the only kind of word the model
+//! writes sentences for.
 
-use rusqlite::{params, Connection};
+use rusqlite::Connection;
 
-use crate::books::vocab;
+use super::senses;
+
 use crate::domain::{PartOfSpeech, VerbForm};
 use crate::error::Result;
 
-/// The words of a form from its first one on, the whole of it first:
-/// "spinning in circles", "spinning in", "spinning". A word that heads
-/// another's form is written alike ("spinning", "spinning in circles"); one
-/// that only comes later in it is not ("circles").
-pub fn heads(words: &[String]) -> Vec<String> {
-    (1..=words.len())
-        .rev()
-        .map(|len| words[..len].join(" "))
-        .collect()
-}
-
-/// Writes down how the word `word_id` is written, anew.
-pub fn write(conn: &Connection, word_id: &str) -> Result<()> {
-    let (lemma, forms): (String, String) = conn.query_row(
-        "SELECT lemma, forms FROM chapter_words WHERE id = ?1",
-        [word_id],
-        |row| Ok((row.get(0)?, row.get(1)?)),
-    )?;
-    let mut written: Vec<String> = serde_json::from_str(&forms)?;
-    written.push(lemma);
-    conn.execute("DELETE FROM word_spellings WHERE word_id = ?1", [word_id])?;
-    let mut insert = conn.prepare(
-        "INSERT INTO word_spellings (word_id, text, whole) VALUES (?1, ?2, ?3)
-         ON CONFLICT (word_id, text) DO UPDATE SET whole = MAX(whole, excluded.whole)",
-    )?;
-    for form in written {
-        let words = vocab::tokens(&form);
-        for (at, run) in heads(&words).into_iter().enumerate() {
-            insert.execute(params![word_id, run, at == 0])?;
-        }
-    }
-    Ok(())
-}
-
-/// Writes down every word not written down yet; how many those were.
-pub fn fill(conn: &Connection) -> Result<usize> {
-    let mut stmt = conn.prepare(
-        "SELECT w.id FROM chapter_words w
-         WHERE NOT EXISTS (SELECT 1 FROM word_spellings s WHERE s.word_id = w.id)",
-    )?;
-    let missing = stmt
-        .query_map([], |row| row.get::<_, String>(0))?
-        .collect::<rusqlite::Result<Vec<_>>>()?;
-    for id in &missing {
-        write(conn, id)?;
-    }
-    Ok(missing.len())
-}
-
-/// The other words written alike: one heads the other's form. Any word
-/// not written down yet is written down first.
+/// The other words written alike: called the same, so that their cards
+/// read the same ("found", to found, and "found", the past of "find"). A
+/// word that only starts as another does, or shares a form with it, is
+/// another word, asked by what it is called: "boss" is not "boss fight",
+/// and "feet" is not "foot".
 pub fn alike(conn: &Connection, word_id: &str) -> Result<Vec<String>> {
-    fill(conn)?;
     let mut stmt = conn.prepare(
-        "SELECT DISTINCT b.word_id FROM word_spellings a
-         JOIN word_spellings b ON b.text = a.text AND b.word_id != a.word_id
-         WHERE a.word_id = ?1 AND (a.whole OR b.whole)
-         ORDER BY b.word_id",
+        "SELECT b.id FROM chapter_words a JOIN chapter_words b ON b.key = a.key AND b.id != a.id
+         WHERE a.id = ?1 ORDER BY b.id",
     )?;
     let rows = stmt.query_map([word_id], |row| row.get::<_, String>(0))?;
     Ok(rows.collect::<rusqlite::Result<_>>()?)
@@ -94,29 +46,14 @@ pub struct Rival {
     pub translations: Vec<String>,
 }
 
-/// A word as rivals are weighed: its kind and its translations, in small
-/// letters and in order.
-fn meant(conn: &Connection, word_id: &str) -> Result<(Option<PartOfSpeech>, Vec<String>)> {
-    let kind: Option<PartOfSpeech> = conn.query_row(
-        "SELECT part_of_speech FROM chapter_words WHERE id = ?1",
-        [word_id],
-        |row| row.get(0),
-    )?;
-    let mut stmt = conn.prepare("SELECT text FROM word_translations WHERE word_id = ?1")?;
-    let said = stmt
-        .query_map([word_id], |row| row.get::<_, String>(0))?
-        .collect::<rusqlite::Result<Vec<_>>>()?;
-    let mut said: Vec<String> = said.iter().map(|each| each.trim().to_lowercase()).collect();
-    said.sort();
-    said.dedup();
-    Ok((kind, said))
-}
-
-/// The words written alike to `word_id` that do not mean exactly the same:
-/// another kind of word, or other translations. In the order they were
-/// found in.
+/// The words written alike to `word_id` that are of another sense
+/// (`db::senses`): another kind of word, a verb in another form, or the
+/// same with nothing in common in what it means. One of each sense, the
+/// first that was found. Two lists that share a translation are one
+/// meaning, and no rivals.
 pub fn rivals(conn: &Connection, word_id: &str) -> Result<Vec<Rival>> {
-    let (kind, said) = meant(conn, word_id)?;
+    senses::fill(conn)?;
+    let own = senses::of(conn, word_id)?;
     let book: String = conn.query_row(
         "SELECT c.book_id FROM chapter_words w JOIN book_chapters c ON c.id = w.chapter_id
          WHERE w.id = ?1",
@@ -125,11 +62,17 @@ pub fn rivals(conn: &Connection, word_id: &str) -> Result<Vec<Rival>> {
     )?;
     let mut found = Vec::new();
     for id in alike(conn, word_id)? {
-        let (theirs, meaning) = meant(conn, &id)?;
-        let kinds = matches!((kind, theirs), (Some(mine), Some(other)) if mine != other);
-        if !kinds && meaning == said {
+        let Some(sense) = senses::of(conn, &id)? else {
+            continue;
+        };
+        if Some(&sense) == own.as_ref() {
             continue;
         }
+        let theirs: Option<PartOfSpeech> = conn.query_row(
+            "SELECT part_of_speech FROM chapter_words WHERE id = ?1",
+            [&id],
+            |row| row.get(0),
+        )?;
         let mut stmt = conn.prepare(
             "SELECT w.chapter_id, b.title, c.book_id, c.idx, c.title, w.created_at, w.verb_form
              FROM chapter_words w JOIN book_chapters c ON c.id = w.chapter_id
@@ -154,13 +97,9 @@ pub fn rivals(conn: &Connection, word_id: &str) -> Result<Vec<Rival>> {
                 row.get(6)?,
             ))
         })?;
-        let mut stmt =
-            conn.prepare("SELECT text FROM word_translations WHERE word_id = ?1 ORDER BY rowid")?;
-        let translations = stmt
-            .query_map([&id], |row| row.get::<_, String>(0))?
-            .collect::<rusqlite::Result<Vec<_>>>()?;
+        let translations = senses::glosses(conn, &sense)?;
         found.push((
-            created,
+            (created, sense),
             Rival {
                 word_id: id,
                 chapter_id,
@@ -175,22 +114,14 @@ pub fn rivals(conn: &Connection, word_id: &str) -> Result<Vec<Rival>> {
         ));
     }
     found.sort_by(|a, b| a.0.cmp(&b.0));
-    Ok(found.into_iter().map(|(_, rival)| rival).collect())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn words(text: &str) -> Vec<String> {
-        text.split(' ').map(str::to_owned).collect()
+    // One of each sense: the words of one sense mean the same.
+    let mut kept: Vec<Rival> = Vec::new();
+    let mut seen: Vec<String> = Vec::new();
+    for ((_, sense), rival) in found {
+        if !seen.contains(&sense) {
+            seen.push(sense);
+            kept.push(rival);
+        }
     }
-
-    #[test]
-    fn the_heads_of_a_form_are_its_words_from_the_first_the_whole_first() {
-        assert_eq!(
-            heads(&words("spinning in circles")),
-            ["spinning in circles", "spinning in", "spinning"]
-        );
-    }
+    Ok(kept)
 }
