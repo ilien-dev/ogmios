@@ -2211,6 +2211,90 @@ pub mod tests {
     }
 
     #[test]
+    fn an_expression_is_asked_as_it_is_called_whatever_person_its_sentences_have() {
+        use crate::books::sentences::Verdict;
+        use crate::books::spelling::Spelling;
+        use crate::commands::practice::{asked_with, by_word};
+        let dir = tempfile::tempdir().expect("tempdir");
+        let desk = Desk::new(&dir);
+        let own = "Exhausted, she shuffled to a stop beside the fountain.";
+        let expression = Word {
+            part_of_speech: Some(PartOfSpeech::Expression),
+            forms: vec!["shuffle to a stop".into(), "shuffled to a stop".into()],
+            sentence: own.into(),
+            ..word("shuffle to a stop", &["detenerse arrastrando los pies"], 1)
+        };
+        let chapter = chapter_of(&desk, own, &[expression]);
+        let conn = desk.db.lock().expect("db");
+        let said = [
+            (
+                own,
+                "se detuvo arrastrando los pies",
+                "Agotada, se detuvo arrastrando los pies junto a la fuente.",
+            ),
+            (
+                "When the music faded, the dancers shuffled to a stop.",
+                "detuvieron arrastrando los pies",
+                "Cuando la música se apagó, los bailarines se detuvieron arrastrando los pies.",
+            ),
+        ];
+        for (sentence, hint, translation) in said {
+            let new = NewSentence {
+                key: "shuffle to a stop",
+                chapter: Some(&chapter),
+                book: sentence == own,
+                sentence,
+                form: "shuffled to a stop",
+                hint,
+                translation,
+            };
+            bank::add(&conn, &new, Utc::now()).expect("add");
+        }
+        for waiting in bank::unreviewed(&conn).expect("waiting") {
+            bank::review(&conn, &waiting.id, true, &Labels::default()).expect("review");
+        }
+        let id = words::id_by_key(&conn, &chapter, "shuffle to a stop")
+            .expect("id")
+            .expect("word");
+        let held = bank::bank(&conn, "shuffle to a stop", Some(&chapter)).expect("bank");
+        assert_eq!(held.len(), 2);
+        let row = practice::word(&conn, &id).expect("word");
+        let there = Direction::Recognition;
+        let how = ("es", Spelling::Lenient);
+        let judged = |answer: &str| -> Vec<Verdict> {
+            held.iter()
+                .map(|each| {
+                    by_word(&conn, &row, Some(each), (there, answer), how)
+                        .expect("judged")
+                        .verdict
+                })
+                .collect()
+        };
+        for each in &held {
+            // The card shows the expression as it is called, in no person and
+            // no tense: nothing of the sentence drawn is on it.
+            let asked = asked_with(("w".into(), &row), each, there);
+            assert_eq!(asked.prompt, "shuffle to a stop");
+            let listed = by_word(&conn, &row, Some(each), (there, ""), how).expect("judged");
+            assert_eq!(listed.accepted, ["detenerse arrastrando los pies"]);
+            // How each sentence says it is only pointed out afterwards.
+            assert_eq!(listed.exact.as_deref(), Some(each.hint.as_str()));
+        }
+        // What the card asks for is right beside both sentences.
+        assert_eq!(
+            judged("detenerse arrastrando los pies"),
+            [Verdict::Right; 2]
+        );
+        // The person one sentence has is asked for beside neither: the same
+        // answer is never right once and wrong the next time.
+        let one = judged("se detuvo arrastrando los pies");
+        let many = judged("se detuvieron arrastrando los pies");
+        assert_eq!(one[0], one[1]);
+        assert_eq!(many[0], many[1]);
+        assert_eq!(one, many);
+    }
+
+    #[test]
     fn a_reflexive_pronoun_counts_for_nothing_towards_english() {
         use crate::books::spelling::Spelling;
         use crate::commands::practice::plain;
